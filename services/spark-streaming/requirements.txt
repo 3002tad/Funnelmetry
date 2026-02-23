@@ -1,0 +1,13 @@
+# ============================================================================
+# Python Dependencies for E-commerce Realtime Pipeline
+# ============================================================================
+
+# Producer Poller Dependencies
+kafka-python==2.0.2        # Kafka producer client
+requests==2.31.0           # HTTP client for API polling
+
+# Spark Dependencies
+pyspark==3.5.0             # Spark structured streaming
+
+# Database Dependencies (for testing/debugging)
+psycopg2-binary==2.9.9     # PostgreSQL adapter

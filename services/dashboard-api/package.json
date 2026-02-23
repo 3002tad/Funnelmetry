@@ -1,0 +1,16 @@
+{
+  "name": "dashboard-api",
+  "version": "1.0.0",
+  "description": "Backend API for Dashboard - queries PostgreSQL and checks system health",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "kafkajs": "^2.2.4",
+    "pg": "^8.11.3"
+  }
+}
