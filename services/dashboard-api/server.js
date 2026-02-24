@@ -110,15 +110,25 @@ app.get("/api/kpi", async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        COALESCE(SUM(revenue), 0)::float           AS "revenue",
-        COALESCE(SUM(orders_created), 0)::int      AS "ordersCreated",
-        COALESCE(SUM(payment_success), 0)::int     AS "paymentSuccess",
-        COALESCE(SUM(payment_failed), 0)::int      AS "paymentFailed",
+        COALESCE(SUM(revenue), 0)::float                                              AS "revenue",
+        -- Total events in window
+        COALESCE(SUM(orders_created + payment_initiated + payment_success
+                     + payment_failed + order_cancelled), 0)::int                     AS "totalEvents",
+        -- status=success: only payment_success
+        COALESCE(SUM(payment_success), 0)::int                                        AS "paymentSuccess",
+        -- status=pending: order_created + payment_initiated
+        COALESCE(SUM(orders_created + payment_initiated), 0)::int                     AS "pending",
+        -- status=failed: payment_failed + order_cancelled
+        COALESCE(SUM(payment_failed + order_cancelled), 0)::int                       AS "totalFailed",
+        -- successRate: success / (success + ALL failed)
         CASE
-          WHEN SUM(payment_success) + SUM(payment_failed) > 0
-          THEN ROUND(100.0 * SUM(payment_success) / (SUM(payment_success) + SUM(payment_failed)), 2)
+          WHEN SUM(payment_success) + SUM(payment_failed + order_cancelled) > 0
+          THEN ROUND(
+            100.0 * SUM(payment_success)
+                  / (SUM(payment_success) + SUM(payment_failed + order_cancelled)),
+            2)
           ELSE 0
-        END::float                                  AS "successRate"
+        END::float                                                                    AS "successRate"
       FROM kpi_1m
       WHERE window_start >= NOW() - INTERVAL '${interval}'
     `);
@@ -194,20 +204,21 @@ app.get("/api/events", async (req, res) => {
     );
     const total = countResult.rows[0].total;
 
-    // Status breakdown — use pre-aggregated kpi_1m (Spark output) instead of
-    // scanning events_clean. payment_success/payment_failed columns are event-type
-    // counts written by Spark; pending = total - success - failed.
+    // Status breakdown — derived entirely from kpi_1m to avoid timing mismatch
+    // with events_clean (Spark writes events_clean immediately but kpi_1m only
+    // after the window closes ~30s later). Using one consistent source ensures
+    // success + pending + failed always add up correctly.
     const statusResult = await pool.query(`
       SELECT
-        COALESCE(SUM(payment_success), 0)::int AS success,
-        COALESCE(SUM(payment_failed),  0)::int AS failed
+        COALESCE(SUM(payment_success), 0)::int                           AS success,
+        COALESCE(SUM(payment_failed) + SUM(order_cancelled), 0)::int     AS failed,
+        COALESCE(SUM(orders_created) + SUM(payment_initiated), 0)::int   AS pending
       FROM kpi_1m
     `);
-    const { success: scSuccess, failed: scFailed } = statusResult.rows[0];
     const statusCounts = {
-      success: scSuccess,
-      failed: scFailed,
-      pending: Math.max(0, total - scSuccess - scFailed),
+      success: statusResult.rows[0].success,
+      failed:  statusResult.rows[0].failed,
+      pending: statusResult.rows[0].pending,
     };
 
     const dataResult = await pool.query(

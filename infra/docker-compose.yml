@@ -110,7 +110,7 @@ services:
       API_URL: http://api-generator:7070/gen/event
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: events_raw
-      POLL_INTERVAL_MS: 500
+      POLL_INTERVAL_MS: 100
     networks:
       - realtime-network
     restart: unless-stopped

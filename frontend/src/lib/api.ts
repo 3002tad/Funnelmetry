@@ -9,11 +9,16 @@ export type ServiceStatus = 'healthy' | 'degraded' | 'down';
 export type AlertSeverity = 'critical' | 'warning' | 'info';
 
 // Dashboard KPI
+// Status mapping:
+//   success  = paymentSuccess
+//   pending  = orders_created + payment_initiated
+//   failed   = totalFailed (payment_failed + order_cancelled)
 export interface BusinessKPI {
   revenue: number;
-  ordersCreated: number;
+  totalEvents: number;
   paymentSuccess: number;
-  paymentFailed: number;
+  pending: number;
+  totalFailed: number;
   successRate: number;
 }
 

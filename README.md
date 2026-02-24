@@ -8,16 +8,20 @@
 
 | Hạng mục | Trước | Sau |
 |----------|-------|-----|
-| Container status | `dashboard-api` build fail; `frontend` + `generator-ui` unhealthy | Tất cả 9 containers **healthy** |
+| Container status | `dashboard-api` build fail; `frontend` + `generator-ui` unhealthy | Tất cả 8 containers **healthy** |
 | Dashboard data | Hiển thị mock data cứng (MockDataGenerator) | Live data từ PostgreSQL |
-| Pipeline Spark | Bị stuck ở 14 events, không cập nhật | Đang ghi liên tục, 3200+ events |
+| Pipeline Spark | Bị stuck ở 14 events, không cập nhật | Đang ghi liên tục |
 | Spark kpi_1m | Lỗi duplicate key, job crash | Upsert thành công với `ON CONFLICT DO UPDATE` |
 | Generator UI event log | Luôn hiển thị 0 events | Poll live data từ dashboard-api mỗi 3s |
-| Generator UI statistics | Success/Pending/Failed chỉ đếm 50 rows page hiện tại | Lấy từ `kpi_1m` — toàn bộ DB |
-| Total Events count | Bị cap ở 50 (page size) | Số thực từ `COUNT(*)` PostgreSQL |
+| Generator UI statistics | Chỉ đếm 50 rows page hiện tại | Từ `kpi_1m` — toàn bộ DB, nhất quán theo status |
+| Total Events count | Bị cap ở 50 (page size) | Số thực từ `kpi_1m` SUM |
 | Batch Emit / Auto Emit | Không hoạt động | Hoạt động qua event queue |
-| Success Rate dashboard | Có thể > 100% (chia cho `orders_created`) | Luôn ≤ 100% (chia cho `success + failed`) |
+| Success Rate dashboard | Có thể > 100% (chia cho `orders_created`) | Luôn ≤ 100% (chia cho `success + totalFailed`) |
 | Nginx frontend proxy | 502 Bad Gateway khi `dashboard-api` được recreate | Tự re-resolve DNS qua Docker resolver |
+| End-to-end latency | ~60-90 giây | ~10-15 giây |
+| Kafka topic tự tạo | Phụ thuộc `kafka-init` container riêng | `kafka.allow.auto.create.topics=true` trên Spark |
+| `order_cancelled` statistics | Bị tính nhầm vào `pending` | Được Spark aggregate vào `order_cancelled` cột |
+| Dashboard KPI cards | `Orders Created`, `Payment Failed` (thiếu ngữ nghĩa) | `Total Events`, `Pending`, `Failed` (đúng status) |
 
 ---
 
@@ -395,22 +399,195 @@ location /api/ {
 | File | Thay đổi |
 |------|----------|
 | `services/dashboard-api/Dockerfile` | `npm ci` → `npm install --omit=dev` |
-| `services/dashboard-api/server.js` | statusCounts dùng `kpi_1m`; success rate formula fix; thêm field `statusCounts` vào `/api/events` response |
-| `services/generator-api/server.js` | Event queue architecture; `GET /gen/event` trả 204 khi rỗng; `POST /gen/emit-batch`; xóa kafkajs |
+| `services/dashboard-api/server.js` | statusCounts từ `kpi_1m`; `/api/kpi` redesign (`totalEvents`, `pending`, `totalFailed`); success rate formula fix |
+| `services/generator-api/server.js` | Event queue architecture; `GET /gen/event` trả 204 khi rỗng; xóa kafkajs |
 | `services/generator-api/package.json` | Xóa dependency `kafkajs` |
-| `services/generator-api/Dockerfile` | `npm install --omit=dev` |
-| `services/producer-poller/producer.py` | Xử lý HTTP 204 → idle (không crash, không generate random) |
-| `services/spark-streaming/spark_stream.py` | `upsert_kpi_to_postgres()` dùng psycopg2 + `ON CONFLICT DO UPDATE`; thêm `POSTGRES_HOST/PORT/DB` vars |
-| `frontend/Dockerfile` | Healthcheck dùng `127.0.0.1` thay `localhost` |
-| `frontend/nginx.conf` | `resolver 127.0.0.11 valid=5s`; `set $dashboard_api` để re-resolve DNS động |
-| `frontend/src/lib/api.ts` | Export `USE_MOCK`; mock banner conditional |
-| `generator-ui/Dockerfile` | Healthcheck dùng `127.0.0.1` thay `localhost` |
-| `generator-ui/src/services/generatorApi.ts` | `getLiveEvents()` trả `{ events, total, statusCounts }`; thêm `emitEvent()`, `emitBatch()` |
-| `generator-ui/src/App.tsx` | `totalEvents` state riêng; `statusCounts` state từ DB; poll live data mỗi 3s |
-| `generator-ui/src/components/EventLogTable.tsx` | Thêm prop `totalEvents`; header hiển thị `showing N of X` |
-| `generator-ui/src/components/AutoEmit.tsx` | Dùng `emitEvent({})` → POST queue (không gọi `getEvent()`) |
-| `generator-ui/src/components/BatchEmit.tsx` | Dùng `emitBatch(count)` → POST queue (không gọi `getEvents()`) |
-| `infra/docker-compose.yml` | `api-generator` bỏ `depends_on: kafka`; bỏ `KAFKA_BROKER` env var |
+| `services/producer-poller/producer.py` | 204 → idle; poll 100ms; Kafka async `acks=1 linger_ms=5`; log spam fix |
+| `services/spark-streaming/spark_stream.py` | `upsert_kpi_to_postgres()` ON CONFLICT; watermark 30s; trigger 5s; `kafka.allow.auto.create.topics=true`; thêm `order_cancelled`, `payment_initiated` columns |
+| `infra/postgres/init.sql` | `kpi_1m` thêm cột `order_cancelled`, `payment_initiated` |
+| `infra/docker-compose.yml` | Xóa `kafka-init` service; `spark-streaming` depends_on đơn giản hóa |
+| `frontend/Dockerfile` | Healthcheck dùng `127.0.0.1` |
+| `frontend/nginx.conf` | `resolver 127.0.0.11 valid=5s`; DNS re-resolve động |
+| `frontend/src/lib/api.ts` | `BusinessKPI` interface: `totalEvents`, `pending`, `totalFailed` |
+| `frontend/src/features/dashboard/Dashboard.tsx` | KPI cards: Total Events, Pending, Failed; refetchInterval 5s |
+| `generator-ui/Dockerfile` | Healthcheck dùng `127.0.0.1` |
+| `generator-ui/src/services/generatorApi.ts` | `getLiveEvents()` trả `{ events, total, statusCounts }` |
+| `generator-ui/src/App.tsx` | `totalEvents` + `statusCounts` state từ DB; poll 3s |
+
+---
+
+### 13. Latency Optimization — giảm end-to-end latency
+
+**Files:** `services/producer-poller/producer.py`, `services/spark-streaming/spark_stream.py`, `frontend/src/features/dashboard/Dashboard.tsx`
+
+**Vấn đề:** Pipeline có latency cao từ lúc emit đến lúc hiển thị trên dashboard (~60-90 giây).
+
+**Fix đồng thời ở 3 tầng:**
+
+```python
+# producer.py — poll nhanh hơn, Kafka async
+POLL_INTERVAL_MS = 100          # 500ms → 100ms
+producer = KafkaProducer(
+    acks=1,                     # acks='all' → acks=1 (không blocking)
+    linger_ms=5,
+    compression_type='gzip',
+)
+producer.send(topic, value=msg) # fire-and-forget (không gọi .get())
+
+# Log spam fix: chỉ log khi thực sự có events
+if total_pulled > 0 and total_pulled % 20 == 0:
+    print(f"Stats: ...")
+```
+
+```python
+# spark_stream.py — watermark ngắn hơn, trigger rõ ràng
+cleaned_df = df.withWatermark('event_time', '30 seconds')  # 5 minutes → 30s
+
+kpi_query = kpi_stream.writeStream \
+    .trigger(processingTime='5 seconds') \   # thêm trigger rõ ràng
+    ...
+
+events_query = clean_stream.writeStream \
+    .trigger(processingTime='5 seconds') \
+    ...
+
+# Bỏ batch_df.count() trước khi write (double scan)
+rows = batch_df.collect()  # collect() trả [] nếu rỗng, không cần count
+```
+
+```typescript
+// Dashboard.tsx — refresh KPI nhanh hơn
+refetchInterval: autoRefresh ? 5000 : false   // 10000 → 5000ms
+```
+
+---
+
+### 14. Bỏ `kafka-init` service — Spark tự tạo topic
+
+**Files:** `infra/docker-compose.yml`, `services/spark-streaming/spark_stream.py`
+
+**Vấn đề:** Khi start lần đầu không có data, topic `events_raw` chưa tồn tại trên Kafka. Spark subscribe ngay lúc boot → `UnknownTopicOrPartitionException` → container crash.
+
+Trước đó dùng `kafka-init` (một-shot container dùng `kafka-topics.sh`) để tạo topic trước khi Spark khởi động — nhưng tạo thêm dependency phức tạp và không cần thiết.
+
+**Fix:**
+```python
+# spark_stream.py — thêm option cho Kafka consumer client
+raw_stream = spark.readStream \
+    .format('kafka') \
+    .option('kafka.bootstrap.servers', KAFKA_BOOTSTRAP_SERVERS) \
+    .option('subscribe', KAFKA_TOPIC) \
+    .option('startingOffsets', 'latest') \
+    .option('failOnDataLoss', 'false') \
+    .option('kafka.allow.auto.create.topics', 'true') \   # <-- thêm
+    .load()
+```
+
+```yaml
+# docker-compose.yml — xóa toàn bộ kafka-init service
+# kafka broker đã có:  KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+spark-streaming:
+  depends_on:
+    kafka:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+    # kafka-init đã bị xóa
+```
+
+**Kết quả:** Stack khởi động sạch, Spark ở trạng thái idle (không có data, không crash). User điều khiển data hoàn toàn qua Generator UI.
+
+---
+
+### 15. Fix `kpi_1m` schema — thêm `order_cancelled` và `payment_initiated`
+
+**Files:** `infra/postgres/init.sql`, `services/spark-streaming/spark_stream.py`, `services/dashboard-api/server.js`
+
+**Vấn đề:** `kpi_1m` chỉ có cột `payment_failed`. Event type `order_cancelled` (cũng có `status='failed'`) không được Spark aggregate vào đây → bị "mất" khỏi statistics. Tương tự `payment_initiated` (status=`pending`) không được track riêng.
+
+**Fix — schema:**
+```sql
+-- init.sql
+ALTER TABLE kpi_1m ADD COLUMN order_cancelled  INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE kpi_1m ADD COLUMN payment_initiated INTEGER NOT NULL DEFAULT 0;
+```
+
+**Fix — Spark aggregation:**
+```python
+kpi_df = df.groupBy(window(...)).agg(
+    _sum(when(col('event_type') == 'order_created',     1).otherwise(0)).alias('orders_created'),
+    _sum(when(col('event_type') == 'payment_initiated', 1).otherwise(0)).alias('payment_initiated'),  # thêm
+    _sum(when(col('event_type') == 'payment_success',   1).otherwise(0)).alias('payment_success'),
+    _sum(when(col('event_type') == 'payment_failed',    1).otherwise(0)).alias('payment_failed'),
+    _sum(when(col('event_type') == 'order_cancelled',   1).otherwise(0)).alias('order_cancelled'),    # thêm
+)
+```
+
+---
+
+### 16. Fix status counts — timing mismatch giữa `events_clean` và `kpi_1m`
+
+**File:** `services/dashboard-api/server.js`
+
+**Vấn đề:** `statusCounts` trong `/api/events` tính `pending = total_events - success - failed`, trong đó:
+- `total` lấy từ `COUNT(*) events_clean` — cập nhật ngay mỗi batch Spark (~5s)
+- `success/failed` lấy từ `SUM kpi_1m` — chỉ cập nhật sau khi window đóng (watermark 30s)
+
+→ Trong khoảng ~35 giây, `total` đã tăng nhưng `success/failed` chưa cập nhật → `pending` bị inflate.
+
+**Fix:** Tính tất cả ba giá trị từ cùng một nguồn `kpi_1m`:
+```javascript
+// Trước: pending = total(events_clean) - success(kpi_1m) - failed(kpi_1m)  ← sai
+// Sau: tất cả từ kpi_1m
+SELECT
+  COALESCE(SUM(payment_success), 0)::int                         AS success,
+  COALESCE(SUM(payment_failed) + SUM(order_cancelled), 0)::int   AS failed,
+  COALESCE(SUM(orders_created) + SUM(payment_initiated), 0)::int AS pending
+FROM kpi_1m
+```
+
+**Kết quả:** `success + pending + failed` luôn bằng `totalEvents` từ `kpi_1m`.
+
+---
+
+### 17. Redesign `/api/kpi` — căn chỉnh theo status semantics
+
+**Files:** `services/dashboard-api/server.js`, `frontend/src/lib/api.ts`, `frontend/src/features/dashboard/Dashboard.tsx`
+
+**Vấn đề:** Dashboard trái hiển thị `Orders Created` (chỉ `order_created` event type) và `Payment Failed` (chỉ `payment_failed` event type) — không khớp với khái niệm status thực. User nhìn thấy số khác với Generator UI Statistics.
+
+**Mapping đúng:**
+
+| event_type | status | kpi_1m column | Dashboard card (trước) | Dashboard card (sau) |
+|---|---|---|---|---|
+| `order_created` | `pending` | `orders_created` | Orders Created | ❌ bị gộp |
+| `payment_initiated` | `pending` | `payment_initiated` | ❌ không hiện | ❌ bị gộp |
+| `payment_success` | `success` | `payment_success` | Payment Success ✓ | Payment Success ✓ |
+| `payment_failed` | `failed` | `payment_failed` | Payment Failed (thiếu order_cancelled) | ❌ bị gộp |
+| `order_cancelled` | `failed` | `order_cancelled` | ❌ không hiện | ❌ bị gộp |
+
+**Fix — `/api/kpi` response fields:**
+```javascript
+// Trước
+{ revenue, ordersCreated, paymentSuccess, paymentFailed, successRate }
+
+// Sau — căn chỉnh theo status
+{
+  revenue,
+  totalEvents,      // tổng 5 loại event
+  paymentSuccess,   // status=success
+  pending,          // status=pending: orders_created + payment_initiated
+  totalFailed,      // status=failed:  payment_failed  + order_cancelled
+  successRate       // success / (success + totalFailed) — denominator đúng
+}
+```
+
+**Fix — Dashboard KPI cards:**
+- Bỏ "Orders Created" → thêm **"Total Events"**
+- Bỏ "Payment Failed" → thêm **"Failed"** (gộp `payment_failed + order_cancelled`)
+- Thêm **"Pending"** (gộp `order_created + payment_initiated`)
+
+**Kết quả:** Dashboard trái và Generator UI Statistics hiển thị số liệu nhất quán.
 
 ---
 

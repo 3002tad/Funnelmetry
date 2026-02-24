@@ -123,7 +123,7 @@ def clean_and_deduplicate(df):
                    when(col('event_time').isNull(), 
                         to_timestamp(col('eventTime'))).otherwise(col('event_time'))) \
         .withColumn('ingest_time', current_timestamp()) \
-        .withWatermark('event_time', '5 minutes') \
+        .withWatermark('event_time', '30 seconds') \
         .dropDuplicates(['id']) \
         .select(
             col('id'),
@@ -161,16 +161,20 @@ def calculate_kpis(df):
             
             # Count by event type
             _sum(when(col('event_type') == 'order_created', 1).otherwise(0)).alias('orders_created'),
+            _sum(when(col('event_type') == 'payment_initiated', 1).otherwise(0)).alias('payment_initiated'),
             _sum(when(col('event_type') == 'payment_success', 1).otherwise(0)).alias('payment_success'),
-            _sum(when(col('event_type') == 'payment_failed', 1).otherwise(0)).alias('payment_failed')
+            _sum(when(col('event_type') == 'payment_failed', 1).otherwise(0)).alias('payment_failed'),
+            _sum(when(col('event_type') == 'order_cancelled', 1).otherwise(0)).alias('order_cancelled')
         ) \
         .select(
             col('window.start').alias('window_start'),
             col('window.end').alias('window_end'),
             col('revenue'),
             col('orders_created'),
+            col('payment_initiated'),
             col('payment_success'),
             col('payment_failed'),
+            col('order_cancelled'),
             # Calculate success rate
             _round(
                 when(
@@ -193,10 +197,7 @@ def write_to_postgres(batch_df, batch_id, table_name):
     Write batch DataFrame to PostgreSQL using foreachBatch
     Uses JDBC connection (append mode — for tables without PK conflicts)
     """
-    if batch_df.count() == 0:
-        print(f'⚠️  Batch {batch_id} is empty, skipping write to {table_name}')
-        return
-    
+    # NOTE: avoid batch_df.count() here — it forces a full extra Spark scan before writing
     try:
         batch_df.write \
             .format('jdbc') \
@@ -208,7 +209,7 @@ def write_to_postgres(batch_df, batch_id, table_name):
             .mode('append') \
             .save()
         
-        print(f'✅ Batch {batch_id}: Wrote {batch_df.count()} rows to {table_name}')
+        print(f'✅ Batch {batch_id}: Wrote rows to {table_name}')
     except Exception as e:
         print(f'❌ Batch {batch_id}: Error writing to {table_name}: {str(e)}')
         raise
@@ -221,11 +222,11 @@ def upsert_kpi_to_postgres(batch_df, batch_id):
     """
     import psycopg2
 
-    if batch_df.count() == 0:
+    # NOTE: avoid batch_df.count() — collect() returns [] if empty, no need for separate count scan
+    rows = batch_df.collect()
+    if not rows:
         print(f'⚠️  Batch {batch_id} is empty, skipping KPI upsert')
         return
-
-    rows = batch_df.collect()
 
     try:
         conn = psycopg2.connect(
@@ -239,17 +240,19 @@ def upsert_kpi_to_postgres(batch_df, batch_id):
 
         upsert_sql = """
             INSERT INTO kpi_1m
-                (window_start, window_end, revenue, orders_created,
-                 payment_success, payment_failed, success_rate, processed_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                (window_start, window_end, revenue, orders_created, payment_initiated,
+                 payment_success, payment_failed, order_cancelled, success_rate, processed_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             ON CONFLICT (window_start) DO UPDATE SET
-                window_end       = EXCLUDED.window_end,
-                revenue          = EXCLUDED.revenue,
-                orders_created   = EXCLUDED.orders_created,
-                payment_success  = EXCLUDED.payment_success,
-                payment_failed   = EXCLUDED.payment_failed,
-                success_rate     = EXCLUDED.success_rate,
-                processed_at     = NOW()
+                window_end        = EXCLUDED.window_end,
+                revenue           = EXCLUDED.revenue,
+                orders_created    = EXCLUDED.orders_created,
+                payment_initiated = EXCLUDED.payment_initiated,
+                payment_success   = EXCLUDED.payment_success,
+                payment_failed    = EXCLUDED.payment_failed,
+                order_cancelled   = EXCLUDED.order_cancelled,
+                success_rate      = EXCLUDED.success_rate,
+                processed_at      = NOW()
         """
 
         data = [
@@ -258,8 +261,10 @@ def upsert_kpi_to_postgres(batch_df, batch_id):
                 row['window_end'],
                 float(row['revenue']),
                 int(row['orders_created']),
+                int(row['payment_initiated']),
                 int(row['payment_success']),
                 int(row['payment_failed']),
+                int(row['order_cancelled']),
                 float(row['success_rate']),
             )
             for row in rows
@@ -301,6 +306,7 @@ def main():
         .option('subscribe', KAFKA_TOPIC) \
         .option('startingOffsets', 'latest') \
         .option('failOnDataLoss', 'false') \
+        .option('kafka.allow.auto.create.topics', 'true') \
         .load()
     
     # UC03: Parse and validate
@@ -322,6 +328,7 @@ def main():
     events_query = clean_events.writeStream \
         .foreachBatch(lambda batch_df, batch_id: write_to_postgres(batch_df, batch_id, 'events_clean')) \
         .outputMode('append') \
+        .trigger(processingTime='5 seconds') \
         .option('checkpointLocation', f'{CHECKPOINT_DIR}/events_clean') \
         .start()
     
@@ -329,6 +336,7 @@ def main():
     kpi_query = kpis.writeStream \
         .foreachBatch(upsert_kpi_to_postgres) \
         .outputMode('update') \
+        .trigger(processingTime='5 seconds') \
         .option('checkpointLocation', f'{CHECKPOINT_DIR}/kpi_1m') \
         .start()
     

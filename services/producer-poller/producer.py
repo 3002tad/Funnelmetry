@@ -33,7 +33,7 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', 'events_raw')
 
 # Polling Configuration
-POLL_INTERVAL_MS = int(os.getenv('POLL_INTERVAL_MS', '500'))  # 500ms = 2 events/sec
+POLL_INTERVAL_MS = int(os.getenv('POLL_INTERVAL_MS', '100'))  # 100ms = up to 10 events/sec
 MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
 RETRY_DELAY_SEC = int(os.getenv('RETRY_DELAY_SEC', '2'))
 
@@ -61,9 +61,10 @@ def create_kafka_producer() -> Optional[KafkaProducer]:
             bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
             value_serializer=lambda v: json.dumps(v).encode('utf-8'),
             key_serializer=lambda k: k.encode('utf-8') if k else None,
-            acks='all',  # Wait for all replicas
+            acks=1,          # Leader ack only — faster than acks='all' (we have 1 broker)
             retries=3,
-            max_in_flight_requests_per_connection=1  # Ensure ordering
+            linger_ms=5,     # Micro-batch up to 5ms for throughput
+            compression_type='gzip',
         )
         logger.info(f"✅ Connected to Kafka: {KAFKA_BOOTSTRAP_SERVERS}")
         return producer
@@ -154,17 +155,19 @@ def produce_to_kafka(producer: KafkaProducer, event: Dict[str, Any]) -> bool:
         # Use orderId as message key for partitioning
         key = event.get('orderId', '')
         
-        # Send to Kafka
-        future = producer.send(KAFKA_TOPIC, key=key, value=event)
-        
-        # Wait for acknowledgment (with timeout)
-        record_metadata = future.get(timeout=10)
-        
-        logger.info(
-            f"📤 Produced to Kafka: topic={record_metadata.topic} | "
-            f"partition={record_metadata.partition} | offset={record_metadata.offset} | "
-            f"eventType={event.get('eventType')} | orderId={event.get('orderId')}"
-        )
+        # Send to Kafka — async fire-and-forget with callback (non-blocking)
+        def on_send_success(record_metadata):
+            logger.debug(
+                f"📤 Kafka ack: partition={record_metadata.partition} "
+                f"offset={record_metadata.offset} type={event.get('eventType')}"
+            )
+
+        def on_send_error(exc):
+            logger.error(f"❌ Kafka send error: {exc}")
+
+        producer.send(KAFKA_TOPIC, key=key, value=event) \
+            .add_callback(on_send_success) \
+            .add_errback(on_send_error)
         return True
         
     except KafkaError as e:
@@ -224,8 +227,8 @@ def main():
             else:
                 logger.debug("⏸️  Queue empty, waiting for UI events...")
             
-            # Log statistics every 20 events
-            if (total_pulled + total_failed) % 20 == 0:
+            # Log statistics every 20 produced events (skip when idle)
+            if total_pulled > 0 and total_pulled % 20 == 0:
                 logger.info(
                     f"📊 Stats: Pulled={total_pulled} | Produced={total_produced} | Failed={total_failed}"
                 )

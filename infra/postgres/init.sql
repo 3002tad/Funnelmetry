@@ -52,8 +52,10 @@ CREATE TABLE kpi_1m (
     window_end TIMESTAMP NOT NULL,
     revenue DECIMAL(18, 2) NOT NULL DEFAULT 0,
     orders_created INTEGER NOT NULL DEFAULT 0,
+    payment_initiated INTEGER NOT NULL DEFAULT 0,
     payment_success INTEGER NOT NULL DEFAULT 0,
     payment_failed INTEGER NOT NULL DEFAULT 0,
+    order_cancelled INTEGER NOT NULL DEFAULT 0,
     success_rate DECIMAL(5, 2) DEFAULT 0,
     
     -- Metadata
