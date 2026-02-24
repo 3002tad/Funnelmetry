@@ -68,7 +68,7 @@ Hệ thống xử lý và phân tích dữ liệu **realtime** cho nền tảng 
 **Pipeline Flow:**
 
 1. **Event Generator** → REST API tạo events với distribution 30-25-35-8-2%
-2. **Producer Poller** → Poll API mỗi 500ms và push vào Kafka
+2. **Producer Poller** → Poll API mỗi 100ms và push vào Kafka
 3. **Kafka Broker** → Message queue (topic: `events_raw`)
 4. **Spark Streaming** → Real-time processing (validate, clean, aggregate)
 5. **PostgreSQL** → Persist events và KPI tables
@@ -110,7 +110,7 @@ git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
 cd YOUR_REPO
 
 # Start tất cả (1 lệnh)
-docker-start.bat
+cd infra && docker-compose up -d --build
 
 # Chờ 60s, sau đó truy cập:
 # - Generator UI: http://localhost:5174
@@ -118,7 +118,7 @@ docker-start.bat
 # - API:          http://localhost:7070
 ```
 
-**📚 Hướng dẫn chi tiết:** [docs/QUICKSTART.md](docs/QUICKSTART.md)
+**📚 Lệnh đầy đủ:** [docs/COMMANDS.md](COMMANDS.md)
 
 ---
 
@@ -140,13 +140,11 @@ ecommerce-realtime-pipeline/
 │   └── postgres/init.sql       # Database schema
 │
 ├── docs/
-│   ├── QUICKSTART.md           # Setup trong 5 phút
-│   ├── DOCKER_SETUP.md         # Docker chi tiết
+│   ├── INTRODUCTION.md         # 👈 BẠN ĐANG ĐỌC
+│   ├── COMMANDS.md             # Tất cả Docker commands
 │   └── ARCHITECTURE.md         # System design
 │
-├── docker-start.bat            # 🚀 Start script
-├── docker-stop.bat             # 🛑 Stop script
-└── README.md                   # 👈 BẠN ĐANG ĐỌC
+└── README.md                   # Lịch sử thay đổi & bug fixes
 ```
 
 ---
@@ -200,9 +198,8 @@ docker exec -it postgres psql -U app -d realtime -c \
 
 ## 📚 Documentation
 
-- **[QUICKSTART.md](docs/QUICKSTART.md)** ⚡ - Setup trong 5 phút
-- **[DOCKER_SETUP.md](docs/DOCKER_SETUP.md)** 🐳 - Docker guide đầy đủ
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** 🏗️ - System architecture & design
+- **[COMMANDS.md](COMMANDS.md)** 🛠️ - Tất cả Docker commands
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** 🏗️ - System architecture & design
 
 ---
 
@@ -224,7 +221,7 @@ docker-compose down -v   # Delete all data
 docker-compose up -d --build
 ```
 
-**👉 Chi tiết:** [docs/QUICKSTART.md#troubleshooting](docs/QUICKSTART.md#troubleshooting)
+**👉 Chi tiết:** [COMMANDS.md](COMMANDS.md)
 
 ---
 

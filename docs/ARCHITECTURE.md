@@ -34,7 +34,7 @@ Tài liệu giải thích chi tiết kiến trúc, luồng dữ liệu, và các
 
 ### 1️⃣ Event Generation
 
-**Component**: `backend/generator.py`
+**Components**: `services/generator-api/server.js` (Node.js) + `services/producer-poller/producer.py` (Python)
 
 ```python
 Event {
@@ -49,11 +49,13 @@ Event {
 }
 ```
 
-**Đặc điểm**:
-- Weighted random distribution (70% success, 20% pending, 10% failed)
-- Configurable rate (mặc định 5 events/sec)
+**Luồng tạo event (Event Queue Architecture):**
+- **Generator UI** → `POST /gen/emit` → `generator-api` đẩy vào in-memory `eventQueue[]`
+- **producer-poller** → `GET /gen/event` mỗi 100ms → lấy từ queue, produce vào Kafka
+- Khi queue rỗng: `GET /gen/event` trả 204, poller idle (không generate ngẫu nhiên)
+- Weighted random distribution: `order_created` 30%, `payment_initiated` 25%, `payment_success` 35%, `payment_failed` 8%, `order_cancelled` 2%
 - 1% invalid events để test validation
-- Kafka producer với `acks=all` đảm bảo delivery
+- Kafka producer: `acks=1`, `linger_ms=5`, `compression_type=gzip` (tối ưu latency)
 
 ---
 
@@ -67,9 +69,9 @@ Event {
 
 **Kafka Configuration**:
 ```yaml
-bootstrap.servers: localhost:9092
+bootstrap.servers: kafka:9092
 listener: PLAINTEXT
-auto.create.topics: true
+auto.create.topics: true   # Spark tự tạo topic khi subscribe
 ```
 
 ---
@@ -112,14 +114,14 @@ Valid Events
 Event with timestamp
     ↓ current_timestamp()
 Add ingest_time
-    ↓ withWatermark('event_time', '5 minutes')
+    ↓ withWatermark('event_time', '30 seconds')
 Late data handling
     ↓ dropDuplicates(['id'])
 Deduplicated Events → events_clean
 ```
 
 **Watermarking**:
-- Events muộn hơn 5 phút sẽ bị drop
+- Events muộn hơn 30 giây sẽ bị drop (giảm từ 5 phút để tối ưu latency)
 - Đảm bảo consistency trong window aggregation
 
 #### UC05 - Calculate KPIs
@@ -130,14 +132,21 @@ Clean Events
 Windowed Stream
     ↓ groupBy + agg
 KPI Calculations:
-  - revenue = SUM(amount) WHERE event_type = 'payment_success'
-  - orders_created = COUNT WHERE event_type = 'order_created'
-  - payment_success = COUNT WHERE event_type = 'payment_success'
-  - payment_failed = COUNT WHERE event_type = 'payment_failed'
-  - success_rate = (payment_success / total_payments) * 100
+  - revenue          = SUM(amount)  WHERE event_type = 'payment_success'
+  - orders_created   = COUNT        WHERE event_type = 'order_created'
+  - payment_initiated= COUNT        WHERE event_type = 'payment_initiated'
+  - payment_success  = COUNT        WHERE event_type = 'payment_success'
+  - payment_failed   = COUNT        WHERE event_type = 'payment_failed'
+  - order_cancelled  = COUNT        WHERE event_type = 'order_cancelled'
+  - success_rate     = payment_success / (payment_success + payment_failed) * 100
     ↓
 KPI Windows (1 minute) → kpi_1m
 ```
+
+**Status semantics cho Dashboard:**
+- `success` = `payment_success`
+- `failed`  = `payment_failed` + `order_cancelled`
+- `pending` = `orders_created` + `payment_initiated`
 
 **Window Semantics**:
 - **Window Size**: 1 minute
@@ -152,14 +161,16 @@ KPI Windows (1 minute) → kpi_1m
 Query 1: events_clean
   - Output Mode: append
   - Checkpoint: ./checkpoints/spark_stream/events_clean
-  - Trigger: default (as soon as possible)
-  - Method: foreachBatch + JDBC
+  - Trigger: processingTime='5 seconds'
+  - Method: foreachBatch + JDBC (append)
 
 Query 2: kpi_1m
   - Output Mode: update
   - Checkpoint: ./checkpoints/spark_stream/kpi_1m
-  - Trigger: default
-  - Method: foreachBatch + JDBC
+  - Trigger: processingTime='5 seconds'
+  - Method: foreachBatch + psycopg2 upsert
+            ON CONFLICT (window_start) DO UPDATE
+            (tránh duplicate key khi Spark re-emit updated windows)
 ```
 
 **Checkpoint**:
@@ -198,21 +209,23 @@ CREATE INDEX idx_events_clean_order_id ON events_clean(order_id);
 #### Table: kpi_1m
 ```sql
 CREATE TABLE kpi_1m (
-    window_start TIMESTAMP PRIMARY KEY,
-    window_end TIMESTAMP NOT NULL,
-    revenue DECIMAL(18, 2) NOT NULL DEFAULT 0,
-    orders_created INTEGER NOT NULL DEFAULT 0,
-    payment_success INTEGER NOT NULL DEFAULT 0,
-    payment_failed INTEGER NOT NULL DEFAULT 0,
-    success_rate DECIMAL(5, 2) DEFAULT 0,
-    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    window_start      TIMESTAMP PRIMARY KEY,
+    window_end        TIMESTAMP      NOT NULL,
+    revenue           DECIMAL(18, 2) NOT NULL DEFAULT 0,
+    orders_created    INTEGER        NOT NULL DEFAULT 0,
+    payment_initiated INTEGER        NOT NULL DEFAULT 0,
+    payment_success   INTEGER        NOT NULL DEFAULT 0,
+    payment_failed    INTEGER        NOT NULL DEFAULT 0,
+    order_cancelled   INTEGER        NOT NULL DEFAULT 0,
+    success_rate      DECIMAL(5, 2)  DEFAULT 0,
+    processed_at      TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Index
 CREATE INDEX idx_kpi_1m_window_start ON kpi_1m(window_start DESC);
 ```
 
-**Purpose**: Pre-aggregated KPIs for fast dashboard queries
+**Purpose**: Pre-aggregated KPIs for fast dashboard queries — nguồn duy nhất cho tất cả statistics (dashboard + generator UI, đảm bảo nhất quán)
 
 #### Views: v_kpi_15m, v_kpi_1h, v_kpi_24h
 ```sql
@@ -267,17 +280,20 @@ USE_MOCK = false  → Real API (PostgreSQL)
 ## ⚡ Performance Characteristics
 
 ### Throughput
-- **Generator**: 5-10 events/sec (configurable)
+- **Generator**: Controlled via Generator UI (Quick Emit / Batch Emit / Auto Emit)
 - **Kafka**: Hàng nghìn events/sec (single broker)
 - **Spark**: 100-500 events/sec (local mode, 4 cores)
 - **PostgreSQL**: 500+ inserts/sec
 
 ### Latency (End-to-End)
 ```
-Event Generated → Kafka → Spark → PostgreSQL → Dashboard
-     0ms           ~10ms    ~1s      ~100ms      ~10s (polling)
-                                                  
-Total: ~1-2 seconds từ event tạo đến database
+Generator UI → generator-api → producer-poller → Kafka → Spark → PostgreSQL → Dashboard
+    0ms            ~1ms            100ms poll       ~10ms   5s      ~100ms      5s poll
+
+Total: ~10-15 giây từ lúc emit đến lúc hiển thị trên dashboard
+  - producer-poller poll 100ms (fire-and-forget, acks=1)
+  - Spark trigger 5s
+  - Dashboard refetch 5s
 ```
 
 ### Resource Usage
@@ -290,13 +306,14 @@ Total: ~1-2 seconds từ event tạo đến database
 
 ## 🔒 Reliability & Fault Tolerance
 
-### Exactly-Once Semantics
+### Delivery Semantics
 ```
-Kafka Producer (acks=all)
+Kafka Producer (acks=1, fire-and-forget)
     ↓
-Spark Checkpointing
+Spark Checkpointing (at-least-once)
     ↓
-JDBC Transactional Write
+events_clean: JDBC append + PRIMARY KEY dedup
+kpi_1m:       psycopg2 upsert ON CONFLICT DO UPDATE
     ↓
 PostgreSQL ACID
 ```
@@ -403,6 +420,6 @@ PostgreSQL ACID
 ---
 
 **📖 Xem thêm**:
-- [BACKEND_SETUP.md](BACKEND_SETUP.md) - Setup guide
-- [QUICKSTART.md](QUICKSTART.md) - Quick start
-- [../README.md](../README.md) - Project overview
+- [COMMANDS.md](COMMANDS.md) - Docker commands
+- [INTRODUCTION.md](INTRODUCTION.md) - Project overview
+- [../README.md](../README.md) - Lịch sử thay đổi & bug fixes
