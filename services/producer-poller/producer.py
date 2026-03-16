@@ -4,7 +4,7 @@ Kafka Producer Poller
 Polls the Event Generator API and produces events to Kafka
 
 Architecture:
-    API Generator (http://localhost:7070/gen/event) 
+    API Generator (http://localhost:7070/gen/drain?limit=N)
     → Producer Poller (this script)
     → Kafka (topic: events_raw)
 """
@@ -25,7 +25,7 @@ from kafka.errors import KafkaError
 # ============================================================================
 
 # API Configuration
-API_URL = os.getenv('API_URL', 'http://localhost:7070/gen/event')
+API_DRAIN_URL = os.getenv('API_DRAIN_URL', 'http://localhost:7070/gen/drain')
 API_TIMEOUT = int(os.getenv('API_TIMEOUT', '5'))  # seconds
 
 # Kafka Configuration
@@ -33,7 +33,8 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', 'events_raw')
 
 # Polling Configuration
-POLL_INTERVAL_MS = int(os.getenv('POLL_INTERVAL_MS', '100'))  # 100ms = up to 10 events/sec
+POLL_INTERVAL_MS = int(os.getenv('POLL_INTERVAL_MS', '20'))  # 20ms polling
+POLL_BATCH_LIMIT = int(os.getenv('POLL_BATCH_LIMIT', '100'))
 MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
 RETRY_DELAY_SEC = int(os.getenv('RETRY_DELAY_SEC', '2'))
 
@@ -76,28 +77,37 @@ def create_kafka_producer() -> Optional[KafkaProducer]:
 # API POLLING
 # ============================================================================
 
-def poll_event_from_api(retry_count: int = 0) -> Optional[Dict[str, Any]]:
+def poll_events_from_api(retry_count: int = 0) -> list[Dict[str, Any]]:
     """
-    Poll a single event from the API Generator
+    Poll a batch of events from the API Generator drain endpoint
     
     Args:
         retry_count: Current retry attempt number
         
     Returns:
-        Event dict or None if failed
+        List of event dicts (empty list when queue is empty / failed)
     """
     try:
-        response = requests.get(API_URL, timeout=API_TIMEOUT)
+        response = requests.get(
+            API_DRAIN_URL,
+            params={'limit': POLL_BATCH_LIMIT},
+            timeout=API_TIMEOUT,
+        )
 
         # 204 = queue empty, nothing to do this cycle
         if response.status_code == 204:
-            return None
+            return []
 
         response.raise_for_status()
-        
-        event = response.json()
-        logger.info(f"📥 Pulled event from API: {event.get('eventType')} | Order: {event.get('orderId')}")
-        return event
+
+        payload = response.json()
+        events = payload.get('events', []) if isinstance(payload, dict) else []
+
+        if events:
+            logger.debug(
+                f"📥 Pulled batch from API: {len(events)} events | Queue remaining: {payload.get('queueSize', 'n/a')}"
+            )
+        return events
         
     except requests.exceptions.Timeout:
         logger.warning(f"⏱️ API timeout (attempt {retry_count + 1}/{MAX_RETRIES})")
@@ -113,13 +123,14 @@ def poll_event_from_api(retry_count: int = 0) -> Optional[Dict[str, Any]]:
         
     except json.JSONDecodeError:
         logger.error(f"❌ Invalid JSON response from API")
-        return None
+        return []
         
     except Exception as e:
         logger.error(f"❌ Unexpected error polling API: {e}")
-        return None
+        return []
 
-def retry_poll(retry_count: int) -> Optional[Dict[str, Any]]:
+
+def retry_poll(retry_count: int) -> list[Dict[str, Any]]:
     """
     Retry polling with exponential backoff
     
@@ -127,14 +138,14 @@ def retry_poll(retry_count: int) -> Optional[Dict[str, Any]]:
         retry_count: Current retry attempt
         
     Returns:
-        Event dict or None if max retries exceeded
+        List of events, or empty list if max retries exceeded
     """
     if retry_count < MAX_RETRIES:
         time.sleep(RETRY_DELAY_SEC * (retry_count + 1))
-        return poll_event_from_api(retry_count + 1)
+        return poll_events_from_api(retry_count + 1)
     else:
         logger.error(f"❌ Max retries ({MAX_RETRIES}) exceeded")
-        return None
+        return []
 
 # ============================================================================
 # KAFKA PRODUCTION
@@ -189,10 +200,11 @@ def main():
     logger.info("=" * 70)
     logger.info("🚀 Kafka Producer Poller Starting...")
     logger.info("=" * 70)
-    logger.info(f"API URL: {API_URL}")
+    logger.info(f"API Drain URL: {API_DRAIN_URL}")
     logger.info(f"Kafka: {KAFKA_BOOTSTRAP_SERVERS}")
     logger.info(f"Topic: {KAFKA_TOPIC}")
     logger.info(f"Poll Interval: {POLL_INTERVAL_MS}ms")
+    logger.info(f"Poll Batch Limit: {POLL_BATCH_LIMIT}")
     logger.info("=" * 70)
     
     # Create Kafka Producer
@@ -210,25 +222,25 @@ def main():
         while True:
             start_time = time.time()
             
-            # Step 1: Poll event from API
-            event = poll_event_from_api()
-            
-            if event:
-                total_pulled += 1
+            # Step 1: Poll a batch from API
+            events = poll_events_from_api()
 
-                # Step 2: Produce to Kafka
-                success = produce_to_kafka(producer, event)
+            if events:
+                total_pulled += len(events)
 
-                if success:
-                    total_produced += 1
-                else:
-                    total_failed += 1
-            # None means queue was empty (204) — not a failure, just idle
+                # Step 2: Produce all events in batch
+                for event in events:
+                    success = produce_to_kafka(producer, event)
+                    if success:
+                        total_produced += 1
+                    else:
+                        total_failed += 1
+            # [] means queue was empty (204) — not a failure, just idle
             else:
                 logger.debug("⏸️  Queue empty, waiting for UI events...")
             
             # Log statistics every 20 produced events (skip when idle)
-            if total_pulled > 0 and total_pulled % 20 == 0:
+            if total_pulled > 0 and total_pulled % 200 == 0:
                 logger.info(
                     f"📊 Stats: Pulled={total_pulled} | Produced={total_produced} | Failed={total_failed}"
                 )

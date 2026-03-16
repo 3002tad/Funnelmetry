@@ -13,22 +13,30 @@ from pyspark.sql.types import (
     StructType, StructField, StringType, DoubleType, TimestampType
 )
 import sys
+import os
+import time
+from kafka.admin import KafkaAdminClient, NewTopic
+from kafka.errors import TopicAlreadyExistsError
 
 # ============================================================================
-# CONFIGURATION
+# CONFIGURATION — read from environment variables with sensible defaults
 # ============================================================================
-KAFKA_BOOTSTRAP_SERVERS = 'kafka:9092'
-KAFKA_TOPIC = 'events_raw'
-CHECKPOINT_DIR = './checkpoints/spark_stream'
+KAFKA_BOOTSTRAP_SERVERS = os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
+KAFKA_TOPIC             = os.environ.get('KAFKA_TOPIC', 'events_raw')
+CHECKPOINT_DIR          = os.environ.get('CHECKPOINT_DIR', '/app/checkpoints/spark_stream')
 
 # PostgreSQL configuration
-POSTGRES_HOST     = 'postgres'
-POSTGRES_PORT     = 5432
-POSTGRES_DB       = 'realtime'
+POSTGRES_HOST     = os.environ.get('POSTGRES_HOST', 'postgres')
+POSTGRES_PORT     = int(os.environ.get('POSTGRES_PORT', '5432'))
+POSTGRES_DB       = os.environ.get('POSTGRES_DB', 'realtime')
 POSTGRES_URL      = f'jdbc:postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}'
-POSTGRES_USER     = 'app'
-POSTGRES_PASSWORD = 'app'
+POSTGRES_USER     = os.environ.get('POSTGRES_USER', 'app')
+POSTGRES_PASSWORD = os.environ.get('POSTGRES_PASSWORD', 'app')
 POSTGRES_DRIVER   = 'org.postgresql.Driver'
+
+# Kafka topic bootstrap behaviour
+KAFKA_TOPIC_WAIT_TIMEOUT_SEC = int(os.environ.get('KAFKA_TOPIC_WAIT_TIMEOUT_SEC', '180'))
+KAFKA_TOPIC_WAIT_INTERVAL_SEC = int(os.environ.get('KAFKA_TOPIC_WAIT_INTERVAL_SEC', '3'))
 
 # ============================================================================
 # SCHEMA DEFINITION
@@ -64,6 +72,55 @@ def create_spark_session():
     
     spark.sparkContext.setLogLevel('WARN')
     return spark
+
+
+def ensure_kafka_topic(topic_name, bootstrap_servers, timeout_sec=180, interval_sec=3):
+    """
+    Ensure Kafka topic exists before starting Spark readStream.
+    This prevents immediate Stream failure with UnknownTopicOrPartitionException.
+    """
+    deadline = time.time() + timeout_sec
+    last_error = None
+
+    while time.time() < deadline:
+        admin = None
+        try:
+            admin = KafkaAdminClient(
+                bootstrap_servers=bootstrap_servers,
+                client_id='spark-topic-bootstrap',
+                request_timeout_ms=10000,
+                api_version_auto_timeout_ms=10000,
+            )
+
+            existing_topics = set(admin.list_topics())
+            if topic_name in existing_topics:
+                print(f'✅ Kafka topic exists: {topic_name}')
+                return
+
+            print(f'ℹ️  Topic "{topic_name}" not found. Creating...')
+            admin.create_topics(
+                new_topics=[NewTopic(name=topic_name, num_partitions=1, replication_factor=1)],
+                validate_only=False,
+            )
+            print(f'✅ Kafka topic created: {topic_name}')
+            return
+        except TopicAlreadyExistsError:
+            print(f'✅ Kafka topic already exists: {topic_name}')
+            return
+        except Exception as e:
+            last_error = e
+            print(f'⏳ Waiting Kafka/topic ready ({interval_sec}s): {str(e)}')
+            time.sleep(interval_sec)
+        finally:
+            if admin is not None:
+                try:
+                    admin.close()
+                except Exception:
+                    pass
+
+    raise RuntimeError(
+        f'Kafka topic "{topic_name}" not ready after {timeout_sec}s. Last error: {last_error}'
+    )
 
 
 # ============================================================================
@@ -297,6 +354,14 @@ def main():
     
     # Create Spark session
     spark = create_spark_session()
+
+    # Ensure topic exists before creating stream source
+    ensure_kafka_topic(
+        KAFKA_TOPIC,
+        KAFKA_BOOTSTRAP_SERVERS,
+        timeout_sec=KAFKA_TOPIC_WAIT_TIMEOUT_SEC,
+        interval_sec=KAFKA_TOPIC_WAIT_INTERVAL_SEC,
+    )
     
     # Read from Kafka
     print('📖 Reading from Kafka...')
@@ -328,7 +393,7 @@ def main():
     events_query = clean_events.writeStream \
         .foreachBatch(lambda batch_df, batch_id: write_to_postgres(batch_df, batch_id, 'events_clean')) \
         .outputMode('append') \
-        .trigger(processingTime='5 seconds') \
+        .trigger(processingTime='2 seconds') \
         .option('checkpointLocation', f'{CHECKPOINT_DIR}/events_clean') \
         .start()
     
@@ -336,7 +401,7 @@ def main():
     kpi_query = kpis.writeStream \
         .foreachBatch(upsert_kpi_to_postgres) \
         .outputMode('update') \
-        .trigger(processingTime='5 seconds') \
+        .trigger(processingTime='2 seconds') \
         .option('checkpointLocation', f'{CHECKPOINT_DIR}/kpi_1m') \
         .start()
     

@@ -50,6 +50,7 @@ const kafkaAdmin = kafka.admin();
 
 let alertStore = [];
 let simulatedHealth = null; // null = use real health
+let smoothedProcessingRate = 0;
 
 function addAlert(severity, title, message, service) {
   alertStore.unshift({
@@ -325,14 +326,25 @@ app.get("/api/health", async (req, res) => {
 // ----------------------------------------------------------------
 app.get("/api/metrics", async (req, res) => {
   try {
-    // Events processed per second = events in last 60s / 60
+    // Instant EPS from last 10s window
     const epsResult = await pool.query(`
       SELECT COUNT(*)::float AS cnt
       FROM events_clean
-      WHERE ingest_time >= NOW() - INTERVAL '60 seconds'
+      WHERE ingest_time >= NOW() - INTERVAL '10 seconds'
     `);
-    const processedEventsPerSec = Math.round(
-      parseFloat(epsResult.rows[0].cnt) / 60,
+    const instantRate = parseFloat(epsResult.rows[0].cnt) / 10;
+
+    // Smooth metric so UI is less jittery between micro-batches
+    // EMA: S_t = α * X_t + (1 - α) * S_{t-1}
+    const alpha = 0.35;
+    smoothedProcessingRate =
+      smoothedProcessingRate === 0
+        ? instantRate
+        : alpha * instantRate + (1 - alpha) * smoothedProcessingRate;
+
+    const processedEventsPerSec = Math.max(
+      0,
+      Math.round(smoothedProcessingRate * 10) / 10,
     );
 
     // Kafka lag: approximate as events in events_clean vs expected
@@ -345,7 +357,7 @@ app.get("/api/metrics", async (req, res) => {
     `);
     const kafkaLag = Math.max(
       0,
-      parseInt(lagResult.rows[0].cnt) - processedEventsPerSec * 30,
+      parseInt(lagResult.rows[0].cnt) - Math.round(processedEventsPerSec * 30),
     );
 
     res.json({

@@ -222,6 +222,35 @@ app.get("/gen/event", (req, res) => {
 });
 
 /**
+ * GET /gen/drain?limit=50
+ *
+ * Drain up to N events from queue in a single request.
+ * Used by producer-poller to reduce HTTP overhead and improve throughput.
+ */
+app.get("/gen/drain", (req, res) => {
+  try {
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
+
+    if (eventQueue.length === 0) {
+      return res.status(204).end();
+    }
+
+    const drainCount = Math.min(limit, eventQueue.length);
+    const events = eventQueue.splice(0, drainCount);
+
+    res.json({
+      count: events.length,
+      queueSize: eventQueue.length,
+      events,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Failed to drain events", message: error.message });
+  }
+});
+
+/**
  * GET /gen/events?count=50
  *
  * Generate and return multiple events
@@ -441,6 +470,7 @@ app.get("/", (req, res) => {
     version: "1.0.0",
     endpoints: {
       "GET /gen/event": "Generate a single random e-commerce event",
+      "GET /gen/drain?limit=N": "Drain up to N queued events for producer",
       "GET /gen/events?count=N": `Generate N events (default: ${CONFIG.defaultCount}, max: ${MAX_BATCH_COUNT})`,
       "GET /gen/config": "Get current API configuration",
       "POST /gen/config":
@@ -453,6 +483,7 @@ app.get("/", (req, res) => {
     eventDistribution: EVENT_DISTRIBUTION,
     examples: {
       single: `http://localhost:${PORT}/gen/event`,
+      drain: `http://localhost:${PORT}/gen/drain?limit=50`,
       batch: `http://localhost:${PORT}/gen/events?count=50`,
       config: `http://localhost:${PORT}/gen/config`,
       health: `http://localhost:${PORT}/health`,

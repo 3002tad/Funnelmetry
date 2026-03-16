@@ -106,3 +106,28 @@ docker images --filter "reference=infra-*"   # phải trống
 docker volume ls                              # postgres-data, kafka-data, spark-checkpoints đã biến mất
 docker builder du                             # build cache = 0B
 ```
+
+---
+
+## 5. Chạy bằng Kubernetes (K3s)
+
+Build app images trước:
+
+```powershell
+cd infra
+docker-compose build api-generator producer spark-streaming dashboard-api frontend generator-ui
+```
+
+Deploy K3s stack (xem hướng dẫn đầy đủ tại `k8s/README.md`):
+
+```powershell
+kubectl apply -f k8s/k3s-stack.yaml
+kubectl -n realtime get pods
+kubectl -n realtime get svc
+```
+
+Xóa toàn bộ resources K3s:
+
+```powershell
+kubectl delete -f k8s/k3s-stack.yaml
+```
