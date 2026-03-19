@@ -23,6 +23,8 @@ from kafka.errors import TopicAlreadyExistsError
 # ============================================================================
 KAFKA_BOOTSTRAP_SERVERS = os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
 KAFKA_TOPIC             = os.environ.get('KAFKA_TOPIC', 'events_raw')
+KAFKA_NUM_PARTITIONS    = int(os.environ.get('KAFKA_NUM_PARTITIONS', '3'))
+KAFKA_MAX_OFFSETS_PER_TRIGGER = int(os.environ.get('KAFKA_MAX_OFFSETS_PER_TRIGGER', '5000'))
 CHECKPOINT_DIR          = os.environ.get('CHECKPOINT_DIR', '/app/checkpoints/spark_stream')
 
 # PostgreSQL configuration
@@ -64,7 +66,9 @@ def create_spark_session():
         .appName('EcommerceRealtimePipeline') \
         .master('local[*]') \
         .config('spark.sql.streaming.checkpointLocation', CHECKPOINT_DIR) \
-        .config('spark.sql.shuffle.partitions', 4) \
+    .config('spark.sql.shuffle.partitions', 6) \
+    .config('spark.default.parallelism', 6) \
+    .config('spark.sql.adaptive.enabled', 'true') \
         .config('spark.jars.packages', 
                 'org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,'
                 'org.postgresql:postgresql:42.6.0') \
@@ -99,10 +103,10 @@ def ensure_kafka_topic(topic_name, bootstrap_servers, timeout_sec=180, interval_
 
             print(f'ℹ️  Topic "{topic_name}" not found. Creating...')
             admin.create_topics(
-                new_topics=[NewTopic(name=topic_name, num_partitions=1, replication_factor=1)],
+                new_topics=[NewTopic(name=topic_name, num_partitions=KAFKA_NUM_PARTITIONS, replication_factor=1)],
                 validate_only=False,
             )
-            print(f'✅ Kafka topic created: {topic_name}')
+            print(f'✅ Kafka topic created: {topic_name} with {KAFKA_NUM_PARTITIONS} partitions')
             return
         except TopicAlreadyExistsError:
             print(f'✅ Kafka topic already exists: {topic_name}')
@@ -263,6 +267,8 @@ def write_to_postgres(batch_df, batch_id, table_name):
             .option('user', POSTGRES_USER) \
             .option('password', POSTGRES_PASSWORD) \
             .option('driver', POSTGRES_DRIVER) \
+            .option('batchsize', '1000') \
+            .option('numPartitions', '3') \
             .mode('append') \
             .save()
         
@@ -370,6 +376,7 @@ def main():
         .option('kafka.bootstrap.servers', KAFKA_BOOTSTRAP_SERVERS) \
         .option('subscribe', KAFKA_TOPIC) \
         .option('startingOffsets', 'latest') \
+        .option('maxOffsetsPerTrigger', str(KAFKA_MAX_OFFSETS_PER_TRIGGER)) \
         .option('failOnDataLoss', 'false') \
         .option('kafka.allow.auto.create.topics', 'true') \
         .load()

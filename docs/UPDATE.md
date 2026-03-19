@@ -1,180 +1,187 @@
 # UPDATE.md
 
-Tài liệu này tổng hợp các thay đổi mới đã được áp dụng vào project trong quá trình làm việc gần đây.
+Tài liệu này ghi lại chi tiết các thay đổi đã áp dụng gần đây, lý do thay đổi, tác động và cách vận hành tương ứng.
 
 ---
 
-## 1. Tối ưu throughput pipeline realtime
+## 1) Tối ưu throughput pipeline realtime
 
 ### Mục tiêu
-- Giảm cảm giác chậm khi dùng `Auto Emit`
-- Tăng throughput từ Generator → Kafka → Spark → PostgreSQL
-- Làm chỉ số `Processing Rate` phản ánh mượt hơn
+- Giảm độ trễ từ lúc emit đến lúc thấy dữ liệu trên dashboard.
+- Tăng throughput ổn định cho luồng Generator → Kafka → Spark → PostgreSQL.
+- Làm mượt chỉ số `processedEventsPerSec` ở UI.
 
-### Thay đổi chính
+### Thay đổi chính theo component
 
-#### `services/generator-api/server.js`
-- Thêm endpoint mới `GET /gen/drain?limit=N`
-- Endpoint này cho phép `producer-poller` lấy nhiều events trong một request thay vì từng event một
-- Giảm overhead HTTP giữa `generator-api` và `producer-poller`
-- Bỏ log drain quá thường xuyên để tránh log spam
+#### services/generator-api/server.js
+- Thêm endpoint `GET /gen/drain?limit=N` để trả về batch event từ `eventQueue`.
+- Cơ chế queue rõ ràng:
+  - Queue rỗng → trả `204 No Content`.
+  - Queue có data → trả JSON `{ count, queueSize, events }`.
+- Giảm overhead HTTP do poll từng event.
 
-#### `services/producer-poller/producer.py`
-- Đổi từ cơ chế poll 1 event/lần sang poll batch events
-- Dùng biến mới:
+#### services/producer-poller/producer.py
+- Chuyển poll từ single-event sang batch-drain.
+- Biến môi trường chính:
   - `API_DRAIN_URL`
-  - `POLL_BATCH_LIMIT`
-  - `POLL_INTERVAL_MS`
-- Tăng hiệu năng mặc định:
-  - `POLL_INTERVAL_MS = 20`
-  - `POLL_BATCH_LIMIT = 100`
-- Giảm tần suất log info để bớt ảnh hưởng hiệu năng
+  - `POLL_BATCH_LIMIT` (mặc định 100)
+  - `POLL_INTERVAL_MS` (mặc định 20ms)
+- Logging giảm tần suất để giảm noise và overhead.
 
-#### `infra/docker-compose.yml`
-- Update cấu hình service `producer`:
+#### infra/docker-compose.yml
+- Đồng bộ env cho service `producer`:
   - `API_DRAIN_URL: http://api-generator:7070/gen/drain`
   - `POLL_BATCH_LIMIT: 100`
   - `POLL_INTERVAL_MS: 20`
 
-#### `services/spark-streaming/spark_stream.py`
-- Giảm Spark trigger interval:
-  - từ `5 seconds` → `2 seconds`
-- Mục tiêu là giảm độ trễ hiển thị dữ liệu lên dashboard
+#### services/spark-streaming/spark_stream.py
+- Trigger interval giảm `5s` → `2s`.
+- Thêm cấu hình đọc từ environment (`KAFKA_*`, `POSTGRES_*`, `CHECKPOINT_DIR`).
+- Thêm bước startup guard `ensure_kafka_topic(...)`:
+  - Chờ Kafka sẵn sàng.
+  - Tự tạo topic nếu chưa có.
+  - Tránh crash sớm với lỗi `UnknownTopicOrPartitionException`.
 
-#### `services/dashboard-api/server.js`
-- Cải tiến metric `processedEventsPerSec`
-- Tính rate theo cửa sổ 10 giây thay vì 60 giây
-- Thêm làm mượt bằng EMA để UI đỡ nhảy số mạnh
+#### services/dashboard-api/server.js
+- Cải tiến `processedEventsPerSec`:
+  - Base rate tính trên cửa sổ 10 giây.
+  - Làm mượt bằng EMA để đồ thị ít giật hơn.
 
-### Kết quả test thực tế
-- Emit batch `200` events
-- Sau khoảng `10s`, DB ghi nhận tăng đủ `+200`
-- `Processing Rate` đo được khoảng `8.8 events/s` trong test gần nhất
+### Kết quả vận hành
+- Luồng batch emit xử lý mượt hơn rõ rệt.
+- Độ trễ hiển thị dashboard giảm so với cấu hình cũ.
+- Spark tránh được crash startup do topic chưa sẵn sàng.
 
 ---
 
-## 2. Bổ sung hỗ trợ Kubernetes (K3s)
+## 2) Mở rộng triển khai K3s (WSL)
 
 ### Mục tiêu
-- Thêm lựa chọn triển khai bằng Kubernetes bên cạnh Docker Compose
-- Giữ kiến trúc gần với stack hiện tại để dễ migrate
+- Có phương án deploy Kubernetes local song song Docker Compose.
+- Hỗ trợ môi trường Windows + Ubuntu WSL + K3s 1 node.
 
-### File mới
+### Manifest chính
 
-#### `k8s/k3s-stack.yaml`
-- Tạo full manifest K3s cho stack `realtime`
-- Bao gồm:
-  - `Namespace`
-  - `Secret`
-  - `ConfigMap`
-  - `PersistentVolumeClaim`
-  - `Service`
-  - `Deployment`
-- Các thành phần được deploy:
-  - `zookeeper`
-  - `kafka`
-  - `postgres`
-  - `api-generator`
-  - `producer`
-  - `spark-streaming`
-  - `dashboard-api`
-  - `frontend`
-  - `generator-ui`
+#### k8s/k3s-stack.yaml
+- Tạo đầy đủ tài nguyên cho namespace `realtime`:
+  - `Namespace`, `Secret`, `ConfigMap`, `PVC`, `Service`, `Deployment`.
+- Service public chuyển sang `NodePort`:
+  - `api-generator`: `30070`
+  - `dashboard-api`: `30080`
+  - `frontend`: `30173`
+  - `generator-ui`: `30174`
+- Kafka hardening:
+  - `enableServiceLinks: false` để tránh xung đột env `KAFKA_*` do service links.
+- Persistence:
+  - PVC cho `postgres`, `kafka`, `zookeeper`, `spark-checkpoints`.
+- Frontend nginx:
+  - Inject qua `ConfigMap` để proxy `/api` → `dashboard-api`.
 
-#### `k8s/README.md`
-- Hướng dẫn chạy K3s
-- Cách build images local
-- Cách import images vào K3s / k3d
-- Cách deploy / xem logs / xóa stack
+#### k8s/README.md
+- Viết lại theo workflow WSL thực tế:
+  - Build image trên Windows (Docker Desktop).
+  - Export/import image vào K3s containerd.
+  - Dùng `sudo k3s kubectl ...` (không dùng context mặc định).
+  - Truy cập bằng `WSL_IP:NodePort`.
 
-### File cập nhật
-
-#### `docs/COMMANDS.md`
-- Thêm section mới: `Chạy bằng Kubernetes (K3s)`
-- Bổ sung lệnh:
-  - build app images
-  - `kubectl apply -f k8s/k3s-stack.yaml`
-  - `kubectl -n realtime get pods`
-  - `kubectl delete -f k8s/k3s-stack.yaml`
+#### docs/COMMANDS.md
+- Bổ sung lệnh K3s theo ngữ cảnh WSL chuẩn:
+  - `wsl.exe -e sh -lc "... sudo k3s kubectl ..."`.
 
 ---
 
-## 3. Trạng thái hệ thống đã xác nhận
+## 3) Sửa lỗi production-like trong quá trình chạy thật
 
-### Docker Compose
-- Tất cả service chính đã được bring up và test
-- Kafka từng gặp lỗi `InconsistentClusterIdException`
-- Đã xử lý bằng cách xóa volume `infra_kafka-data` và restart stack
+### Lỗi Kafka CrashLoopBackOff
+- Nguyên nhân: env service links inject biến `KAFKA_*` không mong muốn.
+- Cách xử lý: tắt `enableServiceLinks` cho pod Kafka.
 
-### Realtime pipeline
-Đã test thành công luồng:
-- `Generator UI / API` → `producer-poller`
-- `producer-poller` → Kafka
-- Kafka → Spark Streaming
-- Spark → PostgreSQL (`events_clean`, `kpi_1m`)
-- PostgreSQL → `dashboard-api`
-- `dashboard-api` → Dashboard / Generator UI
+### Lỗi Spark CrashLoopBackOff
+- Nguyên nhân: Spark subscribe topic trước khi Kafka topic sẵn sàng.
+- Cách xử lý: thêm `ensure_kafka_topic(...)` trong Spark startup.
 
-### UI/API kiểm tra thành công
-- Dashboard: `http://localhost:5173`
-- Generator UI: `http://localhost:5174`
-- Dashboard API: `http://localhost:8080`
-- Generator API: `http://localhost:7070`
+### Lỗi Generator UI báo API Offline trên K3s
+- Nguyên nhân: UI gọi cứng `http://localhost:7070` và `http://localhost:8080`.
+- Cách xử lý:
+  - Đổi client sang đường dẫn tương đối trong `generatorApi.ts`.
+  - Thêm nginx proxy nội bộ trong `generator-ui/nginx.conf`:
+    - `/api-generator/*` → `api-generator:7070`
+    - `/dashboard-api/*` → `dashboard-api:8080`
+
+### Lỗi truy cập NodePort bằng localhost
+- Trên WSL2, `localhost:<NodePort>` có thể `ERR_CONNECTION_REFUSED`.
+- Cách dùng đúng: `http://<WSL_IP>:<NODE_PORT>`.
 
 ---
 
-## 4. Danh sách file đã thay đổi / thêm mới
+## 4) Trạng thái hệ thống hiện tại
 
-### Updated
+### Chạy bằng Docker Compose
+- Các service chính hoạt động theo luồng realtime chuẩn.
+
+### Chạy bằng K3s (WSL)
+- Pod chính chạy ổn định sau các fix:
+  - `kafka`, `zookeeper`, `postgres`
+  - `api-generator`, `producer`, `spark-streaming`
+  - `dashboard-api`, `frontend`, `generator-ui`
+
+### Endpoint kiểm tra nhanh
+- Generator API health: `/health`
+- Dashboard API health: `/health`
+- Dashboard UI: trang React qua NodePort
+- Generator UI: trang React qua NodePort + proxy nội bộ API
+
+---
+
+## 5) Danh sách file cập nhật quan trọng
+
+### Cập nhật code/runtime
 - `infra/docker-compose.yml`
 - `services/generator-api/server.js`
 - `services/producer-poller/producer.py`
 - `services/spark-streaming/spark_stream.py`
 - `services/dashboard-api/server.js`
-- `docs/COMMANDS.md`
+- `generator-ui/src/services/generatorApi.ts`
+- `generator-ui/nginx.conf`
 
-### Added
+### Cập nhật Kubernetes/docs
 - `k8s/k3s-stack.yaml`
 - `k8s/README.md`
+- `docs/COMMANDS.md`
+- `docs/INTRODUCTION.md`
+- `docs/ARCHITECTURE.md`
 - `docs/UPDATE.md`
 
 ---
 
-## 5. Ghi chú vận hành
+## 6) Ghi chú vận hành
 
-### Nếu sửa code/config thì cần restart phù hợp
-- Sửa `docker-compose.yml` cho `producer`:
-  - `docker-compose up -d --force-recreate producer`
-- Sửa code service Node/Python:
-  - `docker-compose up -d --build <service>`
-- Với thay đổi gần đây, các service đã được rebuild/recreate trong lúc làm việc
+### Khi thay đổi code service
+- Docker Compose: rebuild service tương ứng (`docker-compose build <service>` + `up -d`).
+- K3s local:
+  1. Build lại image ở Windows.
+  2. `docker save` ra tar.
+  3. `sudo k3s ctr images import ...` trong WSL.
+  4. `sudo k3s kubectl rollout restart deploy/<name>`.
 
-### Nếu Kafka lỗi cluster id
-Chạy:
-
-```powershell
-cd infra
-docker-compose down
-docker volume rm infra_kafka-data
-docker-compose up -d
-```
+### Khi thay đổi manifest K3s
+- Apply lại: `sudo k3s kubectl apply -f k8s/k3s-stack.yaml`.
+- Theo dõi rollout: `sudo k3s kubectl -n realtime rollout status deploy/<name>`.
 
 ---
 
-## 6. Hướng phát triển tiếp theo
+## 7) Hướng cải tiến tiếp theo (đề xuất)
 
-Nếu muốn tối ưu thêm, các bước tiếp theo hợp lý là:
-- Refactor Spark để đọc config từ environment thay vì hardcode
-- Bổ sung Helm chart cho K3s/Kubernetes
-- Thêm smoke tests cho API và pipeline
-- Tách metric thật cho Kafka lag thay vì heuristic hiện tại
+- Thêm `resources requests/limits` cho tất cả deployment.
+- Bổ sung `livenessProbe` cho các pod chưa có.
+- Tách `StatefulSet` cho thành phần stateful (Kafka/Postgres/Zookeeper) nếu nâng cấp môi trường.
+- Thêm observability chuẩn (Prometheus/Grafana + centralized logs).
 
 ---
 
-## 7. Tóm tắt ngắn
+## 8) Tóm tắt
 
-Project đã được update theo 2 hướng lớn:
-1. **Tăng tốc và làm mượt pipeline realtime**
-2. **Bổ sung phương án deploy bằng K3s**
-
-Hiện tại project chạy được với Docker Compose và đã có nền tảng để deploy bằng Kubernetes.
+Project đã được nâng cấp theo hướng:
+1. **Throughput cao hơn, latency thấp hơn, metrics mượt hơn**.
+2. **K3s local trên WSL vận hành ổn định với playbook rõ ràng**.
+3. **Docs đã được đồng bộ theo implementation hiện tại**.

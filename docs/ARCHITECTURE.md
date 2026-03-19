@@ -34,7 +34,9 @@ Tài liệu giải thích chi tiết kiến trúc, luồng dữ liệu, và các
 
 ### 1️⃣ Event Generation
 
-**Components**: `services/generator-api/server.js` (Node.js) + `services/producer-poller/producer.py` (Python)
+**Components chính**: `services/generator-api/server.js` (Node.js)
+
+**Component fallback legacy**: `services/producer-poller/producer.py` (Python, không chạy mặc định)
 
 ```python
 Event {
@@ -49,13 +51,14 @@ Event {
 }
 ```
 
-**Luồng tạo event (Event Queue Architecture):**
-- **Generator UI** → `POST /gen/emit` → `generator-api` đẩy vào in-memory `eventQueue[]`
-- **producer-poller** → `GET /gen/event` mỗi 100ms → lấy từ queue, produce vào Kafka
-- Khi queue rỗng: `GET /gen/event` trả 204, poller idle (không generate ngẫu nhiên)
+**Luồng tạo event hiện tại (Primary Path):**
+- **Generator UI** → `POST /gen/emit` / `POST /gen/emit-batch` → `generator-api` publish trực tiếp vào Kafka qua `kafkajs`
+- Nếu Kafka unavailable và `ENABLE_QUEUE_FALLBACK=true`: `generator-api` mới enqueue vào in-memory `eventQueue[]`
+- **producer-poller** chỉ dùng trong fallback mode: `GET /gen/drain?limit=N` để lấy từ queue và produce vào Kafka
 - Weighted random distribution: `order_created` 30%, `payment_initiated` 25%, `payment_success` 35%, `payment_failed` 8%, `order_cancelled` 2%
-- 1% invalid events để test validation
-- Kafka producer: `acks=1`, `linger_ms=5`, `compression_type=gzip` (tối ưu latency)
+- Kafka direct producer giảm một HTTP hop và một vòng poll 20ms
+
+**Mặc định deployment hiện tại:** direct Kafka **ON**, queue fallback **OFF**, `producer-poller` **OFF**
 
 ---
 
@@ -78,7 +81,7 @@ auto.create.topics: true   # Spark tự tạo topic khi subscribe
 
 ### 3️⃣ Spark Structured Streaming
 
-**Component**: `backend/spark_stream.py`
+**Component**: `services/spark-streaming/spark_stream.py`
 
 #### UC03 - Parse & Validate
 
@@ -160,17 +163,21 @@ KPI Windows (1 minute) → kpi_1m
 
 Query 1: events_clean
   - Output Mode: append
-  - Checkpoint: ./checkpoints/spark_stream/events_clean
-  - Trigger: processingTime='5 seconds'
+  - Checkpoint: /app/checkpoints/spark_stream/events_clean
+  - Trigger: processingTime='2 seconds'
   - Method: foreachBatch + JDBC (append)
 
 Query 2: kpi_1m
   - Output Mode: update
-  - Checkpoint: ./checkpoints/spark_stream/kpi_1m
-  - Trigger: processingTime='5 seconds'
+  - Checkpoint: /app/checkpoints/spark_stream/kpi_1m
+  - Trigger: processingTime='2 seconds'
   - Method: foreachBatch + psycopg2 upsert
             ON CONFLICT (window_start) DO UPDATE
             (tránh duplicate key khi Spark re-emit updated windows)
+
+Startup behavior:
+  - Spark đảm bảo topic Kafka tồn tại trước khi mở stream (`ensure_kafka_topic`)
+  - Tránh crash sớm với lỗi `UnknownTopicOrPartitionException`
 ```
 
 **Checkpoint**:
@@ -287,12 +294,12 @@ USE_MOCK = false  → Real API (PostgreSQL)
 
 ### Latency (End-to-End)
 ```
-Generator UI → generator-api → producer-poller → Kafka → Spark → PostgreSQL → Dashboard
-    0ms            ~1ms            100ms poll       ~10ms   5s      ~100ms      5s poll
+Generator UI → generator-api → Kafka → Spark → PostgreSQL → Dashboard
+    0ms            ~1ms             ~5-10ms         2s      ~100ms      5s poll
 
-Total: ~10-15 giây từ lúc emit đến lúc hiển thị trên dashboard
-  - producer-poller poll 100ms (fire-and-forget, acks=1)
-  - Spark trigger 5s
+Total: ~4-8 giây từ lúc emit đến lúc hiển thị trên dashboard (phụ thuộc tải)
+  - direct Kafka publish bỏ qua poll HTTP trung gian
+  - Spark trigger 2s
   - Dashboard refetch 5s
 ```
 

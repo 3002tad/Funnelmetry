@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ServiceStatus, AlertSeverity } from '@/lib/api'
 import { format } from 'date-fns'
-import { Activity, Database, Zap, Server, AlertTriangle, Play, RotateCcw } from 'lucide-react'
+import { Activity, Database, Zap, Server, AlertTriangle, RotateCcw } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import clsx from 'clsx'
 
@@ -14,21 +14,27 @@ export default function Ops() {
   const { data: health, isLoading: healthLoading } = useQuery({
     queryKey: ['health'],
     queryFn: api.getSystemHealth,
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 3000 : false,
+    staleTime: 3000,
+    refetchOnWindowFocus: false,
   })
 
   // Fetch system metrics
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ['metrics'],
     queryFn: api.getSystemMetrics,
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 2000 : false,
+    staleTime: 2000,
+    refetchOnWindowFocus: false,
   })
 
   // Fetch alerts
   const { data: alerts } = useQuery({
     queryKey: ['alerts'],
     queryFn: api.getAlerts,
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 3000 : false,
+    staleTime: 3000,
+    refetchOnWindowFocus: false,
   })
 
   // Mutation for simulations

@@ -51,11 +51,17 @@ services:
       context: ../services/generator-api
       dockerfile: Dockerfile
     container_name: api-generator
+    depends_on:
+      kafka:
+        condition: service_healthy
     ports:
       - "7070:7070"
     environment:
       PORT: 7070
       NODE_ENV: production
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: events_raw
+      ENABLE_QUEUE_FALLBACK: ${ENABLE_QUEUE_FALLBACK:-false}
     networks:
       - realtime-network
     healthcheck:
@@ -101,6 +107,8 @@ services:
       context: ../services/producer-poller
       dockerfile: Dockerfile
     container_name: producer-poller
+    profiles:
+      - fallback
     depends_on:
       api-generator:
         condition: service_healthy
@@ -129,6 +137,8 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_MAX_OFFSETS_PER_TRIGGER: 5000
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: realtime

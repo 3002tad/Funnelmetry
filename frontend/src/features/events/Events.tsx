@@ -24,6 +24,8 @@ export default function Events() {
       ...(filterEventType !== 'all' && { eventType: filterEventType }),
       ...(filterStatus !== 'all' && { status: filterStatus }),
     }),
+    staleTime: 15000,
+    refetchOnWindowFocus: false,
   })
 
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0

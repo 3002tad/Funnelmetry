@@ -8,14 +8,122 @@
 const express = require("express");
 const cors = require("cors");
 const { v4: uuidv4 } = require("uuid");
+const { Kafka, logLevel } = require("kafkajs");
 
 const app = express();
 
 // ============================================================================
-// EVENT QUEUE
-// Events pushed here by UI (POST /gen/emit, /gen/emit-batch).
-// producer-poller drains this queue via GET /gen/event before falling back
-// to random generation — so Kafka is only ever written to by the poller.
+// KAFKA DIRECT PRODUCER
+// Primary path: generator-api publishes directly to Kafka.
+// Optional legacy fallback: eventQueue[] is only used when Kafka is unavailable
+// and ENABLE_QUEUE_FALLBACK=true.
+// ============================================================================
+const KAFKA_BOOTSTRAP_SERVERS = process.env.KAFKA_BOOTSTRAP_SERVERS || "kafka:9092";
+const KAFKA_TOPIC              = process.env.KAFKA_TOPIC              || "events_raw";
+const ENABLE_QUEUE_FALLBACK    = (process.env.ENABLE_QUEUE_FALLBACK || "false") === "true";
+
+const kafka = new Kafka({
+  clientId: "api-generator",
+  brokers:  KAFKA_BOOTSTRAP_SERVERS.split(","),
+  connectionTimeout: 3000,
+  retry: { retries: 3, initialRetryTime: 300 },
+  logLevel: logLevel.NOTHING, // suppress kafkajs internal logs
+});
+
+const kafkaProducer = kafka.producer({
+  allowAutoTopicCreation: true,
+  idempotent: false,         // single-broker demo: no need for idempotent producer
+  transactionTimeout: 30000,
+});
+
+let kafkaReady = false;
+let metrics = {
+  httpRequestsTotal: 0,
+  emittedTotal: 0,
+  emittedToKafkaTotal: 0,
+  queuedFallbackTotal: 0,
+  kafkaPublishFailuresTotal: 0,
+};
+
+function renderPrometheusMetrics() {
+  return [
+    "# HELP api_generator_http_requests_total Total HTTP requests handled by generator-api",
+    "# TYPE api_generator_http_requests_total counter",
+    `api_generator_http_requests_total ${metrics.httpRequestsTotal}`,
+    "# HELP api_generator_emitted_total Total events accepted by emit endpoints",
+    "# TYPE api_generator_emitted_total counter",
+    `api_generator_emitted_total ${metrics.emittedTotal}`,
+    "# HELP api_generator_emitted_to_kafka_total Total events published directly to Kafka",
+    "# TYPE api_generator_emitted_to_kafka_total counter",
+    `api_generator_emitted_to_kafka_total ${metrics.emittedToKafkaTotal}`,
+    "# HELP api_generator_queued_fallback_total Total events placed into fallback queue",
+    "# TYPE api_generator_queued_fallback_total counter",
+    `api_generator_queued_fallback_total ${metrics.queuedFallbackTotal}`,
+    "# HELP api_generator_kafka_publish_failures_total Total Kafka publish failures",
+    "# TYPE api_generator_kafka_publish_failures_total counter",
+    `api_generator_kafka_publish_failures_total ${metrics.kafkaPublishFailuresTotal}`,
+    "# HELP api_generator_kafka_ready Kafka direct producer readiness",
+    "# TYPE api_generator_kafka_ready gauge",
+    `api_generator_kafka_ready ${kafkaReady ? 1 : 0}`,
+    "# HELP api_generator_queue_size Current fallback queue size",
+    "# TYPE api_generator_queue_size gauge",
+    `api_generator_queue_size ${eventQueue.length}`,
+    "# HELP api_generator_queue_fallback_enabled Whether legacy queue fallback is enabled",
+    "# TYPE api_generator_queue_fallback_enabled gauge",
+    `api_generator_queue_fallback_enabled ${ENABLE_QUEUE_FALLBACK ? 1 : 0}`,
+  ].join("\n");
+}
+
+async function connectKafka() {
+  try {
+    await kafkaProducer.connect();
+    kafkaReady = true;
+    console.log("[api-generator] ✅ Kafka producer connected — direct publish enabled");
+  } catch (err) {
+    kafkaReady = false;
+    console.warn(
+      `[api-generator] ⚠️  Kafka unavailable (${err.message})${ENABLE_QUEUE_FALLBACK ? ", legacy fallback queue enabled" : ", legacy fallback queue disabled"}`,
+    );
+    setTimeout(connectKafka, 10_000); // retry every 10 s
+  }
+}
+
+/**
+ * Publish events directly to Kafka.
+ * Returns true on success, false on failure (caller falls back to queue).
+ */
+async function publishToKafka(events) {
+  if (!kafkaReady) return false;
+  try {
+    const messages = events.map((e) => ({
+      key:   e.orderId,          // partition by orderId for ordering guarantees
+      value: JSON.stringify(e),
+    }));
+    await kafkaProducer.send({ topic: KAFKA_TOPIC, messages });
+    return true;
+  } catch (err) {
+    console.error("[api-generator] Kafka send failed:", err.message);
+    kafkaReady = false;
+    metrics.kafkaPublishFailuresTotal += 1;
+    setTimeout(connectKafka, 10_000);
+    return false;
+  }
+}
+
+function enqueueFallback(events) {
+  if (!ENABLE_QUEUE_FALLBACK) return { ok: false, reason: "disabled" };
+  if (eventQueue.length + events.length > MAX_QUEUE_SIZE) {
+    return { ok: false, reason: "full" };
+  }
+  eventQueue.push(...events);
+  metrics.queuedFallbackTotal += events.length;
+  return { ok: true, reason: "queued" };
+}
+// ============================================================================
+// LEGACY FALLBACK QUEUE
+// Primary architecture: generator-api -> Kafka.
+// eventQueue[] only exists for optional legacy fallback mode when Kafka is
+// temporarily unavailable and ENABLE_QUEUE_FALLBACK=true.
 // ============================================================================
 
 const eventQueue = [];
@@ -61,6 +169,10 @@ app.use(
   }),
 );
 app.use(express.json());
+app.use((req, res, next) => {
+  metrics.httpRequestsTotal += 1;
+  next();
+});
 
 // ============================================================================
 // EVENT GENERATION LOGIC
@@ -199,11 +311,9 @@ function generateEvents(count) {
 /**
  * GET /gen/event
  *
- * Generate and return a single random e-commerce event
+ * Return a single queued fallback event.
  */
-// NOTE: This endpoint is polled by producer-poller (production path).
-// It does NOT publish to Kafka — the poller handles that itself.
-// Returns 204 No Content when queue is empty — poller must skip that cycle.
+// Legacy endpoint for producer-poller fallback mode only.
 app.get("/gen/event", (req, res) => {
   try {
     if (eventQueue.length === 0) {
@@ -224,8 +334,8 @@ app.get("/gen/event", (req, res) => {
 /**
  * GET /gen/drain?limit=50
  *
- * Drain up to N events from queue in a single request.
- * Used by producer-poller to reduce HTTP overhead and improve throughput.
+ * Drain up to N queued fallback events in a single request.
+ * Used only by producer-poller when legacy fallback mode is enabled.
  */
 app.get("/gen/drain", (req, res) => {
   try {
@@ -285,7 +395,14 @@ app.get("/health", (req, res) => {
     time: new Date().toISOString(),
     service: "event-generator-api",
     port: PORT,
+    kafka: { connected: kafkaReady, topic: KAFKA_TOPIC },
+    queue: { enabled: ENABLE_QUEUE_FALLBACK, size: eventQueue.length, maxSize: MAX_QUEUE_SIZE },
   });
+});
+
+app.get("/metrics", (req, res) => {
+  res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+  res.send(renderPrometheusMetrics());
 });
 
 /**
@@ -369,10 +486,10 @@ app.post("/gen/config", (req, res) => {
 /**
  * POST /gen/emit-batch
  *
- * Stage N random events into the queue.
- * producer-poller will drain them on its next polls and push to Kafka.
+ * Publish N random events directly to Kafka.
+ * Falls back to legacy queue only if ENABLE_QUEUE_FALLBACK=true.
  */
-app.post("/gen/emit-batch", (req, res) => {
+app.post("/gen/emit-batch", async (req, res) => {
   try {
     let count = parseInt(req.body.count) || DEFAULT_BATCH_COUNT;
     if (count < 1 || count > MAX_BATCH_COUNT) {
@@ -380,17 +497,29 @@ app.post("/gen/emit-batch", (req, res) => {
         .status(400)
         .json({ error: `count must be between 1 and ${MAX_BATCH_COUNT}` });
     }
-    if (eventQueue.length + count > MAX_QUEUE_SIZE) {
-      return res
-        .status(429)
-        .json({ error: "Queue full", queueSize: eventQueue.length });
-    }
     const events = generateEvents(count);
-    eventQueue.push(...events);
+    metrics.emittedTotal += events.length;
+    const sent = await publishToKafka(events);
+    let path = "kafka";
+    if (!sent) {
+      const fallback = enqueueFallback(events);
+      if (!fallback.ok) {
+        return res.status(fallback.reason === "full" ? 429 : 503).json({
+          error:
+            fallback.reason === "full"
+              ? "Fallback queue full"
+              : "Kafka unavailable and fallback queue disabled",
+          queueSize: eventQueue.length,
+          fallbackEnabled: ENABLE_QUEUE_FALLBACK,
+        });
+      }
+      path = "queue";
+    }
+    if (path === "kafka") metrics.emittedToKafkaTotal += events.length;
     console.log(
-      `[${new Date().toISOString()}] Queued ${count} events | Queue size: ${eventQueue.length}`,
+      `[${new Date().toISOString()}] Batch emitted (${path}): ${count} events | Queue: ${eventQueue.length}`,
     );
-    res.json({ queued: count, queueSize: eventQueue.length, events });
+    res.json({ count, path, fallbackEnabled: ENABLE_QUEUE_FALLBACK, queueSize: eventQueue.length, events });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -399,10 +528,10 @@ app.post("/gen/emit-batch", (req, res) => {
 /**
  * POST /gen/emit
  *
- * Stage a single custom event into the queue.
- * producer-poller will drain it on its next poll and push to Kafka.
+ * Publish a single custom event directly to Kafka.
+ * Falls back to legacy queue only if ENABLE_QUEUE_FALLBACK=true.
  */
-app.post("/gen/emit", (req, res) => {
+app.post("/gen/emit", async (req, res) => {
   try {
     const { eventType, status, amount, orderId, userId, lateMinutes } =
       req.body;
@@ -437,14 +566,28 @@ app.post("/gen/emit", (req, res) => {
       event.eventTime = eventDate.toISOString();
     }
 
-    // Stage event in queue — poller will pick it up and push to Kafka
-    if (eventQueue.length < MAX_QUEUE_SIZE) {
-      eventQueue.push(event);
+    metrics.emittedTotal += 1;
+    const sent = await publishToKafka([event]);
+    let path = "kafka";
+    if (!sent) {
+      const fallback = enqueueFallback([event]);
+      if (!fallback.ok) {
+        return res.status(fallback.reason === "full" ? 429 : 503).json({
+          error:
+            fallback.reason === "full"
+              ? "Fallback queue full"
+              : "Kafka unavailable and fallback queue disabled",
+          queueSize: eventQueue.length,
+          fallbackEnabled: ENABLE_QUEUE_FALLBACK,
+        });
+      }
+      path = "queue";
     }
+    if (path === "kafka") metrics.emittedToKafkaTotal += 1;
     console.log(
-      `[${new Date().toISOString()}] Queued: ${event.eventType} | Queue size: ${eventQueue.length}`,
+      `[${new Date().toISOString()}] Emitted (${path}): ${event.eventType} | Queue: ${eventQueue.length}`,
     );
-    res.json({ ...event, _queued: true, queueSize: eventQueue.length });
+    res.json({ ...event, _path: path, fallbackEnabled: ENABLE_QUEUE_FALLBACK, queueSize: eventQueue.length });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -456,7 +599,7 @@ app.post("/gen/emit", (req, res) => {
  * Show current queue status.
  */
 app.get("/gen/queue", (req, res) => {
-  res.json({ queueSize: eventQueue.length });
+  res.json({ enabled: ENABLE_QUEUE_FALLBACK, queueSize: eventQueue.length, maxSize: MAX_QUEUE_SIZE });
 });
 
 /**
@@ -470,13 +613,15 @@ app.get("/", (req, res) => {
     version: "1.0.0",
     endpoints: {
       "GET /gen/event": "Generate a single random e-commerce event",
-      "GET /gen/drain?limit=N": "Drain up to N queued events for producer",
+      "GET /gen/drain?limit=N": "Drain up to N legacy fallback queued events",
       "GET /gen/events?count=N": `Generate N events (default: ${CONFIG.defaultCount}, max: ${MAX_BATCH_COUNT})`,
       "GET /gen/config": "Get current API configuration",
       "POST /gen/config":
         "Update configuration (distribution, defaultCount, ratePerSec)",
-      "POST /gen/emit": "Generate custom event with overrides",
+      "POST /gen/emit": "Generate custom event and publish directly to Kafka",
+      "POST /gen/emit-batch": "Generate N events and publish directly to Kafka",
       "GET /health": "Health check",
+      "GET /metrics": "Prometheus-style metrics",
       "GET /": "API documentation (this page)",
     },
     eventTypes: Object.keys(EVENT_DISTRIBUTION),
@@ -487,6 +632,7 @@ app.get("/", (req, res) => {
       batch: `http://localhost:${PORT}/gen/events?count=50`,
       config: `http://localhost:${PORT}/gen/config`,
       health: `http://localhost:${PORT}/health`,
+      metrics: `http://localhost:${PORT}/metrics`,
       emit: `curl -X POST http://localhost:${PORT}/gen/emit -H "Content-Type: application/json" -d '{"eventType":"payment_success","amount":1000000}'`,
     },
   });
@@ -496,7 +642,7 @@ app.get("/", (req, res) => {
 // START SERVER
 // ============================================================================
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log("=".repeat(70));
   console.log(`🚀 E-commerce Event Generator API`);
   console.log("=".repeat(70));
@@ -506,21 +652,27 @@ app.listen(PORT, () => {
   console.log(`   - GET http://localhost:${PORT}/gen/events?count=50`);
   console.log(`   - GET http://localhost:${PORT}/gen/config`);
   console.log(`   - GET http://localhost:${PORT}/health`);
+  console.log(`   - GET http://localhost:${PORT}/metrics`);
   console.log("=".repeat(70));
   console.log(`📊 Event Distribution:`);
   Object.entries(EVENT_DISTRIBUTION).forEach(([type, weight]) => {
     console.log(`   - ${type}: ${weight}%`);
   });
+  console.log(`📡 Kafka: ${KAFKA_BOOTSTRAP_SERVERS} → topic: ${KAFKA_TOPIC}`);
+  console.log(`🧰 Legacy queue fallback: ${ENABLE_QUEUE_FALLBACK ? "ENABLED" : "DISABLED"}`);
+  connectKafka();
   console.log("=".repeat(70));
 });
 
 // Graceful shutdown
 process.on("SIGTERM", () => {
   console.log("SIGTERM signal received: closing HTTP server");
+  kafkaProducer.disconnect().catch(() => {});
   process.exit(0);
 });
 
 process.on("SIGINT", () => {
   console.log("\nSIGINT signal received: closing HTTP server");
+  kafkaProducer.disconnect().catch(() => {});
   process.exit(0);
 });

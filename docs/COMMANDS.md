@@ -121,13 +121,25 @@ docker-compose build api-generator producer spark-streaming dashboard-api fronte
 Deploy K3s stack (xem hướng dẫn đầy đủ tại `k8s/README.md`):
 
 ```powershell
-kubectl apply -f k8s/k3s-stack.yaml
-kubectl -n realtime get pods
-kubectl -n realtime get svc
+wsl.exe -e sh -lc "cd /mnt/d/Detai/Business-Data-Streaming---Processing-Pipeline && sudo k3s kubectl apply -f k8s/k3s-stack.yaml"
+wsl.exe -e sh -lc "sudo k3s kubectl -n realtime get pods"
+wsl.exe -e sh -lc "sudo k3s kubectl -n realtime get svc"
 ```
 
 Xóa toàn bộ resources K3s:
 
 ```powershell
-kubectl delete -f k8s/k3s-stack.yaml
+wsl.exe -e sh -lc "cd /mnt/d/Detai/Business-Data-Streaming---Processing-Pipeline && sudo k3s kubectl delete -f k8s/k3s-stack.yaml"
+```
+
+Truy cập service trên WSL2 (NodePort):
+
+```powershell
+# lấy WSL IP
+wsl.exe -e sh -lc "hostname -I"
+
+# dùng http://<WSL_IP>:30070   (generator-api)
+#      http://<WSL_IP>:30080   (dashboard-api)
+#      http://<WSL_IP>:30173   (dashboard UI)
+#      http://<WSL_IP>:30174   (generator UI)
 ```

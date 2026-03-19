@@ -39,14 +39,18 @@ export default function Dashboard() {
   } = useQuery({
     queryKey: ["kpi", timeRange],
     queryFn: () => api.getKpi(timeRange),
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 2000 : false,
+    staleTime: 2000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch time series data
   const { data: timeSeries, isLoading: timeSeriesLoading } = useQuery({
     queryKey: ["timeseries", timeRange],
     queryFn: () => api.getTimeSeries(timeRange),
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 2000 : false,
+    staleTime: 2000,
+    refetchOnWindowFocus: false,
   });
 
   const timeRangeOptions: { value: TimeRange; label: string }[] = [

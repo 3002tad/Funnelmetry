@@ -1,11 +1,12 @@
 """
-Kafka Producer Poller
+Kafka Producer Poller (Legacy Fallback Bridge)
 
-Polls the Event Generator API and produces events to Kafka
+Optional fallback worker that polls Generator API queue and produces events to Kafka.
+Primary architecture now publishes directly from generator-api to Kafka.
 
 Architecture:
     API Generator (http://localhost:7070/gen/drain?limit=N)
-    → Producer Poller (this script)
+    → Producer Poller (this script, fallback only)
     → Kafka (topic: events_raw)
 """
 
@@ -195,10 +196,10 @@ def produce_to_kafka(producer: KafkaProducer, event: Dict[str, Any]) -> bool:
 
 def main():
     """
-    Main polling loop: API → Kafka
+    Main polling loop: legacy fallback queue → Kafka
     """
     logger.info("=" * 70)
-    logger.info("🚀 Kafka Producer Poller Starting...")
+    logger.info("🚀 Kafka Producer Poller Starting (legacy fallback mode)...")
     logger.info("=" * 70)
     logger.info(f"API Drain URL: {API_DRAIN_URL}")
     logger.info(f"Kafka: {KAFKA_BOOTSTRAP_SERVERS}")
