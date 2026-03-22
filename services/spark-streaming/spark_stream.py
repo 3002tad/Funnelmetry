@@ -66,8 +66,8 @@ def create_spark_session():
         .appName('EcommerceRealtimePipeline') \
         .master('local[*]') \
         .config('spark.sql.streaming.checkpointLocation', CHECKPOINT_DIR) \
-    .config('spark.sql.shuffle.partitions', 6) \
-    .config('spark.default.parallelism', 6) \
+    .config('spark.sql.shuffle.partitions', 12) \
+    .config('spark.default.parallelism', 12) \
     .config('spark.sql.adaptive.enabled', 'true') \
         .config('spark.jars.packages', 
                 'org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,'
@@ -267,8 +267,9 @@ def write_to_postgres(batch_df, batch_id, table_name):
             .option('user', POSTGRES_USER) \
             .option('password', POSTGRES_PASSWORD) \
             .option('driver', POSTGRES_DRIVER) \
-            .option('batchsize', '1000') \
-            .option('numPartitions', '3') \
+            .option('batchsize', '10000') \
+            .option('numPartitions', '4') \
+            .option('isolationLevel', 'READ_UNCOMMITTED') \
             .mode('append') \
             .save()
         

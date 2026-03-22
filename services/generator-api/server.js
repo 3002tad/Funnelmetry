@@ -34,6 +34,16 @@ const kafkaProducer = kafka.producer({
   allowAutoTopicCreation: true,
   idempotent: false,         // single-broker demo: no need for idempotent producer
   transactionTimeout: 30000,
+  timeout: 30000,
+  maxInFlightRequests: 5,    // Allow parallel request batches for better throughput
+  compression: 1,            // GZIP compression (1 = GZIP, 0 = None)
+  retry: {
+    retries: 3,
+    initialRetryTime: 100,
+    factor: 2,
+    maxRetryTime: 30000,
+    multiplier: 2,
+  },
 });
 
 let kafkaReady = false;

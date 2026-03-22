@@ -20,7 +20,7 @@ const pool = new Pool({
   database: process.env.POSTGRES_DB || "realtime",
   user: process.env.POSTGRES_USER || "app",
   password: process.env.POSTGRES_PASSWORD || "app",
-  max: 10,
+  max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
@@ -142,7 +142,7 @@ app.get("/metrics", (req, res) => {
 app.get("/api/kpi", async (req, res) => {
   const timeRange = req.query.timeRange || "1h";
   try {
-    const data = await withCache(`kpi:${timeRange}`, 3000, async () => {
+    const data = await withCache(`kpi:${timeRange}`, 5000, async () => {
       const interval = getIntervalExpression(timeRange);
       const result = await pool.query(`
         SELECT
@@ -175,7 +175,7 @@ app.get("/api/kpi", async (req, res) => {
 app.get("/api/timeseries", async (req, res) => {
   const timeRange = req.query.timeRange || "1h";
   try {
-    const rows = await withCache(`timeseries:${timeRange}`, 4000, async () => {
+    const rows = await withCache(`timeseries:${timeRange}`, 5000, async () => {
       const interval = getIntervalExpression(timeRange);
       if (timeRange === "24h") {
         const result = await pool.query(`
@@ -280,7 +280,7 @@ app.get("/api/health", async (req, res) => {
   }
 
   try {
-    const health = await withCache("health", 5000, async () => {
+    const health = await withCache("health", 3000, async () => {
       const h = {
         kafka: { status: "healthy", message: "All brokers operational" },
         spark: { status: "healthy", message: "Streaming jobs running" },
@@ -335,7 +335,7 @@ app.get("/api/health", async (req, res) => {
 
 app.get("/api/metrics", async (req, res) => {
   try {
-    const data = await withCache("metrics", 2000, async () => {
+    const data = await withCache("metrics", 3000, async () => {
       const epsResult = await pool.query(`
         SELECT COUNT(*)::float AS cnt
         FROM events_clean
