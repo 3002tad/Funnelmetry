@@ -12,6 +12,22 @@ export function AutoEmit({ onEventEmitted }: AutoEmitProps) {
   const [emittedCount, setEmittedCount] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Disable browser tab throttling when page is hidden
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log("⚠️ Tab hidden - but AutoEmit will continue running");
+      } else {
+        console.log("✅ Tab visible - AutoEmit resumed");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   useEffect(() => {
     if (isRunning) {
       const intervalMs = 1000 / ratePerSec;

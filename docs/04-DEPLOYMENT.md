@@ -44,7 +44,7 @@ sudo systemctl start k3s
 From Windows PowerShell:
 
 ```powershell
-cd D:\Detai\Business-Data-Streaming---Processing-Pipeline
+  cd D:\Detai\Business-Data-Streaming---Processing-Pipeline
 .\deploy-k3s.ps1
 ```
 
@@ -193,6 +193,90 @@ sudo k3s kubectl -n realtime rollout restart deploy/<deployment>
 
 # Scale deployment
 sudo k3s kubectl -n realtime scale deploy/<deployment> --replicas=2
+```
+
+---
+
+## K3s on WSL2 Setup & Troubleshooting
+
+### Enable systemd (REQUIRED for K3s)
+
+Edit `/etc/wsl.conf` in WSL:
+
+```bash
+sudo nano /etc/wsl.conf
+```
+
+Add:
+
+```ini
+[boot]
+systemd=true
+
+[interop]
+enabled=true
+appendWindowsPath=true
+
+[wsl2]
+memory=8GB
+processors=4
+```
+
+Restart WSL:
+
+```powershell
+wsl --shutdown
+# Then reopen WSL
+```
+
+### Fix cgroupv2 Error
+
+If K3s fails with "wrong number of fields" error, add to K3s service:
+
+```bash
+sudo mkdir -p /etc/systemd/system/k3s.service.d
+sudo nano /etc/systemd/system/k3s.service.d/override.conf
+```
+
+Add:
+
+```ini
+[Service]
+Environment="K3S_KUBELET_ARGS=--cgroups-per-qos=false --enforce-node-allocatable="
+```
+
+Reload and restart:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart k3s
+```
+
+### Load Docker Images into K3s
+
+After building with Docker Compose:
+
+```bash
+cd infra
+
+# Load each image
+docker save infra-api-generator:latest | sudo k3s ctr images import -
+docker save infra-producer:latest | sudo k3s ctr images import -
+docker save infra-spark-streaming:latest | sudo k3s ctr images import -
+docker save infra-dashboard-api:latest | sudo k3s ctr images import -
+docker save infra-frontend:latest | sudo k3s ctr images import -
+docker save infra-generator-ui:latest | sudo k3s ctr images import -
+
+# Verify
+sudo k3s ctr images ls | grep infra
+```
+
+Then deploy:
+
+```bash
+sudo k3s kubectl apply -f k8s/k3s-stack.yaml
+sleep 45
+sudo k3s kubectl get pods -n realtime
 ```
 
 ---

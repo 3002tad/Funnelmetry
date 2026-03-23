@@ -39,10 +39,11 @@ All documentation is in `/docs/`:
 |------|---------|
 | [00-INTRODUCTION.md](docs/00-INTRODUCTION.md) | Project overview |
 | [01-ARCHITECTURE.md](docs/01-ARCHITECTURE.md) | System architecture |
-| [02-COMMANDS.md](docs/02-COMMANDS.md) | CLI commands |
+| [02-COMMANDS.md](docs/02-COMMANDS.md) | CLI commands (Docker + K3s) |
 | [03-API-REFERENCE.md](docs/03-API-REFERENCE.md) | API endpoints |
-| [04-DEPLOYMENT.md](docs/04-DEPLOYMENT.md) | K3s guide |
+| [04-DEPLOYMENT.md](docs/04-DEPLOYMENT.md) | K3s on WSL2 setup guide |
 | [05-CHANGELOG.md](docs/05-CHANGELOG.md) | Updates & fixes |
+| [06-TROUBLESHOOTING.md](docs/06-TROUBLESHOOTING.md) | Common issues & solutions |
 
 ---
 
@@ -56,6 +57,35 @@ All documentation is in `/docs/`:
 | Backend | Node.js + Express |
 | Frontend | React 18 + TailwindCSS |
 | Infra | Docker Compose / K3s |
+
+---
+
+## 📋 Prerequisites
+
+### For Docker Compose
+- Docker Desktop (Windows) with WSL2 integration
+- Docker Compose 2.0+
+- 4GB RAM available
+
+### For K3s on WSL2
+- **Windows 10/11** with WSL2 + Ubuntu 22.04 LTS
+- **Docker Desktop** integrated with WSL
+- **K3s** installed on WSL (see [04-DEPLOYMENT.md](docs/04-DEPLOYMENT.md))
+- **systemd enabled** in `/etc/wsl.conf` - **CRITICAL!**
+  ```ini
+  [boot]
+  systemd=true
+  ```
+- **cgroupv2 workaround** - if K3s fails with "wrong number of fields" error, see [06-TROUBLESHOOTING.md](docs/06-TROUBLESHOOTING.md)
+
+**K3s Setup (first time only):**
+```bash
+wsl -e bash
+curl -sfL https://get.k3s.io | sh -
+sudo usermod -aG docker $USER  # optional, for docker commands without sudo
+```
+
+See [04-DEPLOYMENT.md](docs/04-DEPLOYMENT.md#k3s-setup-on-wsl2) for complete guide.
 
 ---
 
