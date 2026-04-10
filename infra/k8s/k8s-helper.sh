@@ -41,7 +41,7 @@ header "K3s Deployment Helper"
 case "${1:-menu}" in
     apply)
         header "Applying K3s Manifest"
-        sudo k3s kubectl apply -f /mnt/d/Detai/Business-Data-Streaming---Processing-Pipeline/k8s/k3s-stack.yaml
+        sudo k3s kubectl apply -f /mnt/d/Detai/Business-Data-Streaming---Processing-Pipeline/infra/k8s/k3s-stack.yaml
         success "Manifest applied"
         ;;
     

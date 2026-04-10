@@ -32,7 +32,7 @@ function Write-Error {
 
 $RepoRoot = "D:\Detai\Business-Data-Streaming---Processing-Pipeline"
 $InfraPath = "$RepoRoot\infra"
-$K8sPath = "$RepoRoot\k8s"
+$K8sPath = "$RepoRoot\infra\k8s"
 
 # ============================================================================
 # Step 1: Build Docker Images
@@ -82,7 +82,7 @@ if (-not $SkipBuild) {
 Write-Header "STEP 3: Deploying K3s Manifest"
 
 $K8sManifest = "$K8sPath\k3s-stack.yaml"
-$K8sManifestWSL = "/mnt/d/Detai/Business-Data-Streaming---Processing-Pipeline/k8s/k3s-stack.yaml"
+$K8sManifestWSL = "/mnt/d/Detai/Business-Data-Streaming---Processing-Pipeline/infra/k8s/k3s-stack.yaml"
 
 Write-Host "Applying K3s manifest..."
 wsl.exe -e sudo k3s kubectl apply -f $K8sManifestWSL
