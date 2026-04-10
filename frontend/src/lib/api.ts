@@ -89,16 +89,18 @@ class MockDataGenerator {
   // Generate KPI data based on time range
   generateKPI(timeRange: TimeRange): BusinessKPI {
     const multiplier = this.getTimeRangeMultiplier(timeRange);
-    const ordersCreated = Math.floor(Math.random() * 500 * multiplier) + 1000 * multiplier;
-    const paymentSuccess = Math.floor(ordersCreated * 0.85);
-    const paymentFailed = ordersCreated - paymentSuccess;
-    const successRate = (paymentSuccess / ordersCreated) * 100;
+    const totalEvents = Math.floor(Math.random() * 500 * multiplier) + 1000 * multiplier;
+    const paymentSuccess = Math.floor(totalEvents * 0.35);
+    const pending = Math.floor(totalEvents * 0.55);
+    const totalFailed = totalEvents - paymentSuccess - pending;
+    const successRate = (paymentSuccess / (paymentSuccess + totalFailed)) * 100;
 
     return {
       revenue: Math.floor(this.baseRevenue * multiplier + Math.random() * 100000),
-      ordersCreated,
+      totalEvents,
       paymentSuccess,
-      paymentFailed,
+      pending,
+      totalFailed,
       successRate: Math.round(successRate * 100) / 100,
     };
   }

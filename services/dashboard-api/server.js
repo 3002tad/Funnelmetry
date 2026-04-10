@@ -130,8 +130,8 @@ app.get("/api/kpi", async (req, res) => {
           ELSE 0
         END::float                                                                    AS "successRate"
       FROM kpi_1m
-      WHERE window_start >= NOW() - INTERVAL '${interval}'
-    `);
+      WHERE window_start >= NOW() - $1::interval
+    `, [interval]);
     res.json(result.rows[0]);
   } catch (err) {
     console.error("[/api/kpi]", err.message);
@@ -158,10 +158,10 @@ app.get("/api/timeseries", async (req, res) => {
           SUM(payment_success)::int      AS "paymentSuccess",
           SUM(payment_failed)::int       AS "paymentFailed"
         FROM kpi_1m
-        WHERE window_start >= NOW() - INTERVAL '${interval}'
+        WHERE window_start >= NOW() - $1::interval
         GROUP BY 1
         ORDER BY 1 ASC
-      `);
+      `, [interval]);
       rows = result.rows;
     } else {
       const result = await pool.query(`
@@ -172,9 +172,9 @@ app.get("/api/timeseries", async (req, res) => {
           payment_success::int           AS "paymentSuccess",
           payment_failed::int            AS "paymentFailed"
         FROM kpi_1m
-        WHERE window_start >= NOW() - INTERVAL '${interval}'
+        WHERE window_start >= NOW() - $1::interval
         ORDER BY window_start ASC
-      `);
+      `, [interval]);
       rows = result.rows;
     }
     res.json(rows);

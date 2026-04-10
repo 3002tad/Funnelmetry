@@ -80,13 +80,17 @@ SELECT
     MAX(window_end) as period_end,
     SUM(revenue) as total_revenue,
     SUM(orders_created) as total_orders,
+    SUM(payment_initiated) as total_payment_initiated,
     SUM(payment_success) as total_success,
-    SUM(payment_failed) as total_failed,
-    CASE 
-        WHEN SUM(orders_created) > 0 
-        THEN ROUND(100.0 * SUM(payment_success) / SUM(orders_created), 2)
-        ELSE 0 
-    END as success_rate
+    SUM(payment_failed) as total_payment_failed,
+    SUM(order_cancelled) as total_cancelled,
+    SUM(orders_created + payment_initiated) as total_pending,
+    SUM(payment_failed + order_cancelled) as total_failed_all,
+    SUM(orders_created + payment_initiated + payment_success + payment_failed + order_cancelled) as total_events,
+    COALESCE(
+        ROUND(100.0 * SUM(payment_success) / NULLIF(SUM(payment_success) + SUM(payment_failed) + SUM(order_cancelled), 0), 2),
+        0
+    ) as success_rate
 FROM kpi_1m
 WHERE window_start >= NOW() - INTERVAL '15 minutes';
 
@@ -97,13 +101,17 @@ SELECT
     MAX(window_end) as period_end,
     SUM(revenue) as total_revenue,
     SUM(orders_created) as total_orders,
+    SUM(payment_initiated) as total_payment_initiated,
     SUM(payment_success) as total_success,
-    SUM(payment_failed) as total_failed,
-    CASE 
-        WHEN SUM(orders_created) > 0 
-        THEN ROUND(100.0 * SUM(payment_success) / SUM(orders_created), 2)
-        ELSE 0 
-    END as success_rate
+    SUM(payment_failed) as total_payment_failed,
+    SUM(order_cancelled) as total_cancelled,
+    SUM(orders_created + payment_initiated) as total_pending,
+    SUM(payment_failed + order_cancelled) as total_failed_all,
+    SUM(orders_created + payment_initiated + payment_success + payment_failed + order_cancelled) as total_events,
+    COALESCE(
+        ROUND(100.0 * SUM(payment_success) / NULLIF(SUM(payment_success) + SUM(payment_failed) + SUM(order_cancelled), 0), 2),
+        0
+    ) as success_rate
 FROM kpi_1m
 WHERE window_start >= NOW() - INTERVAL '1 hour';
 
@@ -114,13 +122,17 @@ SELECT
     MAX(window_end) as period_end,
     SUM(revenue) as total_revenue,
     SUM(orders_created) as total_orders,
+    SUM(payment_initiated) as total_payment_initiated,
     SUM(payment_success) as total_success,
-    SUM(payment_failed) as total_failed,
-    CASE 
-        WHEN SUM(orders_created) > 0 
-        THEN ROUND(100.0 * SUM(payment_success) / SUM(orders_created), 2)
-        ELSE 0 
-    END as success_rate
+    SUM(payment_failed) as total_payment_failed,
+    SUM(order_cancelled) as total_cancelled,
+    SUM(orders_created + payment_initiated) as total_pending,
+    SUM(payment_failed + order_cancelled) as total_failed_all,
+    SUM(orders_created + payment_initiated + payment_success + payment_failed + order_cancelled) as total_events,
+    COALESCE(
+        ROUND(100.0 * SUM(payment_success) / NULLIF(SUM(payment_success) + SUM(payment_failed) + SUM(order_cancelled), 0), 2),
+        0
+    ) as success_rate
 FROM kpi_1m
 WHERE window_start >= NOW() - INTERVAL '24 hours';
 
