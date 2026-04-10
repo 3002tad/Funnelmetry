@@ -70,6 +70,26 @@ CREATE TABLE kpi_1m (
 CREATE INDEX idx_kpi_1m_window_start ON kpi_1m(window_start DESC);
 
 -- ============================================================================
+-- TABLE 3: event_traces
+-- Stores distributed tracing data for pipeline latency monitoring
+-- ============================================================================
+DROP TABLE IF EXISTS event_traces CASCADE;
+
+CREATE TABLE event_traces (
+    event_id VARCHAR(50) PRIMARY KEY,
+    t_generated TIMESTAMP,
+    t_kafka_sent TIMESTAMP,
+    t_spark_processed TIMESTAMP,
+    t_db_written TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    latency_gen_to_kafka_ms INTEGER,
+    latency_kafka_to_spark_ms INTEGER,
+    latency_spark_to_db_ms INTEGER,
+    latency_total_ms INTEGER
+);
+
+CREATE INDEX idx_event_traces_t_generated ON event_traces(t_generated DESC);
+
+-- ============================================================================
 -- VIEWS FOR DASHBOARD (OPTIONAL - FOR EASIER API QUERIES)
 -- ============================================================================
 

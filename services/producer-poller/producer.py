@@ -12,7 +12,7 @@ Architecture:
 import json
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 from typing import Optional, Dict, Any
 
@@ -154,7 +154,11 @@ def produce_to_kafka(producer: KafkaProducer, event: Dict[str, Any]) -> bool:
     try:
         # Use orderId as message key for partitioning
         key = event.get('orderId', '')
-        
+
+        # Distributed tracing — stamp Kafka send time
+        event.setdefault('trace', {})
+        event['trace']['t_kafka_sent'] = datetime.now(timezone.utc).isoformat()
+
         # Send to Kafka — async fire-and-forget with callback (non-blocking)
         def on_send_success(record_metadata):
             logger.debug(

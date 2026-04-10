@@ -34,6 +34,12 @@ POSTGRES_DRIVER   = 'org.postgresql.Driver'
 # SCHEMA DEFINITION
 # ============================================================================
 
+# Trace sub-schema for distributed tracing
+TRACE_SCHEMA = StructType([
+    StructField('t_generated', StringType(), nullable=True),
+    StructField('t_kafka_sent', StringType(), nullable=True),
+])
+
 # Define schema for incoming JSON events
 EVENT_SCHEMA = StructType([
     StructField('id', StringType(), nullable=False),
@@ -44,6 +50,7 @@ EVENT_SCHEMA = StructType([
     StructField('amount', DoubleType(), nullable=False),
     StructField('currency', StringType(), nullable=False),
     StructField('status', StringType(), nullable=False),
+    StructField('trace', TRACE_SCHEMA, nullable=True),
 ])
 
 # ============================================================================
@@ -98,10 +105,13 @@ def parse_and_validate(df):
     
     # Filter valid events only
     valid_df = validated_df.filter(col('is_valid') == True).drop('is_valid', 'raw_value')
-    
-    # Invalid events - just count and log (could write to separate topic)
-    # For now, we'll just filter them out
-    
+
+    # Extract trace fields (nullable — old events may not have them)
+    valid_df = valid_df \
+        .withColumn('trace_t_generated', col('trace.t_generated')) \
+        .withColumn('trace_t_kafka_sent', col('trace.t_kafka_sent')) \
+        .drop('trace')
+
     return valid_df
 
 
@@ -134,9 +144,11 @@ def clean_and_deduplicate(df):
             col('amount'),
             col('currency'),
             col('status'),
-            col('ingest_time')
+            col('ingest_time'),
+            col('trace_t_generated'),
+            col('trace_t_kafka_sent')
         )
-    
+
     return cleaned_df
 
 
@@ -280,6 +292,91 @@ def upsert_kpi_to_postgres(batch_df, batch_id):
         raise
 
 
+def write_traces_to_postgres(batch_df, batch_id):
+    """
+    Write distributed tracing data to event_traces table.
+    Computes latency between pipeline stages.
+    """
+    import psycopg2
+    from datetime import datetime as dt, timezone
+
+    rows = batch_df.collect()
+    if not rows:
+        return
+
+    now = dt.now(timezone.utc)
+
+    try:
+        conn = psycopg2.connect(
+            host=POSTGRES_HOST,
+            port=POSTGRES_PORT,
+            dbname=POSTGRES_DB,
+            user=POSTGRES_USER,
+            password=POSTGRES_PASSWORD,
+        )
+        cur = conn.cursor()
+
+        upsert_sql = """
+            INSERT INTO event_traces
+                (event_id, t_generated, t_kafka_sent, t_spark_processed, t_db_written,
+                 latency_gen_to_kafka_ms, latency_kafka_to_spark_ms,
+                 latency_spark_to_db_ms, latency_total_ms)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (event_id) DO UPDATE SET
+                t_spark_processed       = EXCLUDED.t_spark_processed,
+                t_db_written            = EXCLUDED.t_db_written,
+                latency_gen_to_kafka_ms = EXCLUDED.latency_gen_to_kafka_ms,
+                latency_kafka_to_spark_ms = EXCLUDED.latency_kafka_to_spark_ms,
+                latency_spark_to_db_ms  = EXCLUDED.latency_spark_to_db_ms,
+                latency_total_ms        = EXCLUDED.latency_total_ms
+        """
+
+        def parse_iso(s):
+            """Parse ISO timestamp string to datetime (UTC)."""
+            if not s:
+                return None
+            try:
+                # Handle both 'Z' suffix and '+00:00' offset
+                s = s.replace('Z', '+00:00')
+                return dt.fromisoformat(s)
+            except Exception:
+                return None
+
+        def ms_between(a, b):
+            """Compute milliseconds between two datetimes, clamped to >= 0."""
+            if a and b:
+                return max(0, int((b - a).total_seconds() * 1000))
+            return None
+
+        data = []
+        for row in rows:
+            t_gen = parse_iso(row['trace_t_generated'])
+            t_kafka = parse_iso(row['trace_t_kafka_sent'])
+            t_spark = now
+            t_db = now
+
+            data.append((
+                row['id'],
+                t_gen,
+                t_kafka,
+                t_spark,
+                t_db,
+                ms_between(t_gen, t_kafka),
+                ms_between(t_kafka, t_spark),
+                ms_between(t_spark, t_db),
+                ms_between(t_gen, t_db),
+            ))
+
+        cur.executemany(upsert_sql, data)
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f'✅ Batch {batch_id}: Wrote {len(data)} trace rows to event_traces')
+    except Exception as e:
+        print(f'❌ Batch {batch_id}: Error writing traces: {str(e)}')
+        raise
+
+
 # ============================================================================
 # MAIN STREAMING PIPELINE
 # ============================================================================
@@ -317,15 +414,19 @@ def main():
     print('🧹 UC04: Cleaning and deduplicating...')
     clean_events = clean_and_deduplicate(valid_events)
     
-    # UC05: Calculate KPIs
+    # UC05: Calculate KPIs (trace columns not needed for KPI aggregation)
     print('📊 UC05: Calculating KPIs...')
     kpis = calculate_kpis(clean_events)
-    
+
+    # Split: events_clean gets business columns only, traces get trace columns
+    events_for_db = clean_events.drop('trace_t_generated', 'trace_t_kafka_sent')
+    trace_events = clean_events.select('id', 'trace_t_generated', 'trace_t_kafka_sent')
+
     # UC06: Persist to PostgreSQL
     print('💾 UC06: Setting up persistence to PostgreSQL...')
-    
+
     # Stream 1: Write clean events to events_clean table
-    events_query = clean_events.writeStream \
+    events_query = events_for_db.writeStream \
         .foreachBatch(lambda batch_df, batch_id: write_to_postgres(batch_df, batch_id, 'events_clean')) \
         .outputMode('append') \
         .trigger(processingTime='5 seconds') \
@@ -339,7 +440,15 @@ def main():
         .trigger(processingTime='5 seconds') \
         .option('checkpointLocation', f'{CHECKPOINT_DIR}/kpi_1m') \
         .start()
-    
+
+    # Stream 3: Write distributed tracing data to event_traces
+    trace_query = trace_events.writeStream \
+        .foreachBatch(write_traces_to_postgres) \
+        .outputMode('append') \
+        .trigger(processingTime='5 seconds') \
+        .option('checkpointLocation', f'{CHECKPOINT_DIR}/event_traces') \
+        .start()
+
     print('✅ Streaming queries started!')
     print('🟢 Pipeline is running... (Press Ctrl+C to stop)')
     print()
@@ -354,6 +463,7 @@ def main():
         print('=' * 70)
         events_query.stop()
         kpi_query.stop()
+        trace_query.stop()
         spark.stop()
         print('✅ Spark session closed')
 

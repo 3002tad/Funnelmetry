@@ -73,6 +73,29 @@ export interface Alert {
   service: string;
 }
 
+// Distributed tracing
+export interface EventTrace {
+  eventId: string;
+  tGenerated: string | null;
+  tKafkaSent: string | null;
+  tSparkProcessed: string | null;
+  tDbWritten: string | null;
+  latencyGenToKafkaMs: number | null;
+  latencyKafkaToSparkMs: number | null;
+  latencySparkToDbMs: number | null;
+  latencyTotalMs: number | null;
+}
+
+export interface TraceStats {
+  count: number;
+  p50: number | null;
+  p95: number | null;
+  p99: number | null;
+  avgGenToKafkaMs: number | null;
+  avgKafkaToSparkMs: number | null;
+  avgSparkToDbMs: number | null;
+}
+
 // ============================================================================
 // MOCK DATA GENERATOR
 // ============================================================================
@@ -178,6 +201,30 @@ class MockDataGenerator {
   // Get alerts
   getAlerts(): Alert[] {
     return [...this.alerts];
+  }
+
+  // Generate mock trace data
+  generateTrace(eventId: string): EventTrace {
+    const now = Date.now();
+    const genToKafka = Math.floor(Math.random() * 80) + 10;
+    const kafkaToSpark = Math.floor(Math.random() * 300) + 50;
+    const sparkToDb = Math.floor(Math.random() * 50) + 5;
+    const total = genToKafka + kafkaToSpark + sparkToDb;
+    const tGen = new Date(now - total).toISOString();
+    const tKafka = new Date(now - total + genToKafka).toISOString();
+    const tSpark = new Date(now - sparkToDb).toISOString();
+    const tDb = new Date(now).toISOString();
+    return {
+      eventId,
+      tGenerated: tGen,
+      tKafkaSent: tKafka,
+      tSparkProcessed: tSpark,
+      tDbWritten: tDb,
+      latencyGenToKafkaMs: genToKafka,
+      latencyKafkaToSparkMs: kafkaToSpark,
+      latencySparkToDbMs: sparkToDb,
+      latencyTotalMs: total,
+    };
   }
 
   // Simulate system issues
@@ -348,6 +395,28 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type }),
     });
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Tracing APIs
+  async getEventTrace(eventId: string): Promise<EventTrace | null> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      return mockGenerator.generateTrace(eventId);
+    }
+    const response = await fetch(`${API_BASE_URL}/events/${eventId}/trace`);
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  async getTraceStats(timeRange: TimeRange): Promise<TraceStats> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      return { count: 1200, p50: 180, p95: 450, p99: 820, avgGenToKafkaMs: 35, avgKafkaToSparkMs: 120, avgSparkToDbMs: 15 };
+    }
+    const response = await fetch(`${API_BASE_URL}/traces/stats?timeRange=${timeRange}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     return response.json();
   },

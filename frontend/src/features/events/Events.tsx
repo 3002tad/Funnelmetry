@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, Event, EventType, EventStatus } from '@/lib/api'
+import { api, Event, EventType, EventStatus, EventTrace } from '@/lib/api'
 import { format } from 'date-fns'
 import { Search, Filter, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
+import PipelineTrace from '@/components/ui/PipelineTrace'
 import EmptyState, { LoadingSpinner } from '@/components/ui/EmptyState'
 import clsx from 'clsx'
 
@@ -24,6 +25,13 @@ export default function Events() {
       ...(filterEventType !== 'all' && { eventType: filterEventType }),
       ...(filterStatus !== 'all' && { status: filterStatus }),
     }),
+  })
+
+  // Fetch trace data for selected event
+  const { data: traceData, isLoading: traceLoading } = useQuery({
+    queryKey: ['eventTrace', selectedEvent?.id],
+    queryFn: () => api.getEventTrace(selectedEvent!.id),
+    enabled: !!selectedEvent,
   })
 
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0
@@ -221,7 +229,7 @@ export default function Events() {
         isOpen={selectedEvent !== null}
         onClose={() => setSelectedEvent(null)}
         title="Event Details"
-        size="lg"
+        size="xl"
       >
         {selectedEvent && (
           <div className="space-y-4">
@@ -280,6 +288,8 @@ export default function Events() {
                 </pre>
               </div>
             )}
+
+            <PipelineTrace trace={traceData} loading={traceLoading} />
           </div>
         )}
       </Modal>

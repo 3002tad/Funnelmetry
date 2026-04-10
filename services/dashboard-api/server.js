@@ -253,6 +253,63 @@ app.get("/api/events", async (req, res) => {
 });
 
 // ----------------------------------------------------------------
+// GET /api/events/:id/trace — distributed tracing for a single event
+// ----------------------------------------------------------------
+app.get("/api/events/:id/trace", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+         event_id                  AS "eventId",
+         t_generated               AS "tGenerated",
+         t_kafka_sent              AS "tKafkaSent",
+         t_spark_processed         AS "tSparkProcessed",
+         t_db_written              AS "tDbWritten",
+         latency_gen_to_kafka_ms   AS "latencyGenToKafkaMs",
+         latency_kafka_to_spark_ms AS "latencyKafkaToSparkMs",
+         latency_spark_to_db_ms    AS "latencySparkToDbMs",
+         latency_total_ms          AS "latencyTotalMs"
+       FROM event_traces
+       WHERE event_id = $1`,
+      [req.params.id],
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Trace not found" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("[/api/events/:id/trace]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------------------
+// GET /api/traces/stats?timeRange=15m|1h|24h — latency percentiles
+// ----------------------------------------------------------------
+app.get("/api/traces/stats", async (req, res) => {
+  const timeRange = req.query.timeRange || "1h";
+  const interval = getIntervalExpression(timeRange);
+  try {
+    const result = await pool.query(
+      `SELECT
+         COUNT(*)::int AS "count",
+         ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY latency_total_ms))::int AS "p50",
+         ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_total_ms))::int AS "p95",
+         ROUND(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY latency_total_ms))::int AS "p99",
+         ROUND(AVG(latency_gen_to_kafka_ms))::int   AS "avgGenToKafkaMs",
+         ROUND(AVG(latency_kafka_to_spark_ms))::int  AS "avgKafkaToSparkMs",
+         ROUND(AVG(latency_spark_to_db_ms))::int     AS "avgSparkToDbMs"
+       FROM event_traces
+       WHERE t_generated >= NOW() - $1::interval`,
+      [interval],
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("[/api/traces/stats]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------------------
 // GET /api/health  — checks Kafka, Spark (via PG recency), Postgres
 // ----------------------------------------------------------------
 app.get("/api/health", async (req, res) => {

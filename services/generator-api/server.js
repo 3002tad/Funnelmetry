@@ -178,6 +178,9 @@ function generateEvent() {
       ip: generateIP(),
       sessionId: generateSessionId(),
     },
+    trace: {
+      t_generated: new Date().toISOString(),
+    },
   };
 }
 
