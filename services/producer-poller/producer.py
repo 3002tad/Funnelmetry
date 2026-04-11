@@ -1,10 +1,11 @@
 """
 Kafka Producer Poller
 
-Polls the Event Generator API and produces events to Kafka
+Polls the Event Generator API drain endpoint and produces events to Kafka.
+Uses batch drain for high throughput.
 
 Architecture:
-    API Generator (http://localhost:7070/gen/event) 
+    API Generator (http://localhost:7070/gen/drain?limit=N)
     → Producer Poller (this script)
     → Kafka (topic: events_raw)
 """
@@ -25,7 +26,7 @@ from kafka.errors import KafkaError
 # ============================================================================
 
 # API Configuration
-API_URL = os.getenv('API_URL', 'http://localhost:7070/gen/event')
+API_DRAIN_URL = os.getenv('API_DRAIN_URL', 'http://localhost:7070/gen/drain')
 API_TIMEOUT = int(os.getenv('API_TIMEOUT', '5'))  # seconds
 
 # Kafka Configuration
@@ -33,7 +34,8 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', 'events_raw')
 
 # Polling Configuration
-POLL_INTERVAL_MS = int(os.getenv('POLL_INTERVAL_MS', '100'))  # 100ms = up to 10 events/sec
+POLL_INTERVAL_MS = int(os.getenv('POLL_INTERVAL_MS', '20'))  # 20ms polling
+POLL_BATCH_LIMIT = int(os.getenv('POLL_BATCH_LIMIT', '100'))
 MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
 RETRY_DELAY_SEC = int(os.getenv('RETRY_DELAY_SEC', '2'))
 
@@ -50,20 +52,15 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 def create_kafka_producer() -> Optional[KafkaProducer]:
-    """
-    Create and return a Kafka Producer instance
-    
-    Returns:
-        KafkaProducer or None if connection fails
-    """
+    """Create and return a Kafka Producer instance"""
     try:
         producer = KafkaProducer(
             bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
             value_serializer=lambda v: json.dumps(v).encode('utf-8'),
             key_serializer=lambda k: k.encode('utf-8') if k else None,
-            acks=1,          # Leader ack only — faster than acks='all' (we have 1 broker)
+            acks=1,
             retries=3,
-            linger_ms=5,     # Micro-batch up to 5ms for throughput
+            linger_ms=5,
             compression_type='gzip',
         )
         logger.info(f"✅ Connected to Kafka: {KAFKA_BOOTSTRAP_SERVERS}")
@@ -76,90 +73,74 @@ def create_kafka_producer() -> Optional[KafkaProducer]:
 # API POLLING
 # ============================================================================
 
-def poll_event_from_api(retry_count: int = 0) -> Optional[Dict[str, Any]]:
+def poll_events_from_api(retry_count: int = 0) -> list:
     """
-    Poll a single event from the API Generator
-    
-    Args:
-        retry_count: Current retry attempt number
-        
-    Returns:
-        Event dict or None if failed
+    Poll a batch of events from the API Generator drain endpoint.
+    Returns empty list when queue is empty (204).
     """
     try:
-        response = requests.get(API_URL, timeout=API_TIMEOUT)
+        response = requests.get(
+            API_DRAIN_URL,
+            params={'limit': POLL_BATCH_LIMIT},
+            timeout=API_TIMEOUT,
+        )
 
-        # 204 = queue empty, nothing to do this cycle
+        # 204 = queue empty
         if response.status_code == 204:
-            return None
+            return []
 
         response.raise_for_status()
-        
-        event = response.json()
-        logger.info(f"📥 Pulled event from API: {event.get('eventType')} | Order: {event.get('orderId')}")
-        return event
-        
+
+        payload = response.json()
+        events = payload.get('events', []) if isinstance(payload, dict) else []
+
+        if events:
+            logger.debug(f"📥 Drained {len(events)} events from queue")
+        return events
+
     except requests.exceptions.Timeout:
         logger.warning(f"⏱️ API timeout (attempt {retry_count + 1}/{MAX_RETRIES})")
         return retry_poll(retry_count)
-        
+
     except requests.exceptions.ConnectionError:
         logger.warning(f"🔌 API connection error (attempt {retry_count + 1}/{MAX_RETRIES})")
         return retry_poll(retry_count)
-        
+
     except requests.exceptions.HTTPError as e:
         logger.error(f"❌ API HTTP error: {e.response.status_code} - {e.response.text}")
         return retry_poll(retry_count)
-        
+
     except json.JSONDecodeError:
         logger.error(f"❌ Invalid JSON response from API")
-        return None
-        
+        return []
+
     except Exception as e:
         logger.error(f"❌ Unexpected error polling API: {e}")
-        return None
+        return []
 
-def retry_poll(retry_count: int) -> Optional[Dict[str, Any]]:
-    """
-    Retry polling with exponential backoff
-    
-    Args:
-        retry_count: Current retry attempt
-        
-    Returns:
-        Event dict or None if max retries exceeded
-    """
+
+def retry_poll(retry_count: int) -> list:
+    """Retry polling with exponential backoff."""
     if retry_count < MAX_RETRIES:
         time.sleep(RETRY_DELAY_SEC * (retry_count + 1))
-        return poll_event_from_api(retry_count + 1)
+        return poll_events_from_api(retry_count + 1)
     else:
         logger.error(f"❌ Max retries ({MAX_RETRIES}) exceeded")
-        return None
+        return []
 
 # ============================================================================
 # KAFKA PRODUCTION
 # ============================================================================
 
 def produce_to_kafka(producer: KafkaProducer, event: Dict[str, Any]) -> bool:
-    """
-    Send event to Kafka topic
-    
-    Args:
-        producer: Kafka Producer instance
-        event: Event dictionary
-        
-    Returns:
-        True if successful, False otherwise
-    """
+    """Send event to Kafka topic"""
     try:
-        # Use orderId as message key for partitioning
         key = event.get('orderId', '')
 
         # Distributed tracing — stamp Kafka send time
         event.setdefault('trace', {})
         event['trace']['t_kafka_sent'] = datetime.now(timezone.utc).isoformat()
 
-        # Send to Kafka — async fire-and-forget with callback (non-blocking)
         def on_send_success(record_metadata):
             logger.debug(
                 f"📤 Kafka ack: partition={record_metadata.partition} "
@@ -173,11 +154,11 @@ def produce_to_kafka(producer: KafkaProducer, event: Dict[str, Any]) -> bool:
             .add_callback(on_send_success) \
             .add_errback(on_send_error)
         return True
-        
+
     except KafkaError as e:
         logger.error(f"❌ Kafka production error: {e}")
         return False
-        
+
     except Exception as e:
         logger.error(f"❌ Unexpected error producing to Kafka: {e}")
         return False
@@ -187,61 +168,59 @@ def produce_to_kafka(producer: KafkaProducer, event: Dict[str, Any]) -> bool:
 # ============================================================================
 
 def main():
-    """
-    Main polling loop: API → Kafka
-    """
+    """Main polling loop: drain API queue → Kafka"""
     logger.info("=" * 70)
     logger.info("🚀 Kafka Producer Poller Starting...")
     logger.info("=" * 70)
-    logger.info(f"API URL: {API_URL}")
+    logger.info(f"API Drain URL: {API_DRAIN_URL}")
     logger.info(f"Kafka: {KAFKA_BOOTSTRAP_SERVERS}")
     logger.info(f"Topic: {KAFKA_TOPIC}")
     logger.info(f"Poll Interval: {POLL_INTERVAL_MS}ms")
+    logger.info(f"Poll Batch Limit: {POLL_BATCH_LIMIT}")
     logger.info("=" * 70)
-    
+
     # Create Kafka Producer
     producer = create_kafka_producer()
     if not producer:
         logger.error("❌ Cannot start without Kafka connection. Exiting.")
         return
-    
+
     # Statistics
     total_pulled = 0
     total_produced = 0
     total_failed = 0
-    
+
     try:
         while True:
             start_time = time.time()
-            
-            # Step 1: Poll event from API
-            event = poll_event_from_api()
-            
-            if event:
-                total_pulled += 1
 
-                # Step 2: Produce to Kafka
-                success = produce_to_kafka(producer, event)
+            # Step 1: Drain batch from API queue
+            events = poll_events_from_api()
 
-                if success:
-                    total_produced += 1
-                else:
-                    total_failed += 1
-            # None means queue was empty (204) — not a failure, just idle
+            if events:
+                total_pulled += len(events)
+
+                # Step 2: Produce all events in batch
+                for event in events:
+                    success = produce_to_kafka(producer, event)
+                    if success:
+                        total_produced += 1
+                    else:
+                        total_failed += 1
             else:
                 logger.debug("⏸️  Queue empty, waiting for UI events...")
-            
-            # Log statistics every 20 produced events (skip when idle)
-            if total_pulled > 0 and total_pulled % 20 == 0:
+
+            # Log statistics every 200 events
+            if total_pulled > 0 and total_pulled % 200 == 0:
                 logger.info(
                     f"📊 Stats: Pulled={total_pulled} | Produced={total_produced} | Failed={total_failed}"
                 )
-            
+
             # Sleep to maintain polling interval
             elapsed_ms = (time.time() - start_time) * 1000
             sleep_ms = max(0, POLL_INTERVAL_MS - elapsed_ms)
             time.sleep(sleep_ms / 1000)
-            
+
     except KeyboardInterrupt:
         logger.info("\n🛑 Shutting down gracefully...")
         logger.info(f"📊 Final Stats: Pulled={total_pulled} | Produced={total_produced} | Failed={total_failed}")

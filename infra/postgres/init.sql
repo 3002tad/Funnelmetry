@@ -42,6 +42,8 @@ CREATE TABLE events_clean (
 CREATE INDEX idx_events_clean_event_time ON events_clean(event_time DESC);
 CREATE INDEX idx_events_clean_event_type ON events_clean(event_type);
 CREATE INDEX idx_events_clean_order_id ON events_clean(order_id);
+CREATE INDEX idx_events_clean_ingest_time ON events_clean(ingest_time DESC);
+CREATE INDEX idx_events_clean_status ON events_clean(status);
 
 -- ============================================================================
 -- TABLE 2: kpi_1m
@@ -64,7 +66,7 @@ CREATE TABLE kpi_1m (
     -- Constraints
     CONSTRAINT chk_window_order CHECK (window_end > window_start),
     CONSTRAINT chk_success_rate CHECK (success_rate BETWEEN 0 AND 100)
-);
+) WITH (fillfactor = 50);
 
 -- Index for time-range queries
 CREATE INDEX idx_kpi_1m_window_start ON kpi_1m(window_start DESC);
@@ -155,6 +157,22 @@ SELECT
     ) as success_rate
 FROM kpi_1m
 WHERE window_start >= NOW() - INTERVAL '24 hours';
+
+-- ============================================================================
+-- UTILITY FUNCTIONS
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION cleanup_old_events(retention_days INTEGER DEFAULT 7)
+RETURNS INTEGER AS $$
+DECLARE
+  deleted_count INTEGER;
+BEGIN
+  DELETE FROM events_clean
+  WHERE ingest_time < NOW() - (retention_days || ' days')::INTERVAL;
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  RETURN deleted_count;
+END;
+$$ LANGUAGE plpgsql;
 
 -- ============================================================================
 -- SAMPLE QUERIES (FOR TESTING)

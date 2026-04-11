@@ -53,13 +53,7 @@ let CONFIG = {
 const DEVICES = ["mobile", "desktop", "tablet"];
 
 // Middleware
-app.use(
-  cors({
-    origin: ["http://localhost:5174", "http://127.0.0.1:5174"],
-    methods: ["GET", "POST"],
-    credentials: true,
-  }),
-);
+app.use(cors());
 app.use(express.json());
 
 // ============================================================================
@@ -421,6 +415,32 @@ app.post("/gen/emit", (req, res) => {
     res.json({ ...event, _queued: true, queueSize: eventQueue.length });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /gen/drain?limit=50
+ *
+ * Drain up to N queued events in a single request.
+ * Used by producer-poller for high-throughput batch polling.
+ * Returns 204 when queue is empty.
+ */
+app.get("/gen/drain", (req, res) => {
+  try {
+    if (eventQueue.length === 0) {
+      return res.status(204).end();
+    }
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
+    const drainCount = Math.min(limit, eventQueue.length);
+    const events = eventQueue.splice(0, drainCount);
+    console.log(
+      `[${new Date().toISOString()}] Drained: ${events.length} events | Queue remaining: ${eventQueue.length}`,
+    );
+    res.json({ count: events.length, queueSize: eventQueue.length, events });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Failed to drain events", message: error.message });
   }
 });
 

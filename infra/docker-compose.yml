@@ -107,10 +107,11 @@ services:
       kafka:
         condition: service_healthy
     environment:
-      API_URL: http://api-generator:7070/gen/event
+      API_DRAIN_URL: http://api-generator:7070/gen/drain
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: events_raw
-      POLL_INTERVAL_MS: 100
+      POLL_INTERVAL_MS: 20
+      POLL_BATCH_LIMIT: 100
     networks:
       - realtime-network
     restart: unless-stopped
@@ -128,6 +129,7 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: events_raw
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: realtime

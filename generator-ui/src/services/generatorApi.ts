@@ -1,7 +1,7 @@
 import type { Event, Config, EmitRequest } from "../types";
 
-const API_BASE_URL = "http://localhost:7070";
-const DASHBOARD_API_URL = "http://localhost:8080";
+const API_BASE_URL = "/api-generator";
+const DASHBOARD_API_URL = "/dashboard-api";
 
 export const generatorApi = {
   // Health check
