@@ -132,8 +132,9 @@ ecommerce-realtime-pipeline/
 │   ├── producer-poller/        # Python Kafka Producer
 │   └── spark-streaming/        # Spark Streaming Jobs
 │
-├── frontend/                   # Analytics Dashboard (port 5173)
-├── generator-ui/               # Generator Control UI (port 5174)
+├── clients/
+│   ├── dashboard/              # Analytics Dashboard (port 5173)
+│   └── generator/              # Generator Control UI (port 5174)
 │
 ├── infra/
 │   ├── docker-compose.yml      # 🐳 8 services

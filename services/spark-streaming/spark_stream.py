@@ -265,29 +265,75 @@ def calculate_kpis(df):
 # UC06 - PERSIST TO POSTGRESQL
 # ============================================================================
 
-def write_to_postgres(batch_df, batch_id, table_name):
+def write_events_and_traces(batch_df, batch_id):
     """
-    Write batch DataFrame to PostgreSQL using foreachBatch
-    Uses JDBC connection (append mode — for tables without PK conflicts)
+    Write events + traces in a single foreachBatch using psycopg2 bulk insert.
+    Much faster than JDBC append — one connection, one transaction.
     """
-    # NOTE: avoid batch_df.count() here — it forces a full extra Spark scan before writing
+    import psycopg2
+    from psycopg2.extras import execute_values
+    from datetime import datetime as dt, timezone
+
+    rows = batch_df.collect()
+    if not rows:
+        return
+
+    now = dt.now(timezone.utc)
+
+    def parse_iso(s):
+        if not s:
+            return None
+        try:
+            s = s.replace('Z', '+00:00')
+            return dt.fromisoformat(s)
+        except Exception:
+            return None
+
+    def ms_between(a, b):
+        if a and b:
+            return max(0, int((b - a).total_seconds() * 1000))
+        return None
+
     try:
-        batch_df.write \
-            .format('jdbc') \
-            .option('url', POSTGRES_URL) \
-            .option('dbtable', table_name) \
-            .option('user', POSTGRES_USER) \
-            .option('password', POSTGRES_PASSWORD) \
-            .option('driver', POSTGRES_DRIVER) \
-            .option('batchsize', '10000') \
-            .option('numPartitions', '4') \
-            .option('isolationLevel', 'READ_UNCOMMITTED') \
-            .mode('append') \
-            .save()
-        
-        print(f'✅ Batch {batch_id}: Wrote rows to {table_name}')
+        conn = psycopg2.connect(
+            host=POSTGRES_HOST, port=POSTGRES_PORT,
+            dbname=POSTGRES_DB, user=POSTGRES_USER, password=POSTGRES_PASSWORD,
+        )
+        cur = conn.cursor()
+
+        # Bulk insert events_clean
+        event_data = [
+            (r['id'], r['event_time'], r['event_type'], r['order_id'],
+             r['user_id'], float(r['amount']), r['currency'], r['status'], r['ingest_time'])
+            for r in rows
+        ]
+        execute_values(cur,
+            """INSERT INTO events_clean (id, event_time, event_type, order_id, user_id, amount, currency, status, ingest_time)
+               VALUES %s ON CONFLICT (id) DO NOTHING""",
+            event_data, page_size=1000)
+
+        # Bulk insert traces
+        trace_data = []
+        for r in rows:
+            t_gen = parse_iso(r['trace_t_generated'])
+            t_kafka = parse_iso(r['trace_t_kafka_sent'])
+            trace_data.append((
+                r['id'], t_gen, t_kafka, now, now,
+                ms_between(t_gen, t_kafka), ms_between(t_kafka, now),
+                ms_between(now, now), ms_between(t_gen, now),
+            ))
+        execute_values(cur,
+            """INSERT INTO event_traces (event_id, t_generated, t_kafka_sent, t_spark_processed, t_db_written,
+                   latency_gen_to_kafka_ms, latency_kafka_to_spark_ms, latency_spark_to_db_ms, latency_total_ms)
+               VALUES %s ON CONFLICT (event_id) DO NOTHING""",
+            trace_data, page_size=1000)
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f'✅ Batch {batch_id}: Wrote {len(rows)} events + traces')
     except Exception as e:
-        print(f'❌ Batch {batch_id}: Error writing to {table_name}: {str(e)}')
+        print(f'❌ Batch {batch_id}: Error writing events+traces: {str(e)}')
         raise
 
 
@@ -356,89 +402,6 @@ def upsert_kpi_to_postgres(batch_df, batch_id):
         raise
 
 
-def write_traces_to_postgres(batch_df, batch_id):
-    """
-    Write distributed tracing data to event_traces table.
-    Computes latency between pipeline stages.
-    """
-    import psycopg2
-    from datetime import datetime as dt, timezone
-
-    rows = batch_df.collect()
-    if not rows:
-        return
-
-    now = dt.now(timezone.utc)
-
-    try:
-        conn = psycopg2.connect(
-            host=POSTGRES_HOST,
-            port=POSTGRES_PORT,
-            dbname=POSTGRES_DB,
-            user=POSTGRES_USER,
-            password=POSTGRES_PASSWORD,
-        )
-        cur = conn.cursor()
-
-        upsert_sql = """
-            INSERT INTO event_traces
-                (event_id, t_generated, t_kafka_sent, t_spark_processed, t_db_written,
-                 latency_gen_to_kafka_ms, latency_kafka_to_spark_ms,
-                 latency_spark_to_db_ms, latency_total_ms)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (event_id) DO UPDATE SET
-                t_spark_processed       = EXCLUDED.t_spark_processed,
-                t_db_written            = EXCLUDED.t_db_written,
-                latency_gen_to_kafka_ms = EXCLUDED.latency_gen_to_kafka_ms,
-                latency_kafka_to_spark_ms = EXCLUDED.latency_kafka_to_spark_ms,
-                latency_spark_to_db_ms  = EXCLUDED.latency_spark_to_db_ms,
-                latency_total_ms        = EXCLUDED.latency_total_ms
-        """
-
-        def parse_iso(s):
-            """Parse ISO timestamp string to datetime (UTC)."""
-            if not s:
-                return None
-            try:
-                # Handle both 'Z' suffix and '+00:00' offset
-                s = s.replace('Z', '+00:00')
-                return dt.fromisoformat(s)
-            except Exception:
-                return None
-
-        def ms_between(a, b):
-            """Compute milliseconds between two datetimes, clamped to >= 0."""
-            if a and b:
-                return max(0, int((b - a).total_seconds() * 1000))
-            return None
-
-        data = []
-        for row in rows:
-            t_gen = parse_iso(row['trace_t_generated'])
-            t_kafka = parse_iso(row['trace_t_kafka_sent'])
-            t_spark = now
-            t_db = now
-
-            data.append((
-                row['id'],
-                t_gen,
-                t_kafka,
-                t_spark,
-                t_db,
-                ms_between(t_gen, t_kafka),
-                ms_between(t_kafka, t_spark),
-                ms_between(t_spark, t_db),
-                ms_between(t_gen, t_db),
-            ))
-
-        cur.executemany(upsert_sql, data)
-        conn.commit()
-        cur.close()
-        conn.close()
-        print(f'✅ Batch {batch_id}: Wrote {len(data)} trace rows to event_traces')
-    except Exception as e:
-        print(f'❌ Batch {batch_id}: Error writing traces: {str(e)}')
-        raise
 
 
 # ============================================================================
@@ -491,16 +454,12 @@ def main():
     print('📊 UC05: Calculating KPIs...')
     kpis = calculate_kpis(clean_events)
 
-    # Split: events_clean gets business columns only, traces get trace columns
-    events_for_db = clean_events.drop('trace_t_generated', 'trace_t_kafka_sent')
-    trace_events = clean_events.select('id', 'trace_t_generated', 'trace_t_kafka_sent')
-
     # UC06: Persist to PostgreSQL
     print('💾 UC06: Setting up persistence to PostgreSQL...')
 
-    # Stream 1: Write clean events to events_clean table
-    events_query = events_for_db.writeStream \
-        .foreachBatch(lambda batch_df, batch_id: write_to_postgres(batch_df, batch_id, 'events_clean')) \
+    # Stream 1: Write events + traces in one batch (psycopg2 bulk insert)
+    events_query = clean_events.writeStream \
+        .foreachBatch(write_events_and_traces) \
         .outputMode('append') \
         .trigger(processingTime='2 seconds') \
         .option('checkpointLocation', f'{CHECKPOINT_DIR}/events_clean') \
@@ -514,18 +473,10 @@ def main():
         .option('checkpointLocation', f'{CHECKPOINT_DIR}/kpi_1m') \
         .start()
 
-    # Stream 3: Write distributed tracing data to event_traces
-    trace_query = trace_events.writeStream \
-        .foreachBatch(write_traces_to_postgres) \
-        .outputMode('append') \
-        .trigger(processingTime='2 seconds') \
-        .option('checkpointLocation', f'{CHECKPOINT_DIR}/event_traces') \
-        .start()
-
-    print('✅ Streaming queries started!')
+    print('✅ 2 streaming queries started!')
     print('🟢 Pipeline is running... (Press Ctrl+C to stop)')
     print()
-    
+
     # Wait for termination
     try:
         spark.streams.awaitAnyTermination()
@@ -536,7 +487,6 @@ def main():
         print('=' * 70)
         events_query.stop()
         kpi_query.stop()
-        trace_query.stop()
         spark.stop()
         print('✅ Spark session closed')
 

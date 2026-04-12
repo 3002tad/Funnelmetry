@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ServiceStatus, AlertSeverity } from '@/lib/api'
 import { format } from 'date-fns'
-import { Activity, Database, Zap, Server, AlertTriangle, Play, RotateCcw } from 'lucide-react'
+import { Activity, Database, Zap, Server, AlertTriangle, RotateCcw } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import clsx from 'clsx'
 

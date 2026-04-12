@@ -48,7 +48,7 @@ RUN npm install --omit=dev
 
 ### 2. Fix healthcheck nginx — `localhost` → `127.0.0.1`
 
-**Files:** `frontend/Dockerfile`, `generator-ui/Dockerfile`
+**Files:** `clients/dashboard/Dockerfile`, `clients/generator/Dockerfile`
 
 **Vấn đề:** Trên Alpine Linux, `localhost` resolve thành IPv6 `::1`, nhưng nginx chỉ listen trên IPv4 → healthcheck fail → container `unhealthy`.
 
@@ -65,7 +65,7 @@ CMD wget --quiet --tries=1 --spider http://127.0.0.1:5173 || exit 1
 
 ### 3. Bỏ mock data banner — hiển thị Live Data Mode
 
-**File:** `frontend/src/lib/api.ts`
+**File:** `clients/dashboard/src/lib/api.ts`
 
 **Vấn đề:** Banner "Mock Data Mode" hiển thị cứng, không phụ thuộc vào biến `VITE_USE_MOCK`.
 
@@ -127,7 +127,7 @@ POSTGRES_DB       = os.environ.get('POSTGRES_DB', 'realtime')
 
 ### 6. Generator UI — event log poll live data
 
-**Files:** `generator-ui/src/App.tsx`, `generator-ui/src/services/generatorApi.ts`
+**Files:** `clients/generator/src/App.tsx`, `clients/generator/src/services/generatorApi.ts`
 
 **Vấn đề:** Event Log trong Generator UI chỉ track các event được emit trong session hiện tại qua button → luôn hiển thị 0 khi reload.
 
@@ -217,7 +217,7 @@ if event:
 
 ### 9. Fix Total Events count — tách `totalEvents` state
 
-**Files:** `generator-ui/src/App.tsx`, `generator-ui/src/services/generatorApi.ts`, `generator-ui/src/components/EventLogTable.tsx`
+**Files:** `clients/generator/src/App.tsx`, `clients/generator/src/services/generatorApi.ts`, `clients/generator/src/components/EventLogTable.tsx`
 
 **Vấn đề:** Statistics "Total Events" hiển thị `events.length` = tối đa 50 (page size), không phải tổng thực tế trong DB.
 
@@ -303,7 +303,7 @@ ROUND(100.0 * SUM(payment_success) / (SUM(payment_success) + SUM(payment_failed)
 
 ### 12. Fix nginx 502 Bad Gateway — DNS re-resolve
 
-**File:** `frontend/nginx.conf`
+**File:** `clients/dashboard/nginx.conf`
 
 **Vấn đề:** Khi container `dashboard-api` được recreate, IP của nó trong Docker network thay đổi. nginx của `frontend-dashboard` cache DNS resolution lúc khởi động → trỏ vào IP cũ → 502 Bad Gateway.
 
@@ -406,19 +406,19 @@ location /api/ {
 | `services/spark-streaming/spark_stream.py` | `upsert_kpi_to_postgres()` ON CONFLICT; watermark 30s; trigger 5s; `kafka.allow.auto.create.topics=true`; thêm `order_cancelled`, `payment_initiated` columns |
 | `infra/postgres/init.sql` | `kpi_1m` thêm cột `order_cancelled`, `payment_initiated` |
 | `infra/docker-compose.yml` | Xóa `kafka-init` service; `spark-streaming` depends_on đơn giản hóa |
-| `frontend/Dockerfile` | Healthcheck dùng `127.0.0.1` |
-| `frontend/nginx.conf` | `resolver 127.0.0.11 valid=5s`; DNS re-resolve động |
-| `frontend/src/lib/api.ts` | `BusinessKPI` interface: `totalEvents`, `pending`, `totalFailed` |
-| `frontend/src/features/dashboard/Dashboard.tsx` | KPI cards: Total Events, Pending, Failed; refetchInterval 5s |
-| `generator-ui/Dockerfile` | Healthcheck dùng `127.0.0.1` |
-| `generator-ui/src/services/generatorApi.ts` | `getLiveEvents()` trả `{ events, total, statusCounts }` |
-| `generator-ui/src/App.tsx` | `totalEvents` + `statusCounts` state từ DB; poll 3s |
+| `clients/dashboard/Dockerfile` | Healthcheck dùng `127.0.0.1` |
+| `clients/dashboard/nginx.conf` | `resolver 127.0.0.11 valid=5s`; DNS re-resolve động |
+| `clients/dashboard/src/lib/api.ts` | `BusinessKPI` interface: `totalEvents`, `pending`, `totalFailed` |
+| `clients/dashboard/src/features/dashboard/Dashboard.tsx` | KPI cards: Total Events, Pending, Failed; refetchInterval 5s |
+| `clients/generator/Dockerfile` | Healthcheck dùng `127.0.0.1` |
+| `clients/generator/src/services/generatorApi.ts` | `getLiveEvents()` trả `{ events, total, statusCounts }` |
+| `clients/generator/src/App.tsx` | `totalEvents` + `statusCounts` state từ DB; poll 3s |
 
 ---
 
 ### 13. Latency Optimization — giảm end-to-end latency
 
-**Files:** `services/producer-poller/producer.py`, `services/spark-streaming/spark_stream.py`, `frontend/src/features/dashboard/Dashboard.tsx`
+**Files:** `services/producer-poller/producer.py`, `services/spark-streaming/spark_stream.py`, `clients/dashboard/src/features/dashboard/Dashboard.tsx`
 
 **Vấn đề:** Pipeline có latency cao từ lúc emit đến lúc hiển thị trên dashboard (~60-90 giây).
 
@@ -552,7 +552,7 @@ FROM kpi_1m
 
 ### 17. Redesign `/api/kpi` — căn chỉnh theo status semantics
 
-**Files:** `services/dashboard-api/server.js`, `frontend/src/lib/api.ts`, `frontend/src/features/dashboard/Dashboard.tsx`
+**Files:** `services/dashboard-api/server.js`, `clients/dashboard/src/lib/api.ts`, `clients/dashboard/src/features/dashboard/Dashboard.tsx`
 
 **Vấn đề:** Dashboard trái hiển thị `Orders Created` (chỉ `order_created` event type) và `Payment Failed` (chỉ `payment_failed` event type) — không khớp với khái niệm status thực. User nhìn thấy số khác với Generator UI Statistics.
 

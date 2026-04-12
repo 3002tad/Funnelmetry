@@ -1,7 +1,10 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, FileText, Settings } from 'lucide-react'
+import { LayoutDashboard, FileText, Settings, LogOut, User } from 'lucide-react'
+import { useAuth } from '@/features/auth/AuthContext'
 
 export default function Layout() {
+  const { user, logout } = useAuth()
+
   const navLinks = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/events', label: 'Events', icon: FileText },
@@ -42,6 +45,27 @@ export default function Layout() {
                 </NavLink>
               ))}
             </nav>
+
+            {/* User info & Logout */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
+                <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User size={14} className="text-blue-600" />
+                </div>
+                <div className="hidden sm:block">
+                  <div className="text-sm font-medium text-gray-900">{user?.displayName}</div>
+                  <div className="text-xs text-gray-500 capitalize">{user?.role}</div>
+                </div>
+              </div>
+              <button
+                onClick={logout}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Sign out"
+              >
+                <LogOut size={16} />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>

@@ -90,6 +90,13 @@ CREATE TABLE event_traces (
 );
 
 CREATE INDEX idx_event_traces_t_generated ON event_traces(t_generated DESC);
+CREATE INDEX idx_event_traces_latency ON event_traces(latency_total_ms) WHERE latency_total_ms IS NOT NULL;
+
+-- Composite indexes for common dashboard queries
+CREATE INDEX idx_events_clean_user_time ON events_clean(user_id, ingest_time DESC);
+CREATE INDEX idx_events_clean_status_time ON events_clean(status, ingest_time DESC);
+CREATE INDEX idx_events_clean_type_time ON events_clean(event_type, ingest_time DESC);
+CREATE INDEX idx_kpi_1m_processed_at ON kpi_1m(processed_at DESC);
 
 -- ============================================================================
 -- VIEWS FOR DASHBOARD (OPTIONAL - FOR EASIER API QUERIES)

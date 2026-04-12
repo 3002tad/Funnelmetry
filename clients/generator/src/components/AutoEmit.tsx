@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { generatorApi } from "../services/generatorApi";
 import type { Event } from "../types";
+import EmitWorker from "../workers/emitWorker?worker";
 
 interface AutoEmitProps {
   onEventEmitted: (event: Event) => void;
@@ -8,43 +9,65 @@ interface AutoEmitProps {
 
 export function AutoEmit({ onEventEmitted }: AutoEmitProps) {
   const [isRunning, setIsRunning] = useState(false);
-  const [ratePerSec, setRatePerSec] = useState(1);
+  const [ratePerSec, setRatePerSec] = useState(50);
   const [emittedCount, setEmittedCount] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const pendingRef = useRef(false);
+
+  // Batch size per tick — emit in chunks for higher throughput
+  // Tick every 200ms, batch = ratePerSec / 5
+  const batchSize = Math.max(1, Math.round(ratePerSec / 5));
+  const tickMs = 200;
+
+  const handleTick = useCallback(async () => {
+    if (pendingRef.current) return; // skip if previous batch still in-flight
+    pendingRef.current = true;
+    try {
+      const result = await generatorApi.emitBatch(batchSize);
+      if (result.events && result.events.length > 0) {
+        onEventEmitted(result.events[0]);
+      }
+      setEmittedCount((prev) => prev + (result.count || batchSize));
+    } catch (err) {
+      console.error("Auto emit error:", err);
+    } finally {
+      pendingRef.current = false;
+    }
+  }, [batchSize, onEventEmitted]);
 
   useEffect(() => {
     if (isRunning) {
-      const intervalMs = 1000 / ratePerSec;
+      const worker = new EmitWorker();
+      workerRef.current = worker;
 
-      intervalRef.current = setInterval(async () => {
-        try {
-          // Use POST /gen/emit (publishes to Kafka) instead of GET /gen/event (poller-only)
-          const event = await generatorApi.emitEvent({});
-          onEventEmitted(event);
-          setEmittedCount((prev) => prev + 1);
-        } catch (err) {
-          console.error("Auto emit error:", err);
-        }
-      }, intervalMs);
+      worker.onmessage = () => {
+        handleTick();
+      };
+
+      worker.postMessage({ type: "start", intervalMs: tickMs });
     } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (workerRef.current) {
+        workerRef.current.postMessage({ type: "stop" });
+        workerRef.current.terminate();
+        workerRef.current = null;
       }
     }
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (workerRef.current) {
+        workerRef.current.postMessage({ type: "stop" });
+        workerRef.current.terminate();
+        workerRef.current = null;
       }
     };
-  }, [isRunning, ratePerSec, onEventEmitted]);
+  }, [isRunning, handleTick]);
 
   const toggleAutoEmit = () => {
     if (isRunning) {
       setIsRunning(false);
     } else {
       setEmittedCount(0);
+      pendingRef.current = false;
       setIsRunning(true);
     }
   };
@@ -57,7 +80,7 @@ export function AutoEmit({ onEventEmitted }: AutoEmitProps) {
           <span className="ml-2 inline-flex items-center">
             <span className="animate-pulse h-3 w-3 bg-green-500 rounded-full mr-2"></span>
             <span className="text-sm font-normal text-green-600 dark:text-green-400">
-              Running ({emittedCount} emitted)
+              Running ({emittedCount.toLocaleString()} emitted)
             </span>
           </span>
         )}
@@ -66,20 +89,21 @@ export function AutoEmit({ onEventEmitted }: AutoEmitProps) {
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Rate per Second: {ratePerSec}
+            Rate: ~{ratePerSec} events/sec (batch {batchSize} x 5/sec)
           </label>
           <input
             type="range"
             value={ratePerSec}
             onChange={(e) => setRatePerSec(Number(e.target.value))}
-            min="1"
-            max="100"
+            min="5"
+            max="500"
+            step="5"
             disabled={isRunning}
             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
           />
           <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>1/sec</span>
-            <span>100/sec</span>
+            <span>5/sec</span>
+            <span>500/sec</span>
           </div>
         </div>
 
@@ -96,7 +120,7 @@ export function AutoEmit({ onEventEmitted }: AutoEmitProps) {
 
         {isRunning && (
           <p className="text-xs text-gray-500 text-center">
-            Emitting {ratePerSec} event{ratePerSec > 1 ? "s" : ""} per second
+            Emitting ~{ratePerSec} events/sec — works in background tabs
           </p>
         )}
       </div>

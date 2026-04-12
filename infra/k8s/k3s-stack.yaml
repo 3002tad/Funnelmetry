@@ -742,11 +742,11 @@ spec:
   template:
     metadata:
       labels:
-        app: frontend
+        app: dashboard-ui
     spec:
       containers:
-        - name: frontend
-          image: infra-frontend:latest
+        - name: dashboard-ui
+          image: infra-dashboard-ui:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5173

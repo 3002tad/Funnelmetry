@@ -60,7 +60,9 @@ def create_kafka_producer() -> Optional[KafkaProducer]:
             key_serializer=lambda k: k.encode('utf-8') if k else None,
             acks=1,
             retries=3,
-            linger_ms=5,
+            linger_ms=10,
+            batch_size=65536,
+            buffer_memory=67108864,
             compression_type='gzip',
         )
         logger.info(f"✅ Connected to Kafka: {KAFKA_BOOTSTRAP_SERVERS}")

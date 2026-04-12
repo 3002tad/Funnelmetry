@@ -44,7 +44,7 @@ if (-not $DeployOnly) {
     Push-Location $InfraPath
     
     Write-Host "Building images..."
-    docker-compose build api-generator producer spark-streaming dashboard-api frontend generator-ui
+    docker-compose build api-generator producer spark-streaming dashboard-api dashboard-ui generator-ui
     
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Docker images built successfully"

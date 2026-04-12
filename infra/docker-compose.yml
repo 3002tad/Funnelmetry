@@ -10,13 +10,20 @@ services:
       - "2181:2181"
     networks:
       - realtime-network
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | timeout 2 bash -c 'cat > /dev/tcp/localhost/2181 && cat' || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
 
   # Kafka Broker
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
     environment:
@@ -110,8 +117,8 @@ services:
       API_DRAIN_URL: http://api-generator:7070/gen/drain
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: events_raw
-      POLL_INTERVAL_MS: 20
-      POLL_BATCH_LIMIT: 100
+      POLL_INTERVAL_MS: 5
+      POLL_BATCH_LIMIT: 500
     networks:
       - realtime-network
     restart: unless-stopped
@@ -182,7 +189,7 @@ services:
   # Generator UI (React + TypeScript)
   generator-ui:
     build:
-      context: ../generator-ui
+      context: ../clients/generator
       dockerfile: Dockerfile
     container_name: generator-ui
     depends_on:
@@ -193,12 +200,12 @@ services:
       - realtime-network
     restart: unless-stopped
 
-  # Frontend Dashboard (React)
-  frontend:
+  # Dashboard UI (React)
+  dashboard-ui:
     build:
-      context: ../frontend
+      context: ../clients/dashboard
       dockerfile: Dockerfile
-    container_name: frontend-dashboard
+    container_name: dashboard-ui
     depends_on:
       dashboard-api:
         condition: service_healthy

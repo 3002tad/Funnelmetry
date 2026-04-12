@@ -49,6 +49,7 @@ export interface EventsResponse {
   total: number;
   page: number;
   pageSize: number;
+  statusCounts?: { success: number; failed: number; pending: number };
 }
 
 // Ops/System Health
@@ -71,6 +72,63 @@ export interface Alert {
   message: string;
   timestamp: string;
   service: string;
+}
+
+// Full time series (all 5 event types)
+export interface FullTimeSeriesData {
+  timestamp: string;
+  revenue: number;
+  ordersCreated: number;
+  paymentInitiated: number;
+  paymentSuccess: number;
+  paymentFailed: number;
+  orderCancelled: number;
+  successRate: number;
+}
+
+// Top users
+export interface TopUser {
+  userId: string;
+  eventCount: number;
+  totalAmount: number;
+  successCount: number;
+  failedCount: number;
+}
+
+// Amount distribution
+export interface AmountBucket {
+  range: string;
+  count: number;
+}
+
+// Latency timeline
+export interface LatencyTimelinePoint {
+  timestamp: string;
+  p50: number;
+  p95: number;
+  count: number;
+}
+
+// Scatter plot: amount vs latency
+export interface ScatterPoint {
+  amount: number;
+  latency: number;
+  eventType: EventType;
+  status: EventStatus;
+}
+
+// Revenue by event type
+export interface RevenueByType {
+  eventType: string;
+  count: number;
+  revenue: number;
+}
+
+// Heatmap data
+export interface HeatmapCell {
+  hour: number;
+  eventType: string;
+  count: number;
 }
 
 // Distributed tracing
@@ -227,6 +285,116 @@ class MockDataGenerator {
     };
   }
 
+  // Generate full time series (all 5 event types)
+  generateFullTimeSeries(timeRange: TimeRange): FullTimeSeriesData[] {
+    const points = this.getTimeSeriesPoints(timeRange);
+    const data: FullTimeSeriesData[] = [];
+    const now = Date.now();
+    for (let i = points; i >= 0; i--) {
+      const timestamp = new Date(now - i * this.getIntervalMs(timeRange));
+      const ordersCreated = Math.floor(Math.random() * 30) + 10;
+      const paymentInitiated = Math.floor(ordersCreated * 0.9);
+      const paymentSuccess = Math.floor(paymentInitiated * 0.8);
+      const paymentFailed = Math.floor(paymentInitiated * 0.1);
+      const orderCancelled = Math.floor(ordersCreated * 0.05);
+      const successRate = paymentSuccess + paymentFailed + orderCancelled > 0
+        ? Math.round(10000 * paymentSuccess / (paymentSuccess + paymentFailed + orderCancelled)) / 100
+        : 0;
+      data.push({
+        timestamp: timestamp.toISOString(),
+        revenue: Math.floor(Math.random() * 50000) + 20000,
+        ordersCreated, paymentInitiated, paymentSuccess, paymentFailed, orderCancelled, successRate,
+      });
+    }
+    return data;
+  }
+
+  // Generate top users
+  generateTopUsers(limit: number): TopUser[] {
+    const users: TopUser[] = [];
+    for (let i = 0; i < limit; i++) {
+      const eventCount = Math.floor(Math.random() * 200) + 10;
+      users.push({
+        userId: `USR${Math.floor(Math.random() * 10000)}`,
+        eventCount,
+        totalAmount: eventCount * (Math.floor(Math.random() * 500000) + 100000),
+        successCount: Math.floor(eventCount * 0.7),
+        failedCount: Math.floor(eventCount * 0.1),
+      });
+    }
+    return users.sort((a, b) => b.eventCount - a.eventCount);
+  }
+
+  // Generate amount distribution
+  generateAmountDistribution(): AmountBucket[] {
+    return [
+      { range: '0', count: Math.floor(Math.random() * 20) },
+      { range: '< 100K', count: Math.floor(Math.random() * 200) + 50 },
+      { range: '100K-500K', count: Math.floor(Math.random() * 300) + 100 },
+      { range: '500K-1M', count: Math.floor(Math.random() * 250) + 80 },
+      { range: '1M-3M', count: Math.floor(Math.random() * 150) + 30 },
+      { range: '3M+', count: Math.floor(Math.random() * 50) + 10 },
+    ];
+  }
+
+  // Generate latency timeline
+  generateLatencyTimeline(timeRange: TimeRange): LatencyTimelinePoint[] {
+    const points = this.getTimeSeriesPoints(timeRange);
+    const data: LatencyTimelinePoint[] = [];
+    const now = Date.now();
+    for (let i = points; i >= 0; i--) {
+      const timestamp = new Date(now - i * this.getIntervalMs(timeRange));
+      data.push({
+        timestamp: timestamp.toISOString(),
+        p50: Math.floor(Math.random() * 200) + 80,
+        p95: Math.floor(Math.random() * 400) + 300,
+        count: Math.floor(Math.random() * 100) + 20,
+      });
+    }
+    return data;
+  }
+
+  // Generate scatter data
+  generateScatter(limit: number): ScatterPoint[] {
+    const types: EventType[] = ['order_created', 'payment_initiated', 'payment_success', 'payment_failed', 'order_cancelled'];
+    const statuses: EventStatus[] = ['success', 'failed', 'pending'];
+    const points: ScatterPoint[] = [];
+    for (let i = 0; i < limit; i++) {
+      points.push({
+        amount: Math.floor(Math.random() * 5000000) + 10000,
+        latency: Math.floor(Math.random() * 800) + 50,
+        eventType: types[Math.floor(Math.random() * types.length)],
+        status: statuses[Math.floor(Math.random() * statuses.length)],
+      });
+    }
+    return points;
+  }
+
+  // Generate revenue by type
+  generateRevenueByType(): RevenueByType[] {
+    return [
+      { eventType: 'order_created', count: Math.floor(Math.random() * 500) + 200, revenue: Math.floor(Math.random() * 2000000) + 500000 },
+      { eventType: 'payment_initiated', count: Math.floor(Math.random() * 400) + 150, revenue: Math.floor(Math.random() * 1800000) + 400000 },
+      { eventType: 'payment_success', count: Math.floor(Math.random() * 350) + 100, revenue: Math.floor(Math.random() * 1500000) + 300000 },
+      { eventType: 'payment_failed', count: Math.floor(Math.random() * 100) + 20, revenue: Math.floor(Math.random() * 500000) + 50000 },
+      { eventType: 'order_cancelled', count: Math.floor(Math.random() * 80) + 10, revenue: Math.floor(Math.random() * 300000) + 30000 },
+    ];
+  }
+
+  // Generate heatmap data
+  generateHeatmap(): HeatmapCell[] {
+    const types = ['order_created', 'payment_initiated', 'payment_success', 'payment_failed', 'order_cancelled'];
+    const cells: HeatmapCell[] = [];
+    for (let h = 0; h < 24; h++) {
+      for (const t of types) {
+        // Higher activity during business hours
+        const base = h >= 8 && h <= 20 ? 30 : 5;
+        cells.push({ hour: h, eventType: t, count: Math.floor(Math.random() * base) + 1 });
+      }
+    }
+    return cells;
+  }
+
   // Simulate system issues
   simulateIssue(type: 'kafka_down' | 'spark_crash' | 'reset') {
     if (type === 'reset') {
@@ -299,14 +467,29 @@ const mockGenerator = new MockDataGenerator();
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
-console.log('🔧 API Configuration:', {
-  mode: USE_MOCK ? 'MOCK' : 'REAL API',
-  baseURL: API_BASE_URL,
-});
+// ============================================================================
+// AUTH HEADER HELPER
+// ============================================================================
 
-// ============================================================================
-// API FUNCTIONS
-// ============================================================================
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem('rt_dashboard_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function authFetch(url: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(url, {
+    ...init,
+    headers: { ...authHeaders(), ...init?.headers },
+  });
+  if (response.status === 401) {
+    // Token expired — clear storage and dispatch event for React to handle
+    localStorage.removeItem('rt_dashboard_token');
+    localStorage.removeItem('rt_dashboard_user');
+    window.dispatchEvent(new CustomEvent('auth:expired'));
+    throw new Error('Session expired');
+  }
+  return response;
+}
 
 // ============================================================================
 // API FUNCTIONS
@@ -319,7 +502,7 @@ export const api = {
       await new Promise(resolve => setTimeout(resolve, 300)); // Simulate network delay
       return mockGenerator.generateKPI(timeRange);
     }
-    const response = await fetch(`${API_BASE_URL}/kpi?timeRange=${timeRange}`);
+    const response = await authFetch(`${API_BASE_URL}/kpi?timeRange=${timeRange}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     return response.json();
   },
@@ -329,29 +512,49 @@ export const api = {
       await new Promise(resolve => setTimeout(resolve, 300));
       return mockGenerator.generateTimeSeries(timeRange);
     }
-    const response = await fetch(`${API_BASE_URL}/timeseries?timeRange=${timeRange}`);
+    const response = await authFetch(`${API_BASE_URL}/timeseries?timeRange=${timeRange}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     return response.json();
   },
 
   // Events APIs
-  async getEvents(params: { page?: number; pageSize?: number; eventType?: EventType; status?: EventStatus } = {}): Promise<EventsResponse> {
-    const { page = 1, pageSize = 20, eventType, status } = params;
-    
+  async getEvents(params: {
+    page?: number;
+    pageSize?: number;
+    eventType?: EventType;
+    status?: EventStatus;
+    search?: string;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
+  } = {}): Promise<EventsResponse> {
+    const { page = 1, pageSize = 20, eventType, status, search, sortBy, sortDir } = params;
+
     if (USE_MOCK) {
       await new Promise(resolve => setTimeout(resolve, 400));
       return mockGenerator.generateEvents(page, pageSize, { eventType, status });
     }
-    
+
     const queryParams = new URLSearchParams({
       page: page.toString(),
       pageSize: pageSize.toString(),
       ...(eventType && { eventType }),
       ...(status && { status }),
+      ...(search && { search }),
+      ...(sortBy && { sortBy }),
+      ...(sortDir && { sortDir }),
     });
-    const response = await fetch(`${API_BASE_URL}/events?${queryParams}`);
+    const response = await authFetch(`${API_BASE_URL}/events?${queryParams}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     return response.json();
+  },
+
+  // Export events as CSV download
+  getExportUrl(params: { eventType?: string; status?: string; search?: string } = {}): string {
+    const queryParams = new URLSearchParams();
+    if (params.eventType) queryParams.set('eventType', params.eventType);
+    if (params.status) queryParams.set('status', params.status);
+    if (params.search) queryParams.set('search', params.search);
+    return `${API_BASE_URL}/events/export?${queryParams}`;
   },
 
   // Ops APIs
@@ -360,7 +563,7 @@ export const api = {
       await new Promise(resolve => setTimeout(resolve, 200));
       return mockGenerator.getSystemHealth();
     }
-    const response = await fetch(`${API_BASE_URL}/health`);
+    const response = await authFetch(`${API_BASE_URL}/health`);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     return response.json();
   },
@@ -370,7 +573,7 @@ export const api = {
       await new Promise(resolve => setTimeout(resolve, 200));
       return mockGenerator.getSystemMetrics();
     }
-    const response = await fetch(`${API_BASE_URL}/metrics`);
+    const response = await authFetch(`${API_BASE_URL}/metrics`);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     return response.json();
   },
@@ -380,7 +583,7 @@ export const api = {
       await new Promise(resolve => setTimeout(resolve, 200));
       return mockGenerator.getAlerts();
     }
-    const response = await fetch(`${API_BASE_URL}/alerts`);
+    const response = await authFetch(`${API_BASE_URL}/alerts`);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     return response.json();
   },
@@ -390,7 +593,7 @@ export const api = {
       await new Promise(resolve => setTimeout(resolve, 300));
       return mockGenerator.simulateIssue(type);
     }
-    const response = await fetch(`${API_BASE_URL}/simulate`, {
+    const response = await authFetch(`${API_BASE_URL}/simulate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type }),
@@ -405,8 +608,85 @@ export const api = {
       await new Promise(resolve => setTimeout(resolve, 200));
       return mockGenerator.generateTrace(eventId);
     }
-    const response = await fetch(`${API_BASE_URL}/events/${eventId}/trace`);
+    const response = await authFetch(`${API_BASE_URL}/events/${eventId}/trace`);
     if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Full time series (all 5 event types)
+  async getFullTimeSeries(timeRange: TimeRange): Promise<FullTimeSeriesData[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generateFullTimeSeries(timeRange);
+    }
+    const response = await authFetch(`${API_BASE_URL}/timeseries/full?timeRange=${timeRange}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Top users
+  async getTopUsers(timeRange: TimeRange, limit = 10): Promise<TopUser[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generateTopUsers(limit);
+    }
+    const response = await authFetch(`${API_BASE_URL}/events/top-users?timeRange=${timeRange}&limit=${limit}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Amount distribution
+  async getAmountDistribution(timeRange: TimeRange): Promise<AmountBucket[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generateAmountDistribution();
+    }
+    const response = await authFetch(`${API_BASE_URL}/events/amount-distribution?timeRange=${timeRange}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Latency timeline
+  async getLatencyTimeline(timeRange: TimeRange): Promise<LatencyTimelinePoint[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generateLatencyTimeline(timeRange);
+    }
+    const response = await authFetch(`${API_BASE_URL}/traces/timeline?timeRange=${timeRange}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Scatter: amount vs latency
+  async getScatterData(timeRange: TimeRange, limit = 200): Promise<ScatterPoint[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generateScatter(limit);
+    }
+    const response = await authFetch(`${API_BASE_URL}/events/scatter?timeRange=${timeRange}&limit=${limit}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Revenue by event type
+  async getRevenueByType(timeRange: TimeRange): Promise<RevenueByType[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generateRevenueByType();
+    }
+    const response = await authFetch(`${API_BASE_URL}/events/revenue-by-type?timeRange=${timeRange}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Heatmap
+  async getHeatmap(timeRange: TimeRange): Promise<HeatmapCell[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generateHeatmap();
+    }
+    const response = await authFetch(`${API_BASE_URL}/events/heatmap?timeRange=${timeRange}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     return response.json();
   },
@@ -416,7 +696,7 @@ export const api = {
       await new Promise(resolve => setTimeout(resolve, 200));
       return { count: 1200, p50: 180, p95: 450, p99: 820, avgGenToKafkaMs: 35, avgKafkaToSparkMs: 120, avgSparkToDbMs: 15 };
     }
-    const response = await fetch(`${API_BASE_URL}/traces/stats?timeRange=${timeRange}`);
+    const response = await authFetch(`${API_BASE_URL}/traces/stats?timeRange=${timeRange}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     return response.json();
   },

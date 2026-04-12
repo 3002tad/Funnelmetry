@@ -9,6 +9,7 @@ interface KPICardProps {
   trend?: 'up' | 'down' | 'neutral';
   icon?: ReactNode;
   color?: 'primary' | 'success' | 'warning' | 'danger';
+  onClick?: () => void;
 }
 
 const colorClasses = {
@@ -18,9 +19,15 @@ const colorClasses = {
   danger: 'bg-red-50 text-danger',
 }
 
-export default function KPICard({ title, value, subtitle, trend, icon, color = 'primary' }: KPICardProps) {
+export default function KPICard({ title, value, subtitle, trend, icon, color = 'primary', onClick }: KPICardProps) {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+    <div
+      className={clsx(
+        "bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow",
+        onClick && "cursor-pointer hover:border-blue-300"
+      )}
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
