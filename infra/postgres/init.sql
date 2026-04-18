@@ -22,8 +22,17 @@ CREATE TABLE events_clean (
     amount DECIMAL(15, 2) NOT NULL,
     currency VARCHAR(10) NOT NULL,
     status VARCHAR(20) NOT NULL,
+
+    -- Product & transaction details
+    product_id VARCHAR(20),
+    product_name VARCHAR(100),
+    category VARCHAR(30),
+    quantity INTEGER DEFAULT 1,
+    payment_method VARCHAR(20),
+    region VARCHAR(10),
+
     ingest_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- Constraints
     CONSTRAINT chk_amount CHECK (amount >= 0),
     CONSTRAINT chk_event_type CHECK (
@@ -35,7 +44,13 @@ CREATE TABLE events_clean (
             'order_cancelled'
         )
     ),
-    CONSTRAINT chk_status CHECK (status IN ('success', 'failed', 'pending'))
+    CONSTRAINT chk_status CHECK (status IN ('success', 'failed', 'pending')),
+    CONSTRAINT chk_category CHECK (
+        category IS NULL OR category IN ('electronics', 'fashion', 'food', 'home', 'beauty', 'books')
+    ),
+    CONSTRAINT chk_payment_method CHECK (
+        payment_method IS NULL OR payment_method IN ('credit_card', 'e_wallet', 'bank_transfer', 'cod')
+    )
 );
 
 -- Index for time-based queries
@@ -44,6 +59,12 @@ CREATE INDEX idx_events_clean_event_type ON events_clean(event_type);
 CREATE INDEX idx_events_clean_order_id ON events_clean(order_id);
 CREATE INDEX idx_events_clean_ingest_time ON events_clean(ingest_time DESC);
 CREATE INDEX idx_events_clean_status ON events_clean(status);
+
+-- Indexes for new fields (analytics queries)
+CREATE INDEX idx_events_clean_category ON events_clean(category);
+CREATE INDEX idx_events_clean_region ON events_clean(region);
+CREATE INDEX idx_events_clean_payment_method ON events_clean(payment_method);
+CREATE INDEX idx_events_clean_product_id ON events_clean(product_id);
 
 -- ============================================================================
 -- TABLE 2: kpi_1m
@@ -91,6 +112,8 @@ CREATE TABLE event_traces (
 
 CREATE INDEX idx_event_traces_t_generated ON event_traces(t_generated DESC);
 CREATE INDEX idx_event_traces_latency ON event_traces(latency_total_ms) WHERE latency_total_ms IS NOT NULL;
+-- Covering index for scatter JOIN (events_clean.id → event_traces.event_id)
+CREATE INDEX idx_event_traces_event_id_latency ON event_traces(event_id, latency_total_ms) WHERE latency_total_ms IS NOT NULL;
 
 -- Composite indexes for common dashboard queries
 CREATE INDEX idx_events_clean_user_time ON events_clean(user_id, ingest_time DESC);

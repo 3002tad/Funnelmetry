@@ -26,10 +26,31 @@ const pool = new Pool({
   database: process.env.POSTGRES_DB || "realtime",
   user: process.env.POSTGRES_USER || "app",
   password: process.env.POSTGRES_PASSWORD || "app",
-  max: 10,
+  max: 30,                      // was 10 — more concurrent queries
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
+  statement_timeout: 10000,     // kill slow queries after 10s
 });
+
+// ============================================================================
+// IN-MEMORY QUERY CACHE (TTL-based, avoids redundant DB hits)
+// ============================================================================
+
+const queryCache = new Map();
+const CACHE_TTL_MS = parseInt(process.env.CACHE_TTL_MS) || 3000; // 3s default
+
+function cachedQuery(key, queryFn) {
+  const now = Date.now();
+  const cached = queryCache.get(key);
+  if (cached && (now - cached.ts) < CACHE_TTL_MS) {
+    return cached.promise;
+  }
+  const promise = queryFn();
+  queryCache.set(key, { promise, ts: now });
+  // Auto-cleanup to prevent memory leak
+  promise.catch(() => queryCache.delete(key));
+  return promise;
+}
 
 // ============================================================================
 // KAFKA CLIENT (for health check only)
@@ -253,30 +274,27 @@ app.get("/api/kpi", async (req, res) => {
   const timeRange = req.query.timeRange || "1h";
   const interval = getIntervalExpression(timeRange);
   try {
-    const result = await pool.query(`
-      SELECT
-        COALESCE(SUM(revenue), 0)::float                                              AS "revenue",
-        -- Total events in window
-        COALESCE(SUM(orders_created + payment_initiated + payment_success
-                     + payment_failed + order_cancelled), 0)::int                     AS "totalEvents",
-        -- status=success: only payment_success
-        COALESCE(SUM(payment_success), 0)::int                                        AS "paymentSuccess",
-        -- status=pending: order_created + payment_initiated
-        COALESCE(SUM(orders_created + payment_initiated), 0)::int                     AS "pending",
-        -- status=failed: payment_failed + order_cancelled
-        COALESCE(SUM(payment_failed + order_cancelled), 0)::int                       AS "totalFailed",
-        -- successRate: success / (success + ALL failed)
-        CASE
-          WHEN SUM(payment_success) + SUM(payment_failed + order_cancelled) > 0
-          THEN ROUND(
-            100.0 * SUM(payment_success)
-                  / (SUM(payment_success) + SUM(payment_failed + order_cancelled)),
-            2)
-          ELSE 0
-        END::float                                                                    AS "successRate"
-      FROM kpi_1m
-      WHERE window_start >= NOW() - $1::interval
-    `, [interval]);
+    const result = await cachedQuery(`kpi:${timeRange}`, () =>
+      pool.query(`
+        SELECT
+          COALESCE(SUM(revenue), 0)::float                                              AS "revenue",
+          COALESCE(SUM(orders_created + payment_initiated + payment_success
+                       + payment_failed + order_cancelled), 0)::int                     AS "totalEvents",
+          COALESCE(SUM(payment_success), 0)::int                                        AS "paymentSuccess",
+          COALESCE(SUM(orders_created + payment_initiated), 0)::int                     AS "pending",
+          COALESCE(SUM(payment_failed + order_cancelled), 0)::int                       AS "totalFailed",
+          CASE
+            WHEN SUM(payment_success) + SUM(payment_failed + order_cancelled) > 0
+            THEN ROUND(
+              100.0 * SUM(payment_success)
+                    / (SUM(payment_success) + SUM(payment_failed + order_cancelled)),
+              2)
+            ELSE 0
+          END::float                                                                    AS "successRate"
+        FROM kpi_1m
+        WHERE window_start >= NOW() - $1::interval
+      `, [interval])
+    );
     res.json(result.rows[0]);
   } catch (err) {
     console.error("[/api/kpi]", err.message);
@@ -368,43 +386,52 @@ app.get("/api/events", async (req, res) => {
 
     const whereClause = whereConditions.join(" AND ");
 
-    const countResult = await pool.query(
-      `SELECT COUNT(*)::int AS total FROM events_clean WHERE ${whereClause}`,
-      params,
-    );
+    // Run count + data + status queries in PARALLEL (was sequential = 3x slower)
+    const dataParams = [...params, pageSize, offset];
+    const [countResult, statusResult, dataResult] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM events_clean WHERE ${whereClause}`,
+        params,
+      ),
+      // Cached status breakdown — same for all users within TTL
+      cachedQuery('statusCounts', () =>
+        pool.query(`
+          SELECT
+            COALESCE(SUM(payment_success), 0)::int                           AS success,
+            COALESCE(SUM(payment_failed) + SUM(order_cancelled), 0)::int     AS failed,
+            COALESCE(SUM(orders_created) + SUM(payment_initiated), 0)::int   AS pending
+          FROM kpi_1m
+        `)
+      ),
+      pool.query(
+        `SELECT
+           id,
+           event_time     AS "eventTime",
+           event_type     AS "eventType",
+           order_id       AS "orderId",
+           user_id        AS "userId",
+           amount::float,
+           currency,
+           status,
+           product_id     AS "productId",
+           product_name   AS "productName",
+           category,
+           quantity,
+           payment_method AS "paymentMethod",
+           region
+         FROM events_clean
+         WHERE ${whereClause}
+         ORDER BY ${sortColumn} ${sortDir}
+         LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams,
+      ),
+    ]);
     const total = countResult.rows[0].total;
-
-    // Status breakdown
-    const statusResult = await pool.query(`
-      SELECT
-        COALESCE(SUM(payment_success), 0)::int                           AS success,
-        COALESCE(SUM(payment_failed) + SUM(order_cancelled), 0)::int     AS failed,
-        COALESCE(SUM(orders_created) + SUM(payment_initiated), 0)::int   AS pending
-      FROM kpi_1m
-    `);
     const statusCounts = {
       success: statusResult.rows[0].success,
       failed:  statusResult.rows[0].failed,
       pending: statusResult.rows[0].pending,
     };
-
-    const dataParams = [...params, pageSize, offset];
-    const dataResult = await pool.query(
-      `SELECT
-         id,
-         event_time  AS "eventTime",
-         event_type  AS "eventType",
-         order_id    AS "orderId",
-         user_id     AS "userId",
-         amount::float,
-         currency,
-         status
-       FROM events_clean
-       WHERE ${whereClause}
-       ORDER BY ${sortColumn} ${sortDir}
-       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-      dataParams,
-    );
 
     res.json({
       events: dataResult.rows,
@@ -452,7 +479,13 @@ app.get("/api/events/export", async (req, res) => {
          user_id,
          amount::float,
          currency,
-         status
+         status,
+         product_id,
+         product_name,
+         category,
+         quantity,
+         payment_method,
+         region
        FROM events_clean
        WHERE ${whereClause}
        ORDER BY event_time DESC
@@ -460,7 +493,6 @@ app.get("/api/events/export", async (req, res) => {
       params,
     );
 
-    // Escape CSV fields to prevent injection and handle commas/quotes
     const esc = (val) => {
       const s = String(val == null ? "" : val);
       if (s.includes('"') || s.includes(",") || s.includes("\n") || s.startsWith("=") || s.startsWith("+") || s.startsWith("-") || s.startsWith("@")) {
@@ -468,9 +500,10 @@ app.get("/api/events/export", async (req, res) => {
       }
       return s;
     };
-    const header = "id,event_time,event_type,order_id,user_id,amount,currency,status";
+    const header = "id,event_time,event_type,order_id,user_id,amount,currency,status,product_id,product_name,category,quantity,payment_method,region";
     const rows = result.rows.map(r =>
-      [r.id, r.event_time, r.event_type, r.order_id, r.user_id, r.amount, r.currency, r.status].map(esc).join(",")
+      [r.id, r.event_time, r.event_type, r.order_id, r.user_id, r.amount, r.currency, r.status,
+       r.product_id, r.product_name, r.category, r.quantity, r.payment_method, r.region].map(esc).join(",")
     );
     const csv = [header, ...rows].join("\n");
 
@@ -613,24 +646,28 @@ app.get("/api/health", async (req, res) => {
 // ----------------------------------------------------------------
 app.get("/api/metrics", async (req, res) => {
   try {
-    // Events processed per second = events in last 60s / 60
-    const epsResult = await pool.query(`
-      SELECT COUNT(*)::float AS cnt
-      FROM events_clean
-      WHERE ingest_time >= NOW() - INTERVAL '60 seconds'
-    `);
+    // Cached: both queries run in parallel
+    const [epsResult, lagResult] = await Promise.all([
+      cachedQuery('metrics:eps', () =>
+        pool.query(`
+          SELECT COUNT(*)::float AS cnt
+          FROM events_clean
+          WHERE ingest_time >= NOW() - INTERVAL '60 seconds'
+        `)
+      ),
+      cachedQuery('metrics:lag', () =>
+        pool.query(`
+          SELECT COUNT(*)::int AS cnt
+          FROM events_clean
+          WHERE ingest_time >= NOW() - INTERVAL '2 minutes'
+            AND event_time >= NOW() - INTERVAL '2 minutes'
+        `)
+      ),
+    ]);
+
     const processedEventsPerSec = Math.round(
       parseFloat(epsResult.rows[0].cnt) / 60,
     );
-
-    // Kafka lag: approximate as events in events_clean vs expected
-    // (simple heuristic — events generated but not yet in kpi_1m within last 2 min)
-    const lagResult = await pool.query(`
-      SELECT COUNT(*)::int AS cnt
-      FROM events_clean
-      WHERE ingest_time >= NOW() - INTERVAL '2 minutes'
-        AND event_time >= NOW() - INTERVAL '2 minutes'
-    `);
     const kafkaLag = Math.max(
       0,
       parseInt(lagResult.rows[0].cnt) - processedEventsPerSec * 30,
@@ -864,6 +901,128 @@ app.get("/api/events/heatmap", async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error("[/api/events/heatmap]", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ----------------------------------------------------------------
+// GET /api/events/by-category?timeRange=1h
+// Revenue & order count grouped by product category
+// ----------------------------------------------------------------
+app.get("/api/events/by-category", async (req, res) => {
+  const timeRange = req.query.timeRange || "1h";
+  const interval = getIntervalExpression(timeRange);
+  try {
+    const result = await cachedQuery(`category:${timeRange}`, () =>
+      pool.query(`
+        SELECT
+          COALESCE(category, 'unknown')   AS "category",
+          COUNT(*)::int                   AS "count",
+          SUM(amount)::float              AS "revenue",
+          SUM(quantity)::int              AS "totalQuantity"
+        FROM events_clean
+        WHERE ingest_time >= NOW() - $1::interval
+          AND category IS NOT NULL
+        GROUP BY category
+        ORDER BY "revenue" DESC
+      `, [interval])
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("[/api/events/by-category]", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ----------------------------------------------------------------
+// GET /api/events/by-region?timeRange=1h
+// Order count & revenue grouped by region
+// ----------------------------------------------------------------
+app.get("/api/events/by-region", async (req, res) => {
+  const timeRange = req.query.timeRange || "1h";
+  const interval = getIntervalExpression(timeRange);
+  try {
+    const result = await cachedQuery(`region:${timeRange}`, () =>
+      pool.query(`
+        SELECT
+          region                          AS "region",
+          COUNT(*)::int                   AS "count",
+          SUM(amount)::float              AS "revenue",
+          SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END)::int AS "successCount"
+        FROM events_clean
+        WHERE ingest_time >= NOW() - $1::interval
+          AND region IS NOT NULL
+        GROUP BY region
+        ORDER BY "count" DESC
+      `, [interval])
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("[/api/events/by-region]", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ----------------------------------------------------------------
+// GET /api/events/by-payment?timeRange=1h
+// Transaction count & success rate by payment method
+// ----------------------------------------------------------------
+app.get("/api/events/by-payment", async (req, res) => {
+  const timeRange = req.query.timeRange || "1h";
+  const interval = getIntervalExpression(timeRange);
+  try {
+    const result = await cachedQuery(`payment:${timeRange}`, () =>
+      pool.query(`
+        SELECT
+          payment_method                   AS "paymentMethod",
+          COUNT(*)::int                    AS "count",
+          SUM(amount)::float               AS "revenue",
+          ROUND(100.0 * SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END)
+            / NULLIF(COUNT(*), 0), 1)::float AS "successRate"
+        FROM events_clean
+        WHERE ingest_time >= NOW() - $1::interval
+          AND payment_method IS NOT NULL
+        GROUP BY payment_method
+        ORDER BY "count" DESC
+      `, [interval])
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("[/api/events/by-payment]", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ----------------------------------------------------------------
+// GET /api/events/top-products?timeRange=1h&limit=10
+// Top products by revenue
+// ----------------------------------------------------------------
+app.get("/api/events/top-products", async (req, res) => {
+  const timeRange = req.query.timeRange || "1h";
+  const limit = Math.min(20, parseInt(req.query.limit) || 10);
+  const interval = getIntervalExpression(timeRange);
+  try {
+    const result = await cachedQuery(`top-products:${timeRange}:${limit}`, () =>
+      pool.query(`
+        SELECT
+          product_id                       AS "productId",
+          product_name                     AS "productName",
+          category                         AS "category",
+          COUNT(*)::int                    AS "orderCount",
+          SUM(quantity)::int               AS "totalQuantity",
+          SUM(amount)::float               AS "revenue"
+        FROM events_clean
+        WHERE ingest_time >= NOW() - $1::interval
+          AND product_id IS NOT NULL
+          AND status = 'success'
+        GROUP BY product_id, product_name, category
+        ORDER BY "revenue" DESC
+        LIMIT $2
+      `, [interval, limit])
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("[/api/events/top-products]", err.message);
     res.status(500).json({ error: "Internal server error" });
   }
 });

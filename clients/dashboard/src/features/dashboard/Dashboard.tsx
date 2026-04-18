@@ -47,6 +47,10 @@ import {
   ChevronRight,
   ZoomIn,
   ArrowLeft,
+  ShoppingBag,
+  Globe,
+  CreditCard,
+  Package,
 } from "lucide-react";
 import { format } from "date-fns";
 import KPICard from "@/components/ui/KPICard";
@@ -214,6 +218,30 @@ export default function Dashboard() {
     refetchInterval: autoRefresh ? 10000 : false,
   });
 
+  const { data: categoryStats } = useQuery({
+    queryKey: ["categoryStats", timeRange],
+    queryFn: () => api.getByCategory(timeRange),
+    refetchInterval: autoRefresh ? 10000 : false,
+  });
+
+  const { data: regionStats } = useQuery({
+    queryKey: ["regionStats", timeRange],
+    queryFn: () => api.getByRegion(timeRange),
+    refetchInterval: autoRefresh ? 10000 : false,
+  });
+
+  const { data: paymentStats } = useQuery({
+    queryKey: ["paymentStats", timeRange],
+    queryFn: () => api.getByPayment(timeRange),
+    refetchInterval: autoRefresh ? 10000 : false,
+  });
+
+  const { data: topProducts } = useQuery({
+    queryKey: ["topProducts", timeRange],
+    queryFn: () => api.getTopProducts(timeRange, 10),
+    refetchInterval: autoRefresh ? 10000 : false,
+  });
+
   // Drill-down detail: fetch events filtered by current drill
   const { data: drillEvents } = useQuery({
     queryKey: ["drillEvents", drillDetail?.type, drillDetail?.value, timeRange],
@@ -290,6 +318,22 @@ export default function Dashboard() {
     "payment success": "#10B981",
     "payment failed": "#EF4444",
     "order cancelled": "#F59E0B",
+  };
+
+  const categoryColors: Record<string, string> = {
+    electronics: "#6366F1",
+    fashion: "#EC4899",
+    food: "#F59E0B",
+    home: "#3B82F6",
+    beauty: "#A855F7",
+    books: "#10B981",
+  };
+
+  const paymentColors: Record<string, string> = {
+    credit_card: "#3B82F6",
+    e_wallet: "#10B981",
+    bank_transfer: "#F59E0B",
+    cod: "#94A3B8",
   };
 
   const heatmapGrid = useMemo(() => {
@@ -936,6 +980,131 @@ export default function Dashboard() {
         ) : (
           <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
         )}
+      </div>
+
+      {/* Row 8: Category Revenue + Region Distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <ShoppingBag size={18} className="text-indigo-500" /> Revenue by Category
+          </h3>
+          {categoryStats && categoryStats.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={categoryStats} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
+                <XAxis type="number" tick={{ fontSize: 10 }} stroke={cs.axis} tickFormatter={(v: number) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : `${(v/1000).toFixed(0)}K`} />
+                <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} stroke={cs.axis} width={80} />
+                <Tooltip contentStyle={cs.tooltip} formatter={(v: number, name: string) => [name === "revenue" ? `${(v/1000000).toFixed(2)}M VND` : v.toLocaleString(), name === "revenue" ? "Revenue" : "Orders"]} />
+                <Legend />
+                <Bar dataKey="revenue" name="Revenue" radius={[0, 4, 4, 0]}>
+                  {categoryStats.map((entry) => (<Cell key={entry.category} fill={categoryColors[entry.category] || "#94A3B8"} />))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <Globe size={18} className="text-blue-500" /> Orders by Region
+          </h3>
+          {regionStats && regionStats.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={regionStats}>
+                <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
+                <XAxis dataKey="region" tick={{ fontSize: 11 }} stroke={cs.axis} />
+                <YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
+                <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [v.toLocaleString(), "Orders"]} />
+                <Bar dataKey="count" name="Orders" radius={[4, 4, 0, 0]}>
+                  {regionStats.map((_, index) => (<Cell key={index} fill={["#6366F1","#3B82F6","#10B981","#F59E0B","#EF4444","#A855F7","#EC4899","#14B8A6","#94A3B8"][index % 9]} />))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
+          )}
+        </div>
+      </div>
+
+      {/* Row 9: Payment Methods + Top Products */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <CreditCard size={18} className="text-green-500" /> Payment Method Success Rate
+          </h3>
+          {paymentStats && paymentStats.length > 0 ? (
+            <div className="space-y-4">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={paymentStats}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
+                  <XAxis dataKey="paymentMethod" tick={{ fontSize: 11 }} stroke={cs.axis} tickFormatter={(v: string) => v.replace(/_/g, " ")} />
+                  <YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
+                  <Tooltip contentStyle={cs.tooltip} formatter={(v: number, name: string) => [v.toLocaleString(), name === "successCount" ? "Success" : "Failed"]} labelFormatter={(l: string) => l.replace(/_/g, " ")} />
+                  <Legend />
+                  <Bar dataKey="successCount" name="Success" stackId="a" fill="#10B981" />
+                  <Bar dataKey="failedCount" name="Failed" stackId="a" radius={[4, 4, 0, 0]} fill="#EF4444" />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="grid grid-cols-2 gap-2">
+                {paymentStats.map((p) => (
+                  <div key={p.paymentMethod} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                    <span className="text-xs font-medium text-gray-700" style={{ color: paymentColors[p.paymentMethod] }}>
+                      {p.paymentMethod.replace(/_/g, " ")}
+                    </span>
+                    <span className={`text-xs font-bold ${p.successRate >= 80 ? "text-green-600" : p.successRate >= 60 ? "text-yellow-600" : "text-red-600"}`}>
+                      {p.successRate.toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <Package size={18} className="text-orange-500" /> Top Products by Revenue
+          </h3>
+          {topProducts && topProducts.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-600">#</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-600">Product</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-600">Category</th>
+                    <th className="text-right py-2 px-2 text-xs font-semibold text-gray-600">Orders</th>
+                    <th className="text-right py-2 px-2 text-xs font-semibold text-gray-600">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {topProducts.map((p, i) => (
+                    <tr key={p.productId} className="hover:bg-gray-50">
+                      <td className="py-2 px-2 text-gray-400 text-xs">{i + 1}</td>
+                      <td className="py-2 px-2">
+                        <div className="font-medium text-gray-800 text-xs">{p.productName}</div>
+                        <div className="text-gray-400 text-[10px]">{p.productId}</div>
+                      </td>
+                      <td className="py-2 px-2">
+                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: (categoryColors[p.category] || "#94A3B8") + "20", color: categoryColors[p.category] || "#94A3B8" }}>
+                          {p.category}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 text-right text-xs text-gray-700">{p.count.toLocaleString()}</td>
+                      <td className="py-2 px-2 text-right text-xs font-semibold text-gray-900">{(p.revenue / 1000000).toFixed(1)}M</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
+          )}
+        </div>
       </div>
 
       {/* Status */}

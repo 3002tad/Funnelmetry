@@ -4,6 +4,7 @@
 
 # Producer Poller Dependencies
 kafka-python==2.0.2        # Kafka producer client
+python-snappy==0.7.3       # Snappy compression for Kafka (fast, low CPU)
 requests==2.31.0           # HTTP client for API polling
 
 # Spark Dependencies

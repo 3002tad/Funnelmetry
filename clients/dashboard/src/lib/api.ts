@@ -131,6 +131,38 @@ export interface HeatmapCell {
   count: number;
 }
 
+// Category analytics
+export interface CategoryStat {
+  category: string;
+  count: number;
+  revenue: number;
+}
+
+// Region analytics
+export interface RegionStat {
+  region: string;
+  count: number;
+  revenue: number;
+}
+
+// Payment method analytics
+export interface PaymentStat {
+  paymentMethod: string;
+  total: number;
+  successCount: number;
+  failedCount: number;
+  successRate: number;
+}
+
+// Top products
+export interface TopProduct {
+  productId: string;
+  productName: string;
+  category: string;
+  revenue: number;
+  count: number;
+}
+
 // Distributed tracing
 export interface EventTrace {
   eventId: string;
@@ -393,6 +425,56 @@ class MockDataGenerator {
       }
     }
     return cells;
+  }
+
+  // Generate category stats
+  generateCategoryStats(): CategoryStat[] {
+    const categories = ['electronics', 'fashion', 'food', 'home', 'beauty', 'books'];
+    const priceRanges: Record<string, number> = { electronics: 3000000, fashion: 800000, food: 150000, home: 1200000, beauty: 500000, books: 200000 };
+    return categories.map(cat => {
+      const count = Math.floor(Math.random() * 300) + 50;
+      return { category: cat, count, revenue: Math.floor(count * priceRanges[cat] * (0.8 + Math.random() * 0.4)) };
+    }).sort((a, b) => b.revenue - a.revenue);
+  }
+
+  // Generate region stats
+  generateRegionStats(): RegionStat[] {
+    const regions = ['VN', 'US', 'SG', 'JP', 'TH', 'MY', 'ID', 'PH', 'AU'];
+    return regions.map(region => {
+      const count = Math.floor(Math.random() * 400) + 20;
+      return { region, count, revenue: Math.floor(count * (Math.random() * 1000000 + 200000)) };
+    }).sort((a, b) => b.count - a.count);
+  }
+
+  // Generate payment stats
+  generatePaymentStats(): PaymentStat[] {
+    const methods = ['credit_card', 'e_wallet', 'bank_transfer', 'cod'];
+    return methods.map(method => {
+      const total = Math.floor(Math.random() * 400) + 80;
+      const successCount = Math.floor(total * (0.6 + Math.random() * 0.35));
+      const failedCount = total - successCount;
+      return { paymentMethod: method, total, successCount, failedCount, successRate: Math.round((successCount / total) * 10000) / 100 };
+    });
+  }
+
+  // Generate top products
+  generateTopProducts(limit: number): TopProduct[] {
+    const products = [
+      { productId: 'E001', productName: 'iPhone 15 Pro', category: 'electronics' },
+      { productId: 'E002', productName: 'Samsung Galaxy S24', category: 'electronics' },
+      { productId: 'F001', productName: 'Nike Air Max 270', category: 'fashion' },
+      { productId: 'H001', productName: 'Dyson V15 Vacuum', category: 'home' },
+      { productId: 'B001', productName: 'Lipstick Set Premium', category: 'beauty' },
+      { productId: 'E003', productName: 'iPad Pro 12.9"', category: 'electronics' },
+      { productId: 'F002', productName: 'Adidas Ultraboost 22', category: 'fashion' },
+      { productId: 'O001', productName: 'Pho Bo Special', category: 'food' },
+      { productId: 'H002', productName: 'KitchenAid Mixer', category: 'home' },
+      { productId: 'K001', productName: 'Clean Code (Book)', category: 'books' },
+    ];
+    return products.slice(0, limit).map(p => {
+      const count = Math.floor(Math.random() * 100) + 10;
+      return { ...p, count, revenue: Math.floor(count * (Math.random() * 2000000 + 500000)) };
+    }).sort((a, b) => b.revenue - a.revenue);
   }
 
   // Simulate system issues
@@ -697,6 +779,50 @@ export const api = {
       return { count: 1200, p50: 180, p95: 450, p99: 820, avgGenToKafkaMs: 35, avgKafkaToSparkMs: 120, avgSparkToDbMs: 15 };
     }
     const response = await authFetch(`${API_BASE_URL}/traces/stats?timeRange=${timeRange}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Category analytics
+  async getByCategory(timeRange: TimeRange): Promise<CategoryStat[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generateCategoryStats();
+    }
+    const response = await authFetch(`${API_BASE_URL}/events/by-category?timeRange=${timeRange}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Region analytics
+  async getByRegion(timeRange: TimeRange): Promise<RegionStat[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generateRegionStats();
+    }
+    const response = await authFetch(`${API_BASE_URL}/events/by-region?timeRange=${timeRange}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Payment method analytics
+  async getByPayment(timeRange: TimeRange): Promise<PaymentStat[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generatePaymentStats();
+    }
+    const response = await authFetch(`${API_BASE_URL}/events/by-payment?timeRange=${timeRange}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    return response.json();
+  },
+
+  // Top products by revenue
+  async getTopProducts(timeRange: TimeRange, limit = 10): Promise<TopProduct[]> {
+    if (USE_MOCK) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockGenerator.generateTopProducts(limit);
+    }
+    const response = await authFetch(`${API_BASE_URL}/events/top-products?timeRange=${timeRange}&limit=${limit}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     return response.json();
   },
