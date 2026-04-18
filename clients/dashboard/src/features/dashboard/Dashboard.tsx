@@ -2,31 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api, TimeRange, USE_MOCK } from "@/lib/api";
-import {
-  AreaChart,
-  Area,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  ScatterChart,
-  Scatter,
-  ZAxis,
-  RadialBarChart,
-  RadialBar,
-  FunnelChart,
-  Funnel,
-  LabelList,
-} from "recharts";
+import ReactECharts from "echarts-for-react";
 import {
   DollarSign,
   Activity,
@@ -101,6 +77,10 @@ function ChartToggle({
   );
 }
 
+// Shared ECharts theme helpers
+const eGrid = { left: 50, right: 20, top: 30, bottom: 30, containLabel: false };
+const eTooltipStyle = { backgroundColor: "#fff", borderColor: "#e5e7eb", textStyle: { color: "#374151" } };
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const goToEvents = useCallback(
@@ -127,7 +107,6 @@ export default function Dashboard() {
 
   const addDrill = useCallback((key: string, label: string, value: string) => {
     setDrillFilters((prev) => {
-      // Replace existing filter of same key or add new
       const filtered = prev.filter((f) => f.key !== key);
       return [...filtered, { key, label, value }];
     });
@@ -302,15 +281,14 @@ export default function Dashboard() {
 
   const funnelData = kpi
     ? [
-        { name: "Orders Created", value: kpi.totalEvents, fill: "#6366F1" },
-        { name: "Payment Initiated", value: kpi.pending + kpi.paymentSuccess + kpi.totalFailed, fill: "#3B82F6" },
-        { name: "Payment Success", value: kpi.paymentSuccess, fill: "#10B981" },
+        { name: "Orders Created", value: kpi.totalEvents },
+        { name: "Payment Initiated", value: kpi.pending + kpi.paymentSuccess + kpi.totalFailed },
+        { name: "Payment Success", value: kpi.paymentSuccess },
       ].filter((d) => d.value > 0)
     : [];
 
-  const gaugeData = kpi
-    ? [{ name: "Success Rate", value: kpi.successRate, fill: kpi.successRate >= 80 ? "#10B981" : kpi.successRate >= 60 ? "#F59E0B" : "#EF4444" }]
-    : [];
+  const successRate = kpi?.successRate ?? 0;
+  const gaugeColor = successRate >= 80 ? "#10B981" : successRate >= 60 ? "#F59E0B" : "#EF4444";
 
   const treemapColors: Record<string, string> = {
     "order created": "#6366F1",
@@ -378,19 +356,6 @@ export default function Dashboard() {
       ].filter((d) => d.value > 0)
     : [];
 
-  // Dim pie slices that aren't selected
-  const pieColors = pieData.map((d) => {
-    const base = d.status === "success" ? "#10B981" : d.status === "pending" ? "#F59E0B" : "#EF4444";
-    if (activeStatus && d.status !== activeStatus) return base + "40"; // dimmed
-    return base;
-  });
-
-  const cs = {
-    grid: "#F3F4F6",
-    axis: "#9CA3AF",
-    tooltip: { backgroundColor: "#FFF", border: "1px solid #E5E7EB", borderRadius: "8px", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" },
-  };
-
   // ── Drill handlers ──
   const drillEventType = (eventType: string) => {
     const label = eventType.replace(/_/g, " ");
@@ -410,6 +375,702 @@ export default function Dashboard() {
 
   const drillTime = (tr: TimeRange) => {
     setTimeRange(tr);
+  };
+
+  // ── ECharts option builders ──
+
+  const getRevenueOption = () => {
+    if (!revenueChartData) return {};
+    const times = revenueChartData.map((d) => d.time);
+    const revenues = revenueChartData.map((d) => d.revenue);
+    return {
+      tooltip: {
+        trigger: "axis",
+        ...eTooltipStyle,
+        formatter: (p: any[]) => `${p[0].axisValue}<br/>${(p[0].value / 1000).toFixed(0)}K VND`,
+      },
+      grid: eGrid,
+      xAxis: {
+        type: "category",
+        data: times,
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: "#9CA3AF", fontSize: 11, formatter: (v: number) => `${(v / 1000).toFixed(0)}K` },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      series: [
+        {
+          name: "Revenue",
+          type: revenueChart === "bar" ? "bar" : "line",
+          smooth: true,
+          data: revenues,
+          itemStyle: { color: "#10B981" },
+          lineStyle: { color: "#10B981", width: 2 },
+          areaStyle:
+            revenueChart === "area"
+              ? {
+                  color: {
+                    type: "linear",
+                    x: 0, y: 0, x2: 0, y2: 1,
+                    colorStops: [
+                      { offset: 0, color: "rgba(16,185,129,0.3)" },
+                      { offset: 1, color: "rgba(16,185,129,0)" },
+                    ],
+                  },
+                }
+              : undefined,
+          barMaxWidth: 40,
+        },
+      ],
+    };
+  };
+
+  const getOrdersOption = () => {
+    if (!ordersChartData) return {};
+    const times = ordersChartData.map((d) => d.time);
+    const successData = ordersChartData.map((d) => d.success);
+    const failedData = ordersChartData.map((d) => d.failed);
+    const successColor = activeStatus && activeStatus !== "success" ? "#10B98140" : "#10B981";
+    const failedColor = activeStatus && activeStatus !== "failed" ? "#EF444440" : "#EF4444";
+    const isLine = ordersChart === "line";
+    const isArea = ordersChart === "area";
+    const seriesType = isLine || isArea ? "line" : "bar";
+    return {
+      tooltip: { trigger: "axis", ...eTooltipStyle },
+      legend: { bottom: 0, textStyle: { color: "#374151", fontSize: 11 } },
+      grid: { ...eGrid, bottom: 50 },
+      xAxis: {
+        type: "category",
+        data: times,
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      series: [
+        {
+          name: "Success",
+          type: seriesType,
+          stack: seriesType === "bar" ? "a" : undefined,
+          smooth: true,
+          data: successData,
+          itemStyle: { color: successColor },
+          lineStyle: seriesType === "line" ? { color: successColor, width: 2 } : undefined,
+          areaStyle:
+            isArea
+              ? {
+                  color: {
+                    type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+                    colorStops: [
+                      { offset: 0, color: "rgba(16,185,129,0.3)" },
+                      { offset: 1, color: "rgba(16,185,129,0)" },
+                    ],
+                  },
+                }
+              : undefined,
+        },
+        {
+          name: "Failed",
+          type: seriesType,
+          stack: seriesType === "bar" ? "a" : undefined,
+          smooth: true,
+          data: failedData,
+          itemStyle: { color: failedColor },
+          lineStyle: seriesType === "line" ? { color: failedColor, width: 2 } : undefined,
+          areaStyle:
+            isArea
+              ? {
+                  color: {
+                    type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+                    colorStops: [
+                      { offset: 0, color: "rgba(239,68,68,0.3)" },
+                      { offset: 1, color: "rgba(239,68,68,0)" },
+                    ],
+                  },
+                }
+              : undefined,
+        },
+      ],
+    };
+  };
+
+  const getPieOption = () => {
+    return {
+      tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
+      series: [
+        {
+          type: "pie",
+          radius: ["40%", "70%"],
+          center: ["50%", "50%"],
+          data: pieData.map((d) => {
+            const base = d.status === "success" ? "#10B981" : d.status === "pending" ? "#F59E0B" : "#EF4444";
+            const color = activeStatus && d.status !== activeStatus ? base + "40" : base;
+            return {
+              value: d.value,
+              name: d.name,
+              status: d.status,
+              itemStyle: {
+                color,
+                borderColor: activeStatus === d.status ? "#1D4ED8" : "none",
+                borderWidth: activeStatus === d.status ? 3 : 0,
+              },
+            };
+          }),
+          label: { show: true, formatter: "{b}\n{d}%", fontSize: 11 },
+          emphasis: {
+            itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: "rgba(0,0,0,0.5)" },
+          },
+        },
+      ],
+    };
+  };
+
+  const getEventTypesOption = () => {
+    if (!eventTypesData) return {};
+    const times = eventTypesData.map((d) => d.time);
+    const isBar = eventTypesChart === "bar";
+    const isArea = eventTypesChart === "area";
+    const seriesType = isBar ? "bar" : "line";
+
+    const seriesDefs = [
+      { key: "Orders Created", color: "#6366F1", et: "order_created" },
+      { key: "Payment Initiated", color: "#3B82F6", et: "payment_initiated" },
+      { key: "Payment Success", color: "#10B981", et: "payment_success" },
+      { key: "Payment Failed", color: "#EF4444", et: "payment_failed" },
+      { key: "Order Cancelled", color: "#F59E0B", et: "order_cancelled" },
+    ].filter((s) => !activeEventType || activeEventType === s.et);
+
+    return {
+      tooltip: { trigger: "axis", ...eTooltipStyle },
+      legend: {
+        bottom: 0,
+        textStyle: { color: "#374151", fontSize: 10 },
+      },
+      grid: { ...eGrid, bottom: 50 },
+      xAxis: {
+        type: "category",
+        data: times,
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      series: seriesDefs.map((s) => ({
+        name: s.key,
+        type: seriesType,
+        stack: "a",
+        smooth: true,
+        data: eventTypesData.map((d) => d[s.key] ?? 0),
+        itemStyle: { color: s.color },
+        lineStyle: seriesType === "line" ? { color: s.color, width: 2 } : undefined,
+        areaStyle: isArea
+          ? {
+              color: {
+                type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: s.color + "66" },
+                  { offset: 1, color: s.color + "00" },
+                ],
+              },
+            }
+          : undefined,
+      })),
+    };
+  };
+
+  const getLatencyOption = () => {
+    if (!latencyTimelineData) return {};
+    const times = latencyTimelineData.map((d) => d.time);
+    const isBar = latencyChart === "bar";
+    const isArea = latencyChart === "area";
+    const seriesType = isBar ? "bar" : "line";
+    return {
+      tooltip: {
+        trigger: "axis",
+        ...eTooltipStyle,
+        formatter: (p: any[]) => p.map((s: any) => `${s.seriesName}: ${s.value}ms`).join("<br/>"),
+      },
+      legend: { bottom: 0, textStyle: { color: "#374151", fontSize: 11 } },
+      grid: { ...eGrid, bottom: 50 },
+      xAxis: {
+        type: "category",
+        data: times,
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: "#9CA3AF", fontSize: 11, formatter: (v: number) => `${v}ms` },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      series: [
+        {
+          name: "P50",
+          type: seriesType,
+          smooth: true,
+          data: latencyTimelineData.map((d) => d.P50),
+          itemStyle: { color: "#10B981" },
+          lineStyle: seriesType === "line" ? { color: "#10B981", width: 2 } : undefined,
+          areaStyle: isArea
+            ? {
+                color: {
+                  type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+                  colorStops: [
+                    { offset: 0, color: "rgba(16,185,129,0.3)" },
+                    { offset: 1, color: "rgba(16,185,129,0)" },
+                  ],
+                },
+              }
+            : undefined,
+        },
+        {
+          name: "P95",
+          type: seriesType,
+          smooth: true,
+          data: latencyTimelineData.map((d) => d.P95),
+          itemStyle: { color: "#F59E0B" },
+          lineStyle: seriesType === "line" ? { color: "#F59E0B", width: 2 } : undefined,
+          areaStyle: isArea
+            ? {
+                color: {
+                  type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+                  colorStops: [
+                    { offset: 0, color: "rgba(245,158,11,0.3)" },
+                    { offset: 1, color: "rgba(245,158,11,0)" },
+                  ],
+                },
+              }
+            : undefined,
+        },
+      ],
+    };
+  };
+
+  const getTopUsersOption = () => {
+    if (!topUsers || topUsers.length === 0) return {};
+    const slice = topUsers.slice(0, 10);
+    const userIds = slice.map((d) => d.userId);
+    const successCounts = slice.map((d) => d.successCount);
+    const failedCounts = slice.map((d) => d.failedCount);
+    return {
+      tooltip: { trigger: "axis", ...eTooltipStyle },
+      legend: { bottom: 0, textStyle: { color: "#374151", fontSize: 11 } },
+      grid: { left: 80, right: 20, top: 20, bottom: 50, containLabel: false },
+      xAxis: {
+        type: "value",
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      yAxis: {
+        type: "category",
+        data: userIds,
+        axisLabel: { color: "#9CA3AF", fontSize: 10, width: 70, overflow: "truncate" },
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+      },
+      series: [
+        {
+          name: "Success",
+          type: "bar",
+          stack: "a",
+          data: successCounts,
+          itemStyle: { color: "#10B981" },
+        },
+        {
+          name: "Failed",
+          type: "bar",
+          stack: "a",
+          data: failedCounts,
+          itemStyle: { color: "#EF4444" },
+          barMaxWidth: 40,
+        },
+      ],
+    };
+  };
+
+  const getAmountDistributionOption = () => {
+    if (!amountDistribution || amountDistribution.length === 0) return {};
+    return {
+      tooltip: {
+        trigger: "axis",
+        ...eTooltipStyle,
+        formatter: (p: any[]) => `${p[0].axisValue}<br/>${p[0].value.toLocaleString()} Transactions`,
+      },
+      grid: eGrid,
+      xAxis: {
+        type: "category",
+        data: amountDistribution.map((d) => d.range),
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+        axisLabel: { color: "#9CA3AF", fontSize: 10 },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      series: [
+        {
+          name: "Transactions",
+          type: "bar",
+          data: amountDistribution.map((d, i) => ({
+            value: d.count,
+            itemStyle: { color: amountColors[i % amountColors.length] },
+          })),
+          barMaxWidth: 60,
+        },
+      ],
+    };
+  };
+
+  const getFunnelOption = () => {
+    if (funnelData.length === 0) return {};
+    return {
+      tooltip: { trigger: "item", formatter: "{b}: {c}" },
+      series: [
+        {
+          type: "funnel",
+          left: "10%",
+          width: "80%",
+          data: funnelData.map((d, i) => ({
+            value: d.value,
+            name: d.name,
+            itemStyle: { color: ["#6366F1", "#3B82F6", "#10B981"][i] },
+          })),
+          label: { color: "#374151", fontSize: 11 },
+        },
+      ],
+    };
+  };
+
+  const getGaugeOption = () => {
+    return {
+      series: [
+        {
+          type: "gauge",
+          startAngle: 210,
+          endAngle: -30,
+          min: 0,
+          max: 100,
+          radius: "80%",
+          data: [{ value: successRate, name: "Success Rate" }],
+          pointer: { show: false },
+          progress: {
+            show: true,
+            width: 18,
+            roundCap: true,
+            itemStyle: { color: gaugeColor },
+          },
+          axisLine: { lineStyle: { width: 18, color: [[1, "#F3F4F6"]] } },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: { show: false },
+          detail: { show: false },
+        },
+      ],
+    };
+  };
+
+  const getSuccessRateTrendOption = () => {
+    if (!eventTypesData) return {};
+    const times = eventTypesData.map((d) => d.time);
+    const srData = eventTypesData.map((d) => d["Success Rate"] ?? 0);
+    return {
+      tooltip: {
+        trigger: "axis",
+        ...eTooltipStyle,
+        formatter: (p: any[]) => `${p[0].axisValue}<br/>${(p[0].value as number).toFixed(1)}% Success Rate`,
+      },
+      grid: eGrid,
+      xAxis: {
+        type: "category",
+        data: times,
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+      },
+      yAxis: {
+        type: "value",
+        min: 0,
+        max: 100,
+        axisLabel: { color: "#9CA3AF", fontSize: 11, formatter: (v: number) => `${v}%` },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      series: [
+        {
+          name: "Success Rate",
+          type: "line",
+          smooth: true,
+          data: srData,
+          itemStyle: { color: "#10B981" },
+          lineStyle: { color: "#10B981", width: 2 },
+          areaStyle: {
+            color: {
+              type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: "rgba(16,185,129,0.3)" },
+                { offset: 1, color: "rgba(16,185,129,0)" },
+              ],
+            },
+          },
+        },
+      ],
+    };
+  };
+
+  const getScatterOption = () => {
+    if (filteredScatter.length === 0) return {};
+    const statuses = activeStatus ? [activeStatus] : ["success", "failed", "pending"];
+    return {
+      tooltip: {
+        trigger: "item",
+        formatter: (p: any) =>
+          `${p.seriesName}<br/>Amount: ${(p.value[0] / 1000).toFixed(0)}K<br/>Latency: ${p.value[1]}ms`,
+      },
+      legend: { bottom: 0, textStyle: { color: "#374151", fontSize: 11 } },
+      grid: { ...eGrid, bottom: 50 },
+      xAxis: {
+        type: "value",
+        axisLabel: {
+          color: "#9CA3AF",
+          fontSize: 10,
+          formatter: (v: number) =>
+            v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : `${(v / 1000).toFixed(0)}K`,
+        },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: "#9CA3AF", fontSize: 10, formatter: (v: number) => `${v}ms` },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      series: statuses.map((s) => ({
+        name: s,
+        type: "scatter",
+        symbolSize: 8,
+        opacity: 0.7,
+        data: filteredScatter.filter((d) => d.status === s).map((d) => [d.amount, d.latency]),
+        itemStyle: { color: scatterColors[s] },
+      })),
+    };
+  };
+
+  const getRevenueByTypeOption = () => {
+    if (filteredRevenueByType.length === 0) return {};
+    const eventTypes = filteredRevenueByType.map((d) => d.eventType);
+    const revenues = filteredRevenueByType.map((d) => d.revenue);
+    return {
+      tooltip: {
+        trigger: "axis",
+        ...eTooltipStyle,
+        formatter: (p: any[]) =>
+          `${p[0].axisValue.replace(/_/g, " ")}<br/>${(p[0].value / 1000000).toFixed(2)}M VND`,
+      },
+      grid: { left: 120, right: 20, top: 20, bottom: 30, containLabel: false },
+      xAxis: {
+        type: "value",
+        axisLabel: {
+          color: "#9CA3AF",
+          fontSize: 10,
+          formatter: (v: number) =>
+            v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : `${(v / 1000).toFixed(0)}K`,
+        },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      yAxis: {
+        type: "category",
+        data: eventTypes,
+        axisLabel: {
+          color: "#9CA3AF",
+          fontSize: 10,
+          formatter: (v: string) => v.replace(/_/g, " "),
+        },
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+      },
+      series: [
+        {
+          name: "Revenue",
+          type: "bar",
+          data: revenues.map((v, i) => ({
+            value: v,
+            itemStyle: {
+              color: treemapColors[filteredRevenueByType[i].eventType.replace(/_/g, " ")] || "#94A3B8",
+            },
+          })),
+          barMaxWidth: 40,
+        },
+      ],
+    };
+  };
+
+  const getHeatmapOption = () => {
+    if (heatmapGrid.length === 0) return {};
+    const hours = heatmapGrid.map((d) => d.hour);
+    const eventTypeDefs = [
+      { key: "order_created", name: "Order Created", color: "#6366F1" },
+      { key: "payment_initiated", name: "Payment Initiated", color: "#3B82F6" },
+      { key: "payment_success", name: "Payment Success", color: "#10B981" },
+      { key: "payment_failed", name: "Payment Failed", color: "#EF4444" },
+      { key: "order_cancelled", name: "Order Cancelled", color: "#F59E0B" },
+    ].filter((s) => !activeEventType || activeEventType === s.key);
+
+    return {
+      tooltip: { trigger: "axis", ...eTooltipStyle },
+      legend: { bottom: 0, textStyle: { color: "#374151", fontSize: 10 } },
+      grid: { ...eGrid, bottom: 50 },
+      xAxis: {
+        type: "category",
+        data: hours,
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+        axisLabel: { color: "#9CA3AF", fontSize: 10 },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      series: eventTypeDefs.map((s) => ({
+        name: s.name,
+        type: "bar",
+        stack: "a",
+        data: heatmapGrid.map((row) => row[s.key] ?? 0),
+        itemStyle: { color: s.color },
+      })),
+    };
+  };
+
+  const getCategoryOption = () => {
+    if (!categoryStats || categoryStats.length === 0) return {};
+    const categories = categoryStats.map((d) => d.category);
+    const revenues = categoryStats.map((d) => d.revenue);
+    return {
+      tooltip: {
+        trigger: "axis",
+        ...eTooltipStyle,
+        formatter: (p: any[]) =>
+          `${p[0].axisValue}<br/>${(p[0].value / 1000000).toFixed(2)}M VND`,
+      },
+      grid: { left: 90, right: 20, top: 20, bottom: 30, containLabel: false },
+      xAxis: {
+        type: "value",
+        axisLabel: {
+          color: "#9CA3AF",
+          fontSize: 10,
+          formatter: (v: number) =>
+            v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : `${(v / 1000).toFixed(0)}K`,
+        },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      yAxis: {
+        type: "category",
+        data: categories,
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+      },
+      series: [
+        {
+          name: "Revenue",
+          type: "bar",
+          data: revenues.map((v, i) => ({
+            value: v,
+            itemStyle: { color: categoryColors[categoryStats[i].category] || "#94A3B8" },
+          })),
+          barMaxWidth: 40,
+        },
+      ],
+    };
+  };
+
+  const getRegionOption = () => {
+    if (!regionStats || regionStats.length === 0) return {};
+    const regionColors = ["#6366F1", "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#A855F7", "#EC4899", "#14B8A6", "#94A3B8"];
+    return {
+      tooltip: {
+        trigger: "axis",
+        ...eTooltipStyle,
+        formatter: (p: any[]) => `${p[0].axisValue}<br/>${p[0].value.toLocaleString()} Orders`,
+      },
+      grid: eGrid,
+      xAxis: {
+        type: "category",
+        data: regionStats.map((d) => d.region),
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      series: [
+        {
+          name: "Orders",
+          type: "bar",
+          data: regionStats.map((d, i) => ({
+            value: d.count,
+            itemStyle: { color: regionColors[i % regionColors.length] },
+          })),
+          barMaxWidth: 50,
+        },
+      ],
+    };
+  };
+
+  const getPaymentOption = () => {
+    if (!paymentStats || paymentStats.length === 0) return {};
+    return {
+      tooltip: {
+        trigger: "axis",
+        ...eTooltipStyle,
+        formatter: (p: any[]) =>
+          `${p[0].axisValue.replace(/_/g, " ")}<br/>${p[0].value.toLocaleString()} Transactions`,
+      },
+      grid: eGrid,
+      xAxis: {
+        type: "category",
+        data: paymentStats.map((d) => d.paymentMethod),
+        axisLine: { lineStyle: { color: "#9CA3AF" } },
+        axisTick: { show: false },
+        axisLabel: {
+          color: "#9CA3AF",
+          fontSize: 11,
+          formatter: (v: string) => v.replace(/_/g, " "),
+        },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: "#9CA3AF", fontSize: 11 },
+        splitLine: { lineStyle: { color: "#F3F4F6" } },
+      },
+      series: [
+        {
+          name: "Transactions",
+          type: "bar",
+          data: paymentStats.map((d) => ({
+            value: d.count,
+            itemStyle: { color: paymentColors[d.paymentMethod] || "#94A3B8" },
+          })),
+          barMaxWidth: 60,
+        },
+      ],
+    };
   };
 
   return (
@@ -622,30 +1283,7 @@ export default function Dashboard() {
           {timeSeriesLoading ? (
             <div className="h-[300px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
           ) : revenueChartData ? (
-            <ResponsiveContainer width="100%" height={300}>
-              {revenueChart === "area" ? (
-                <AreaChart data={revenueChartData}>
-                  <defs><linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10B981" stopOpacity={0.3} /><stop offset="95%" stopColor="#10B981" stopOpacity={0} /></linearGradient></defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
-                  <XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [`${(v / 1000).toFixed(0)}K VND`, "Revenue"]} />
-                  <Area type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={2} fill="url(#revGrad)" />
-                </AreaChart>
-              ) : revenueChart === "line" ? (
-                <LineChart data={revenueChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [`${(v / 1000).toFixed(0)}K VND`, "Revenue"]} />
-                  <Line type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={2} dot={{ r: 2 }} />
-                </LineChart>
-              ) : (
-                <BarChart data={revenueChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [`${(v / 1000).toFixed(0)}K VND`, "Revenue"]} />
-                  <Bar dataKey="revenue" fill="#10B981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              )}
-            </ResponsiveContainer>
+            <ReactECharts option={getRevenueOption()} style={{ height: 300 }} notMerge={true} />
           ) : null}
         </div>
 
@@ -657,34 +1295,17 @@ export default function Dashboard() {
           {timeSeriesLoading ? (
             <div className="h-[300px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
           ) : ordersChartData ? (
-            <ResponsiveContainer width="100%" height={300}>
-              {ordersChart === "bar" ? (
-                <BarChart data={ordersChartData} onClick={(state) => { if (state?.activeTooltipIndex != null) { /* time drill possible */ } }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} /><Legend />
-                  <Bar dataKey="success" fill={activeStatus && activeStatus !== "success" ? "#10B98140" : "#10B981"} name="Success" stackId="a" cursor="pointer" onClick={() => drillStatus("success")} />
-                  <Bar dataKey="failed" fill={activeStatus && activeStatus !== "failed" ? "#EF444440" : "#EF4444"} name="Failed" stackId="a" radius={[4, 4, 0, 0]} cursor="pointer" onClick={() => drillStatus("failed")} />
-                </BarChart>
-              ) : ordersChart === "line" ? (
-                <LineChart data={ordersChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} /><Legend />
-                  <Line type="monotone" dataKey="success" stroke="#10B981" strokeWidth={2} name="Success" dot={{ r: 2 }} />
-                  <Line type="monotone" dataKey="failed" stroke="#EF4444" strokeWidth={2} name="Failed" dot={{ r: 2 }} />
-                </LineChart>
-              ) : (
-                <AreaChart data={ordersChartData}>
-                  <defs>
-                    <linearGradient id="successGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10B981" stopOpacity={0.3} /><stop offset="95%" stopColor="#10B981" stopOpacity={0} /></linearGradient>
-                    <linearGradient id="failedGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} /><stop offset="95%" stopColor="#EF4444" stopOpacity={0} /></linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} /><Legend />
-                  <Area type="monotone" dataKey="success" stroke="#10B981" fill="url(#successGrad)" name="Success" />
-                  <Area type="monotone" dataKey="failed" stroke="#EF4444" fill="url(#failedGrad)" name="Failed" />
-                </AreaChart>
-              )}
-            </ResponsiveContainer>
+            <ReactECharts
+              option={getOrdersOption()}
+              style={{ height: 300 }}
+              notMerge={true}
+              onEvents={{
+                click: (params: any) => {
+                  if (params.seriesName === "Success") drillStatus("success");
+                  else if (params.seriesName === "Failed") drillStatus("failed");
+                },
+              }}
+            />
           ) : null}
         </div>
       </div>
@@ -693,17 +1314,16 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card title="Event Distribution — click to drill">
           {pieData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} cursor="pointer"
-                  onClick={(_, index) => drillStatus(pieData[index].status)}
-                >
-                  {pieData.map((_, index) => (<Cell key={index} fill={pieColors[index]} stroke={activeStatus === pieData[index].status ? "#1D4ED8" : "none"} strokeWidth={activeStatus === pieData[index].status ? 3 : 0} />))}
-                </Pie>
-                <Tooltip formatter={(value: number) => [value.toLocaleString(), "Events"]} />
-              </PieChart>
-            </ResponsiveContainer>
+            <ReactECharts
+              option={getPieOption()}
+              style={{ height: 280 }}
+              notMerge={true}
+              onEvents={{
+                click: (params: any) => {
+                  if (params.data?.status) drillStatus(params.data.status);
+                },
+              }}
+            />
           ) : (
             <div className="h-[280px] flex items-center justify-center text-gray-400">No data yet</div>
           )}
@@ -740,46 +1360,24 @@ export default function Dashboard() {
             <ChartToggle value={eventTypesChart} onChange={setEventTypesChart} />
           </div>
           {eventTypesData ? (
-            <ResponsiveContainer width="100%" height={300}>
-              {eventTypesChart === "area" ? (
-                <AreaChart data={eventTypesData}>
-                  <defs>
-                    <linearGradient id="ocGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366F1" stopOpacity={0.4}/><stop offset="95%" stopColor="#6366F1" stopOpacity={0}/></linearGradient>
-                    <linearGradient id="piGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3B82F6" stopOpacity={0.4}/><stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/></linearGradient>
-                    <linearGradient id="psGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10B981" stopOpacity={0.4}/><stop offset="95%" stopColor="#10B981" stopOpacity={0}/></linearGradient>
-                    <linearGradient id="pfGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#EF4444" stopOpacity={0.4}/><stop offset="95%" stopColor="#EF4444" stopOpacity={0}/></linearGradient>
-                    <linearGradient id="ocnGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#F59E0B" stopOpacity={0.4}/><stop offset="95%" stopColor="#F59E0B" stopOpacity={0}/></linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} /><Legend onClick={(e) => { if (typeof e.value === "string") { const map: Record<string, string> = { "Orders Created": "order_created", "Payment Initiated": "payment_initiated", "Payment Success": "payment_success", "Payment Failed": "payment_failed", "Order Cancelled": "order_cancelled" }; if (map[e.value]) drillEventType(map[e.value]); }}} />
-                  {(!activeEventType || activeEventType === "order_created") && <Area type="monotone" dataKey="Orders Created" stroke="#6366F1" fill="url(#ocGrad)" stackId="1" cursor="pointer" />}
-                  {(!activeEventType || activeEventType === "payment_initiated") && <Area type="monotone" dataKey="Payment Initiated" stroke="#3B82F6" fill="url(#piGrad)" stackId="1" cursor="pointer" />}
-                  {(!activeEventType || activeEventType === "payment_success") && <Area type="monotone" dataKey="Payment Success" stroke="#10B981" fill="url(#psGrad)" stackId="1" cursor="pointer" />}
-                  {(!activeEventType || activeEventType === "payment_failed") && <Area type="monotone" dataKey="Payment Failed" stroke="#EF4444" fill="url(#pfGrad)" stackId="1" cursor="pointer" />}
-                  {(!activeEventType || activeEventType === "order_cancelled") && <Area type="monotone" dataKey="Order Cancelled" stroke="#F59E0B" fill="url(#ocnGrad)" stackId="1" cursor="pointer" />}
-                </AreaChart>
-              ) : eventTypesChart === "line" ? (
-                <LineChart data={eventTypesData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} /><Legend onClick={(e) => { if (typeof e.value === "string") { const map: Record<string, string> = { "Orders Created": "order_created", "Payment Initiated": "payment_initiated", "Payment Success": "payment_success", "Payment Failed": "payment_failed", "Order Cancelled": "order_cancelled" }; if (map[e.value]) drillEventType(map[e.value]); }}} />
-                  {(!activeEventType || activeEventType === "order_created") && <Line type="monotone" dataKey="Orders Created" stroke="#6366F1" strokeWidth={2} dot={{ r: 2 }} />}
-                  {(!activeEventType || activeEventType === "payment_initiated") && <Line type="monotone" dataKey="Payment Initiated" stroke="#3B82F6" strokeWidth={2} dot={{ r: 2 }} />}
-                  {(!activeEventType || activeEventType === "payment_success") && <Line type="monotone" dataKey="Payment Success" stroke="#10B981" strokeWidth={2} dot={{ r: 2 }} />}
-                  {(!activeEventType || activeEventType === "payment_failed") && <Line type="monotone" dataKey="Payment Failed" stroke="#EF4444" strokeWidth={2} dot={{ r: 2 }} />}
-                  {(!activeEventType || activeEventType === "order_cancelled") && <Line type="monotone" dataKey="Order Cancelled" stroke="#F59E0B" strokeWidth={2} dot={{ r: 2 }} />}
-                </LineChart>
-              ) : (
-                <BarChart data={eventTypesData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} /><Legend onClick={(e) => { if (typeof e.value === "string") { const map: Record<string, string> = { "Orders Created": "order_created", "Payment Initiated": "payment_initiated", "Payment Success": "payment_success", "Payment Failed": "payment_failed", "Order Cancelled": "order_cancelled" }; if (map[e.value]) drillEventType(map[e.value]); }}} />
-                  {(!activeEventType || activeEventType === "order_created") && <Bar dataKey="Orders Created" fill="#6366F1" stackId="a" cursor="pointer" />}
-                  {(!activeEventType || activeEventType === "payment_initiated") && <Bar dataKey="Payment Initiated" fill="#3B82F6" stackId="a" cursor="pointer" />}
-                  {(!activeEventType || activeEventType === "payment_success") && <Bar dataKey="Payment Success" fill="#10B981" stackId="a" cursor="pointer" />}
-                  {(!activeEventType || activeEventType === "payment_failed") && <Bar dataKey="Payment Failed" fill="#EF4444" stackId="a" cursor="pointer" />}
-                  {(!activeEventType || activeEventType === "order_cancelled") && <Bar dataKey="Order Cancelled" fill="#F59E0B" stackId="a" radius={[4, 4, 0, 0]} cursor="pointer" />}
-                </BarChart>
-              )}
-            </ResponsiveContainer>
+            <ReactECharts
+              option={getEventTypesOption()}
+              style={{ height: 300 }}
+              notMerge={true}
+              onEvents={{
+                legendselectchanged: (params: any) => {
+                  const map: Record<string, string> = {
+                    "Orders Created": "order_created",
+                    "Payment Initiated": "payment_initiated",
+                    "Payment Success": "payment_success",
+                    "Payment Failed": "payment_failed",
+                    "Order Cancelled": "order_cancelled",
+                  };
+                  const name = params.name as string;
+                  if (map[name]) drillEventType(map[name]);
+                },
+              }}
+            />
           ) : (
             <div className="h-[300px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
           )}
@@ -791,28 +1389,7 @@ export default function Dashboard() {
             <ChartToggle value={latencyChart} onChange={setLatencyChart} />
           </div>
           {latencyTimelineData ? (
-            <ResponsiveContainer width="100%" height={300}>
-              {latencyChart === "line" ? (
-                <LineChart data={latencyTimelineData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} unit="ms" />
-                  <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [`${v}ms`]} /><Legend />
-                  <Line type="monotone" dataKey="P50" stroke="#10B981" strokeWidth={2} dot={{ r: 2 }} /><Line type="monotone" dataKey="P95" stroke="#F59E0B" strokeWidth={2} dot={{ r: 2 }} />
-                </LineChart>
-              ) : latencyChart === "area" ? (
-                <AreaChart data={latencyTimelineData}>
-                  <defs><linearGradient id="p50Grad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/><stop offset="95%" stopColor="#10B981" stopOpacity={0}/></linearGradient><linearGradient id="p95Grad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3}/><stop offset="95%" stopColor="#F59E0B" stopOpacity={0}/></linearGradient></defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} unit="ms" />
-                  <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [`${v}ms`]} /><Legend />
-                  <Area type="monotone" dataKey="P50" stroke="#10B981" fill="url(#p50Grad)" /><Area type="monotone" dataKey="P95" stroke="#F59E0B" fill="url(#p95Grad)" />
-                </AreaChart>
-              ) : (
-                <BarChart data={latencyTimelineData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} unit="ms" />
-                  <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [`${v}ms`]} /><Legend />
-                  <Bar dataKey="P50" fill="#10B981" /><Bar dataKey="P95" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              )}
-            </ResponsiveContainer>
+            <ReactECharts option={getLatencyOption()} style={{ height: 300 }} notMerge={true} />
           ) : (
             <div className="h-[300px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
           )}
@@ -824,17 +1401,16 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4"><Users size={18} className="text-blue-500" /> Top Users — click to drill</h3>
           {topUsers && topUsers.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={topUsers.slice(0, 10)} layout="vertical" onClick={(state) => { if (state?.activeLabel) drillUser(state.activeLabel); }} style={{ cursor: "pointer" }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
-                <XAxis type="number" tick={{ fontSize: 11 }} stroke={cs.axis} />
-                <YAxis type="category" dataKey="userId" tick={{ fontSize: 10 }} stroke={cs.axis} width={70} />
-                <Tooltip contentStyle={cs.tooltip} formatter={(v: number, name: string) => [v.toLocaleString(), name === "successCount" ? "Success" : "Failed"]} />
-                <Legend />
-                <Bar dataKey="successCount" name="Success" fill="#10B981" stackId="a" cursor="pointer" />
-                <Bar dataKey="failedCount" name="Failed" fill="#EF4444" stackId="a" radius={[0, 4, 4, 0]} cursor="pointer" />
-              </BarChart>
-            </ResponsiveContainer>
+            <ReactECharts
+              option={getTopUsersOption()}
+              style={{ height: 300 }}
+              notMerge={true}
+              onEvents={{
+                click: (params: any) => {
+                  if (params.name) drillUser(params.name);
+                },
+              }}
+            />
           ) : (
             <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
           )}
@@ -843,15 +1419,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4"><DollarSign size={18} className="text-green-500" /> Amount Distribution</h3>
           {amountDistribution && amountDistribution.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={amountDistribution}>
-                <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="range" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [v.toLocaleString(), "Transactions"]} />
-                <Bar dataKey="count" name="Transactions" radius={[4, 4, 0, 0]}>
-                  {amountDistribution.map((_, index) => (<Cell key={index} fill={amountColors[index % amountColors.length]} />))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <ReactECharts option={getAmountDistributionOption()} style={{ height: 300 }} notMerge={true} />
           ) : (
             <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
           )}
@@ -864,14 +1432,7 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Conversion Funnel</h3>
           {funnelData.length > 0 ? (
             <>
-              <ResponsiveContainer width="100%" height={250}>
-                <FunnelChart><Tooltip formatter={(v: number) => [v.toLocaleString(), "Events"]} contentStyle={cs.tooltip} />
-                  <Funnel dataKey="value" data={funnelData} isAnimationActive>
-                    <LabelList position="right" fill="#374151" stroke="none" dataKey="name" fontSize={11} />
-                    <LabelList position="center" fill="#fff" stroke="none" dataKey="value" fontSize={13} fontWeight="bold" />
-                  </Funnel>
-                </FunnelChart>
-              </ResponsiveContainer>
+              <ReactECharts option={getFunnelOption()} style={{ height: 250 }} notMerge={true} />
               {kpi && <div className="text-center text-xs text-gray-500">Conversion: {((kpi.paymentSuccess / kpi.totalEvents) * 100).toFixed(1)}%</div>}
             </>
           ) : (
@@ -883,13 +1444,11 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Success Rate</h3>
           {kpi ? (
             <div className="relative">
-              <ResponsiveContainer width="100%" height={220}>
-                <RadialBarChart cx="50%" cy="50%" innerRadius="60%" outerRadius="90%" startAngle={210} endAngle={-30} barSize={20} data={gaugeData}>
-                  <RadialBar background={{ fill: "#F3F4F6" }} dataKey="value" cornerRadius={10} max={100} />
-                </RadialBarChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={`text-4xl font-bold ${kpi.successRate >= 80 ? "text-green-600" : kpi.successRate >= 60 ? "text-yellow-600" : "text-red-600"}`}>{kpi.successRate.toFixed(1)}%</span>
+              <ReactECharts option={getGaugeOption()} style={{ height: 220 }} notMerge={true} />
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className={`text-4xl font-bold ${kpi.successRate >= 80 ? "text-green-600" : kpi.successRate >= 60 ? "text-yellow-600" : "text-red-600"}`}>
+                  {kpi.successRate.toFixed(1)}%
+                </span>
                 <span className="text-xs text-gray-500 mt-1">payments successful</span>
               </div>
             </div>
@@ -901,14 +1460,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Success Rate Trend</h3>
           {eventTypesData ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={eventTypesData}>
-                <defs><linearGradient id="srGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10B981" stopOpacity={0.3} /><stop offset="95%" stopColor="#10B981" stopOpacity={0} /></linearGradient></defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="time" tick={{ fontSize: 11 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} domain={[0, 100]} unit="%" />
-                <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [`${v.toFixed(1)}%`, "Success Rate"]} />
-                <Area type="monotone" dataKey="Success Rate" stroke="#10B981" strokeWidth={2} fill="url(#srGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <ReactECharts option={getSuccessRateTrendOption()} style={{ height: 280 }} notMerge={true} />
           ) : (
             <div className="h-[280px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
           )}
@@ -921,20 +1473,16 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold text-gray-900 mb-1">Amount vs Latency {activeStatus && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-2">{activeStatus}</span>}</h3>
           <p className="text-xs text-gray-500 mb-4">Click dots to drill by status</p>
           {filteredScatter.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <ScatterChart>
-                <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
-                <XAxis type="number" dataKey="amount" name="Amount" tick={{ fontSize: 10 }} stroke={cs.axis} tickFormatter={(v: number) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}K` : `${v}`} />
-                <YAxis type="number" dataKey="latency" name="Latency" tick={{ fontSize: 10 }} stroke={cs.axis} unit="ms" />
-                <ZAxis range={[30, 30]} />
-                <Tooltip contentStyle={cs.tooltip} formatter={(v: number, name: string) => [name === "Amount" ? `${(v/1000).toFixed(0)}K VND` : `${v}ms`, name]} />
-                <Legend />
-                {(activeStatus ? [activeStatus] : ["success", "failed", "pending"]).map((status) => (
-                  <Scatter key={status} name={status.charAt(0).toUpperCase() + status.slice(1)} data={filteredScatter.filter((d) => d.status === status)} fill={scatterColors[status]} opacity={0.7} cursor="pointer"
-                    onClick={() => drillStatus(status)} />
-                ))}
-              </ScatterChart>
-            </ResponsiveContainer>
+            <ReactECharts
+              option={getScatterOption()}
+              style={{ height: 300 }}
+              notMerge={true}
+              onEvents={{
+                click: (params: any) => {
+                  if (params.seriesName) drillStatus(params.seriesName);
+                },
+              }}
+            />
           ) : (
             <div className="h-[300px] flex items-center justify-center text-gray-400">No trace data yet</div>
           )}
@@ -944,17 +1492,16 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold text-gray-900 mb-1">Revenue by Event Type — click to drill</h3>
           <p className="text-xs text-gray-500 mb-4">Click a bar to filter all charts</p>
           {filteredRevenueByType.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={filteredRevenueByType} layout="vertical" onClick={(state) => { if (state?.activeLabel) drillEventType(state.activeLabel); }} style={{ cursor: "pointer" }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
-                <XAxis type="number" tick={{ fontSize: 10 }} stroke={cs.axis} tickFormatter={(v: number) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : `${(v/1000).toFixed(0)}K`} />
-                <YAxis type="category" dataKey="eventType" tick={{ fontSize: 10 }} stroke={cs.axis} width={110} tickFormatter={(v: string) => v.replace(/_/g, " ")} />
-                <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [`${(v/1000000).toFixed(2)}M VND`, "Revenue"]} labelFormatter={(l: string) => l.replace(/_/g, " ")} />
-                <Bar dataKey="revenue" name="Revenue" radius={[0, 4, 4, 0]} cursor="pointer">
-                  {filteredRevenueByType.map((entry, i) => (<Cell key={i} fill={treemapColors[entry.eventType.replace(/_/g, " ")] || "#94A3B8"} />))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <ReactECharts
+              option={getRevenueByTypeOption()}
+              style={{ height: 300 }}
+              notMerge={true}
+              onEvents={{
+                click: (params: any) => {
+                  if (params.name) drillEventType(params.name);
+                },
+              }}
+            />
           ) : (
             <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
           )}
@@ -966,17 +1513,7 @@ export default function Dashboard() {
         <h3 className="text-lg font-semibold text-gray-900 mb-1">Event Heatmap by Hour {activeEventType && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full ml-2">{activeEventType.replace(/_/g, " ")}</span>}</h3>
         <p className="text-xs text-gray-500 mb-4">Filtered by active drill-down</p>
         {heatmapGrid.length > 0 ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={heatmapGrid}>
-              <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} /><XAxis dataKey="hour" tick={{ fontSize: 10 }} stroke={cs.axis} /><YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-              <Tooltip contentStyle={cs.tooltip} /><Legend />
-              {(!activeEventType || activeEventType === "order_created") && <Bar dataKey="order_created" name="Order Created" fill="#6366F1" stackId="a" />}
-              {(!activeEventType || activeEventType === "payment_initiated") && <Bar dataKey="payment_initiated" name="Payment Initiated" fill="#3B82F6" stackId="a" />}
-              {(!activeEventType || activeEventType === "payment_success") && <Bar dataKey="payment_success" name="Payment Success" fill="#10B981" stackId="a" />}
-              {(!activeEventType || activeEventType === "payment_failed") && <Bar dataKey="payment_failed" name="Payment Failed" fill="#EF4444" stackId="a" />}
-              {(!activeEventType || activeEventType === "order_cancelled") && <Bar dataKey="order_cancelled" name="Order Cancelled" fill="#F59E0B" stackId="a" radius={[4, 4, 0, 0]} />}
-            </BarChart>
-          </ResponsiveContainer>
+          <ReactECharts option={getHeatmapOption()} style={{ height: 300 }} notMerge={true} />
         ) : (
           <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
         )}
@@ -989,18 +1526,7 @@ export default function Dashboard() {
             <ShoppingBag size={18} className="text-indigo-500" /> Revenue by Category
           </h3>
           {categoryStats && categoryStats.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={categoryStats} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
-                <XAxis type="number" tick={{ fontSize: 10 }} stroke={cs.axis} tickFormatter={(v: number) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : `${(v/1000).toFixed(0)}K`} />
-                <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} stroke={cs.axis} width={80} />
-                <Tooltip contentStyle={cs.tooltip} formatter={(v: number, name: string) => [name === "revenue" ? `${(v/1000000).toFixed(2)}M VND` : v.toLocaleString(), name === "revenue" ? "Revenue" : "Orders"]} />
-                <Legend />
-                <Bar dataKey="revenue" name="Revenue" radius={[0, 4, 4, 0]}>
-                  {categoryStats.map((entry) => (<Cell key={entry.category} fill={categoryColors[entry.category] || "#94A3B8"} />))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <ReactECharts option={getCategoryOption()} style={{ height: 300 }} notMerge={true} />
           ) : (
             <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
           )}
@@ -1011,17 +1537,7 @@ export default function Dashboard() {
             <Globe size={18} className="text-blue-500" /> Orders by Region
           </h3>
           {regionStats && regionStats.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={regionStats}>
-                <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
-                <XAxis dataKey="region" tick={{ fontSize: 11 }} stroke={cs.axis} />
-                <YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [v.toLocaleString(), "Orders"]} />
-                <Bar dataKey="count" name="Orders" radius={[4, 4, 0, 0]}>
-                  {regionStats.map((_, index) => (<Cell key={index} fill={["#6366F1","#3B82F6","#10B981","#F59E0B","#EF4444","#A855F7","#EC4899","#14B8A6","#94A3B8"][index % 9]} />))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <ReactECharts option={getRegionOption()} style={{ height: 300 }} notMerge={true} />
           ) : (
             <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
           )}
@@ -1036,17 +1552,7 @@ export default function Dashboard() {
           </h3>
           {paymentStats && paymentStats.length > 0 ? (
             <div className="space-y-4">
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={paymentStats}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
-                  <XAxis dataKey="paymentMethod" tick={{ fontSize: 11 }} stroke={cs.axis} tickFormatter={(v: string) => v.replace(/_/g, " ")} />
-                  <YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [v.toLocaleString(), "Transactions"]} labelFormatter={(l: string) => l.replace(/_/g, " ")} />
-                  <Bar dataKey="count" name="Transactions" radius={[4, 4, 0, 0]}>
-                    {paymentStats.map((p) => (<Cell key={p.paymentMethod} fill={paymentColors[p.paymentMethod] || "#94A3B8"} />))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <ReactECharts option={getPaymentOption()} style={{ height: 220 }} notMerge={true} />
               <div className="grid grid-cols-2 gap-2">
                 {paymentStats.map((p) => (
                   <div key={p.paymentMethod} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
