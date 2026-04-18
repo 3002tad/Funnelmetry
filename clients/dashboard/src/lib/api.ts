@@ -148,9 +148,8 @@ export interface RegionStat {
 // Payment method analytics
 export interface PaymentStat {
   paymentMethod: string;
-  total: number;
-  successCount: number;
-  failedCount: number;
+  count: number;
+  revenue: number;
   successRate: number;
 }
 
@@ -160,7 +159,7 @@ export interface TopProduct {
   productName: string;
   category: string;
   revenue: number;
-  count: number;
+  orderCount: number;
 }
 
 // Distributed tracing
@@ -450,10 +449,9 @@ class MockDataGenerator {
   generatePaymentStats(): PaymentStat[] {
     const methods = ['credit_card', 'e_wallet', 'bank_transfer', 'cod'];
     return methods.map(method => {
-      const total = Math.floor(Math.random() * 400) + 80;
-      const successCount = Math.floor(total * (0.6 + Math.random() * 0.35));
-      const failedCount = total - successCount;
-      return { paymentMethod: method, total, successCount, failedCount, successRate: Math.round((successCount / total) * 10000) / 100 };
+      const count = Math.floor(Math.random() * 400) + 80;
+      const successRate = Math.round((0.6 + Math.random() * 0.35) * 10000) / 100;
+      return { paymentMethod: method, count, revenue: Math.floor(count * (Math.random() * 1000000 + 200000)), successRate };
     });
   }
 
@@ -472,8 +470,8 @@ class MockDataGenerator {
       { productId: 'K001', productName: 'Clean Code (Book)', category: 'books' },
     ];
     return products.slice(0, limit).map(p => {
-      const count = Math.floor(Math.random() * 100) + 10;
-      return { ...p, count, revenue: Math.floor(count * (Math.random() * 2000000 + 500000)) };
+      const orderCount = Math.floor(Math.random() * 100) + 10;
+      return { ...p, orderCount, revenue: Math.floor(orderCount * (Math.random() * 2000000 + 500000)) };
     }).sort((a, b) => b.revenue - a.revenue);
   }
 

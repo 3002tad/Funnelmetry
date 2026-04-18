@@ -1041,10 +1041,10 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke={cs.grid} />
                   <XAxis dataKey="paymentMethod" tick={{ fontSize: 11 }} stroke={cs.axis} tickFormatter={(v: string) => v.replace(/_/g, " ")} />
                   <YAxis tick={{ fontSize: 11 }} stroke={cs.axis} />
-                  <Tooltip contentStyle={cs.tooltip} formatter={(v: number, name: string) => [v.toLocaleString(), name === "successCount" ? "Success" : "Failed"]} labelFormatter={(l: string) => l.replace(/_/g, " ")} />
-                  <Legend />
-                  <Bar dataKey="successCount" name="Success" stackId="a" fill="#10B981" />
-                  <Bar dataKey="failedCount" name="Failed" stackId="a" radius={[4, 4, 0, 0]} fill="#EF4444" />
+                  <Tooltip contentStyle={cs.tooltip} formatter={(v: number) => [v.toLocaleString(), "Transactions"]} labelFormatter={(l: string) => l.replace(/_/g, " ")} />
+                  <Bar dataKey="count" name="Transactions" radius={[4, 4, 0, 0]}>
+                    {paymentStats.map((p) => (<Cell key={p.paymentMethod} fill={paymentColors[p.paymentMethod] || "#94A3B8"} />))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
               <div className="grid grid-cols-2 gap-2">
@@ -1094,7 +1094,7 @@ export default function Dashboard() {
                           {p.category}
                         </span>
                       </td>
-                      <td className="py-2 px-2 text-right text-xs text-gray-700">{p.count.toLocaleString()}</td>
+                      <td className="py-2 px-2 text-right text-xs text-gray-700">{p.orderCount.toLocaleString()}</td>
                       <td className="py-2 px-2 text-right text-xs font-semibold text-gray-900">{(p.revenue / 1000000).toFixed(1)}M</td>
                     </tr>
                   ))}
