@@ -14,21 +14,27 @@ export default function Ops() {
   const { data: health, isLoading: healthLoading } = useQuery({
     queryKey: ['health'],
     queryFn: api.getSystemHealth,
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 3000 : false,
+    staleTime: 3000,
+    refetchOnWindowFocus: false,
   })
 
   // Fetch system metrics
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ['metrics'],
     queryFn: api.getSystemMetrics,
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 2000 : false,
+    staleTime: 2000,
+    refetchOnWindowFocus: false,
   })
 
   // Fetch alerts
   const { data: alerts } = useQuery({
     queryKey: ['alerts'],
     queryFn: api.getAlerts,
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 3000 : false,
+    staleTime: 3000,
+    refetchOnWindowFocus: false,
   })
 
   // Mutation for simulations

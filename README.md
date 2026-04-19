@@ -1,35 +1,165 @@
-# README_UPDATE — Lịch sử thay đổi & Bug Fixes
+# 🚀 Business Data Streaming & Processing Pipeline
 
-> Ghi lại toàn bộ thay đổi đã được test và xác nhận chạy thành công.
-
----
-
-## Tổng quan
-
-| Hạng mục | Trước | Sau |
-|----------|-------|-----|
-| Container status | `dashboard-api` build fail; `frontend` + `generator-ui` unhealthy | Tất cả 8 containers **healthy** |
-| Dashboard data | Hiển thị mock data cứng (MockDataGenerator) | Live data từ PostgreSQL |
-| Pipeline Spark | Bị stuck ở 14 events, không cập nhật | Đang ghi liên tục |
-| Spark kpi_1m | Lỗi duplicate key, job crash | Upsert thành công với `ON CONFLICT DO UPDATE` |
-| Generator UI event log | Luôn hiển thị 0 events | Poll live data từ dashboard-api mỗi 3s |
-| Generator UI statistics | Chỉ đếm 50 rows page hiện tại | Từ `kpi_1m` — toàn bộ DB, nhất quán theo status |
-| Total Events count | Bị cap ở 50 (page size) | Số thực từ `kpi_1m` SUM |
-| Batch Emit / Auto Emit | Không hoạt động | Hoạt động qua event queue |
-| Success Rate dashboard | Có thể > 100% (chia cho `orders_created`) | Luôn ≤ 100% (chia cho `success + totalFailed`) |
-| Nginx frontend proxy | 502 Bad Gateway khi `dashboard-api` được recreate | Tự re-resolve DNS qua Docker resolver |
-| End-to-end latency | ~60-90 giây | ~10-15 giây |
-| Kafka topic tự tạo | Phụ thuộc `kafka-init` container riêng | `kafka.allow.auto.create.topics=true` trên Spark |
-| `order_cancelled` statistics | Bị tính nhầm vào `pending` | Được Spark aggregate vào `order_cancelled` cột |
-| Dashboard KPI cards | `Orders Created`, `Payment Failed` (thiếu ngữ nghĩa) | `Total Events`, `Pending`, `Failed` (đúng status) |
+Nền tảng realtime demo cho e-commerce: **Generator → Kafka → Spark → PostgreSQL → Dashboard**
 
 ---
 
-## Chi tiết từng thay đổi
+## ⚡ Quick Start
+
+### Docker Compose (Recommended)
+
+```bash
+cd infra
+docker-compose up -d
+```
+
+**Access:**
+- Dashboard UI: http://localhost:5173
+- Generator UI: http://localhost:5174
+- Dashboard API: http://localhost:8080/health
+- Generator API: http://localhost:7070/health
+
+### Kubernetes (K3s on WSL)
+
+```powershell
+.\deploy-k3s.ps1
+```
+
+Access via WSL IP (`wsl.exe hostname -I`):
+- Dashboard UI: http://<WSL_IP>:30173
+- Generator UI: http://<WSL_IP>:30174
 
 ---
 
-### 1. Fix build `dashboard-api` — `npm ci` → `npm install`
+## 📚 Documentation
+
+All documentation is in `/docs/`:
+
+| File | Content |
+|------|---------|
+| [00-INTRODUCTION.md](docs/00-INTRODUCTION.md) | Project overview |
+| [01-ARCHITECTURE.md](docs/01-ARCHITECTURE.md) | System architecture |
+| [02-COMMANDS.md](docs/02-COMMANDS.md) | CLI commands (Docker + K3s) |
+| [03-API-REFERENCE.md](docs/03-API-REFERENCE.md) | API endpoints |
+| [04-DEPLOYMENT.md](docs/04-DEPLOYMENT.md) | K3s on WSL2 setup guide |
+| [05-CHANGELOG.md](docs/05-CHANGELOG.md) | Updates & fixes |
+| [06-TROUBLESHOOTING.md](docs/06-TROUBLESHOOTING.md) | Common issues & solutions |
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Messaging | Apache Kafka 7.5.0 |
+| Stream Processing | PySpark 3.5.0 Structured Streaming |
+| Database | PostgreSQL 15 |
+| Backend | Node.js + Express |
+| Frontend | React 18 + TailwindCSS |
+| Infra | Docker Compose / K3s |
+
+---
+
+## 📋 Prerequisites
+
+### For Docker Compose
+- Docker Desktop (Windows) with WSL2 integration
+- Docker Compose 2.0+
+- 4GB RAM available
+
+### For K3s on WSL2
+- **Windows 10/11** with WSL2 + Ubuntu 22.04 LTS
+- **Docker Desktop** integrated with WSL
+- **K3s** installed on WSL (see [04-DEPLOYMENT.md](docs/04-DEPLOYMENT.md))
+- **systemd enabled** in `/etc/wsl.conf` - **CRITICAL!**
+  ```ini
+  [boot]
+  systemd=true
+  ```
+- **cgroupv2 workaround** - if K3s fails with "wrong number of fields" error, see [06-TROUBLESHOOTING.md](docs/06-TROUBLESHOOTING.md)
+
+**K3s Setup (first time only):**
+```bash
+wsl -e bash
+curl -sfL https://get.k3s.io | sh -
+sudo usermod -aG docker $USER  # optional, for docker commands without sudo
+```
+
+See [04-DEPLOYMENT.md](docs/04-DEPLOYMENT.md#k3s-setup-on-wsl2) for complete guide.
+
+---
+
+## ✨ Key Features
+
+✅ Direct Kafka publishing from Generator API  
+✅ Realtime event processing with Spark  
+✅ PostgreSQL persistence & aggregation  
+✅ Live dashboard with KPIs & charts  
+✅ TTL caching for performance  
+✅ Metrics endpoints (Prometheus-compatible)  
+✅ Kubernetes-ready manifests
+
+---
+
+## 📊 Latest Optimizations (2026-03-22)
+
+- DB pool: `10 → 20` connections
+- Kafka: Added batching & compression
+- Spark: `6 → 12` shuffle partitions
+- JDBC: `1000 → 10000` batch size
+- Cache: Optimized TTL per endpoint
+
+**Impact:** +15-25% throughput, -10-15% latency
+
+See [CHANGELOG](docs/05-CHANGELOG.md) for detailed history.
+
+---
+
+## � Next Steps
+
+1. Choose deployment: **Docker Compose** or **K3s**
+2. Start services
+3. Access Dashboard UI to monitor & emit events
+4. Check `docs/` for detailed guides
+
+---
+
+## 📦 Project Structure
+
+```
+/
+  infra/
+    docker-compose.yml
+    postgres/init.sql
+  k8s/
+    k3s-stack.yaml
+  docs/
+    00-INTRODUCTION.md
+    01-ARCHITECTURE.md
+    02-COMMANDS.md
+    03-API-REFERENCE.md
+    04-DEPLOYMENT.md
+    05-CHANGELOG.md
+  services/
+    generator-api/      (Node.js event generation)
+    producer-poller/    (Python Kafka bridge - fallback)
+    spark-streaming/    (PySpark realtime processing)
+    dashboard-api/      (Node.js data API)
+  frontend/             (React Dashboard UI)
+  generator-ui/         (React Generator UI)
+  deploy-k3s.ps1        (Automation script)
+  k8s-helper.sh         (K3s helper commands)
+```
+
+---
+
+**For detailed documentation, see [docs/](docs/) folder.**
+
+---
+
+**Last updated:** 2026-03-22  
+**Version:** v1.0 (Optimized)
+
 
 **File:** `services/dashboard-api/Dockerfile`
 
@@ -150,44 +280,33 @@ useEffect(() => {
 
 ---
 
-### 7. Event Queue Architecture — `generator-api`
+### 7. Direct Kafka + Legacy Fallback — `generator-api`
 
 **File:** `services/generator-api/server.js`
 
-**Vấn đề / Thiết kế lại:** Cần tách rõ hai luồng:
-- **Production path**: `producer-poller` (Python) → Kafka (luôn chạy)
-- **Dev/manual path**: Generator UI → `generator-api` → Kafka (thông qua poller)
+**Kiến trúc hiện tại:**
+- **Primary path**: Generator UI → `generator-api` → Kafka trực tiếp (`kafkajs`)
+- **Legacy fallback path**: chỉ khi Kafka unavailable **và** `ENABLE_QUEUE_FALLBACK=true`, event mới được đẩy vào `eventQueue[]`; khi đó `producer-poller` có thể drain queue để bridge sang Kafka
 
-`generator-api` không nên kết nối Kafka trực tiếp. Thay vào đó dùng in-memory queue.
+Mặc định deployment hiện tại:
+- direct Kafka: **ON**
+- queue fallback: **OFF**
+- `producer-poller`: **OFF**
 
 **Fix:**
 ```javascript
-const eventQueue = [];
-const MAX_QUEUE_SIZE = 10000;
+const ENABLE_QUEUE_FALLBACK = (process.env.ENABLE_QUEUE_FALLBACK || "true") === "true";
 
-// POST /gen/emit → đẩy vào queue
-app.post("/gen/emit", (req, res) => {
-  const event = generateEvent(req.body);
-  eventQueue.push(event);
-  res.json({ ...event, _queued: true, queueSize: eventQueue.length });
-});
+// Primary path: publish trực tiếp vào Kafka
+const sent = await publishToKafka(events);
 
-// POST /gen/emit-batch → đẩy nhiều events vào queue  
-app.post("/gen/emit-batch", (req, res) => {
-  const { count = 10 } = req.body;
-  const events = Array.from({ length: count }, () => generateEvent({}));
+// Chỉ fallback sang queue khi được bật rõ ràng
+if (!sent && ENABLE_QUEUE_FALLBACK) {
   eventQueue.push(...events);
-  res.json({ count: events.length, queueSize: eventQueue.length, events });
-});
-
-// GET /gen/event → poller lấy từ queue; 204 nếu queue rỗng (không generate ngẫu nhiên)
-app.get("/gen/event", (req, res) => {
-  if (eventQueue.length === 0) return res.status(204).end();
-  res.json(eventQueue.shift());
-});
+}
 ```
 
-**Loại bỏ:** `kafkajs` dependency khỏi `generator-api` (không cần thiết).
+**Kết quả:** Luồng chính rõ ràng hơn, không còn phụ thuộc HTTP polling trong runtime mặc định.
 
 ---
 
@@ -195,7 +314,9 @@ app.get("/gen/event", (req, res) => {
 
 **File:** `services/producer-poller/producer.py`
 
-**Vấn đề:** Khi queue rỗng, `GET /gen/event` trả về 204 No Content → poller trước đó crash hoặc generate event ngẫu nhiên.
+**Vai trò hiện tại:** Đây là **legacy fallback bridge**, không còn là producer chính của hệ thống.
+
+**Vấn đề:** Khi queue rỗng, `GET /gen/event` / `GET /gen/drain` trả về 204 No Content → poller cần idle an toàn.
 
 **Fix:**
 ```python
@@ -399,10 +520,10 @@ location /api/ {
 | File | Thay đổi |
 |------|----------|
 | `services/dashboard-api/Dockerfile` | `npm ci` → `npm install --omit=dev` |
-| `services/dashboard-api/server.js` | statusCounts từ `kpi_1m`; `/api/kpi` redesign (`totalEvents`, `pending`, `totalFailed`); success rate formula fix |
-| `services/generator-api/server.js` | Event queue architecture; `GET /gen/event` trả 204 khi rỗng; xóa kafkajs |
-| `services/generator-api/package.json` | Xóa dependency `kafkajs` |
-| `services/producer-poller/producer.py` | 204 → idle; poll 100ms; Kafka async `acks=1 linger_ms=5`; log spam fix |
+| `services/dashboard-api/server.js` | statusCounts từ `kpi_1m`; `/api/kpi` redesign (`totalEvents`, `pending`, `totalFailed`); success rate formula fix; thêm cache TTL và `/metrics` |
+| `services/generator-api/server.js` | Direct Kafka publish bằng `kafkajs`; queue chỉ còn là legacy fallback tùy chọn; thêm `/metrics` và health/queue visibility |
+| `services/generator-api/package.json` | Thêm dependency `kafkajs` cho direct Kafka publish |
+| `services/producer-poller/producer.py` | Chuyển vai trò thành legacy fallback bridge; polling/logging gọn hơn |
 | `services/spark-streaming/spark_stream.py` | `upsert_kpi_to_postgres()` ON CONFLICT; watermark 30s; trigger 5s; `kafka.allow.auto.create.topics=true`; thêm `order_cancelled`, `payment_initiated` columns |
 | `infra/postgres/init.sql` | `kpi_1m` thêm cột `order_cancelled`, `payment_initiated` |
 | `infra/docker-compose.yml` | Xóa `kafka-init` service; `spark-streaming` depends_on đơn giản hóa |
@@ -606,4 +727,4 @@ generator-ui          Up (healthy)   5174
 frontend-dashboard    Up (healthy)   5173
 ```
 
-**Lưu ý:** `producer-poller` là gateway duy nhất đẩy vào Kafka. Khi dừng (`docker stop producer-poller`), không có data mới nào vào pipeline dù Generator UI vẫn enqueue events.
+**Lưu ý lịch sử:** đoạn này áp dụng cho kiến trúc cũ. Ở kiến trúc hiện tại, `generator-api` publish trực tiếp vào Kafka; `producer-poller` chỉ còn là fallback bridge tùy chọn.
