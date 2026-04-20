@@ -102,9 +102,9 @@ services:
     image: postgres:15-alpine
     container_name: postgres
     environment:
-      POSTGRES_DB: realtime
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
+      POSTGRES_DB: ${POSTGRES_DB:-realtime}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required — set it in infra/.env}
       POSTGRES_INITDB_ARGS: "-E UTF8"
     ports:
       - "5432:5432"
@@ -133,7 +133,7 @@ services:
           memory: 1024M
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d realtime"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -176,9 +176,9 @@ services:
       KAFKA_TOPIC: events_raw
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: realtime
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
+      POSTGRES_DB: ${POSTGRES_DB:-realtime}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       KAFKA_MAX_OFFSETS_PER_TRIGGER: 50000
       KAFKA_NUM_PARTITIONS: 6
       SPARK_DRIVER_MEMORY: 2g
@@ -205,12 +205,17 @@ services:
         condition: service_healthy
     environment:
       PORT: 8080
+      NODE_ENV: ${NODE_ENV:-development}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: realtime
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
+      POSTGRES_DB: ${POSTGRES_DB:-realtime}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required — set it in infra/.env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      VIEWER_PASSWORD: ${VIEWER_PASSWORD:-viewer123}
+      CACHE_TTL_MS: ${CACHE_TTL_MS:-3000}
     ports:
       - "8080:8080"
     networks:

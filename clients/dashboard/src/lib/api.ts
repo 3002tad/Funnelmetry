@@ -2,7 +2,7 @@
 // TYPES & INTERFACES
 // ============================================================================
 
-export type TimeRange = '15m' | '1h' | '24h';
+export type TimeRange = '5m' | '15m' | '30m' | '1h' | '24h';
 export type EventType = 'order_created' | 'payment_initiated' | 'payment_success' | 'payment_failed' | 'order_cancelled';
 export type EventStatus = 'success' | 'failed' | 'pending';
 export type ServiceStatus = 'healthy' | 'degraded' | 'down';
@@ -513,24 +513,30 @@ class MockDataGenerator {
 
   private getTimeRangeMultiplier(timeRange: TimeRange): number {
     switch (timeRange) {
+      case '5m':  return 0.33;
       case '15m': return 1;
-      case '1h': return 4;
+      case '30m': return 2;
+      case '1h':  return 4;
       case '24h': return 96;
     }
   }
 
   private getTimeSeriesPoints(timeRange: TimeRange): number {
     switch (timeRange) {
+      case '5m':  return 5;
       case '15m': return 15;
-      case '1h': return 60;
+      case '30m': return 30;
+      case '1h':  return 60;
       case '24h': return 48;
     }
   }
 
   private getIntervalMs(timeRange: TimeRange): number {
     switch (timeRange) {
-      case '15m': return 60000; // 1 minute
-      case '1h': return 60000; // 1 minute
+      case '5m':  return 60000;   // 1 minute
+      case '15m': return 60000;
+      case '30m': return 60000;
+      case '1h':  return 60000;
       case '24h': return 1800000; // 30 minutes
     }
   }
