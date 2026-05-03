@@ -35,18 +35,18 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
       <div className="flex min-h-screen items-center justify-center p-4">
         {/* Backdrop */}
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
           onClick={onClose}
         />
 
         {/* Modal */}
-        <div className={`relative bg-white rounded-lg shadow-xl ${sizeClasses[size]} w-full animate-slide-in`}>
+        <div className={`relative glass-strong rounded-2xl shadow-2xl shadow-slate-950/60 ring-1 ring-indigo-500/20 ${sizeClasses[size]} w-full animate-slide-in`}>
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+          <div className="flex items-center justify-between p-6 border-b border-slate-800/60">
+            <h2 className="text-xl font-semibold text-slate-100">{title}</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-500 transition-colors"
+              className="text-slate-500 hover:text-slate-200 transition-colors"
             >
               <X size={24} />
             </button>

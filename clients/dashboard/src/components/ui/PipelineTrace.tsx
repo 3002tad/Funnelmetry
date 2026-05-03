@@ -21,17 +21,17 @@ const latencySegments = [
 ] as const
 
 function getLatencyColor(ms: number | null): string {
-  if (ms === null) return 'bg-gray-200'
-  if (ms <= 100) return 'bg-green-400'
-  if (ms <= 500) return 'bg-yellow-400'
-  return 'bg-red-400'
+  if (ms === null) return 'bg-slate-700'
+  if (ms <= 100) return 'bg-gradient-to-r from-emerald-500 to-emerald-400'
+  if (ms <= 500) return 'bg-gradient-to-r from-amber-500 to-amber-400'
+  return 'bg-gradient-to-r from-rose-500 to-rose-400'
 }
 
 function getLatencyTextColor(ms: number | null): string {
-  if (ms === null) return 'text-gray-400'
-  if (ms <= 100) return 'text-green-700'
-  if (ms <= 500) return 'text-yellow-700'
-  return 'text-red-700'
+  if (ms === null) return 'text-slate-500'
+  if (ms <= 100) return 'text-emerald-300'
+  if (ms <= 500) return 'text-amber-300'
+  return 'text-rose-300'
 }
 
 function formatTimestamp(ts: string | null): string {
@@ -46,8 +46,8 @@ function formatTimestamp(ts: string | null): string {
 export default function PipelineTrace({ trace, loading }: PipelineTraceProps) {
   if (loading) {
     return (
-      <div className="border-t border-gray-200 pt-4 mt-4">
-        <label className="text-xs font-semibold text-gray-500 uppercase">Pipeline Trace</label>
+      <div className="border-t border-slate-800/60 pt-4 mt-4">
+        <label className="text-xs font-semibold text-slate-500 uppercase">Pipeline Trace</label>
         <div className="mt-3 flex justify-center py-4">
           <LoadingSpinner size="sm" />
         </div>
@@ -57,9 +57,9 @@ export default function PipelineTrace({ trace, loading }: PipelineTraceProps) {
 
   if (!trace) {
     return (
-      <div className="border-t border-gray-200 pt-4 mt-4">
-        <label className="text-xs font-semibold text-gray-500 uppercase">Pipeline Trace</label>
-        <p className="mt-2 text-sm text-gray-400 italic">No trace data available for this event.</p>
+      <div className="border-t border-slate-800/60 pt-4 mt-4">
+        <label className="text-xs font-semibold text-slate-500 uppercase">Pipeline Trace</label>
+        <p className="mt-2 text-sm text-slate-500 italic">No trace data available for this event.</p>
       </div>
     )
   }
@@ -80,9 +80,9 @@ export default function PipelineTrace({ trace, loading }: PipelineTraceProps) {
   }
 
   return (
-    <div className="border-t border-gray-200 pt-4 mt-4">
+    <div className="border-t border-slate-800/60 pt-4 mt-4">
       <div className="flex items-center justify-between mb-3">
-        <label className="text-xs font-semibold text-gray-500 uppercase">Pipeline Trace</label>
+        <label className="text-xs font-semibold text-slate-500 uppercase">Pipeline Trace</label>
         <span className={`text-sm font-bold ${getLatencyTextColor(trace.latencyTotalMs)}`}>
           End-to-end: {trace.latencyTotalMs !== null ? `${trace.latencyTotalMs}ms` : '--'}
         </span>
@@ -111,8 +111,8 @@ export default function PipelineTrace({ trace, loading }: PipelineTraceProps) {
           const ts = trace[stage.key as keyof EventTrace] as string | null
           return (
             <div key={stage.key} className="text-center flex-1">
-              <div className="text-xs font-semibold text-gray-700">{stage.label}</div>
-              <div className="text-[10px] text-gray-400 font-mono">{formatTimestamp(ts)}</div>
+              <div className="text-xs font-semibold text-slate-300">{stage.label}</div>
+              <div className="text-[10px] text-slate-500 font-mono">{formatTimestamp(ts)}</div>
             </div>
           )
         })}
@@ -123,8 +123,8 @@ export default function PipelineTrace({ trace, loading }: PipelineTraceProps) {
         {latencySegments.map(seg => {
           const ms = trace[seg.key]
           return (
-            <div key={seg.key} className="bg-gray-50 rounded p-2 text-center">
-              <div className="text-gray-500">{seg.from} → {seg.to}</div>
+            <div key={seg.key} className="bg-slate-800/50 ring-1 ring-slate-700/40 rounded p-2 text-center">
+              <div className="text-slate-500">{seg.from} → {seg.to}</div>
               <div className={`font-bold ${getLatencyTextColor(ms)}`}>
                 {ms !== null ? `${ms}ms` : 'N/A'}
               </div>
