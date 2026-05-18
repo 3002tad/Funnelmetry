@@ -26,46 +26,10 @@ export function useDashboardData(timeRange: TimeRange, autoRefresh: boolean) {
     refetchInterval: autoRefresh ? 5000 : false,
   });
 
-  const fullTimeSeries = useQuery({
-    queryKey: ["fullTimeSeries", timeRange],
-    queryFn: () => api.getFullTimeSeries(timeRange),
-    refetchInterval: autoRefresh ? 3000 : false,
-  });
-
-  const topUsers = useQuery({
-    queryKey: ["topUsers", timeRange],
-    queryFn: () => api.getTopUsers(timeRange, 10),
-    refetchInterval: autoRefresh ? 5000 : false,
-  });
-
   const amountDistribution = useQuery({
     queryKey: ["amountDistribution", timeRange],
     queryFn: () => api.getAmountDistribution(timeRange),
     refetchInterval: autoRefresh ? 5000 : false,
-  });
-
-  const latencyTimeline = useQuery({
-    queryKey: ["latencyTimeline", timeRange],
-    queryFn: () => api.getLatencyTimeline(timeRange),
-    refetchInterval: autoRefresh ? 5000 : false,
-  });
-
-  const scatterData = useQuery({
-    queryKey: ["scatter", timeRange],
-    queryFn: () => api.getScatterData(timeRange, 200),
-    refetchInterval: autoRefresh ? 5000 : false,
-  });
-
-  const revenueByType = useQuery({
-    queryKey: ["revenueByType", timeRange],
-    queryFn: () => api.getRevenueByType(timeRange),
-    refetchInterval: autoRefresh ? 5000 : false,
-  });
-
-  const heatmapData = useQuery({
-    queryKey: ["heatmap", timeRange],
-    queryFn: () => api.getHeatmap(timeRange),
-    refetchInterval: autoRefresh ? 10000 : false,
   });
 
   const categoryStats = useQuery({
@@ -100,13 +64,7 @@ export function useDashboardData(timeRange: TimeRange, autoRefresh: boolean) {
     timeSeriesLoading: timeSeries.isLoading,
     metrics: metrics.data,
     traceStats: traceStats.data,
-    fullTimeSeries: fullTimeSeries.data,
-    topUsers: topUsers.data,
     amountDistribution: amountDistribution.data,
-    latencyTimeline: latencyTimeline.data,
-    scatterData: scatterData.data,
-    revenueByType: revenueByType.data,
-    heatmapData: heatmapData.data,
     categoryStats: categoryStats.data,
     regionStats: regionStats.data,
     paymentStats: paymentStats.data,

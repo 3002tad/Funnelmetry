@@ -1,16 +1,22 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { TimeRange, USE_MOCK } from "@/lib/api";
 import ReactECharts from "echarts-for-react";
 import {
   DollarSign, Activity, CheckCircle, XCircle, TrendingUp, RefreshCw,
-  Clock, Zap, Gauge, Timer, Users, Layers, X, ChevronRight, ZoomIn,
-  ArrowLeft, ShoppingBag, Globe, CreditCard, Package,
+  Clock, Zap, Gauge, Timer, X, ChevronRight, ZoomIn,
+  ArrowLeft, ShoppingBag, Globe, CreditCard, Package, RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import KPICard from "@/components/ui/KPICard";
 import Card from "@/components/ui/Card";
 import { LoadingSpinner } from "@/components/ui/EmptyState";
+import { KPICardSkeleton, ChartSkeleton } from "@/components/ui/Skeleton";
+import EmptyChart from "@/components/ui/EmptyChart";
+import AnimatedNumber from "@/components/ui/AnimatedNumber";
+import SortableGrid from "@/components/ui/SortableGrid";
+import SortableItem from "@/components/ui/SortableItem";
+import { useSortableLayout } from "@/hooks/useSortableLayout";
 
 import { ChartType, paymentColors, categoryColors } from "./chartTheme";
 import ChartToggle from "./components/ChartToggle";
@@ -18,12 +24,11 @@ import LatencyBar from "./components/LatencyBar";
 import { useDashboardData } from "./hooks/useDashboardData";
 import { useDrillDown } from "./hooks/useDrillDown";
 import {
-  buildRevenueOption, buildOrdersOption, buildPieOption, buildEventTypesOption,
-  buildLatencyOption, buildTopUsersOption, buildAmountDistributionOption,
-  buildFunnelOption, buildGaugeOption, buildSuccessRateTrendOption,
-  buildScatterOption, buildRevenueByTypeOption, buildHeatmapOption,
+  buildOrdersOption, buildPieOption, buildAmountDistributionOption,
   buildCategoryOption, buildRegionOption, buildPaymentOption,
 } from "./chartOptions";
+
+const PANEL = "glass rounded-2xl p-6 shadow-xl shadow-slate-950/40";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -34,24 +39,19 @@ export default function Dashboard() {
 
   const [timeRange, setTimeRange] = useState<TimeRange>("1h");
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [revenueChart, setRevenueChart] = useState<ChartType>("area");
   const [ordersChart, setOrdersChart] = useState<ChartType>("bar");
-  const [eventTypesChart, setEventTypesChart] = useState<ChartType>("area");
-  const [latencyChart, setLatencyChart] = useState<ChartType>("line");
 
   const {
-    drillFilters, drillDetail, setDrillDetail, activeEventType, activeStatus,
+    drillFilters, drillDetail, setDrillDetail, activeStatus,
     removeDrill, clearDrills, drillEventType, drillStatus, drillUser, drillEvents,
   } = useDrillDown(timeRange);
 
   const {
     kpi, kpiLoading, kpiError, timeSeries, timeSeriesLoading, metrics,
-    traceStats, fullTimeSeries, topUsers, amountDistribution, latencyTimeline,
-    scatterData, revenueByType, heatmapData, categoryStats, regionStats,
-    paymentStats, topProducts,
+    traceStats, amountDistribution,
+    categoryStats, regionStats, paymentStats, topProducts,
   } = useDashboardData(timeRange, autoRefresh);
 
-  // ── Derived data (with drill filtering) ──
   const timeRangeOptions: { value: TimeRange; label: string }[] = [
     { value: "5m",  label: "5m" },
     { value: "15m", label: "15m" },
@@ -60,11 +60,6 @@ export default function Dashboard() {
     { value: "24h", label: "24h" },
   ];
 
-  const revenueChartData = timeSeries?.map((d) => ({
-    time: format(new Date(d.timestamp), "HH:mm"),
-    revenue: d.revenue,
-  }));
-
   const ordersChartData = timeSeries?.map((d) => ({
     time: format(new Date(d.timestamp), "HH:mm"),
     success: d.paymentSuccess,
@@ -72,69 +67,36 @@ export default function Dashboard() {
     created: d.ordersCreated,
   }));
 
-  const eventTypesData = useMemo(() => {
-    if (!fullTimeSeries) return undefined;
-    return fullTimeSeries.map((d) => {
-      const row: Record<string, any> = {
-        time: format(new Date(d.timestamp), "HH:mm"),
-        "Success Rate": d.successRate,
-      };
-      if (!activeEventType || activeEventType === "order_created")     row["Orders Created"]     = d.ordersCreated;
-      if (!activeEventType || activeEventType === "payment_initiated") row["Payment Initiated"]  = d.paymentInitiated;
-      if (!activeEventType || activeEventType === "payment_success")   row["Payment Success"]    = d.paymentSuccess;
-      if (!activeEventType || activeEventType === "payment_failed")    row["Payment Failed"]     = d.paymentFailed;
-      if (!activeEventType || activeEventType === "order_cancelled")   row["Order Cancelled"]    = d.orderCancelled;
-      return row;
-    });
-  }, [fullTimeSeries, activeEventType]);
+  // Sparklines from timeSeries (last ~20 points)
+  const sparklines = useMemo(() => {
+    if (!timeSeries || timeSeries.length === 0) return null;
+    const tail = timeSeries.slice(-24);
+    return {
+      revenue: tail.map((d) => d.revenue),
+      events:  tail.map((d) => d.paymentSuccess + d.paymentFailed + d.ordersCreated),
+      success: tail.map((d) => d.paymentSuccess),
+      failed:  tail.map((d) => d.paymentFailed),
+    };
+  }, [timeSeries]);
 
-  const latencyTimelineData = latencyTimeline?.map((d) => ({
-    time: format(new Date(d.timestamp), "HH:mm"),
-    P50: d.p50,
-    P95: d.p95,
-    events: d.count,
-  }));
-
-  const funnelData = kpi
-    ? [
-        { name: "Orders Created", value: kpi.totalEvents },
-        { name: "Payment Initiated", value: kpi.pending + kpi.paymentSuccess + kpi.totalFailed },
-        { name: "Payment Success", value: kpi.paymentSuccess },
-      ].filter((d) => d.value > 0)
-    : [];
-
-  const successRate = kpi?.successRate ?? 0;
-  const gaugeColor = successRate >= 80 ? "#10B981" : successRate >= 60 ? "#F59E0B" : "#EF4444";
-
-  const heatmapGrid = useMemo(() => {
-    if (!heatmapData || heatmapData.length === 0) return [];
-    const types = [...new Set(heatmapData.map((d) => d.eventType))].sort();
-    const rows: Record<string, any>[] = [];
-    for (let h = 0; h < 24; h++) {
-      const row: Record<string, any> = { hour: `${h.toString().padStart(2, "0")}:00` };
-      for (const t of types) {
-        if (activeEventType && t !== activeEventType) continue;
-        const cell = heatmapData.find((d) => d.hour === h && d.eventType === t);
-        row[t] = cell?.count || 0;
-      }
-      rows.push(row);
-    }
-    return rows;
-  }, [heatmapData, activeEventType]);
-
-  const filteredScatter = useMemo(() => {
-    if (!scatterData) return [];
-    let data = scatterData;
-    if (activeStatus) data = data.filter((d) => d.status === activeStatus);
-    if (activeEventType) data = data.filter((d) => d.eventType === activeEventType);
-    return data;
-  }, [scatterData, activeStatus, activeEventType]);
-
-  const filteredRevenueByType = useMemo(() => {
-    if (!revenueByType) return [];
-    if (activeEventType) return revenueByType.filter((d) => d.eventType === activeEventType);
-    return revenueByType;
-  }, [revenueByType, activeEventType]);
+  // Trend % vs first half of the period
+  const trendPct = useMemo(() => {
+    if (!sparklines || sparklines.events.length < 4) return null;
+    const half = Math.floor(sparklines.events.length / 2);
+    const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
+    const calc = (arr: number[]) => {
+      const a = sum(arr.slice(0, half));
+      const b = sum(arr.slice(half));
+      if (a === 0) return null;
+      return ((b - a) / a) * 100;
+    };
+    return {
+      revenue: calc(sparklines.revenue),
+      events:  calc(sparklines.events),
+      success: calc(sparklines.success),
+      failed:  calc(sparklines.failed),
+    };
+  }, [sparklines]);
 
   const pieData = kpi
     ? [
@@ -144,22 +106,93 @@ export default function Dashboard() {
       ].filter((d) => d.value > 0)
     : [];
 
+  // ── Sortable layouts ──
+  const KPI_IDS = ["revenue", "totalEvents", "success", "pending", "failed", "successRate"];
+  const PANEL_IDS = ["paymentStatus", "amountDist", "eventDist", "latency", "category", "region", "payment", "topProducts"];
+  const kpiLayout = useSortableLayout("dashboard.kpi.order", KPI_IDS);
+  const panelLayout = useSortableLayout("dashboard.panels.order", PANEL_IDS);
+
+  const compactNumber = (n: number) => {
+    if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+    if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+    if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+    return Math.round(n).toLocaleString();
+  };
+
+  const kpiCards: Record<string, JSX.Element> = kpi ? {
+    revenue: (
+      <KPICard
+        title="Revenue"
+        value={kpi.revenue}
+        format={(n) => {
+          if (n >= 1e12) return `${(n / 1e12).toFixed(1)}T`;
+          if (n >= 1e9)  return `${(n / 1e9).toFixed(1)}B`;
+          if (n >= 1e6)  return `${(n / 1e6).toFixed(1)}M`;
+          if (n >= 1e3)  return `${(n / 1e3).toFixed(1)}K`;
+          return Math.round(n).toString();
+        }}
+        subtitle="VND"
+        changePct={trendPct?.revenue}
+        icon={<DollarSign size={16} />}
+        color="success"
+        onClick={() => goToEvents({})}
+      />
+    ),
+    totalEvents: (
+      <KPICard title="Total Events" value={kpi.totalEvents} format={compactNumber}
+        subtitle="processed" changePct={trendPct?.events}
+        icon={<Activity size={16} />} color="primary"
+        onClick={() => { clearDrills(); }} />
+    ),
+    success: (
+      <KPICard title="Success" value={kpi.paymentSuccess} format={compactNumber}
+        changePct={trendPct?.success}
+        icon={<CheckCircle size={16} />} color="success"
+        onClick={() => drillStatus("success")} />
+    ),
+    pending: (
+      <KPICard title="Pending" value={kpi.pending} format={compactNumber}
+        icon={<Clock size={16} />} color="warning"
+        onClick={() => drillStatus("pending")} />
+    ),
+    failed: (
+      <KPICard title="Failed" value={kpi.totalFailed} format={compactNumber}
+        changePct={trendPct?.failed}
+        icon={<XCircle size={16} />} color="danger"
+        onClick={() => drillStatus("failed")} />
+    ),
+    successRate: (
+      <KPICard title="Success Rate" value={kpi.successRate}
+        format={(n) => `${n.toFixed(1)}%`}
+        icon={<TrendingUp size={16} />}
+        color={kpi.successRate >= 80 ? "success" : kpi.successRate >= 60 ? "warning" : "danger"}
+        onClick={() => drillEventType("payment_success")} />
+    ),
+  } : {};
+
+  const resetLayout = () => {
+    kpiLayout.reset();
+    panelLayout.reset();
+  };
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Business Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Click any chart element to drill down into details</p>
+          <h1 className="text-2xl font-bold text-gradient tracking-tight">Business Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-1">Click any chart element to drill down into details</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex bg-white rounded-lg border border-gray-200 p-1">
+          <div className="flex glass rounded-lg p-1">
             {timeRangeOptions.map((option) => (
               <button
                 key={option.value}
                 onClick={() => setTimeRange(option.value)}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  timeRange === option.value ? "bg-primary text-white" : "text-gray-600 hover:bg-gray-50"
+                className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  timeRange === option.value
+                    ? "bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/30"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
                 }`}
               >
                 {option.label}
@@ -168,35 +201,51 @@ export default function Dashboard() {
           </div>
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-              autoRefresh ? "bg-success text-white border-success" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ring-1 ${
+              autoRefresh
+                ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/40 shadow-md shadow-emerald-500/20"
+                : "glass text-slate-400 ring-slate-700/50 hover:text-slate-200"
             }`}
           >
-            <RefreshCw size={16} className={autoRefresh ? "animate-spin" : ""} />
+            {autoRefresh ? (
+              <span className="relative flex w-2 h-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              </span>
+            ) : (
+              <RefreshCw size={14} />
+            )}
             {autoRefresh ? "Live" : "Paused"}
+          </button>
+          <button
+            onClick={resetLayout}
+            title="Reset layout to default"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium glass text-slate-400 ring-1 ring-slate-700/50 hover:text-slate-200 hover:ring-indigo-500/40 transition-all"
+          >
+            <RotateCcw size={14} />
           </button>
         </div>
       </div>
 
       {/* Drill-down Breadcrumb */}
       {drillFilters.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1 text-sm text-blue-700 font-medium">
+        <div className="glass rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap ring-1 ring-indigo-500/30">
+          <div className="flex items-center gap-1.5 text-sm text-indigo-300 font-medium">
             <ZoomIn size={16} /> Drill-down:
           </div>
-          <div className="flex items-center gap-1 text-sm text-blue-600">
+          <div className="flex items-center gap-1 text-sm text-slate-400">
             <span>Overview</span>
             {drillFilters.map((f) => (
               <span key={f.key} className="flex items-center gap-1">
-                <ChevronRight size={14} className="text-blue-400" />
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 rounded-full text-xs font-medium">
+                <ChevronRight size={14} className="text-slate-600" />
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-500/20 text-indigo-200 rounded-full text-xs font-medium ring-1 ring-indigo-500/30">
                   {f.label}
-                  <button onClick={() => removeDrill(f.key)} className="hover:text-blue-900"><X size={12} /></button>
+                  <button onClick={() => removeDrill(f.key)} className="hover:text-white"><X size={12} /></button>
                 </span>
               </span>
             ))}
           </div>
-          <button onClick={clearDrills} className="ml-auto flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+          <button onClick={clearDrills} className="ml-auto flex items-center gap-1 text-xs text-indigo-300 hover:text-indigo-200 font-medium">
             <ArrowLeft size={14} /> Back to Overview
           </button>
         </div>
@@ -204,118 +253,134 @@ export default function Dashboard() {
 
       {/* Pipeline Throughput Banner */}
       {metrics && (
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-5 text-white">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="relative overflow-hidden rounded-2xl p-6 ring-1 ring-indigo-500/20 shadow-xl shadow-indigo-500/10">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_50%)]"></div>
+          {/* Animated grid pattern */}
+          <div className="absolute inset-0 opacity-[0.04]" style={{
+            backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+          }}></div>
+          <div className="relative grid grid-cols-2 md:grid-cols-4 gap-6 text-white">
             <div>
-              <div className="flex items-center gap-2 text-blue-200 text-sm mb-1"><Zap size={14} /> Processing Rate</div>
-              <div className="text-3xl font-bold">{metrics.processedEventsPerSec.toLocaleString()}</div>
-              <div className="text-blue-200 text-xs">events/sec</div>
+              <div className="flex items-center gap-2 text-indigo-200 text-xs font-medium uppercase tracking-wider mb-1.5"><Zap size={13} /> Processing Rate</div>
+              <div className="text-3xl font-bold tabular-nums">
+                <AnimatedNumber value={metrics.processedEventsPerSec} />
+              </div>
+              <div className="text-indigo-200/80 text-xs mt-0.5">events/sec</div>
             </div>
             <div>
-              <div className="flex items-center gap-2 text-blue-200 text-sm mb-1"><Gauge size={14} /> Kafka Lag</div>
-              <div className="text-3xl font-bold">{metrics.kafkaLag.toLocaleString()}</div>
-              <div className="text-blue-200 text-xs">messages behind</div>
+              <div className="flex items-center gap-2 text-indigo-200 text-xs font-medium uppercase tracking-wider mb-1.5"><Gauge size={13} /> Kafka Lag</div>
+              <div className="text-3xl font-bold tabular-nums">
+                <AnimatedNumber value={metrics.kafkaLag} />
+              </div>
+              <div className="text-indigo-200/80 text-xs mt-0.5">messages behind</div>
             </div>
             <div>
-              <div className="flex items-center gap-2 text-blue-200 text-sm mb-1"><Timer size={14} /> Latency P50</div>
-              <div className="text-3xl font-bold">{traceStats?.p50 != null ? `${traceStats.p50}` : "—"}</div>
-              <div className="text-blue-200 text-xs">ms end-to-end</div>
+              <div className="flex items-center gap-2 text-indigo-200 text-xs font-medium uppercase tracking-wider mb-1.5"><Timer size={13} /> Latency P50</div>
+              <div className="text-3xl font-bold tabular-nums">
+                {traceStats?.p50 != null ? <AnimatedNumber value={traceStats.p50} format={(n) => Math.round(n).toString()} /> : "—"}
+              </div>
+              <div className="text-indigo-200/80 text-xs mt-0.5">ms end-to-end</div>
             </div>
             <div>
-              <div className="flex items-center gap-2 text-blue-200 text-sm mb-1"><Timer size={14} /> Latency P95</div>
-              <div className="text-3xl font-bold">{traceStats?.p95 != null ? `${traceStats.p95}` : "—"}</div>
-              <div className="text-blue-200 text-xs">ms end-to-end</div>
+              <div className="flex items-center gap-2 text-indigo-200 text-xs font-medium uppercase tracking-wider mb-1.5"><Timer size={13} /> Latency P95</div>
+              <div className="text-3xl font-bold tabular-nums">
+                {traceStats?.p95 != null ? <AnimatedNumber value={traceStats.p95} format={(n) => Math.round(n).toString()} /> : "—"}
+              </div>
+              <div className="text-indigo-200/80 text-xs mt-0.5">ms end-to-end</div>
             </div>
           </div>
         </div>
       )}
 
-      {/* KPI Cards */}
+      {/* KPI Cards (drag to reorder) */}
       {kpiLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-32"><LoadingSpinner size="sm" /></div>
-          ))}
+          {[...Array(6)].map((_, i) => <KPICardSkeleton key={i} />)}
         </div>
       ) : kpiError ? (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">Error loading KPIs.</div>
+        <div className="glass rounded-xl p-4 text-rose-300 ring-1 ring-rose-500/30">Error loading KPIs.</div>
       ) : kpi ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard title="Revenue" value={`${(kpi.revenue / 1000000).toFixed(2)}M`} subtitle="VND" icon={<DollarSign size={24} />} color="success" trend="up" onClick={() => goToEvents({})} />
-          <KPICard title="Total Events" value={kpi.totalEvents.toLocaleString()} subtitle="processed" icon={<Activity size={24} />} color="primary" onClick={() => { clearDrills(); }} />
-          <KPICard title="Success" value={kpi.paymentSuccess.toLocaleString()} icon={<CheckCircle size={24} />} color="success" onClick={() => drillStatus("success")} />
-          <KPICard title="Pending" value={kpi.pending.toLocaleString()} icon={<Clock size={24} />} color="warning" onClick={() => drillStatus("pending")} />
-          <KPICard title="Failed" value={kpi.totalFailed.toLocaleString()} icon={<XCircle size={24} />} color="danger" onClick={() => drillStatus("failed")} />
-          <KPICard title="Success Rate" value={`${kpi.successRate.toFixed(1)}%`} icon={<TrendingUp size={24} />} color={kpi.successRate >= 80 ? "success" : kpi.successRate >= 60 ? "warning" : "danger"} onClick={() => drillEventType("payment_success")} />
-        </div>
+        <SortableGrid
+          ids={kpiLayout.order}
+          onReorder={kpiLayout.setOrder}
+          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 auto-rows-fr"
+        >
+          {kpiLayout.order.map((id) => (
+            <SortableItem key={id} id={id}>
+              {kpiCards[id]}
+            </SortableItem>
+          ))}
+        </SortableGrid>
       ) : null}
 
       {/* Drill-down Detail Panel */}
       {drillDetail && drillEvents && (
-        <div className="bg-white rounded-lg shadow-md border-2 border-blue-200 p-6 animate-in">
+        <div className="glass rounded-2xl p-6 ring-1 ring-indigo-500/30 shadow-xl shadow-indigo-500/10 animate-slide-in">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <ZoomIn size={20} className="text-blue-500" /> {drillDetail.title}
-              <span className="text-sm font-normal text-gray-500">— {drillEvents.total.toLocaleString()} events</span>
+            <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+              <ZoomIn size={16} className="text-indigo-400" /> {drillDetail.title}
+              <span className="text-sm font-normal text-slate-500">— {drillEvents.total.toLocaleString()} events</span>
             </h3>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => goToEvents({
                   ...(drillDetail.type === "eventType" && { eventType: drillDetail.value }),
-                  ...(drillDetail.type === "status" && { status: drillDetail.value }),
-                  ...(drillDetail.type === "user" && { search: drillDetail.value }),
+                  ...(drillDetail.type === "status"    && { status: drillDetail.value }),
+                  ...(drillDetail.type === "user"      && { search: drillDetail.value }),
                 })}
-                className="text-sm text-primary hover:text-blue-700 font-medium"
+                className="text-sm text-indigo-300 hover:text-indigo-200 font-medium"
               >View all in Events →</button>
-              <button onClick={() => setDrillDetail(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+              <button onClick={() => setDrillDetail(null)} className="text-slate-500 hover:text-slate-300"><X size={16} /></button>
             </div>
           </div>
           {drillEvents.statusCounts && (
             <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="bg-green-50 rounded-lg p-3 text-center cursor-pointer hover:ring-2 hover:ring-green-300" onClick={() => drillStatus("success")}>
-                <div className="text-xl font-bold text-green-700">{drillEvents.statusCounts.success?.toLocaleString() ?? 0}</div>
-                <div className="text-xs text-green-600">Success</div>
+              <div className="bg-emerald-500/10 ring-1 ring-emerald-500/30 rounded-lg p-3 text-center cursor-pointer hover:ring-emerald-400/60 transition-all" onClick={() => drillStatus("success")}>
+                <div className="text-xl font-bold text-emerald-300 tabular-nums">{drillEvents.statusCounts.success?.toLocaleString() ?? 0}</div>
+                <div className="text-xs text-emerald-400/80">Success</div>
               </div>
-              <div className="bg-yellow-50 rounded-lg p-3 text-center cursor-pointer hover:ring-2 hover:ring-yellow-300" onClick={() => drillStatus("pending")}>
-                <div className="text-xl font-bold text-yellow-700">{drillEvents.statusCounts.pending?.toLocaleString() ?? 0}</div>
-                <div className="text-xs text-yellow-600">Pending</div>
+              <div className="bg-amber-500/10 ring-1 ring-amber-500/30 rounded-lg p-3 text-center cursor-pointer hover:ring-amber-400/60 transition-all" onClick={() => drillStatus("pending")}>
+                <div className="text-xl font-bold text-amber-300 tabular-nums">{drillEvents.statusCounts.pending?.toLocaleString() ?? 0}</div>
+                <div className="text-xs text-amber-400/80">Pending</div>
               </div>
-              <div className="bg-red-50 rounded-lg p-3 text-center cursor-pointer hover:ring-2 hover:ring-red-300" onClick={() => drillStatus("failed")}>
-                <div className="text-xl font-bold text-red-700">{drillEvents.statusCounts.failed?.toLocaleString() ?? 0}</div>
-                <div className="text-xs text-red-600">Failed</div>
+              <div className="bg-rose-500/10 ring-1 ring-rose-500/30 rounded-lg p-3 text-center cursor-pointer hover:ring-rose-400/60 transition-all" onClick={() => drillStatus("failed")}>
+                <div className="text-xl font-bold text-rose-300 tabular-nums">{drillEvents.statusCounts.failed?.toLocaleString() ?? 0}</div>
+                <div className="text-xs text-rose-400/80">Failed</div>
               </div>
             </div>
           )}
-          <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+          <div className="overflow-x-auto max-h-[300px] overflow-y-auto rounded-lg ring-1 ring-slate-800/60">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-gray-50">
-                <tr className="border-b">
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600">Time</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600">Type</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600">User</th>
-                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-600">Amount</th>
-                  <th className="text-center py-2 px-3 text-xs font-semibold text-gray-600">Status</th>
+              <thead className="sticky top-0 bg-slate-900/80 backdrop-blur">
+                <tr className="border-b border-slate-800/60">
+                  <th className="text-left  py-2 px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Time</th>
+                  <th className="text-left  py-2 px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Type</th>
+                  <th className="text-left  py-2 px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Amount</th>
+                  <th className="text-center py-2 px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-800/40">
                 {drillEvents.events.slice(0, 20).map((e) => (
-                  <tr key={e.id} className="hover:bg-blue-50 cursor-pointer transition-colors"
+                  <tr key={e.id} className="hover:bg-slate-800/40 cursor-pointer transition-colors"
                     onClick={() => { if (drillDetail.type !== "user") drillUser(e.userId); }}>
-                    <td className="py-2 px-3 text-gray-700">{format(new Date(e.eventTime), "HH:mm:ss")}</td>
+                    <td className="py-2 px-3 text-slate-300 tabular-nums">{format(new Date(e.eventTime), "HH:mm:ss")}</td>
                     <td className="py-2 px-3">
                       <button onClick={(ev) => { ev.stopPropagation(); drillEventType(e.eventType); }}
-                        className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100">
+                        className="text-xs px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 ring-1 ring-indigo-500/30">
                         {e.eventType.replace(/_/g, " ")}
                       </button>
                     </td>
-                    <td className="py-2 px-3 font-mono text-gray-600 text-xs">{e.userId}</td>
-                    <td className="py-2 px-3 text-right font-medium">{e.amount.toLocaleString()} {e.currency}</td>
+                    <td className="py-2 px-3 font-mono text-slate-400 text-xs">{e.userId}</td>
+                    <td className="py-2 px-3 text-right font-medium text-slate-200 tabular-nums">{e.amount.toLocaleString()} <span className="text-slate-500 text-xs">{e.currency}</span></td>
                     <td className="py-2 px-3 text-center">
                       <button onClick={(ev) => { ev.stopPropagation(); drillStatus(e.status); }}
-                        className={`text-xs px-2 py-0.5 rounded ${
-                          e.status === "success" ? "bg-green-50 text-green-700" :
-                          e.status === "failed"  ? "bg-red-50 text-red-700" :
-                                                   "bg-yellow-50 text-yellow-700"
+                        className={`text-xs px-2 py-0.5 rounded ring-1 ${
+                          e.status === "success" ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" :
+                          e.status === "failed"  ? "bg-rose-500/15    text-rose-300    ring-rose-500/30" :
+                                                   "bg-amber-500/15   text-amber-300   ring-amber-500/30"
                         } hover:opacity-80`}>
                         {e.status}
                       </button>
@@ -328,336 +393,198 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Row 1: Revenue + Payment Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Revenue Over Time</h3>
-            <ChartToggle value={revenueChart} onChange={setRevenueChart} />
-          </div>
-          {timeSeriesLoading ? (
-            <div className="h-[300px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
-          ) : revenueChartData ? (
-            <ReactECharts option={buildRevenueOption(revenueChartData, revenueChart)} style={{ height: 300 }} notMerge={true} />
-          ) : null}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Payment Status</h3>
-            <ChartToggle value={ordersChart} onChange={setOrdersChart} />
-          </div>
-          {timeSeriesLoading ? (
-            <div className="h-[300px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
-          ) : ordersChartData ? (
-            <ReactECharts
-              option={buildOrdersOption(ordersChartData, ordersChart, activeStatus)}
-              style={{ height: 300 }}
-              notMerge={true}
-              onEvents={{
-                click: (params: any) => {
-                  if (params.seriesName === "Success") drillStatus("success");
-                  else if (params.seriesName === "Failed") drillStatus("failed");
-                },
-              }}
-            />
-          ) : null}
-        </div>
-      </div>
-
-      {/* Row 2: Pie + Latency */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card title="Event Distribution — click to drill">
-          {pieData.length > 0 ? (
-            <ReactECharts
-              option={buildPieOption(pieData, activeStatus)}
-              style={{ height: 280 }}
-              notMerge={true}
-              onEvents={{ click: (params: any) => { if (params.data?.status) drillStatus(params.data.status); } }}
-            />
-          ) : (
-            <div className="h-[280px] flex items-center justify-center text-gray-400">No data yet</div>
-          )}
-        </Card>
-
-        <Card title="Pipeline Latency" className="lg:col-span-2">
-          {traceStats ? (
-            <div className="space-y-4 py-2">
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="bg-green-50 rounded-lg p-4"><div className="text-2xl font-bold text-green-700">{traceStats.p50 ?? "—"}<span className="text-sm font-normal ml-1">ms</span></div><div className="text-xs text-green-600 mt-1">P50</div></div>
-                <div className="bg-yellow-50 rounded-lg p-4"><div className="text-2xl font-bold text-yellow-700">{traceStats.p95 ?? "—"}<span className="text-sm font-normal ml-1">ms</span></div><div className="text-xs text-yellow-600 mt-1">P95</div></div>
-                <div className="bg-red-50 rounded-lg p-4"><div className="text-2xl font-bold text-red-700">{traceStats.p99 ?? "—"}<span className="text-sm font-normal ml-1">ms</span></div><div className="text-xs text-red-600 mt-1">P99</div></div>
-              </div>
-              <div className="space-y-3">
-                {(() => {
-                  const maxL = Math.max(traceStats.avgGenToKafkaMs ?? 0, traceStats.avgKafkaToSparkMs ?? 0, traceStats.avgSparkToDbMs ?? 0);
-                  return (
-                    <>
-                      <LatencyBar label="Generator → Kafka" value={traceStats.avgGenToKafkaMs} color="bg-blue-500" max={maxL} />
-                      <LatencyBar label="Kafka → Spark" value={traceStats.avgKafkaToSparkMs} color="bg-orange-500" max={maxL} />
-                      <LatencyBar label="Spark → PostgreSQL" value={traceStats.avgSparkToDbMs} color="bg-purple-500" max={maxL} />
-                    </>
-                  );
-                })()}
-              </div>
-              <div className="text-xs text-gray-400 text-center">Based on {traceStats.count.toLocaleString()} traced events</div>
-            </div>
-          ) : (
-            <div className="h-[280px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
-          )}
-        </Card>
-      </div>
-
-      {/* Row 3: Event Types + Latency Trend */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Layers size={18} className="text-indigo-500" /> Event Types {activeEventType && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{activeEventType.replace(/_/g, " ")}</span>}
-            </h3>
-            <ChartToggle value={eventTypesChart} onChange={setEventTypesChart} />
-          </div>
-          {eventTypesData ? (
-            <ReactECharts
-              option={buildEventTypesOption(eventTypesData, eventTypesChart, activeEventType)}
-              style={{ height: 300 }}
-              notMerge={true}
-              onEvents={{
-                legendselectchanged: (params: any) => {
-                  const map: Record<string, string> = {
-                    "Orders Created": "order_created",
-                    "Payment Initiated": "payment_initiated",
-                    "Payment Success": "payment_success",
-                    "Payment Failed": "payment_failed",
-                    "Order Cancelled": "order_cancelled",
-                  };
-                  const name = params.name as string;
-                  if (map[name]) drillEventType(map[name]);
-                },
-              }}
-            />
-          ) : (
-            <div className="h-[300px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><Timer size={18} className="text-orange-500" /> Latency Trend</h3>
-            <ChartToggle value={latencyChart} onChange={setLatencyChart} />
-          </div>
-          {latencyTimelineData ? (
-            <ReactECharts option={buildLatencyOption(latencyTimelineData, latencyChart)} style={{ height: 300 }} notMerge={true} />
-          ) : (
-            <div className="h-[300px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
-          )}
-        </div>
-      </div>
-
-      {/* Row 4: Top Users + Amount Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4"><Users size={18} className="text-blue-500" /> Top Users — click to drill</h3>
-          {topUsers && topUsers.length > 0 ? (
-            <ReactECharts
-              option={buildTopUsersOption(topUsers)}
-              style={{ height: 300 }}
-              notMerge={true}
-              onEvents={{ click: (params: any) => { if (params.name) drillUser(params.name); } }}
-            />
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4"><DollarSign size={18} className="text-green-500" /> Amount Distribution</h3>
-          {amountDistribution && amountDistribution.length > 0 ? (
-            <ReactECharts option={buildAmountDistributionOption(amountDistribution)} style={{ height: 300 }} notMerge={true} />
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
-          )}
-        </div>
-      </div>
-
-      {/* Row 5: Funnel + Gauge + Success Rate Trend */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Conversion Funnel</h3>
-          {funnelData.length > 0 ? (
-            <>
-              <ReactECharts option={buildFunnelOption(funnelData)} style={{ height: 250 }} notMerge={true} />
-              {kpi && <div className="text-center text-xs text-gray-500">Conversion: {((kpi.paymentSuccess / kpi.totalEvents) * 100).toFixed(1)}%</div>}
-            </>
-          ) : (
-            <div className="h-[280px] flex items-center justify-center text-gray-400">No data yet</div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Success Rate</h3>
-          {kpi ? (
-            <div className="relative">
-              <ReactECharts option={buildGaugeOption(successRate, gaugeColor)} style={{ height: 220 }} notMerge={true} />
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className={`text-4xl font-bold ${kpi.successRate >= 80 ? "text-green-600" : kpi.successRate >= 60 ? "text-yellow-600" : "text-red-600"}`}>
-                  {kpi.successRate.toFixed(1)}%
-                </span>
-                <span className="text-xs text-gray-500 mt-1">payments successful</span>
-              </div>
-            </div>
-          ) : (
-            <div className="h-[280px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Success Rate Trend</h3>
-          {eventTypesData ? (
-            <ReactECharts option={buildSuccessRateTrendOption(eventTypesData)} style={{ height: 280 }} notMerge={true} />
-          ) : (
-            <div className="h-[280px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>
-          )}
-        </div>
-      </div>
-
-      {/* Row 6: Scatter + Revenue by Type */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">Amount vs Latency {activeStatus && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-2">{activeStatus}</span>}</h3>
-          <p className="text-xs text-gray-500 mb-4">Click dots to drill by status</p>
-          {filteredScatter.length > 0 ? (
-            <ReactECharts
-              option={buildScatterOption(filteredScatter, activeStatus)}
-              style={{ height: 300 }}
-              notMerge={true}
-              onEvents={{ click: (params: any) => { if (params.seriesName) drillStatus(params.seriesName); } }}
-            />
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-400">No trace data yet</div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">Revenue by Event Type — click to drill</h3>
-          <p className="text-xs text-gray-500 mb-4">Click a bar to filter all charts</p>
-          {filteredRevenueByType.length > 0 ? (
-            <ReactECharts
-              option={buildRevenueByTypeOption(filteredRevenueByType)}
-              style={{ height: 300 }}
-              notMerge={true}
-              onEvents={{ click: (params: any) => { if (params.name) drillEventType(params.name); } }}
-            />
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
-          )}
-        </div>
-      </div>
-
-      {/* Row 7: Heatmap */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">Event Heatmap by Hour {activeEventType && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full ml-2">{activeEventType.replace(/_/g, " ")}</span>}</h3>
-        <p className="text-xs text-gray-500 mb-4">Filtered by active drill-down</p>
-        {heatmapGrid.length > 0 ? (
-          <ReactECharts option={buildHeatmapOption(heatmapGrid, activeEventType)} style={{ height: 300 }} notMerge={true} />
-        ) : (
-          <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
-        )}
-      </div>
-
-      {/* Row 8: Category Revenue + Region Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4"><ShoppingBag size={18} className="text-indigo-500" /> Revenue by Category</h3>
-          {categoryStats && categoryStats.length > 0 ? (
-            <ReactECharts option={buildCategoryOption(categoryStats)} style={{ height: 300 }} notMerge={true} />
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4"><Globe size={18} className="text-blue-500" /> Orders by Region</h3>
-          {regionStats && regionStats.length > 0 ? (
-            <ReactECharts option={buildRegionOption(regionStats)} style={{ height: 300 }} notMerge={true} />
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
-          )}
-        </div>
-      </div>
-
-      {/* Row 9: Payment Methods + Top Products */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4"><CreditCard size={18} className="text-green-500" /> Payment Method Success Rate</h3>
-          {paymentStats && paymentStats.length > 0 ? (
-            <div className="space-y-4">
-              <ReactECharts option={buildPaymentOption(paymentStats)} style={{ height: 220 }} notMerge={true} />
-              <div className="grid grid-cols-2 gap-2">
-                {paymentStats.map((p) => (
-                  <div key={p.paymentMethod} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                    <span className="text-xs font-medium text-gray-700" style={{ color: paymentColors[p.paymentMethod] }}>
-                      {p.paymentMethod.replace(/_/g, " ")}
-                    </span>
-                    <span className={`text-xs font-bold ${p.successRate >= 80 ? "text-green-600" : p.successRate >= 60 ? "text-yellow-600" : "text-red-600"}`}>
-                      {p.successRate.toFixed(1)}%
-                    </span>
+      {/* Chart panels (drag to reorder) */}
+      <SortableGrid
+        ids={panelLayout.order}
+        onReorder={panelLayout.setOrder}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+      >
+        {panelLayout.order.map((id) => {
+          const wrapClass = id === "latency" ? "lg:col-span-2" : "";
+          return (
+            <SortableItem key={id} id={id} className={wrapClass}>
+              {id === "paymentStatus" && (
+                <div className={PANEL}>
+                  <div className="flex items-center justify-between mb-4 pr-7">
+                    <h3 className="text-base font-semibold text-slate-100">Payment Status</h3>
+                    <ChartToggle value={ordersChart} onChange={setOrdersChart} />
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
-          )}
-        </div>
+                  {timeSeriesLoading ? <ChartSkeleton height={300} /> : ordersChartData ? (
+                    <ReactECharts
+                      option={buildOrdersOption(ordersChartData, ordersChart, activeStatus)}
+                      style={{ height: 300 }} notMerge={true}
+                      onEvents={{ click: (params: any) => {
+                        if (params.seriesName === "Success") drillStatus("success");
+                        else if (params.seriesName === "Failed") drillStatus("failed");
+                      } }}
+                    />
+                  ) : null}
+                </div>
+              )}
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4"><Package size={18} className="text-orange-500" /> Top Products by Revenue</h3>
-          {topProducts && topProducts.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-600">#</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-600">Product</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-600">Category</th>
-                    <th className="text-right py-2 px-2 text-xs font-semibold text-gray-600">Orders</th>
-                    <th className="text-right py-2 px-2 text-xs font-semibold text-gray-600">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {topProducts.map((p, i) => (
-                    <tr key={p.productId} className="hover:bg-gray-50">
-                      <td className="py-2 px-2 text-gray-400 text-xs">{i + 1}</td>
-                      <td className="py-2 px-2">
-                        <div className="font-medium text-gray-800 text-xs">{p.productName}</div>
-                        <div className="text-gray-400 text-[10px]">{p.productId}</div>
-                      </td>
-                      <td className="py-2 px-2">
-                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: (categoryColors[p.category] || "#94A3B8") + "20", color: categoryColors[p.category] || "#94A3B8" }}>
-                          {p.category}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2 text-right text-xs text-gray-700">{p.orderCount.toLocaleString()}</td>
-                      <td className="py-2 px-2 text-right text-xs font-semibold text-gray-900">{(p.revenue / 1000000).toFixed(1)}M</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-400">No data yet</div>
-          )}
-        </div>
-      </div>
+              {id === "amountDist" && (
+                <div className={PANEL}>
+                  <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2 mb-4 pr-7">
+                    <span className="w-7 h-7 rounded-md bg-emerald-500/20 flex items-center justify-center"><DollarSign size={14} className="text-emerald-400" /></span>
+                    Amount Distribution
+                  </h3>
+                  {amountDistribution && amountDistribution.length > 0 ? (
+                    <ReactECharts option={buildAmountDistributionOption(amountDistribution)} style={{ height: 300 }} notMerge={true} />
+                  ) : <EmptyChart />}
+                </div>
+              )}
+
+              {id === "eventDist" && (
+                <Card title="Event Distribution">
+                  {pieData.length > 0 ? (
+                    <ReactECharts option={buildPieOption(pieData, activeStatus)} style={{ height: 280 }} notMerge={true}
+                      onEvents={{ click: (params: any) => { if (params.data?.status) drillStatus(params.data.status); } }} />
+                  ) : <EmptyChart height={280} />}
+                </Card>
+              )}
+
+              {id === "latency" && (
+                <Card title="Pipeline Latency">
+                  {traceStats ? (
+                    <div className="space-y-4 py-2">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div className="bg-emerald-500/10 ring-1 ring-emerald-500/20 rounded-lg p-4">
+                          <div className="text-2xl font-bold text-emerald-300 tabular-nums">{traceStats.p50 ?? "—"}<span className="text-sm font-normal ml-1 text-emerald-400/70">ms</span></div>
+                          <div className="text-xs text-emerald-400/80 mt-1 uppercase tracking-wider">P50</div>
+                        </div>
+                        <div className="bg-amber-500/10 ring-1 ring-amber-500/20 rounded-lg p-4">
+                          <div className="text-2xl font-bold text-amber-300 tabular-nums">{traceStats.p95 ?? "—"}<span className="text-sm font-normal ml-1 text-amber-400/70">ms</span></div>
+                          <div className="text-xs text-amber-400/80 mt-1 uppercase tracking-wider">P95</div>
+                        </div>
+                        <div className="bg-rose-500/10 ring-1 ring-rose-500/20 rounded-lg p-4">
+                          <div className="text-2xl font-bold text-rose-300 tabular-nums">{traceStats.p99 ?? "—"}<span className="text-sm font-normal ml-1 text-rose-400/70">ms</span></div>
+                          <div className="text-xs text-rose-400/80 mt-1 uppercase tracking-wider">P99</div>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {(() => {
+                          const maxL = Math.max(traceStats.avgGenToKafkaMs ?? 0, traceStats.avgKafkaToSparkMs ?? 0, traceStats.avgSparkToDbMs ?? 0);
+                          return (
+                            <>
+                              <LatencyBar label="Generator → Kafka" value={traceStats.avgGenToKafkaMs} color="bg-gradient-to-r from-indigo-500 to-blue-500" max={maxL} />
+                              <LatencyBar label="Kafka → Spark" value={traceStats.avgKafkaToSparkMs} color="bg-gradient-to-r from-amber-500 to-orange-500" max={maxL} />
+                              <LatencyBar label="Spark → PostgreSQL" value={traceStats.avgSparkToDbMs} color="bg-gradient-to-r from-violet-500 to-purple-500" max={maxL} />
+                            </>
+                          );
+                        })()}
+                      </div>
+                      <div className="text-xs text-slate-500 text-center">Based on {traceStats.count.toLocaleString()} traced events</div>
+                    </div>
+                  ) : <div className="h-[280px] flex items-center justify-center"><LoadingSpinner size="sm" /></div>}
+                </Card>
+              )}
+
+              {id === "category" && (
+                <div className={PANEL}>
+                  <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2 mb-4 pr-7">
+                    <span className="w-7 h-7 rounded-md bg-indigo-500/20 flex items-center justify-center"><ShoppingBag size={14} className="text-indigo-400" /></span>
+                    Revenue by Category
+                  </h3>
+                  {categoryStats && categoryStats.length > 0 ? (
+                    <ReactECharts option={buildCategoryOption(categoryStats)} style={{ height: 300 }} notMerge={true} />
+                  ) : <EmptyChart />}
+                </div>
+              )}
+
+              {id === "region" && (
+                <div className={PANEL}>
+                  <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2 mb-4 pr-7">
+                    <span className="w-7 h-7 rounded-md bg-blue-500/20 flex items-center justify-center"><Globe size={14} className="text-blue-400" /></span>
+                    Orders by Region
+                  </h3>
+                  {regionStats && regionStats.length > 0 ? (
+                    <ReactECharts option={buildRegionOption(regionStats)} style={{ height: 300 }} notMerge={true} />
+                  ) : <EmptyChart />}
+                </div>
+              )}
+
+              {id === "payment" && (
+                <div className={PANEL}>
+                  <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2 mb-4 pr-7">
+                    <span className="w-7 h-7 rounded-md bg-emerald-500/20 flex items-center justify-center"><CreditCard size={14} className="text-emerald-400" /></span>
+                    Payment Method Success Rate
+                  </h3>
+                  {paymentStats && paymentStats.length > 0 ? (
+                    <div className="space-y-4">
+                      <ReactECharts option={buildPaymentOption(paymentStats)} style={{ height: 220 }} notMerge={true} />
+                      <div className="grid grid-cols-2 gap-2">
+                        {paymentStats.map((p) => (
+                          <div key={p.paymentMethod} className="flex items-center justify-between bg-slate-800/40 ring-1 ring-slate-700/40 rounded-lg px-3 py-2">
+                            <span className="text-xs font-medium" style={{ color: paymentColors[p.paymentMethod] }}>
+                              {p.paymentMethod.replace(/_/g, " ")}
+                            </span>
+                            <span className={`text-xs font-bold tabular-nums ${p.successRate >= 80 ? "text-emerald-300" : p.successRate >= 60 ? "text-amber-300" : "text-rose-300"}`}>
+                              {p.successRate.toFixed(1)}%
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : <EmptyChart />}
+                </div>
+              )}
+
+              {id === "topProducts" && (
+                <div className={PANEL}>
+                  <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2 mb-4 pr-7">
+                    <span className="w-7 h-7 rounded-md bg-orange-500/20 flex items-center justify-center"><Package size={14} className="text-orange-400" /></span>
+                    Top Products by Revenue
+                  </h3>
+                  {topProducts && topProducts.length > 0 ? (
+                    <div className="overflow-x-auto rounded-lg ring-1 ring-slate-800/60">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-900/60">
+                          <tr className="border-b border-slate-800/60">
+                            <th className="text-left  py-2 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">#</th>
+                            <th className="text-left  py-2 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Product</th>
+                            <th className="text-left  py-2 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Category</th>
+                            <th className="text-right py-2 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Orders</th>
+                            <th className="text-right py-2 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Revenue</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/40">
+                          {topProducts.map((p, i) => (
+                            <tr key={p.productId} className="hover:bg-slate-800/40 transition-colors">
+                              <td className="py-2 px-2 text-slate-600 text-xs tabular-nums">{i + 1}</td>
+                              <td className="py-2 px-2">
+                                <div className="font-medium text-slate-200 text-xs">{p.productName}</div>
+                                <div className="text-slate-500 text-[10px]">{p.productId}</div>
+                              </td>
+                              <td className="py-2 px-2">
+                                <span className="text-xs px-2 py-0.5 rounded-full ring-1" style={{ backgroundColor: (categoryColors[p.category] || "#94A3B8") + "20", color: categoryColors[p.category] || "#94A3B8", borderColor: (categoryColors[p.category] || "#94A3B8") + "40" }}>
+                                  {p.category}
+                                </span>
+                              </td>
+                              <td className="py-2 px-2 text-right text-xs text-slate-300 tabular-nums">{p.orderCount.toLocaleString()}</td>
+                              <td className="py-2 px-2 text-right text-xs font-semibold text-slate-100 tabular-nums">{(p.revenue / 1000000).toFixed(1)}M</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : <EmptyChart />}
+                </div>
+              )}
+            </SortableItem>
+          );
+        })}
+      </SortableGrid>
 
       {/* Status */}
-      <div className={`rounded-lg p-4 ${USE_MOCK ? "bg-yellow-50 border border-yellow-300" : "bg-green-50 border border-green-200"}`}>
+      <div className={`glass rounded-xl p-4 ring-1 ${USE_MOCK ? "ring-amber-500/30" : "ring-emerald-500/30"}`}>
         <div className="flex items-center gap-3">
-          <div className={USE_MOCK ? "text-yellow-600" : "text-green-600"}>{USE_MOCK ? "⚠️" : "✅"}</div>
+          <span className="relative flex w-2.5 h-2.5">
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${USE_MOCK ? "bg-amber-400" : "bg-emerald-400"}`}></span>
+            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${USE_MOCK ? "bg-amber-400" : "bg-emerald-400"}`}></span>
+          </span>
           <div className="text-sm">
-            <span className="font-medium">{USE_MOCK ? "Mock Data Mode" : "Live Data Mode"}</span>
-            <span className="text-gray-600 ml-2">{USE_MOCK ? "Showing simulated data" : "Connected to pipeline — real-time from PostgreSQL"}</span>
+            <span className={`font-medium ${USE_MOCK ? "text-amber-300" : "text-emerald-300"}`}>{USE_MOCK ? "Mock Data Mode" : "Live Data Mode"}</span>
+            <span className="text-slate-500 ml-2">{USE_MOCK ? "Showing simulated data" : "Connected to pipeline — real-time from PostgreSQL"}</span>
           </div>
         </div>
       </div>

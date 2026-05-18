@@ -31,19 +31,19 @@ type SortField = 'event_time' | 'event_type' | 'user_id' | 'amount' | 'status'
 /* ─── colour helpers ─── */
 const getEventTypeBadgeColor = (eventType: EventType) => {
   switch (eventType) {
-    case 'order_created': return 'bg-blue-100 text-blue-800'
-    case 'payment_initiated': return 'bg-purple-100 text-purple-800'
-    case 'payment_success': return 'bg-green-100 text-green-800'
-    case 'payment_failed': return 'bg-red-100 text-red-800'
-    case 'order_cancelled': return 'bg-gray-100 text-gray-800'
+    case 'order_created':     return 'bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30'
+    case 'payment_initiated': return 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30'
+    case 'payment_success':   return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30'
+    case 'payment_failed':    return 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30'
+    case 'order_cancelled':   return 'bg-slate-700/40 text-slate-300 ring-1 ring-slate-600/40'
   }
 }
 
 const getStatusBadgeColor = (status: EventStatus) => {
   switch (status) {
-    case 'success': return 'bg-green-100 text-green-800'
-    case 'failed': return 'bg-red-100 text-red-800'
-    case 'pending': return 'bg-yellow-100 text-yellow-800'
+    case 'success': return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30'
+    case 'failed':  return 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30'
+    case 'pending': return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30'
   }
 }
 
@@ -206,27 +206,27 @@ export default function Events() {
   ]
 
   const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortBy !== field) return <ArrowUpDown size={14} className="text-gray-300" />
-    return sortDir === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />
+    if (sortBy !== field) return <ArrowUpDown size={14} className="text-slate-600" />
+    return sortDir === 'asc' ? <ArrowUp size={14} className="text-indigo-400" /> : <ArrowDown size={14} className="text-indigo-400" />
   }
 
   return (
     <div className="space-y-6">
       {/* ═══════════════ LIVE EVENT FEED (Generator-style) ═══════════════ */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="glass rounded-xl shadow-sm border border-slate-800/60 overflow-hidden">
         {/* Live feed header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-slate-800/60 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               {liveFeed && (
                 <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
                 </span>
               )}
-              <h2 className="text-xl font-bold text-gray-900">Live Event Feed</h2>
+              <h2 className="text-xl font-bold text-slate-100">Live Event Feed</h2>
             </div>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-slate-500">
               {liveFeed ? 'Streaming...' : 'Paused'}
               {liveEvents.length > 0 && ` — showing ${liveEvents.length} of ${totalEvents.toLocaleString()}`}
             </span>
@@ -234,7 +234,7 @@ export default function Events() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowLiveFeed(v => !v)}
-              className="p-2 text-gray-400 hover:text-gray-600 transition"
+              className="p-2 text-slate-500 hover:text-slate-400 transition"
               title={showLiveFeed ? 'Collapse' : 'Expand'}
             >
               {showLiveFeed ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -244,8 +244,8 @@ export default function Events() {
               className={clsx(
                 'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
                 liveFeed
-                  ? 'bg-green-500 text-white shadow-sm hover:bg-green-600'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600'
+                  : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800'
               )}
             >
               {liveFeed ? <Radio size={16} className="animate-pulse" /> : <Pause size={16} />}
@@ -257,34 +257,34 @@ export default function Events() {
         {showLiveFeed && (
           <>
             {/* Statistics cards */}
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+            <div className="px-6 py-4 bg-slate-800/40 border-b border-slate-800/60">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard label="Total Events" value={totalEvents} color="bg-blue-50 text-blue-700" />
-                <StatCard label="Success" value={statusCounts.success} color="bg-green-50 text-green-700" />
-                <StatCard label="Pending" value={statusCounts.pending} color="bg-yellow-50 text-yellow-700" />
-                <StatCard label="Failed" value={statusCounts.failed} color="bg-red-50 text-red-700" />
+                <StatCard label="Total Events" value={totalEvents} color="bg-indigo-500/10 text-indigo-300 ring-1 ring-indigo-500/30" />
+                <StatCard label="Success" value={statusCounts.success} color="bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/30" />
+                <StatCard label="Pending" value={statusCounts.pending} color="bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/30" />
+                <StatCard label="Failed" value={statusCounts.failed} color="bg-rose-500/10 text-rose-300 ring-1 ring-rose-500/30" />
               </div>
             </div>
 
             {/* Live event table */}
             <div ref={feedRef} className="overflow-x-auto max-h-[500px] overflow-y-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 sticky top-0 z-10">
+                <thead className="bg-slate-800/40 sticky top-0 z-10">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User ID</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Time</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Event Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Order ID</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">User ID</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {liveEvents.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                      <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
                         <div className="flex flex-col items-center gap-2">
-                          <Radio size={32} className="text-gray-300" />
+                          <Radio size={32} className="text-slate-600" />
                           <span>No events yet. Start the data pipeline to see events streaming here.</span>
                         </div>
                       </td>
@@ -297,11 +297,11 @@ export default function Events() {
                         className={clsx(
                           'cursor-pointer transition-all duration-500',
                           newEventIds.has(event.id)
-                            ? 'bg-blue-50 animate-pulse'
-                            : 'hover:bg-gray-50'
+                            ? 'bg-indigo-500/15 animate-pulse'
+                            : 'hover:bg-slate-800/40'
                         )}
                       >
-                        <td className="px-4 py-2.5 text-sm text-gray-900 whitespace-nowrap">
+                        <td className="px-4 py-2.5 text-sm text-slate-100 whitespace-nowrap">
                           {format(new Date(event.eventTime), 'HH:mm:ss')}
                         </td>
                         <td className="px-4 py-2.5">
@@ -312,13 +312,13 @@ export default function Events() {
                             {event.eventType.replace(/_/g, ' ')}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-xs font-mono text-gray-500">
+                        <td className="px-4 py-2.5 text-xs font-mono text-slate-500">
                           {event.orderId.slice(0, 12)}...
                         </td>
-                        <td className="px-4 py-2.5 text-xs font-mono text-gray-500">
+                        <td className="px-4 py-2.5 text-xs font-mono text-slate-500">
                           {event.userId}
                         </td>
-                        <td className="px-4 py-2.5 text-sm text-right font-medium text-gray-900">
+                        <td className="px-4 py-2.5 text-sm text-right font-medium text-slate-100">
                           {event.amount.toLocaleString()} {event.currency}
                         </td>
                         <td className="px-4 py-2.5 text-center">
@@ -342,8 +342,8 @@ export default function Events() {
       {/* ═══════════════ FULL EVENTS TABLE (with search/filter/sort/pagination) ═══════════════ */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Events Explorer</h2>
-          <p className="text-sm text-gray-500 mt-1">Search, filter and explore all pipeline events</p>
+          <h2 className="text-xl font-bold text-slate-100">Events Explorer</h2>
+          <p className="text-sm text-slate-500 mt-1">Search, filter and explore all pipeline events</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -351,8 +351,8 @@ export default function Events() {
             className={clsx(
               'flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors',
               autoRefresh
-                ? 'bg-green-500 text-white border-green-500'
-                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40'
+                : 'glass text-slate-400 border-slate-800/60 hover:bg-slate-800/40'
             )}
           >
             <RefreshCw size={16} className={autoRefresh ? 'animate-spin' : ''} />
@@ -360,7 +360,7 @@ export default function Events() {
           </button>
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-800/60 glass text-sm font-medium text-slate-300 hover:bg-slate-800/40 transition-colors"
             title="Export filtered events as CSV (max 10,000)"
           >
             <Download size={16} />
@@ -374,19 +374,19 @@ export default function Events() {
         <div className="space-y-4">
           <div className="flex gap-3">
             <div className="flex-1 relative">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search by User ID, Order ID, or Event ID..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full pl-10 pr-4 py-2 border border-slate-700/60 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
               {searchInput && (
                 <button
                   onClick={() => { setSearchInput(''); setSearchQuery(''); setPage(1) }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-400"
                 >
                   <X size={16} />
                 </button>
@@ -394,7 +394,7 @@ export default function Events() {
             </div>
             <button
               onClick={handleSearch}
-              className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              className="px-6 py-2 bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-600 transition-colors"
             >
               Search
             </button>
@@ -402,8 +402,8 @@ export default function Events() {
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
-              <Filter size={18} className="text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">Filters:</span>
+              <Filter size={18} className="text-slate-500" />
+              <span className="text-sm font-medium text-slate-300">Filters:</span>
             </div>
 
             <select
@@ -412,7 +412,7 @@ export default function Events() {
                 setFilterEventType(e.target.value as EventType | 'all')
                 setPage(1)
               }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="px-3 py-2 border border-slate-700/60 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {eventTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -427,7 +427,7 @@ export default function Events() {
                 setFilterStatus(e.target.value as EventStatus | 'all')
                 setPage(1)
               }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="px-3 py-2 border border-slate-700/60 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {statusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -439,13 +439,13 @@ export default function Events() {
             {hasActiveFilters && (
               <button
                 onClick={clearAllFilters}
-                className="flex items-center gap-1 text-sm text-primary hover:text-blue-700 font-medium"
+                className="flex items-center gap-1 text-sm text-indigo-300 hover:text-indigo-200 font-medium"
               >
                 <X size={14} /> Clear all
               </button>
             )}
 
-            <div className="ml-auto text-sm text-gray-500">
+            <div className="ml-auto text-sm text-slate-500">
               Total: <span className="font-semibold">{data?.total.toLocaleString() ?? '...'}</span> events
             </div>
           </div>
@@ -453,19 +453,19 @@ export default function Events() {
           {hasActiveFilters && (
             <div className="flex flex-wrap gap-2">
               {filterEventType !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30 text-xs font-medium rounded-full">
                   Type: {filterEventType.replace(/_/g, ' ')}
                   <button onClick={() => { setFilterEventType('all'); setPage(1) }}><X size={12} /></button>
                 </span>
               )}
               {filterStatus !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 text-xs font-medium rounded-full">
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 text-xs font-medium rounded-full">
                   Status: {filterStatus}
                   <button onClick={() => { setFilterStatus('all'); setPage(1) }}><X size={12} /></button>
                 </span>
               )}
               {searchQuery && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-full">
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30 text-xs font-medium rounded-full">
                   Search: "{searchQuery}"
                   <button onClick={() => { setSearchQuery(''); setSearchInput(''); setPage(1) }}><X size={12} /></button>
                 </span>
@@ -482,49 +482,49 @@ export default function Events() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-200">
+                  <tr className="border-b border-slate-800/60">
                     <th
-                      className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-4 cursor-pointer hover:bg-gray-50 select-none"
+                      className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider py-3 px-4 cursor-pointer hover:bg-slate-800/40 select-none"
                       onClick={() => handleSort('event_time')}
                     >
                       <div className="flex items-center gap-1">Event Time <SortIcon field="event_time" /></div>
                     </th>
                     <th
-                      className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-4 cursor-pointer hover:bg-gray-50 select-none"
+                      className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider py-3 px-4 cursor-pointer hover:bg-slate-800/40 select-none"
                       onClick={() => handleSort('event_type')}
                     >
                       <div className="flex items-center gap-1">Event Type <SortIcon field="event_type" /></div>
                     </th>
-                    <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-4">
+                    <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider py-3 px-4">
                       Order ID
                     </th>
                     <th
-                      className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-4 cursor-pointer hover:bg-gray-50 select-none"
+                      className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider py-3 px-4 cursor-pointer hover:bg-slate-800/40 select-none"
                       onClick={() => handleSort('user_id')}
                     >
                       <div className="flex items-center gap-1">User ID <SortIcon field="user_id" /></div>
                     </th>
                     <th
-                      className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-4 cursor-pointer hover:bg-gray-50 select-none"
+                      className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wider py-3 px-4 cursor-pointer hover:bg-slate-800/40 select-none"
                       onClick={() => handleSort('amount')}
                     >
                       <div className="flex items-center justify-end gap-1">Amount <SortIcon field="amount" /></div>
                     </th>
                     <th
-                      className="text-center text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-4 cursor-pointer hover:bg-gray-50 select-none"
+                      className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider py-3 px-4 cursor-pointer hover:bg-slate-800/40 select-none"
                       onClick={() => handleSort('status')}
                     >
                       <div className="flex items-center justify-center gap-1">Status <SortIcon field="status" /></div>
                     </th>
-                    <th className="text-center text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-4">
+                    <th className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider py-3 px-4">
                       Action
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-slate-800/40">
                   {data.events.map((event) => (
-                    <tr key={event.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-3 px-4 text-sm text-gray-900">
+                    <tr key={event.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-4 text-sm text-slate-100">
                         {format(new Date(event.eventTime), 'dd/MM/yyyy HH:mm:ss')}
                       </td>
                       <td className="py-3 px-4">
@@ -539,25 +539,25 @@ export default function Events() {
                           {event.eventType.replace(/_/g, ' ')}
                         </button>
                       </td>
-                      <td className="py-3 px-4 text-sm font-mono text-gray-700">
+                      <td className="py-3 px-4 text-sm font-mono text-slate-300">
                         <button
                           onClick={() => { setSearchInput(event.orderId); setSearchQuery(event.orderId); setPage(1) }}
-                          className="hover:text-primary hover:underline transition"
+                          className="hover:text-indigo-400 hover:underline transition"
                           title="Click to search this Order ID"
                         >
                           {event.orderId}
                         </button>
                       </td>
-                      <td className="py-3 px-4 text-sm font-mono text-gray-700">
+                      <td className="py-3 px-4 text-sm font-mono text-slate-300">
                         <button
                           onClick={() => { setSearchInput(event.userId); setSearchQuery(event.userId); setPage(1) }}
-                          className="hover:text-primary hover:underline transition"
+                          className="hover:text-indigo-400 hover:underline transition"
                           title="Click to search this User ID"
                         >
                           {event.userId}
                         </button>
                       </td>
-                      <td className="py-3 px-4 text-sm text-right font-medium text-gray-900">
+                      <td className="py-3 px-4 text-sm text-right font-medium text-slate-100">
                         {event.amount.toLocaleString()} {event.currency}
                       </td>
                       <td className="py-3 px-4 text-center">
@@ -575,7 +575,7 @@ export default function Events() {
                       <td className="py-3 px-4 text-center">
                         <button
                           onClick={() => setSelectedEvent(event)}
-                          className="text-primary hover:text-blue-700 transition-colors"
+                          className="text-indigo-300 hover:text-indigo-200 transition-colors"
                           title="View details & trace"
                         >
                           <Eye size={18} />
@@ -588,8 +588,8 @@ export default function Events() {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
-              <div className="text-sm text-gray-700">
+            <div className="flex items-center justify-between mt-6 pt-6 border-t border-slate-800/60">
+              <div className="text-sm text-slate-300">
                 Showing <span className="font-medium">{(page - 1) * pageSize + 1}</span> to{' '}
                 <span className="font-medium">{Math.min(page * pageSize, data.total)}</span> of{' '}
                 <span className="font-medium">{data.total.toLocaleString()}</span> results
@@ -599,19 +599,19 @@ export default function Events() {
                 <button
                   onClick={() => setPage(1)}
                   disabled={page === 1}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-2 border border-slate-700/60 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   First
                 </button>
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-2 border border-slate-700/60 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <ChevronLeft size={18} />
                 </button>
 
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-slate-300">
                   Page <span className="font-medium">{page}</span> of{' '}
                   <span className="font-medium">{totalPages}</span>
                 </span>
@@ -619,14 +619,14 @@ export default function Events() {
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-2 border border-slate-700/60 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <ChevronRight size={18} />
                 </button>
                 <button
                   onClick={() => setPage(totalPages)}
                   disabled={page === totalPages}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-2 border border-slate-700/60 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Last
                 </button>
@@ -648,17 +648,17 @@ export default function Events() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Event ID</label>
-                <p className="text-sm font-mono text-gray-900 mt-1">{selectedEvent.id}</p>
+                <label className="text-xs font-semibold text-slate-500 uppercase">Event ID</label>
+                <p className="text-sm font-mono text-slate-100 mt-1">{selectedEvent.id}</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Event Time</label>
-                <p className="text-sm text-gray-900 mt-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Event Time</label>
+                <p className="text-sm text-slate-100 mt-1">
                   {format(new Date(selectedEvent.eventTime), 'dd/MM/yyyy HH:mm:ss')}
                 </p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Event Type</label>
+                <label className="text-xs font-semibold text-slate-500 uppercase">Event Type</label>
                 <p className="mt-1">
                   <span
                     className={clsx(
@@ -671,7 +671,7 @@ export default function Events() {
                 </p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Status</label>
+                <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
                 <p className="mt-1">
                   <span
                     className={clsx(
@@ -684,29 +684,29 @@ export default function Events() {
                 </p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Order ID</label>
-                <p className="text-sm font-mono text-gray-900 mt-1">{selectedEvent.orderId}</p>
+                <label className="text-xs font-semibold text-slate-500 uppercase">Order ID</label>
+                <p className="text-sm font-mono text-slate-100 mt-1">{selectedEvent.orderId}</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">User ID</label>
-                <p className="text-sm font-mono text-gray-900 mt-1">{selectedEvent.userId}</p>
+                <label className="text-xs font-semibold text-slate-500 uppercase">User ID</label>
+                <p className="text-sm font-mono text-slate-100 mt-1">{selectedEvent.userId}</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Amount</label>
-                <p className="text-sm font-medium text-gray-900 mt-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Amount</label>
+                <p className="text-sm font-medium text-slate-100 mt-1">
                   {selectedEvent.amount.toLocaleString()} {selectedEvent.currency}
                 </p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Currency</label>
-                <p className="text-sm text-gray-900 mt-1">{selectedEvent.currency}</p>
+                <label className="text-xs font-semibold text-slate-500 uppercase">Currency</label>
+                <p className="text-sm text-slate-100 mt-1">{selectedEvent.currency}</p>
               </div>
             </div>
 
             {selectedEvent.metadata && (
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Metadata</label>
-                <pre className="mt-2 p-4 bg-gray-50 rounded-lg text-xs font-mono overflow-auto">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Metadata</label>
+                <pre className="mt-2 p-4 bg-slate-800/40 rounded-lg text-xs font-mono overflow-auto">
                   {JSON.stringify(selectedEvent.metadata, null, 2)}
                 </pre>
               </div>

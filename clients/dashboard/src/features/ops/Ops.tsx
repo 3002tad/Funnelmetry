@@ -79,7 +79,7 @@ export default function Ops() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Icon size={20} className={colors.text} />
-            <h3 className="font-semibold text-gray-900">{name}</h3>
+            <h3 className="font-semibold text-slate-100">{name}</h3>
           </div>
           <div className="flex items-center gap-2">
             <div className={clsx('w-2.5 h-2.5 rounded-full', colors.dot)}></div>
@@ -88,7 +88,7 @@ export default function Ops() {
             </span>
           </div>
         </div>
-        <p className="text-sm text-gray-600">{message}</p>
+        <p className="text-sm text-slate-400">{message}</p>
       </div>
     )
   }
@@ -98,8 +98,8 @@ export default function Ops() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Operations Console</h1>
-          <p className="text-sm text-gray-500 mt-1">System health and administrative controls</p>
+          <h1 className="text-2xl font-bold text-slate-100">Operations Console</h1>
+          <p className="text-sm text-slate-500 mt-1">System health and administrative controls</p>
         </div>
 
         <button
@@ -107,7 +107,7 @@ export default function Ops() {
           className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
             autoRefresh
               ? 'bg-success text-white border-success'
-              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+              : 'glass text-slate-400 border-slate-800/60 hover:bg-slate-800/40'
           }`}
         >
           <Activity size={16} className={autoRefresh ? 'animate-pulse' : ''} />
@@ -117,11 +117,11 @@ export default function Ops() {
 
       {/* System Health */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">System Health</h2>
+        <h2 className="text-lg font-semibold text-slate-100 mb-4">System Health</h2>
         {healthLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="bg-white rounded-lg border border-gray-200 p-4 h-24 animate-pulse" />
+              <div key={i} className="glass rounded-lg border border-slate-800/60 p-4 h-24 animate-pulse" />
             ))}
           </div>
         ) : health ? (
@@ -152,24 +152,24 @@ export default function Ops() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Metrics */}
         <div className="lg:col-span-2 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">System Metrics</h2>
+          <h2 className="text-lg font-semibold text-slate-100">System Metrics</h2>
           
           <Card loading={metricsLoading}>
             {metrics && (
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="text-sm text-gray-600">Kafka Lag</label>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">
+                  <label className="text-sm text-slate-400">Kafka Lag</label>
+                  <p className="text-3xl font-bold text-slate-100 mt-1">
                     {metrics.kafkaLag.toLocaleString()}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">messages behind</p>
+                  <p className="text-xs text-slate-500 mt-1">messages behind</p>
                 </div>
                 <div>
-                  <label className="text-sm text-gray-600">Processing Rate</label>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">
+                  <label className="text-sm text-slate-400">Processing Rate</label>
+                  <p className="text-3xl font-bold text-slate-100 mt-1">
                     {metrics.processedEventsPerSec.toLocaleString()}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">events/second</p>
+                  <p className="text-xs text-slate-500 mt-1">events/second</p>
                 </div>
               </div>
             )}
@@ -177,7 +177,7 @@ export default function Ops() {
 
           {/* Alerts */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Alerts</h2>
+            <h2 className="text-lg font-semibold text-slate-100 mb-4">Recent Alerts</h2>
             <Card>
               {alerts && alerts.length > 0 ? (
                 <div className="space-y-3">
@@ -194,11 +194,11 @@ export default function Ops() {
                               <span className={clsx('text-xs font-bold px-2 py-0.5 rounded uppercase text-white', colors.badge)}>
                                 {alert.severity}
                               </span>
-                              <span className="text-xs text-gray-500">{alert.service}</span>
+                              <span className="text-xs text-slate-500">{alert.service}</span>
                             </div>
-                            <h4 className="font-semibold text-sm text-gray-900 mb-1">{alert.title}</h4>
-                            <p className="text-sm text-gray-600">{alert.message}</p>
-                            <p className="text-xs text-gray-500 mt-2">
+                            <h4 className="font-semibold text-sm text-slate-100 mb-1">{alert.title}</h4>
+                            <p className="text-sm text-slate-400">{alert.message}</p>
+                            <p className="text-xs text-slate-500 mt-2">
                               {format(new Date(alert.timestamp), 'dd/MM/yyyy HH:mm:ss')}
                             </p>
                           </div>
@@ -210,7 +210,7 @@ export default function Ops() {
               ) : (
                 <div className="text-center py-8">
                   <AlertTriangle size={48} className="text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">No alerts at this time</p>
+                  <p className="text-sm text-slate-500">No alerts at this time</p>
                 </div>
               )}
             </Card>
@@ -219,10 +219,10 @@ export default function Ops() {
 
         {/* Control Panel */}
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Simulation Controls</h2>
+          <h2 className="text-lg font-semibold text-slate-100 mb-4">Simulation Controls</h2>
           <Card>
             <div className="space-y-3">
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-slate-400 mb-4">
                 Simulate system failures to test monitoring and alerting
               </p>
 
@@ -253,7 +253,7 @@ export default function Ops() {
                 Reset All
               </button>
 
-              <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="mt-6 pt-6 border-t border-slate-800/60">
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                   <p className="text-xs text-yellow-800">
                     <strong>Note:</strong> These are mock simulations. No actual systems are affected.
