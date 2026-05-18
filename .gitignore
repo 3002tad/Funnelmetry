@@ -1,111 +1,15 @@
-# ============================================================================
-# ENVIRONMENT FILES
-# ============================================================================
-# Ignore all .env files in root and env/ folder
 .env
 .env.local
-.env*.local
-env/.env
-env/.env.local
-env/.env*.local
-# Keep templates for reference
-# .env.example
-# .env.production
+.env.*.local
+infra/.env
 
-# ============================================================================
-# DEPENDENCIES
-# ============================================================================
-# Frontend
-node_modules
-
-# Backend Python
-.venv/
-venv/
-env/
-backend/venv
-backend/env
-backend/__pycache__
-backend/*.pyc
-backend/*.pyo
-backend/*.pyd
-backend/.Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 
-# ============================================================================
-# BUILD OUTPUT
-# ============================================================================
-# Frontend
-dist
-dist-ssr
-*.local
-
-# Python
-backend/*.egg-info
-backend/dist
-backend/build
-
-# ============================================================================
-# SPARK & DATA
-# ============================================================================
-# Spark checkpoints
-backend/checkpoints/
 checkpoints/
-
-# Spark logs
-backend/*.log
-backend/derby.log
-backend/metastore_db/
-backend/spark-warehouse/
-
-# Data files (nếu có)
-*.parquet
-*.csv
-*.json.gz
-
-# ============================================================================
-# DOCKER
-# ============================================================================
-# Docker volumes data (optional - comment out nếu muốn keep)
-# postgres-data/
-
-# ============================================================================
-# IDE & EDITOR
-# ============================================================================
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-*~
-
-# ============================================================================
-# BUILD TOOLS
-# ============================================================================
-.vite
-.cache
-
-# ============================================================================
-# OS
-# ============================================================================
-Thumbs.db
-.DS_Store
-*.swp
-*.swo
-
-# ============================================================================
-# LOGS
-# ============================================================================
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
