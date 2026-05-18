@@ -10,13 +10,25 @@ services:
       - "2181:2181"
     networks:
       - realtime-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | timeout 2 bash -c 'cat > /dev/tcp/localhost/2181 && cat' || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
 
   # Kafka Broker
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
     environment:
@@ -26,12 +38,24 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_LOG_RETENTION_HOURS: 24
+      # Performance tuning
+      KAFKA_NUM_PARTITIONS: 6
+      KAFKA_LOG_SEGMENT_BYTES: 268435456
+      KAFKA_NUM_IO_THREADS: 4
+      KAFKA_NUM_NETWORK_THREADS: 3
+      KAFKA_SOCKET_SEND_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 102400
     volumes:
       - kafka-data:/var/lib/kafka/data
     networks:
       - realtime-network
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+    restart: unless-stopped
     healthcheck:
       test:
         [
@@ -78,19 +102,38 @@ services:
     image: postgres:15-alpine
     container_name: postgres
     environment:
-      POSTGRES_DB: realtime
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
+      POSTGRES_DB: ${POSTGRES_DB:-realtime}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required — set it in infra/.env}
       POSTGRES_INITDB_ARGS: "-E UTF8"
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=512MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "synchronous_commit=off"
     networks:
       - realtime-network
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d realtime"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -107,10 +150,12 @@ services:
       kafka:
         condition: service_healthy
     environment:
-      API_URL: http://api-generator:7070/gen/event
+      API_DRAIN_URL: http://api-generator:7070/gen/drain
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: events_raw
-      POLL_INTERVAL_MS: 500
+      POLL_INTERVAL_MS: 50
+      POLL_BATCH_LIMIT: 500
+      BACKOFF_MAX_MS: 500
     networks:
       - realtime-network
     restart: unless-stopped
@@ -128,15 +173,23 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: events_raw
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: realtime
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
+      POSTGRES_DB: ${POSTGRES_DB:-realtime}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      KAFKA_MAX_OFFSETS_PER_TRIGGER: 50000
+      KAFKA_NUM_PARTITIONS: 6
+      SPARK_DRIVER_MEMORY: 2g
     volumes:
       - spark-checkpoints:/app/checkpoints
     networks:
       - realtime-network
+    deploy:
+      resources:
+        limits:
+          memory: 3072M
     restart: unless-stopped
 
   # Dashboard API (Node.js — queries PostgreSQL, exposes /api/*)
@@ -152,12 +205,17 @@ services:
         condition: service_healthy
     environment:
       PORT: 8080
+      NODE_ENV: ${NODE_ENV:-development}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: realtime
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
+      POSTGRES_DB: ${POSTGRES_DB:-realtime}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required — set it in infra/.env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      VIEWER_PASSWORD: ${VIEWER_PASSWORD:-viewer123}
+      CACHE_TTL_MS: ${CACHE_TTL_MS:-3000}
     ports:
       - "8080:8080"
     networks:
@@ -180,7 +238,7 @@ services:
   # Generator UI (React + TypeScript)
   generator-ui:
     build:
-      context: ../generator-ui
+      context: ../clients/generator
       dockerfile: Dockerfile
     container_name: generator-ui
     depends_on:
@@ -191,12 +249,12 @@ services:
       - realtime-network
     restart: unless-stopped
 
-  # Frontend Dashboard (React)
-  frontend:
+  # Dashboard UI (React)
+  dashboard-ui:
     build:
-      context: ../frontend
+      context: ../clients/dashboard
       dockerfile: Dockerfile
-    container_name: frontend-dashboard
+    container_name: dashboard-ui
     depends_on:
       dashboard-api:
         condition: service_healthy
