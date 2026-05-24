@@ -48,7 +48,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: spark-checkpoints
+  name: streaming-checkpoints
   namespace: realtime
 spec:
   accessModes: ["ReadWriteOnce"]
@@ -237,21 +237,21 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: spark-streaming
+  name: streaming-processor
   namespace: realtime
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: spark-streaming
+      app: streaming-processor
   template:
     metadata:
       labels:
-        app: spark-streaming
+        app: streaming-processor
     spec:
       containers:
-        - name: spark-streaming
-          image: infra-spark-streaming:latest
+        - name: streaming-processor
+          image: infra-streaming-processor:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: KAFKA_BOOTSTRAP_SERVERS
@@ -283,9 +283,9 @@ spec:
               cpu: 1000m
               memory: 512Mi
           volumeMounts:
-            - name: spark-checkpoints
+            - name: streaming-checkpoints
               mountPath: /app/checkpoints
       volumes:
-        - name: spark-checkpoints
+        - name: streaming-checkpoints
           persistentVolumeClaim:
-            claimName: spark-checkpoints
+            claimName: streaming-checkpoints

@@ -1,0 +1,51 @@
+import { Router } from "express";
+import { query } from "../db.js";
+
+export const overviewRouter = Router();
+
+// GET /api/overview?minutes=30
+// Returns aggregated KPI for the last N minutes and the most recent 1-min window.
+overviewRouter.get("/api/overview", async (req, res) => {
+  const minutes = Math.min(parseInt(req.query.minutes) || 30, 1440);
+  try {
+    const [agg] = await query(
+      `SELECT
+         COALESCE(SUM(t.total_events), 0)   AS total_events,
+         COALESCE(SUM(t.page_views), 0)     AS page_views,
+         COALESCE(SUM(t.product_views), 0)  AS product_views,
+         COALESCE(SUM(t.clicks), 0)         AS clicks,
+         COALESCE(SUM(t.searches), 0)       AS searches,
+         COALESCE(SUM(t.add_to_cart), 0)    AS add_to_cart,
+         COALESCE(SUM(t.checkout_start), 0) AS checkout_start,
+         COALESCE(SUM(t.purchases), 0)      AS purchases,
+         COALESCE(SUM(t.unique_sessions), 0) AS unique_sessions,
+         CASE WHEN SUM(t.unique_sessions) > 0
+           THEN ROUND(SUM(t.purchases)::numeric / SUM(t.unique_sessions), 4)
+           ELSE 0
+         END AS conversion_rate,
+         COALESCE((
+           SELECT SUM(r.revenue) FROM product_revenue_kpi_1m r
+           WHERE r.window_start >= NOW() - ($1 || ' minutes')::interval
+         ), 0) AS total_revenue
+       FROM tracking_kpi_1m t
+       WHERE t.window_start >= NOW() - ($1 || ' minutes')::interval`,
+      [minutes]
+    );
+
+    const trend = await query(
+      `SELECT
+         window_start,
+         total_events, page_views, product_views,
+         add_to_cart, purchases, unique_sessions
+       FROM tracking_kpi_1m
+       WHERE window_start >= NOW() - ($1 || ' minutes')::interval
+       ORDER BY window_start ASC`,
+      [minutes]
+    );
+
+    res.json({ period_minutes: minutes, kpi: agg, trend });
+  } catch (err) {
+    console.error("GET /api/overview", err.message);
+    res.status(500).json({ error: "query_failed" });
+  }
+});

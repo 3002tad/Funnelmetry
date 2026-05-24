@@ -3,6 +3,9 @@
 .env.*.local
 infra/.env
 
+node_modules/
+dist/
+
 __pycache__/
 *.py[cod]
 
@@ -13,3 +16,6 @@ checkpoints/
 Thumbs.db
 .idea/
 .vscode/
+
+# Friend's web-shop (tracked in separate repo)
+clients/web-shop/

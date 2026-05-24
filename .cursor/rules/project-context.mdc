@@ -1,0 +1,14 @@
+---
+description: Tracking pipeline refactor — read docs before implementing
+alwaysApply: true
+---
+
+# Project context
+
+**Spec:** [`docs/PROJECT.md`](docs/PROJECT.md). **Repo map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md) — implement đúng path, không đoán tên topic/table.
+
+Refactor toward **e-commerce behavior tracking**: SDK + Kafka streaming + Postgres + Qdrant insights + dashboard/chatbot RAG. Commerce events via **RabbitMQ → Connector**. Do not invent topic/table names — use the spec.
+
+**This repo today:** infra scaffold (`infra/docker-compose.yml`, `services/streaming-processor/` placeholder). Align new code with spec and REPO_MAP.
+
+Demo topology: Laptop 2 (web + bot) → tailnet → Laptop 1 WSL2 (backend). See network doc for Headscale/Tailscale.

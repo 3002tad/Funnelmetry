@@ -59,7 +59,29 @@ services:
         ]
       interval: 10s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 45s
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    container_name: qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - realtime-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   postgres:
     image: postgres:15-alpine
@@ -73,7 +95,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./postgres:/docker-entrypoint-initdb.d:ro
     command:
       - "postgres"
       - "-c"
@@ -97,37 +119,229 @@ services:
       timeout: 5s
       retries: 5
 
-  spark-streaming:
-    build:
-      context: ../services/spark-streaming
-      dockerfile: Dockerfile
-    container_name: spark-streaming
-    depends_on:
-      kafka:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-realtime}
-      POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-    volumes:
-      - spark-checkpoints:/app/checkpoints
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-app}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-app}
     networks:
       - realtime-network
     deploy:
       resources:
         limits:
-          memory: 3072M
+          memory: 512M
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  commerce-backend:
+    build:
+      context: ../services/commerce-backend
+      dockerfile: Dockerfile
+    container_name: commerce-backend
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "0.0.0.0:${COMMERCE_BACKEND_PORT:-3300}:3000"
+    environment:
+      PORT: 3000
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASS:-app}@rabbitmq:5672
+      RABBITMQ_EXCHANGE: commerce_events
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:8080,http://localhost:3000}
+    networks:
+      - realtime-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD", "node", "-e",
+          "fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  commerce-connector:
+    build:
+      context: ../services/commerce-connector
+      dockerfile: Dockerfile
+    container_name: commerce-connector
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      tracking-api:
+        condition: service_healthy
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASS:-app}@rabbitmq:5672
+      RABBITMQ_EXCHANGE: commerce_events
+      RABBITMQ_QUEUE: commerce_connector_queue
+      TRACKING_API_URL: http://tracking-api:3000
+    networks:
+      - realtime-network
+    restart: unless-stopped
+
+  tracking-api:
+    build:
+      context: ../services/tracking-api
+      dockerfile: Dockerfile
+    container_name: tracking-api
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "0.0.0.0:${TRACKING_API_PORT:-3100}:3000"
+    environment:
+      PORT: 3000
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_RAW: tracking_events_raw
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:8080}
+    networks:
+      - realtime-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  web-shop:
+    build:
+      context: ../clients/web-shop
+      dockerfile: Dockerfile
+    container_name: web-shop
+    ports:
+      - "${WEB_SHOP_PORT:-8081}:80"
+    networks:
+      - realtime-network
+    restart: unless-stopped
+
+  demo-shop:
+    build:
+      context: ..
+      dockerfile: clients/demo-shop/Dockerfile
+      args:
+        VITE_TRACKING_API_URL: ${VITE_TRACKING_API_URL:-http://localhost:3100}
+    container_name: demo-shop
+    ports:
+      - "${DEMO_SHOP_PORT:-8080}:80"
+    depends_on:
+      tracking-api:
+        condition: service_healthy
+    networks:
+      - realtime-network
+    restart: unless-stopped
+
+  dashboard-api:
+    build:
+      context: ../services/dashboard-api
+      dockerfile: Dockerfile
+    container_name: dashboard-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    ports:
+      - "0.0.0.0:${DASHBOARD_API_PORT:-3200}:3000"
+    environment:
+      PORT: 3000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-realtime}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      CORS_ORIGIN_DASHBOARD: ${CORS_ORIGIN_DASHBOARD:-http://localhost:5174,http://localhost:8090}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRES: ${JWT_EXPIRES:-7d}
+      DASHBOARD_ADMIN_EMAIL: ${DASHBOARD_ADMIN_EMAIL:-admin@pipeline.local}
+      DASHBOARD_ADMIN_PASSWORD: ${DASHBOARD_ADMIN_PASSWORD:-admin123}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-pipeline_insights}
+    networks:
+      - realtime-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  dashboard-ui:
+    build:
+      context: ../clients/dashboard
+      dockerfile: Dockerfile
+      args:
+        VITE_DASHBOARD_API_URL: ${VITE_DASHBOARD_API_URL:-http://localhost:3200}
+    container_name: dashboard-ui
+    ports:
+      - "${DASHBOARD_UI_PORT:-8090}:80"
+    depends_on:
+      dashboard-api:
+        condition: service_healthy
+    networks:
+      - realtime-network
+    restart: unless-stopped
+
+  streaming-processor:
+    build:
+      context: ../services/streaming-processor
+      dockerfile: Dockerfile
+    container_name: streaming-processor
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_RAW: tracking_events_raw
+      KAFKA_GROUP_ID: streaming-processor
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-realtime}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      FLUSH_INTERVAL_SEC: ${FLUSH_INTERVAL_SEC:-30}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-pipeline_insights}
+    networks:
+      - realtime-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     restart: unless-stopped
 
 volumes:
   postgres-data:
   kafka-data:
-  spark-checkpoints:
+  qdrant-data:
 
 networks:
   realtime-network:
