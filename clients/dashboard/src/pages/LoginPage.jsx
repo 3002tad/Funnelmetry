@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { IconOverview } from "../components/icons.jsx";
 import { homeForRole } from "../lib/routes.js";
 
 export function LoginPage() {
@@ -42,18 +43,32 @@ export function LoginPage() {
   }
 
   return (
-    <div className="admin-root login-page admin-login">
-      <div className="login-hero">
-        <h1>Realtime Commerce Analytics</h1>
-        <p>
-          Theo dõi hành vi khách hàng, doanh thu và phễu chuyển đổi từ pipeline tracking của bạn.
-        </p>
-      </div>
-      <div className="login-form-wrap">
+    <div className="mgr-root login-page mgr-login">
+      <div style={{ maxWidth: 420, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: "2rem", color: "rgba(255,255,255,0.7)" }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 14,
+            background: "linear-gradient(135deg, #f54e00, #ff8c42)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 1rem", color: "#fff",
+            boxShadow: "0 8px 24px rgba(245,78,0,0.4)",
+          }}>
+            <IconOverview size={26} />
+          </div>
+          <h1 style={{ color: "#fff", fontSize: "1.5rem", fontWeight: 800, letterSpacing: "-0.03em" }}>
+            Store Analytics
+          </h1>
+          <p style={{ fontSize: "0.875rem", marginTop: "0.35rem" }}>
+            Hành vi người dùng · Doanh thu · AI Chatbot
+          </p>
+        </div>
+
         <form className="login-card" onSubmit={handleSubmit}>
           <h2>Đăng nhập</h2>
-          <p className="muted">Tài khoản phân tích hệ thống</p>
-          {error && <p className="login-error">{error}</p>}
+          <p>Dashboard dành cho người quản lý website</p>
+
+          {error && <div className="login-error">{error}</div>}
+
           <label>
             Email
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
@@ -62,8 +77,14 @@ export function LoginPage() {
             Mật khẩu
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
           </label>
-          <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "1.25rem" }} disabled={submitting}>
-            {submitting ? "Đang đăng nhập…" : "Đăng nhập"}
+
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ width: "100%", marginTop: "1.5rem", padding: "0.75rem", justifyContent: "center", fontSize: "0.9rem" }}
+            disabled={submitting}
+          >
+            {submitting ? "Đang đăng nhập…" : "Vào dashboard"}
           </button>
         </form>
       </div>

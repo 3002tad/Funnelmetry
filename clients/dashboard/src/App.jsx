@@ -2,10 +2,11 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AdminGuard } from "./layouts/AdminGuard.jsx";
 import { AdminLayout } from "./layouts/AdminLayout.jsx";
 import { ShopGuard } from "./layouts/ShopGuard.jsx";
-import { ShopLayout } from "./layouts/ShopLayout.jsx";
+import { ManagerLayout } from "./layouts/ManagerLayout.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 import { homeForRole } from "./lib/routes.js";
 import { BannersPage } from "./pages/BannersPage.jsx";
+import { ChatPage } from "./pages/ChatPage.jsx";
 import { EventsPage } from "./pages/EventsPage.jsx";
 import { FunnelPage } from "./pages/FunnelPage.jsx";
 import { LoginPage } from "./pages/LoginPage.jsx";
@@ -15,7 +16,6 @@ import { RevenuePage } from "./pages/RevenuePage.jsx";
 import { SearchPage } from "./pages/SearchPage.jsx";
 import { SystemPage } from "./pages/SystemPage.jsx";
 import { UsersPage } from "./pages/UsersPage.jsx";
-import { ChatPage } from "./pages/ChatPage.jsx";
 
 function RootRedirect() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -30,28 +30,26 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<RootRedirect />} />
 
+      {/* Manager dashboard — all roles */}
       <Route element={<ShopGuard />}>
-        <Route element={<ShopLayout />}>
-          <Route path="/shop" element={<OverviewPage variant="shop" />} />
-          <Route path="/shop/revenue" element={<RevenuePage variant="shop" />} />
-          <Route path="/shop/products" element={<ProductsPage variant="shop" />} />
-          <Route path="/shop/funnel" element={<FunnelPage variant="shop" />} />
-          <Route path="/shop/chat" element={<ChatPage variant="shop" />} />
+        <Route element={<ManagerLayout />}>
+          <Route path="/shop" element={<OverviewPage />} />
+          <Route path="/shop/revenue" element={<RevenuePage />} />
+          <Route path="/shop/products" element={<ProductsPage />} />
+          <Route path="/shop/funnel" element={<FunnelPage />} />
+          <Route path="/shop/events" element={<EventsPage />} />
+          <Route path="/shop/search" element={<SearchPage />} />
+          <Route path="/shop/banners" element={<BannersPage />} />
+          <Route path="/shop/chat" element={<ChatPage />} />
         </Route>
       </Route>
 
+      {/* Admin dashboard — system only */}
       <Route element={<AdminGuard />}>
         <Route element={<AdminLayout />}>
-          <Route path="/admin" element={<OverviewPage variant="admin" />} />
+          <Route path="/admin" element={<Navigate to="/admin/system" replace />} />
           <Route path="/admin/system" element={<SystemPage />} />
-          <Route path="/admin/revenue" element={<RevenuePage variant="admin" />} />
-          <Route path="/admin/products" element={<ProductsPage variant="admin" />} />
-          <Route path="/admin/funnel" element={<FunnelPage variant="admin" />} />
-          <Route path="/admin/search" element={<SearchPage />} />
-          <Route path="/admin/banners" element={<BannersPage />} />
-          <Route path="/admin/events" element={<EventsPage />} />
           <Route path="/admin/users" element={<UsersPage />} />
-          <Route path="/admin/chat" element={<ChatPage variant="admin" />} />
         </Route>
       </Route>
 

@@ -1,6 +1,8 @@
 import { config } from "../../config.js";
 import { QdrantStore } from "../qdrant.js";
 import { detectIntent, extractMinutes } from "./intent.js";
+import { checkOllamaHealth, generateWithOllama } from "./ollama.js";
+import { buildPrompt } from "./prompt.js";
 import {
   fetchBanners,
   fetchFunnel,
@@ -63,12 +65,33 @@ export async function handleChatMessage(message, options = {}) {
   }
 
   const data = await loadData(intent, minutes);
-  const answer = formatAnswer(intent, { minutes, data, ragHits });
+
+  // Try Ollama first — fallback to template if unavailable
+  let answer;
+  let model_used = "template";
+  if (config.ollama.url) {
+    try {
+      const prompt = buildPrompt(intent, { minutes, data, ragHits });
+      answer = await generateWithOllama(prompt, {
+        model: config.ollama.model,
+        baseUrl: config.ollama.url,
+        timeout: config.ollama.timeout,
+      });
+      model_used = config.ollama.model;
+    } catch (err) {
+      console.warn("Ollama unavailable, falling back to template:", err.message);
+    }
+  }
+
+  if (!answer) {
+    answer = formatAnswer(intent, { minutes, data, ragHits });
+  }
 
   return {
     answer,
     intent,
     period_minutes: minutes,
+    model_used,
     sources: ragHits.map((h) => ({
       text: h.text,
       score: h.score,
@@ -87,4 +110,9 @@ export async function listRecentInsights(limit = 12) {
 
 export function getQdrantStore() {
   return qdrant;
+}
+
+export async function getOllamaHealth() {
+  if (!config.ollama.url) return { status: "disabled", url: null };
+  return checkOllamaHealth(config.ollama.url);
 }

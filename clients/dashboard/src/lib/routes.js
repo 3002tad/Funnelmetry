@@ -1,14 +1,14 @@
 /** Default landing after login */
 export function homeForRole(role) {
-  if (role === "viewer") return "/shop";
-  return "/admin";
+  if (role === "super_admin" || role === "analyst") return "/shop";
+  return "/shop";
 }
 
 export function isAdminRole(role) {
   return role === "super_admin" || role === "analyst";
 }
 
-const SHOP_PATHS = ["/shop", "/shop/revenue", "/shop/products", "/shop/funnel", "/shop/chat"];
+const SHOP_PATHS = ["/shop", "/shop/revenue", "/shop/products", "/shop/funnel", "/shop/chat", "/shop/events", "/shop/search", "/shop/banners"];
 
 export function canAccessAdmin(role, pathname) {
   if (!isAdminRole(role)) return false;

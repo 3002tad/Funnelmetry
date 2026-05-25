@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { config } from "../config.js";
-import { getQdrantStore } from "../lib/chat/chat.service.js";
+import { getOllamaHealth, getQdrantStore } from "../lib/chat/chat.service.js";
 import { query } from "../db.js";
 
 export const systemRouter = Router();
@@ -29,13 +29,14 @@ async function probeHttp(name, url) {
 
 systemRouter.get("/api/system/pipeline", async (_req, res) => {
   try {
-    const [services, qdrantHealth, pipeline] = await Promise.all([
+    const [services, qdrantHealth, ollamaHealth, pipeline] = await Promise.all([
       Promise.all([
         probeHttp("tracking-api", `${config.pipeline.trackingApi}/health`),
         probeHttp("commerce-backend", `${config.pipeline.commerceApi}/health`),
         probeHttp("dashboard-api", "http://127.0.0.1:3000/health"),
       ]),
       getQdrantStore().health(),
+      getOllamaHealth(),
       query(
         `SELECT
            (SELECT COUNT(*)::int FROM tracking_events_clean
@@ -89,10 +90,19 @@ systemRouter.get("/api/system/pipeline", async (_req, res) => {
         name: "qdrant",
         status: qdrantHealth.status === "disabled" ? "unknown" : qdrantHealth.status,
         url: qdrantHealth.url || config.qdrant.url || "—",
-        detail:
-          qdrantHealth.status === "disabled"
-            ? "QDRANT_URL not set"
-            : `collection ${config.qdrant.collection}`,
+        detail: qdrantHealth.status === "disabled"
+          ? "QDRANT_URL not set"
+          : `collection ${config.qdrant.collection}`,
+      },
+      {
+        name: "ollama",
+        status: ollamaHealth.status === "disabled" ? "unknown" : ollamaHealth.status,
+        url: config.ollama.url || "—",
+        detail: ollamaHealth.status === "ok"
+          ? `model ${config.ollama.model} · ${(ollamaHealth.models || []).join(", ")}`
+          : ollamaHealth.status === "disabled"
+          ? "OLLAMA_URL not set"
+          : ollamaHealth.error || "unreachable",
       },
     ];
 

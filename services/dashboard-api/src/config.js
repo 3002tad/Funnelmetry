@@ -25,4 +25,9 @@ export const config = {
     url: (process.env.QDRANT_URL || "").trim(),
     collection: process.env.QDRANT_COLLECTION || "pipeline_insights",
   },
+  ollama: {
+    url: (process.env.OLLAMA_URL || "").trim(),
+    model: process.env.OLLAMA_MODEL || "qwen2.5:3b",
+    timeout: Number(process.env.OLLAMA_TIMEOUT_MS || 60000),
+  },
 };
