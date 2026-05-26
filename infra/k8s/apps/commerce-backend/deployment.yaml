@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commerce-backend
+  namespace: realtime
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: commerce-backend
+  template:
+    metadata:
+      labels:
+        app: commerce-backend
+    spec:
+      containers:
+        - name: commerce-backend
+          image: commerce-backend:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: RABBITMQ_URL
+            - name: RABBITMQ_EXCHANGE
+              value: commerce_events
+            - name: CORS_ORIGIN
+              value: http://localhost:5173,http://localhost:8080,http://localhost:3000,http://127.0.0.1:8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi

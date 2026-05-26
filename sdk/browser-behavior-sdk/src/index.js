@@ -22,7 +22,8 @@ function storageSet(key, value) {
 }
 
 export function createBehaviorSdk(options = {}) {
-  const endpoint = (options.endpoint || "http://localhost:3100").replace(/\/$/, "");
+  // Set endpoint via VITE_TRACKING_API_URL — k3s: http://<WSL_IP>:31000
+  const endpoint = (options.endpoint || "http://localhost:31000").replace(/\/$/, "");
   const debug = Boolean(options.debug);
   let userId = options.userId ?? null;
 

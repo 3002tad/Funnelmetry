@@ -11,6 +11,7 @@ import { IconEvents, IconFunnel, IconProducts, IconRevenue } from "../components
 import { StatCard, StatHero } from "../components/StatCard.jsx";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 const SECONDARY = [
   { key: "add_to_cart", label: "Thêm giỏ", icon: IconProducts },
@@ -36,8 +37,13 @@ export function OverviewPage() {
   const [minutes, setMinutes] = useState(60);
   const overviewFetcher = useCallback(() => api.overview(minutes), [minutes]);
   const funnelFetcher = useCallback(() => api.funnel(minutes), [minutes]);
-  const { data, loading, error, refresh } = useAutoRefresh(overviewFetcher);
-  const funnelState = useAutoRefresh(funnelFetcher);
+  const { data, loading, error, refresh } = useAutoRefresh(overviewFetcher, 60000);
+  const funnelState = useAutoRefresh(funnelFetcher, 60000);
+
+  useOnKpiUpdate(useCallback(() => {
+    refresh();
+    funnelState.refresh();
+  }, [refresh, funnelState.refresh]));
 
   const donutData = useMemo(() => {
     if (!data?.kpi) return [];

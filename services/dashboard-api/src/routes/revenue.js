@@ -12,7 +12,7 @@ revenueRouter.get("/api/revenue/summary", async (req, res) => {
          COALESCE(SUM(purchases), 0)::int AS total_purchases,
          COALESCE(SUM(checkout_start), 0)::int AS checkout_starts,
          COALESCE(SUM(add_to_cart), 0)::int AS add_to_cart
-       FROM product_revenue_kpi_1m
+       FROM tracking_kpi_1m
        WHERE window_start >= NOW() - ($1 || ' minutes')::interval`,
       [minutes]
     );
@@ -20,11 +20,10 @@ revenueRouter.get("/api/revenue/summary", async (req, res) => {
     const trend = await query(
       `SELECT
          window_start,
-         SUM(revenue) AS revenue,
-         SUM(purchases)::int AS purchases
-       FROM product_revenue_kpi_1m
+         revenue,
+         purchases
+       FROM tracking_kpi_1m
        WHERE window_start >= NOW() - ($1 || ' minutes')::interval
-       GROUP BY window_start
        ORDER BY window_start ASC`,
       [minutes]
     );

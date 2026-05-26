@@ -4,11 +4,13 @@ import { BarCell, DataPanel, EmptyState, PageError, PageLoading } from "../compo
 import { PageHeader } from "../components/PageHeader.jsx";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 export function BannersPage() {
   const [minutes, setMinutes] = useState(60);
   const fetcher = useCallback(() => api.banners(minutes), [minutes]);
-  const { data, loading, error } = useAutoRefresh(fetcher);
+  const { data, loading, error, refresh } = useAutoRefresh(fetcher, 60000);
+  useOnKpiUpdate(useCallback(() => refresh(), [refresh]));
 
   const banners = data?.banners || [];
   const maxImp = Math.max(...banners.map((b) => Number(b.impressions)), 1);

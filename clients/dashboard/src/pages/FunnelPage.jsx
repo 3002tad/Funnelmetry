@@ -8,6 +8,7 @@ import { DataPanel, EmptyState, PageError, PageLoading } from "../components/Dat
 import { PageHeader } from "../components/PageHeader.jsx";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 const LABELS = {
   page_view: "Xem trang",
@@ -20,7 +21,8 @@ const LABELS = {
 export function FunnelPage() {
   const [minutes, setMinutes] = useState(60);
   const fetcher = useCallback(() => api.funnel(minutes), [minutes]);
-  const { data, loading, error, refresh } = useAutoRefresh(fetcher);
+  const { data, loading, error, refresh } = useAutoRefresh(fetcher, 60000);
+  useOnKpiUpdate(useCallback(() => refresh(), [refresh]));
 
   const chartData = useMemo(
     () => (data?.funnel || []).map((s) => ({

@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS tracking_kpi_1m (
   add_to_cart INT DEFAULT 0,
   checkout_start INT DEFAULT 0,
   purchases INT DEFAULT 0,
+  revenue NUMERIC DEFAULT 0,
   unique_sessions INT DEFAULT 0,
   conversion_rate NUMERIC DEFAULT 0,
   processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

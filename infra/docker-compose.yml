@@ -1,3 +1,5 @@
+# LEGACY — không dùng triển khai runtime. Backend = k3s (infra/k8s/sprint3, infra/PORTS.md).
+# Docker Desktop vẫn dùng để build image: infra/k8s/import-images-sprint3.sh
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -119,76 +121,7 @@ services:
       timeout: 5s
       retries: 5
 
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    container_name: rabbitmq
-    ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-app}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-app}
-    networks:
-      - realtime-network
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-
-  commerce-backend:
-    build:
-      context: ../services/commerce-backend
-      dockerfile: Dockerfile
-    container_name: commerce-backend
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    ports:
-      - "0.0.0.0:${COMMERCE_BACKEND_PORT:-3300}:3000"
-    environment:
-      PORT: 3000
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASS:-app}@rabbitmq:5672
-      RABBITMQ_EXCHANGE: commerce_events
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:8080,http://localhost:3000}
-    networks:
-      - realtime-network
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD", "node", "-e",
-          "fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-
-  commerce-connector:
-    build:
-      context: ../services/commerce-connector
-      dockerfile: Dockerfile
-    container_name: commerce-connector
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      tracking-api:
-        condition: service_healthy
-    environment:
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASS:-app}@rabbitmq:5672
-      RABBITMQ_EXCHANGE: commerce_events
-      RABBITMQ_QUEUE: commerce_connector_queue
-      TRACKING_API_URL: http://tracking-api:3000
-    networks:
-      - realtime-network
-    restart: unless-stopped
+  # rabbitmq, commerce-backend, commerce-connector removed — commerce via browser SDK → tracking-api
 
   tracking-api:
     build:

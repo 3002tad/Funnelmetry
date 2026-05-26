@@ -4,6 +4,7 @@ import { DataPanel, EmptyState, PageLoading, RankBadge } from "../components/Dat
 import { PageHeader } from "../components/PageHeader.jsx";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 const TOP_N = 10;
 
@@ -11,8 +12,9 @@ export function SearchPage() {
   const [minutes, setMinutes] = useState(60);
   const topFetcher = useCallback(() => api.searchTop(minutes), [minutes]);
   const filterFetcher = useCallback(() => api.searchFilters(minutes), [minutes]);
-  const top = useAutoRefresh(topFetcher);
-  const filters = useAutoRefresh(filterFetcher);
+  const top = useAutoRefresh(topFetcher, 60000);
+  const filters = useAutoRefresh(filterFetcher, 60000);
+  useOnKpiUpdate(useCallback(() => { top.refresh(); filters.refresh(); }, [top.refresh, filters.refresh]));
 
   const queryChart = useMemo(
     () => (top.data?.searches || []).slice(0, TOP_N).map((r) => ({

@@ -40,6 +40,9 @@ KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 KAFKA_TOPIC = os.environ.get("KAFKA_TOPIC_RAW", "tracking_events_raw")
 KAFKA_GROUP = os.environ.get("KAFKA_GROUP_ID", "streaming-processor")
 FLUSH_INTERVAL = int(os.environ.get("FLUSH_INTERVAL_SEC", "30"))
+# How many clean events to buffer before flushing to Postgres.
+# Higher = fewer commits = faster throughput; lower = events visible sooner.
+EVENT_BATCH_SIZE = int(os.environ.get("EVENT_BATCH_SIZE", "100"))
 
 POSTGRES_DSN = (
     f"host={os.environ.get('POSTGRES_HOST', 'postgres')} "
@@ -88,7 +91,14 @@ def build_consumer() -> KafkaConsumer:
                 group_id=KAFKA_GROUP,
                 auto_offset_reset="earliest",
                 enable_auto_commit=True,
-                consumer_timeout_ms=1000,  # yields control for periodic flush
+                # Yield control for periodic flush even when queue is empty.
+                consumer_timeout_ms=1000,
+                # Pull up to 500 records per poll so the batch loop fills quickly.
+                max_poll_records=500,
+                # Accumulate at least 16 KB or wait up to 100 ms before returning
+                # a poll — reduces empty polls when events trickle in.
+                fetch_min_bytes=16384,
+                fetch_max_wait_ms=100,
             )
             logger.info("kafka consumer connected — topic=%s group=%s", KAFKA_TOPIC, KAFKA_GROUP)
             return consumer
@@ -97,10 +107,23 @@ def build_consumer() -> KafkaConsumer:
             time.sleep(5)
 
 
+def _flush_event_buffer(sink: PostgresSink, window: WindowAggregator, buf: list) -> int:
+    """Write buffered clean events to Postgres and feed aggregator. Returns count flushed."""
+    if not buf:
+        return 0
+    sink.write_events_batch(buf)
+    for event in buf:
+        window.add(event)
+    n = len(buf)
+    buf.clear()
+    return n
+
+
 def run_pipeline(consumer: KafkaConsumer, sink: PostgresSink, window: WindowAggregator) -> None:
     last_flush = time.monotonic()
     processed = 0
     skipped = 0
+    event_buf: list[dict] = []
 
     while _running:
         for msg in consumer:
@@ -116,18 +139,27 @@ def run_pipeline(consumer: KafkaConsumer, sink: PostgresSink, window: WindowAggr
                 skipped += 1
                 continue
 
-            event = cleaner.clean(raw)
+            event_buf.append(cleaner.clean(raw))
 
+            # Flush event buffer when it reaches the batch size threshold.
+            if len(event_buf) >= EVENT_BATCH_SIZE:
+                try:
+                    processed += _flush_event_buffer(sink, window, event_buf)
+                except Exception as exc:
+                    logger.error("event batch write failed: %s", exc)
+                    skipped += len(event_buf)
+                    event_buf.clear()
+
+        # Flush any remaining buffered events before the KPI flush check.
+        if event_buf:
             try:
-                sink.write_event(event)
-            except Exception:
-                skipped += 1
-                continue
+                processed += _flush_event_buffer(sink, window, event_buf)
+            except Exception as exc:
+                logger.error("event batch write failed: %s", exc)
+                skipped += len(event_buf)
+                event_buf.clear()
 
-            window.add(event)
-            processed += 1
-
-        # Periodic flush (runs even when consumer_timeout_ms fires with no msgs)
+        # Periodic KPI flush (runs even when consumer_timeout_ms fires with no msgs).
         if time.monotonic() - last_flush >= FLUSH_INTERVAL:
             kpi_records = window.flush_completed()
             if kpi_records:
@@ -172,7 +204,7 @@ def main() -> None:
             try:
                 sink.write_kpi_batch(kpi_records)
             except Exception as exc:
-                logger.error("final flush error: %s", exc)
+                logger.error("final kpi flush error: %s", exc)
         consumer.close()
         sink.close()
         logger.info("streaming processor stopped")

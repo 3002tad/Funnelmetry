@@ -4,6 +4,7 @@ import { BarCell, DataPanel, EmptyState, PageLoading, RankBadge } from "../compo
 import { PageHeader } from "../components/PageHeader.jsx";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 function fmt(v) { return Number(v || 0).toLocaleString(); }
 function money(v) { return `${Number(v || 0).toLocaleString("vi-VN")} ₫`; }
@@ -14,8 +15,9 @@ export function ProductsPage() {
   const [minutes, setMinutes] = useState(60);
   const topFetcher = useCallback(() => api.productsTop(minutes), [minutes]);
   const anomFetcher = useCallback(() => api.productsAnomalies(minutes), [minutes]);
-  const top = useAutoRefresh(topFetcher);
-  const anom = useAutoRefresh(anomFetcher);
+  const top = useAutoRefresh(topFetcher, 60000);
+  const anom = useAutoRefresh(anomFetcher, 60000);
+  useOnKpiUpdate(useCallback(() => { top.refresh(); anom.refresh(); }, [top.refresh, anom.refresh]));
 
   const products = top.data?.products || [];
 

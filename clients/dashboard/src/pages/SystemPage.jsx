@@ -3,6 +3,17 @@ import { PageHeader } from "../components/PageHeader.jsx";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
 
+function fmtTime(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 export function SystemPage() {
   const fetcher = useCallback(() => api.systemPipeline(), []);
   const { data, loading, error, refresh } = useAutoRefresh(fetcher, 10000);
@@ -11,15 +22,28 @@ export function SystemPage() {
   if (error) return <p className="empty">Lỗi: {error}</p>;
 
   const m = data?.metrics || {};
+  const overall = data?.status || "unknown";
+  const env = data?.environment || "—";
 
   return (
     <>
       <PageHeader
         variant="admin"
         title="Pipeline Monitor"
-        subtitle="Real-time health check — auto refresh 10s"
+        subtitle={`k3s cluster · ${env} · refresh 10s · ${fmtTime(data?.checked_at)}`}
         onRefresh={refresh}
       />
+
+      <div className="admin-panel" style={{ marginBottom: "1rem" }}>
+        <div className="admin-panel-body" style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+          <span className={`badge ${overall === "healthy" ? "ok" : "degraded"}`}>
+            {overall === "healthy" ? "HEALTHY" : "DEGRADED"}
+          </span>
+          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+            Probe nội bộ cluster (tracking-api, postgres, qdrant, ollama)
+          </span>
+        </div>
+      </div>
 
       <div className="admin-card-grid">
         <div className="admin-card highlight">
@@ -29,10 +53,12 @@ export function SystemPage() {
         <div className="admin-card">
           <div className="label">Total events</div>
           <div className="value">{Number(m.events_total ?? 0).toLocaleString()}</div>
+          <div className="sub">Event cuối: {fmtTime(m.last_event_at)}</div>
         </div>
         <div className="admin-card ok">
           <div className="label">KPI windows 1h</div>
           <div className="value">{m.kpi_windows_1h ?? "—"}</div>
+          <div className="sub">Flush KPI: {fmtTime(m.last_kpi_flush)}</div>
         </div>
         <div className="admin-card">
           <div className="label">Catalog SKUs</div>

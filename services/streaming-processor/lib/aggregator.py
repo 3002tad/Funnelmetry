@@ -71,6 +71,7 @@ class WindowAggregator:
             tk["checkout_start"] += 1
         elif etype == "purchase_succeeded":
             tk["purchases"] += 1
+            tk["revenue"] += float(metadata.get("amount") or metadata.get("price") or 0)
 
         # --- product_kpi_1m ---
         if product_id and etype in ("product_view", "add_to_cart", "purchase_succeeded"):
@@ -186,7 +187,7 @@ def _empty_tracking_kpi() -> dict:
     return {
         "total_events": 0, "page_views": 0, "product_views": 0,
         "clicks": 0, "searches": 0, "add_to_cart": 0,
-        "checkout_start": 0, "purchases": 0,
+        "checkout_start": 0, "purchases": 0, "revenue": 0.0,
     }
 
 

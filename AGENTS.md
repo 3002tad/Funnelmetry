@@ -1,23 +1,22 @@
 # Agent context
 
-**Đọc spec:** [`docs/PROJECT.md`](docs/PROJECT.md) · **Map repo:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md)
+**Runtime (k3s):** [`docs/RUNTIME.md`](docs/RUNTIME.md) · **Spec:** [`docs/PROJECT.md`](docs/PROJECT.md) · **Map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md) · **LLM:** [`docs/LLM_PRIMER.md`](docs/LLM_PRIMER.md)
 
 ## Mục tiêu
 
 Refactor pipeline cũ (business event demo) → **hệ thống tracking realtime** cho website TMĐT demo:
 
 - **Behavior events** từ Browser Behavior SDK (xương sống)
-- **Commerce events** từ Demo Commerce Backend → RabbitMQ → Commerce Connector → schema chung
+- **Commerce events** từ browser SDK (checkout, purchase) — cùng schema tracking; không dùng RabbitMQ
 - **Kafka + Streaming Processor** → PostgreSQL + insight → **Qdrant**
 - **Dashboard + Chatbot AI** (RAG: Postgres số liệu + Qdrant ngữ cảnh)
 
 ## Kiến trúc (tóm tắt)
 
 ```text
-Bot/User → Demo Web + SDK → Tracking API → Kafka → Streaming → PostgreSQL
-Commerce Backend → RabbitMQ → Connector ─┘                              ↓
-                                                              Insight → Qdrant
-                                                              Dashboard + Chatbot
+Demo-shop + SDK → Tracking API → Kafka → Streaming → PostgreSQL + Qdrant insights
+                                                      ↓
+                                            Dashboard API/UI + Chat (Ollama in k3s)
 ```
 
 ## Stack / pattern
@@ -29,7 +28,7 @@ Commerce Backend → RabbitMQ → Connector ─┘                              
 
 ## Triển khai demo (xem doc mạng)
 
-- **Laptop 1 (WSL2):** backend stack (API, Kafka, RabbitMQ, streaming, Postgres, Qdrant, dashboard)
+- **Laptop 1 (WSL2):** **k3s** — tracking, Kafka, streaming, Postgres, Qdrant, Ollama, dashboard (`k3s kubectl apply -k infra/k8s/sprint3`)
 - **Laptop 2 (Windows):** web demo + Bot Simulator (Playwright); SDK gửi event qua tailnet về Laptop 1
 - **Server:** Headscale + DERP (+ bot backup)
 
@@ -37,8 +36,8 @@ Commerce Backend → RabbitMQ → Connector ─┘                              
 
 | Có sẵn | Shell / phase sau |
 |--------|------------------|
-| Phase 1–6: tracking, streaming, dashboard, commerce, chatbot+Qdrant | Phase 4: `bot-simulator` |
-| `infra/` Kafka, Postgres, RabbitMQ, Qdrant, compose | Bot simulator (Playwright) |
+| Phase 1–6: tracking, streaming, dashboard, chatbot+Qdrant (commerce qua SDK) | Phase 4: `bot-simulator` |
+| `infra/k8s/sprint3` + `infra/PORTS.md` | RabbitMQ/commerce-backend (legacy code only) |
 | `services/dashboard-api/`, `clients/dashboard/` | `POST /api/chat`, insight → Qdrant |
 
 Chi tiết path + phase: [`docs/REPO_MAP.md`](docs/REPO_MAP.md).

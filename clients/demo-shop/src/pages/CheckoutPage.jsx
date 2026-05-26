@@ -8,19 +8,28 @@ export function CheckoutPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("demo@shop.local");
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
     tracking.setUserId(email);
-    tracking
-      .trackCustom("purchase_succeeded", {
-        event_category: "behavior",
-        metadata: {
-          order_id: `ORD${Date.now()}`,
-          amount: cart.total(),
-          item_count: cart.items.length,
-        },
-      })
-      .catch(() => {});
+    const orderId = `ORD${Date.now()}`;
+
+    await tracking.trackCustom("checkout_start", {
+      metadata: { order_id: orderId, amount: cart.total(), item_count: cart.items.length },
+    }).catch(() => {});
+
+    for (const item of cart.items) {
+      await tracking
+        .trackCustom("purchase_succeeded", {
+          product_id: item.id,
+          metadata: {
+            order_id: orderId,
+            amount: item.price * item.qty,
+            quantity: item.qty,
+          },
+        })
+        .catch(() => {});
+    }
+
     cart.clear();
     navigate("/thank-you");
   }

@@ -9,6 +9,7 @@ import { IconRevenue } from "../components/icons.jsx";
 import { StatCard, StatHero } from "../components/StatCard.jsx";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 const COLORS = ["#f54e00", "#53389e", "#15803d", "#0ea5e9", "#d97706", "#ec4899"];
 
@@ -18,8 +19,14 @@ export function RevenuePage() {
   const [minutes, setMinutes] = useState(60);
   const summaryFetcher = useCallback(() => api.revenueSummary(minutes), [minutes]);
   const catFetcher = useCallback(() => api.revenueByCategory(minutes), [minutes]);
-  const summary = useAutoRefresh(summaryFetcher);
-  const categories = useAutoRefresh(catFetcher);
+  const summary = useAutoRefresh(summaryFetcher, 60000);
+  const categories = useAutoRefresh(catFetcher, 60000);
+
+  // Refresh immediately when streaming-processor flushes a new KPI window.
+  useOnKpiUpdate(useCallback(() => {
+    summary.refresh();
+    categories.refresh();
+  }, [summary.refresh, categories.refresh]));
 
   const trendData = useMemo(
     () => (summary.data?.trend || []).map((row) => ({

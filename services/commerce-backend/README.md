@@ -1,5 +1,7 @@
-# commerce-backend
+# commerce-backend (legacy)
 
-**Spec:** Demo Commerce Backend — add_to_cart, checkout, purchase → publish RabbitMQ.
+**Không deploy** trong runtime k3s hiện tại.
 
-**Next:** REST cho demo-shop; RabbitMQ exchange/queue theo [REPO_MAP](../../docs/REPO_MAP.md).
+Commerce events (`checkout_start`, `purchase_succeeded`, …) gửi qua **browser SDK** → `tracking-api`.
+
+Manifest cũ: `infra/k8s/apps/commerce-backend/` · Xem [`docs/RUNTIME.md`](../../docs/RUNTIME.md).

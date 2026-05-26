@@ -1,5 +1,6 @@
 # Refactor tracking pipeline
 
+> **Runtime deploy:** [`RUNTIME.md`](RUNTIME.md) — k3s, không RabbitMQ; commerce qua SDK. Tài liệu dưới là spec gốc (có thể khác deploy).
 
 TỔNG HỢP REFACTOR PROJECT
 

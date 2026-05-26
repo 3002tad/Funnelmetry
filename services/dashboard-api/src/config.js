@@ -10,7 +10,6 @@ export const config = {
   adminPassword: process.env.DASHBOARD_ADMIN_PASSWORD || "admin123",
   pipeline: {
     trackingApi: process.env.PIPELINE_TRACKING_API_URL || "http://tracking-api:3000",
-    commerceApi: process.env.PIPELINE_COMMERCE_API_URL || "http://commerce-backend:3000",
   },
   db: {
     host: process.env.POSTGRES_HOST || "localhost",
@@ -26,7 +25,7 @@ export const config = {
     collection: process.env.QDRANT_COLLECTION || "pipeline_insights",
   },
   ollama: {
-    url: (process.env.OLLAMA_URL || "").trim(),
+    url: (process.env.OLLAMA_URL || process.env.OLLAMA_URL_FALLBACK || "").trim(),
     model: process.env.OLLAMA_MODEL || "qwen2.5:3b",
     timeout: Number(process.env.OLLAMA_TIMEOUT_MS || 60000),
   },

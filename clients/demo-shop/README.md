@@ -1,16 +1,18 @@
 # demo-shop
 
-React demo TMĐT + Behavior SDK.
+React demo TMĐT + Behavior SDK. Backend **k3s** trên WSL2.
 
 ## Pages
 
 `/`, `/products`, `/products/:id`, `/cart`, `/checkout`, `/thank-you`
 
-## Run
+## Run (dev)
 
 ```bash
+# infra/.env — VITE_TRACKING_API_URL=http://<WSL_IP>:31000
 npm install
-VITE_TRACKING_API_URL=http://localhost:3100 npm run dev
+npm run dev
+# → http://localhost:5173
 ```
 
-Docker: `http://localhost:8080` (see root README).
+Ports: [`infra/PORTS.md`](../../infra/PORTS.md)

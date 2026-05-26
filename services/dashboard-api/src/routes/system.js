@@ -32,7 +32,6 @@ systemRouter.get("/api/system/pipeline", async (_req, res) => {
     const [services, qdrantHealth, ollamaHealth, pipeline] = await Promise.all([
       Promise.all([
         probeHttp("tracking-api", `${config.pipeline.trackingApi}/health`),
-        probeHttp("commerce-backend", `${config.pipeline.commerceApi}/health`),
         probeHttp("dashboard-api", "http://127.0.0.1:3000/health"),
       ]),
       getQdrantStore().health(),
@@ -81,12 +80,6 @@ systemRouter.get("/api/system/pipeline", async (_req, res) => {
         detail: "inferred via tracking-api",
       },
       {
-        name: "rabbitmq",
-        status: services[1]?.status === "ok" ? "ok" : "unknown",
-        url: "commerce_events",
-        detail: "inferred via commerce-backend",
-      },
-      {
         name: "qdrant",
         status: qdrantHealth.status === "disabled" ? "unknown" : qdrantHealth.status,
         url: qdrantHealth.url || config.qdrant.url || "—",
@@ -110,12 +103,13 @@ systemRouter.get("/api/system/pipeline", async (_req, res) => {
 
     res.json({
       status: allOk ? "healthy" : "degraded",
+      environment: process.env.KUBERNETES_SERVICE_HOST ? "k3s" : "local",
       checked_at: new Date().toISOString(),
       flow: [
         "Browser / Web-shop → Tracking API",
         "Tracking API → Kafka (tracking_events_raw)",
         "Streaming Processor → PostgreSQL (clean + KPI)",
-        "Commerce Backend → RabbitMQ → Connector → Tracking API",
+        "Commerce events (checkout, purchase) → browser SDK → Tracking API",
         "Streaming Processor → Qdrant (insights)",
         "Dashboard API → PostgreSQL + Qdrant → Dashboard / Chatbot",
       ],

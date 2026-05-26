@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracking-api
+  namespace: realtime
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracking-api
+  template:
+    metadata:
+      labels:
+        app: tracking-api
+    spec:
+      containers:
+        - name: tracking-api
+          image: tracking-api:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: KAFKA_TOPIC_RAW
+              value: tracking_events_raw
+            - name: CORS_ORIGIN
+              value: http://localhost:5173,http://localhost:8080,http://localhost:8090,http://localhost:30809,http://127.0.0.1:5173,http://127.0.0.1:8080,http://lap2:3000,http://lap2:8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

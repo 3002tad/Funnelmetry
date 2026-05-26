@@ -1,6 +1,8 @@
 # Spec → Repo mapping
 
-Ánh xạ [`Refactor_tracking_pipeline.md`](Refactor_tracking_pipeline.md) và [`Thiet_lap_mang_moi_truong.md`](Thiet_lap_mang_moi_truong.md) vào cấu trúc repo hiện tại.
+> **Runtime thật (k3s):** [`RUNTIME.md`](RUNTIME.md) — không RabbitMQ; commerce qua SDK.
+
+Ánh xạ [`Refactor_tracking_pipeline.md`](Refactor_tracking_pipeline.md) và [`Thiet_lap_mang_moi_truong.md`](Thiet_lap_mang_moi_truong.md) vào cấu trúc repo.
 
 **Chú thích status:** `có` = đã có code/infra · `shell` = thư mục/README, chưa implement · `spec` = chỉ trong tài liệu · `đổi tên` = tên repo khác tên spec
 
@@ -12,14 +14,15 @@
 |-------------------|-----------------|--------|---------|
 | Browser Behavior SDK | `sdk/browser-behavior-sdk/` | có | `createBehaviorSdk()` → Tracking API |
 | Demo Web TMĐT | `clients/demo-shop/` | có | React + SDK; Docker `:8080` hoặc Vite `:5173` |
-| Demo Commerce Backend | `services/commerce-backend/` | shell | Publish commerce event → RabbitMQ |
-| Commerce Connector | `services/commerce-connector/` | shell | RabbitMQ → schema chung → Tracking API / Kafka |
+| Demo Commerce Backend | `services/commerce-backend/` | legacy | Không deploy; thay bằng SDK commerce events |
+| Commerce Connector | `services/commerce-connector/` | legacy | Không deploy |
 | Tracking API | `services/tracking-api/` | có | `POST /track`, `/track/batch` → Kafka `tracking_events_raw` |
-| Kafka | `infra/docker-compose.yml` (`kafka`) | có | Topic chính: `tracking_events_raw` (spec) |
+| Kafka | `infra/k8s/data/kafka/` | có | Topic: `tracking_events_raw` |
 | Streaming Processor | `services/streaming-processor/` | có (placeholder) | Spark job: Kafka → Postgres + KPI |
-| PostgreSQL | `infra/postgres/init.sql` | có (bootstrap) | Schema KPI → `infra/postgres/` (xem §4) |
-| Qdrant | `infra/docker-compose.yml` (`qdrant`) | có | Collection `pipeline_insights`; RAG chatbot |
-| RabbitMQ | `infra/` (compose TBD) | spec | Should-have |
+| PostgreSQL | `infra/postgres/`, `infra/k8s/data/postgres/` | có | Schema + k8s init |
+| Qdrant | `infra/k8s/data/qdrant/` | có | Collection `pipeline_insights`; RAG chatbot |
+| Ollama | `infra/k8s/apps/ollama/` | có | LLM in-cluster; PVC `ollama-data` |
+| RabbitMQ | `infra/k8s/data/rabbitmq/` | legacy | Không deploy |
 | Dashboard API + Chatbot API | `services/dashboard-api/` | có | `GET /api/*`, `POST /api/chat`, `GET /api/chat/insights` |
 | Dashboard + Chatbot UI | `clients/dashboard/` | có | Overview, funnel, product, `/admin/chat`, `/shop/chat` |
 | Bot Simulator | `bot-simulator/` | shell | Playwright; chạy Laptop 2 (spec mạng) |
@@ -36,7 +39,7 @@
 | `spark-streaming` | `services/streaming-processor/` | Đã đổi tên; giữ Spark/Kafka/Postgres; đổi logic KPI |
 | `dashboard-api` | `services/dashboard-api/` | Thêm overview, funnel, products, chat |
 | `clients/dashboard` | `clients/dashboard/` | Đổi KPI sang behavior analytics |
-| `infra` docker/k8s | `infra/` | Thêm RabbitMQ, Qdrant khi cần |
+| `infra` docker/k8s | `infra/k8s/` | k3s sprint1–3; Compose legacy |
 | `producer-poller` | — | Bỏ; Tracking API publish thẳng Kafka |
 
 ---
@@ -44,22 +47,16 @@
 ## 3. Luồng dữ liệu → service
 
 ```text
-[Laptop 2] bot-simulator/ + clients/demo-shop/ + sdk/
-       │ behavior: POST /track
-       │ commerce: Demo Commerce Backend → RabbitMQ
+[Laptop 2] clients/demo-shop/ + sdk/  →  POST /track (behavior + commerce)
        ▼
-[Laptop 1] services/tracking-api/ → Kafka (tracking_events_raw)
-       ▲
-       └── services/commerce-connector/ ← RabbitMQ ← services/commerce-backend/
-
-Kafka → services/streaming-processor/ → PostgreSQL (+ insight → Qdrant TBD)
-PostgreSQL + Qdrant → services/dashboard-api/ → clients/dashboard/
+[Laptop 1 k3s] tracking-api → Kafka (tracking_events_raw)
+       → streaming-processor → PostgreSQL + Qdrant
+       → dashboard-api → dashboard-ui (+ ollama chat)
 ```
 
 | Bước | Topic / API | Owner path |
 |------|-------------|------------|
-| Ingest behavior | `POST /track`, `/track/batch` | `services/tracking-api/` |
-| Ingest commerce | RabbitMQ queue (TBD name) → connector | `commerce-backend/`, `commerce-connector/` |
+| Ingest (behavior + commerce) | `POST /track`, `/track/batch` | `services/tracking-api/` |
 | Raw events | Kafka `tracking_events_raw` | `infra` + producers |
 | Clean + KPI | Spark job | `services/streaming-processor/` |
 | Serving | `GET /api/overview`, `/api/funnel`, … | `services/dashboard-api/` |
@@ -126,13 +123,13 @@ Entrypoint hiện tại: `main.py` (placeholder health wait).
 
 | Môi trường | File | Ghi chú |
 |------------|------|---------|
-| Docker Compose (dev) | `infra/docker-compose.yml` | Hiện: ZK, Kafka, Postgres, Spark |
-| K3s | `infra/k8s/k3s-stack.yaml` | Backup / prod-like |
-| Headscale / Tailscale | — | Cấu hình trên máy; xem `Thiet_lap_mang_moi_truong.md` |
-| Laptop 1 backend | WSL2 chạy stack trong `infra/` | |
-| Laptop 2 demo + bot | Windows: `clients/demo-shop`, `bot-simulator/` | |
-
-**Compose cần bổ sung (should-have):** `rabbitmq`, `qdrant`, `tracking-api`, `commerce-*`, `nginx`.
+| **k3s (runtime)** | `infra/k8s/sprint3/` | `k3s kubectl apply -k infra/k8s/sprint3` — NodePort 31000, 32000, 30809 |
+| Runtime doc | `docs/RUNTIME.md` | Nguồn chân lý deploy |
+| Port map | `infra/PORTS.md` | NodePort, CORS, tailnet |
+| Docker Compose (legacy) | `infra/docker-compose.yml` | Không deploy |
+| Headscale / Tailscale | — | `docs/Thiet_lap_mang_moi_truong.md` |
+| Laptop 1 backend | WSL2 + k3s | |
+| Laptop 2 demo + bot | `clients/demo-shop`, `bot-simulator/` | `VITE_TRACKING_API_URL` → WSL IP `:31000` (k3s) |
 
 ---
 
@@ -145,7 +142,7 @@ Entrypoint hiện tại: `main.py` (placeholder health wait).
 | 2 | Streaming: consume `tracking_events_raw`, sink clean + KPI | `services/streaming-processor/lib/` | **Done** |
 | 3 | Dashboard API + UI overview/funnel/events/products | `dashboard-api/`, `clients/dashboard/` | **Done** |
 | 4 | Bot simulator | `bot-simulator/` |
-| 5 | Commerce backend + RabbitMQ + connector | `commerce-*`, `infra/docker-compose.yml` |
+| 5 | Commerce via SDK (legacy `commerce-*` code) | `clients/demo-shop/`, `sdk/` |
 | 6 | Chatbot + Qdrant | `dashboard-api/`, `infra/` | **Done** |
 
 ---
@@ -160,6 +157,7 @@ Entrypoint hiện tại: `main.py` (placeholder health wait).
 │   ├── demo-shop/              # Web TMĐT demo
 │   └── dashboard/              # Analytics + chatbot UI
 ├── docs/
+│   ├── RUNTIME.md              # deploy thật (k3s)
 │   ├── PROJECT.md
 │   ├── REPO_MAP.md             # file này
 │   ├── Refactor_tracking_pipeline.md

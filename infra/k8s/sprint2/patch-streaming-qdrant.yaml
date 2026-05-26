@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streaming-processor
+  namespace: realtime
+spec:
+  template:
+    spec:
+      containers:
+        - name: streaming-processor
+          env:
+            - name: QDRANT_URL
+              value: http://qdrant:6333

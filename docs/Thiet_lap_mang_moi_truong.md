@@ -1,5 +1,6 @@
 # Thiet lap mang moi truong
 
+> **Runtime deploy hôm nay:** [`RUNTIME.md`](RUNTIME.md) — k3s trên WSL2; không RabbitMQ; commerce qua browser SDK.
 
 TỔNG HỢP THIẾT LẬP MẠNG + MÔI TRƯỜNG CHẠY DEMO
 
@@ -12,7 +13,7 @@ Mô hình cập nhật đặt bot giả lập ở Laptop 2, cùng nơi chạy we
 | Thiết bị | Vai trò chính | Thành phần chạy |
 | --- | --- | --- |
 | Server Xubuntu | Control plane mạng riêng + relay + bot backup | Headscale, DERP, Bot Simulator dự phòng/Bot Controller tùy chọn |
-| Laptop 1 | Node backend/dashboard chính | Ubuntu WSL2, Tailscale trong WSL2, k3s/Docker, Tracking API, Demo Commerce Backend, Kafka, RabbitMQ, Streaming, PostgreSQL, Qdrant, Dashboard/Chatbot |
+| Laptop 1 | Node backend/dashboard chính | Ubuntu WSL2, Tailscale, **k3s** (`infra/k8s/sprint3`), Tracking API, Kafka, Streaming, PostgreSQL, Qdrant, Dashboard, Ollama |
 | Laptop 2 | Node web demo + bot chính + thiết bị thao tác | Windows local, Tailscale Windows, Web Demo TMĐT, Bot Simulator Playwright, trình duyệt cho giảng viên thao tác |
 
 # 2. Sơ đồ mạng đề xuất

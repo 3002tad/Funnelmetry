@@ -13,10 +13,7 @@ export async function fetchOverview(minutes) {
        CASE WHEN SUM(t.unique_sessions) > 0
          THEN ROUND(SUM(t.purchases)::numeric / SUM(t.unique_sessions), 4)
          ELSE 0 END AS conversion_rate,
-       COALESCE((
-         SELECT SUM(r.revenue) FROM product_revenue_kpi_1m r
-         WHERE r.window_start >= NOW() - ($1 || ' minutes')::interval
-       ), 0) AS total_revenue
+         COALESCE(SUM(t.revenue), 0) AS total_revenue
      FROM tracking_kpi_1m t
      WHERE t.window_start >= NOW() - ($1 || ' minutes')::interval`,
     [minutes]

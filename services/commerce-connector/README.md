@@ -1,5 +1,5 @@
-# commerce-connector
+# commerce-connector (legacy)
 
-**Spec:** Consume RabbitMQ → chuẩn hóa schema tracking → Tracking API hoặc Kafka.
+**Không deploy** — từng consume RabbitMQ → forward `tracking-api`.
 
-**Pattern:** Adapter / Connector (spec §0.1).
+Runtime: [`docs/RUNTIME.md`](../../docs/RUNTIME.md).

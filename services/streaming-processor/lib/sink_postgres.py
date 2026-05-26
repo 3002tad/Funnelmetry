@@ -27,12 +27,13 @@ ON CONFLICT (event_id) DO NOTHING;
 _UPSERT_TRACKING_KPI = """
 INSERT INTO tracking_kpi_1m
   (window_start, window_end, total_events, page_views, product_views,
-   clicks, searches, add_to_cart, checkout_start, purchases,
+   clicks, searches, add_to_cart, checkout_start, purchases, revenue,
    unique_sessions, conversion_rate)
 VALUES
   (%(window_start)s, %(window_end)s, %(total_events)s, %(page_views)s,
    %(product_views)s, %(clicks)s, %(searches)s, %(add_to_cart)s,
-   %(checkout_start)s, %(purchases)s, %(unique_sessions)s, %(conversion_rate)s)
+   %(checkout_start)s, %(purchases)s, %(revenue)s, %(unique_sessions)s,
+   %(conversion_rate)s)
 ON CONFLICT (window_start) DO UPDATE SET
   total_events    = EXCLUDED.total_events,
   page_views      = EXCLUDED.page_views,
@@ -42,6 +43,7 @@ ON CONFLICT (window_start) DO UPDATE SET
   add_to_cart     = EXCLUDED.add_to_cart,
   checkout_start  = EXCLUDED.checkout_start,
   purchases       = EXCLUDED.purchases,
+  revenue         = EXCLUDED.revenue,
   unique_sessions = EXCLUDED.unique_sessions,
   conversion_rate = EXCLUDED.conversion_rate,
   processed_at    = CURRENT_TIMESTAMP;
@@ -139,36 +141,53 @@ class PostgresSink:
             raise
 
     def write_event(self, event: dict) -> None:
-        params = {
-            "event_id": event.get("event_id"),
-            "event_time": event.get("event_time"),
-            "event_source": event.get("event_source"),
-            "event_category": event.get("event_category"),
-            "event_type": event.get("event_type"),
-            "anonymous_id": event.get("anonymous_id"),
-            "session_id": event.get("session_id"),
-            "user_id": event.get("user_id"),
-            "page_url": event.get("page_url"),
-            "product_id": event.get("product_id"),
-            "metadata": json.dumps(event.get("metadata") or {}),
-        }
+        """Write a single event. Prefer write_events_batch for throughput."""
+        self.write_events_batch([event])
+
+    def write_events_batch(self, events: list[dict]) -> None:
+        """Batch-insert events — one commit for the whole batch (much faster)."""
+        if not events:
+            return
+
+        params_list = [
+            {
+                "event_id": e.get("event_id"),
+                "event_time": e.get("event_time"),
+                "event_source": e.get("event_source"),
+                "event_category": e.get("event_category"),
+                "event_type": e.get("event_type"),
+                "anonymous_id": e.get("anonymous_id"),
+                "session_id": e.get("session_id"),
+                "user_id": e.get("user_id"),
+                "page_url": e.get("page_url"),
+                "product_id": e.get("product_id"),
+                "metadata": json.dumps(e.get("metadata") or {}),
+            }
+            for e in events
+        ]
+
+        catalog_params = []
+        for e in events:
+            pid = e.get("product_id")
+            meta = e.get("metadata") or {}
+            p_name = meta.get("name") or meta.get("product_name")
+            p_price = meta.get("price") or meta.get("unit_price")
+            if pid and p_name and p_price is not None:
+                catalog_params.append({
+                    "product_id": pid,
+                    "name": str(p_name),
+                    "price": float(p_price),
+                    "category": meta.get("category") or "",
+                })
+
         try:
             with self._cursor() as cur:
-                cur.execute(_INSERT_EVENT, params)
-                # Auto-register product in catalog when event carries name/price.
-                pid = event.get("product_id")
-                meta = event.get("metadata") or {}
-                p_name = meta.get("name") or meta.get("product_name")
-                p_price = meta.get("price") or meta.get("unit_price")
-                if pid and p_name and p_price is not None:
-                    cur.execute(_UPSERT_PRODUCT_CATALOG, {
-                        "product_id": pid,
-                        "name": str(p_name),
-                        "price": float(p_price),
-                        "category": meta.get("category") or "",
-                    })
+                psycopg2.extras.execute_batch(cur, _INSERT_EVENT, params_list)
+                if catalog_params:
+                    psycopg2.extras.execute_batch(cur, _UPSERT_PRODUCT_CATALOG, catalog_params)
+            logger.debug("wrote batch of %d events", len(events))
         except Exception as exc:
-            logger.error("write_event failed event_id=%s: %s", event.get("event_id"), exc)
+            logger.error("write_events_batch failed (batch size=%d): %s", len(events), exc)
             raise
 
     def write_kpi_batch(self, records: list[dict]) -> None:
