@@ -7,7 +7,7 @@ alwaysApply: true
 
 **Runtime:** [`docs/RUNTIME.md`](docs/RUNTIME.md). **Spec:** [`docs/PROJECT.md`](docs/PROJECT.md). **Repo map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md) — implement đúng path, không đoán tên topic/table.
 
-Refactor toward **e-commerce behavior tracking**: SDK + Kafka streaming + Postgres + Qdrant insights + dashboard/chatbot RAG. Commerce events via **browser SDK** (không RabbitMQ). Do not invent topic/table names — use the spec.
+Refactor toward **e-commerce behavior tracking**: SDK + RabbitMQ/Kafka streaming + Postgres + Qdrant insights + dashboard/chatbot RAG. Commerce events via **commerce-backend -> RabbitMQ -> connector -> tracking-api**. Do not invent topic/table names — use the spec.
 
 **This repo today:** backend runtime = **k3s** (`infra/k8s/sprint3`). Port map: [`infra/PORTS.md`](infra/PORTS.md). `infra/docker-compose.yml` = legacy (không deploy). Build image: `infra/k8s/import-images-sprint3.sh`.
 

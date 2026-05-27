@@ -1,7 +1,15 @@
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value || !String(value).trim()) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return String(value).trim();
+}
+
 export const config = {
-  port: Number(process.env.PORT || 3000),
-  rabbitmqUrl: process.env.RABBITMQ_URL || "amqp://app:app@localhost:5672",
-  exchange: process.env.RABBITMQ_EXCHANGE || "commerce_events",
-  corsOrigins: (process.env.CORS_ORIGIN || "http://localhost:3000")
+  port: Number(requireEnv("PORT")),
+  rabbitmqUrl: requireEnv("RABBITMQ_URL"),
+  exchange: requireEnv("RABBITMQ_EXCHANGE"),
+  corsOrigins: requireEnv("CORS_ORIGIN")
     .split(",").map((s) => s.trim()).filter(Boolean),
 };

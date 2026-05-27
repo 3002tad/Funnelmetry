@@ -7,14 +7,14 @@
 Refactor pipeline cũ (business event demo) → **hệ thống tracking realtime** cho website TMĐT demo:
 
 - **Behavior events** từ Browser Behavior SDK (xương sống)
-- **Commerce events** từ browser SDK (checkout, purchase) — cùng schema tracking; không dùng RabbitMQ
+- **Commerce events** từ commerce-backend qua RabbitMQ + connector (schema tracking thống nhất)
 - **Kafka + Streaming Processor** → PostgreSQL + insight → **Qdrant**
 - **Dashboard + Chatbot AI** (RAG: Postgres số liệu + Qdrant ngữ cảnh)
 
 ## Kiến trúc (tóm tắt)
 
 ```text
-Demo-shop + SDK → Tracking API → Kafka → Streaming → PostgreSQL + Qdrant insights
+Web-shop + SDK → Tracking API → Kafka → Streaming → PostgreSQL + Qdrant insights
                                                       ↓
                                             Dashboard API/UI + Chat (Ollama in k3s)
 ```
@@ -36,8 +36,8 @@ Demo-shop + SDK → Tracking API → Kafka → Streaming → PostgreSQL + Qdrant
 
 | Có sẵn | Shell / phase sau |
 |--------|------------------|
-| Phase 1–6: tracking, streaming, dashboard, chatbot+Qdrant (commerce qua SDK) | Phase 4: `bot-simulator` |
-| `infra/k8s/sprint3` + `infra/PORTS.md` | RabbitMQ/commerce-backend (legacy code only) |
+| Phase 1–6: tracking, streaming, dashboard, chatbot+Qdrant (commerce qua RabbitMQ path) | Phase 4: `bot-simulator` |
+| `infra/k8s/sprint3` + `infra/PORTS.md` | RabbitMQ/commerce-backend/connector deploy cùng stack |
 | `services/dashboard-api/`, `clients/dashboard/` | `POST /api/chat`, insight → Qdrant |
 
 Chi tiết path + phase: [`docs/REPO_MAP.md`](docs/REPO_MAP.md).

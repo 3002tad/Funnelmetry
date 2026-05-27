@@ -1,5 +1,8 @@
-# Full stack (same as sprint2). Commerce/RabbitMQ removed — commerce events via browser SDK only.
+# Full stack + commerce path (RabbitMQ + commerce-backend + connector).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../sprint2
+  - ../data/rabbitmq
+  - ../apps/commerce-backend
+  - ../apps/commerce-connector

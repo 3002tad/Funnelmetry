@@ -45,30 +45,17 @@ Kết quả mong đợi: `{"accepted": true, "event_id": "evt_..."}`
 
 ---
 
-## Bước 3 — SDK trong project React
+## Bước 3 — Cấu hình web-shop
 
-Khuyến nghị dùng package repo: `sdk/browser-behavior-sdk/` (demo-shop đã tích hợp).
+`clients/web-shop` đã tích hợp SDK và endpoint `/track` nội bộ.
 
 ### `.env` (Laptop 2)
 
 ```env
-VITE_TRACKING_API_URL=http://lap1:31000
+TRACKING_FORWARD_URL=http://lap1:31000/track
 ```
 
-Hoặc WSL IP: `http://172.29.x.x:31000` (xem `hostname -I` trong WSL).
-
-### Ví dụ `src/lib/tracking.js`
-
-```javascript
-import { createBehaviorSdk } from "@pipeline/browser-behavior-sdk";
-
-export const tracking = createBehaviorSdk({
-  endpoint: import.meta.env.VITE_TRACKING_API_URL || "http://lap1:31000",
-  debug: import.meta.env.DEV,
-});
-
-tracking.initAutoPageView();
-```
+Hoặc WSL IP: `http://172.29.x.x:31000/track` (xem `hostname -I` trong WSL).
 
 Commerce (`checkout_start`, `purchase_succeeded`, …) gửi cùng SDK — `event_source: browser_sdk`.
 

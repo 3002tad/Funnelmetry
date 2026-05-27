@@ -2,7 +2,7 @@
 # Expose tracking-api on localhost:31000 from Windows browser (WSL k3s).
 # Run in Ubuntu and keep terminal open:
 #   bash infra/k8s/port-forward-tracking.sh
-# Then demo-shop: VITE_TRACKING_API_URL=http://localhost:31000
+# Then web-shop: TRACKING_FORWARD_URL=http://localhost:31000/track
 
 set -euo pipefail
 

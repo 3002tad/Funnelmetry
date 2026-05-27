@@ -7,7 +7,7 @@ Realtime e-commerce **behavior tracking** demo: SDK → Tracking API → Kafka �
 - Postgres schema: `infra/postgres/`
 - **Tracking API:** `services/tracking-api` — `POST /track`, `POST /track/batch`
 - **Browser SDK:** `sdk/browser-behavior-sdk`
-- **Demo shop:** `clients/demo-shop`
+- **Web shop:** `clients/web-shop` (submodule)
 - **Streaming Processor:** `services/streaming-processor` → Postgres + Qdrant insights
 - **Dashboard:** `services/dashboard-api` + `clients/dashboard`
 - **Runtime:** **k3s** on WSL2 — `infra/k8s/sprint3`
@@ -38,12 +38,14 @@ k3s kubectl -n realtime get pods
 | Tracking API | http://`<WSL_IP>`:31000/health |
 | Dashboard API | http://`<WSL_IP>`:32000/health |
 
-3. **Demo shop** (Windows):
+3. **Web shop** (Windows):
 
 ```bash
-cd clients/demo-shop && npm install && npm run dev
-# .env: VITE_TRACKING_API_URL từ infra/.env → http://<WSL_IP>:31000
-# → http://localhost:5173
+cd clients/web-shop
+copy .env.example .env
+npm install && npm run seed && npm run dev
+# TRACKING_FORWARD_URL trong clients/web-shop/.env → http://<WSL_IP>:31000/track
+# → http://localhost:3000
 ```
 
 Chi tiết: [`infra/k8s/README.md`](infra/k8s/README.md)
@@ -62,7 +64,7 @@ Backend vẫn trên k3s; chỉ chạy service riêng lẻ khi debug:
 
 ```bash
 cd services/tracking-api && npm install && npm run dev
-# Trỏ demo-shop tạm tới http://localhost:3000 nếu port-forward tracking
+# Trỏ web-shop tạm tới http://localhost:31000/track qua TRACKING_FORWARD_URL
 ```
 
 ## Legacy Docker Compose

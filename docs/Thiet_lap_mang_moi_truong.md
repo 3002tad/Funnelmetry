@@ -1,6 +1,6 @@
 # Thiet lap mang moi truong
 
-> **Runtime deploy hôm nay:** [`RUNTIME.md`](RUNTIME.md) — k3s trên WSL2; không RabbitMQ; commerce qua browser SDK.
+> **Runtime deploy hôm nay:** [`RUNTIME.md`](RUNTIME.md) — k3s trên WSL2; commerce qua RabbitMQ + connector.
 
 TỔNG HỢP THIẾT LẬP MẠNG + MÔI TRƯỜNG CHẠY DEMO
 

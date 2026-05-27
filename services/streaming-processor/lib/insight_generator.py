@@ -16,14 +16,18 @@ logger = logging.getLogger(__name__)
 
 _qdrant: QdrantClient | None = None
 
+def _require_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
 
 def _client() -> QdrantClient | None:
     global _qdrant
-    url = os.environ.get("QDRANT_URL", "").strip()
-    if not url:
-        return None
+    url = _require_env("QDRANT_URL")
     if _qdrant is None:
-        collection = os.environ.get("QDRANT_COLLECTION", "pipeline_insights")
+        collection = _require_env("QDRANT_COLLECTION")
         _qdrant = QdrantClient(url, collection)
     return _qdrant
 

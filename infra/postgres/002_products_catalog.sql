@@ -1,4 +1,4 @@
--- Product catalog for display purposes — seeded from demo-shop product list.
+-- Product catalog for display purposes — seeded from web-shop product list.
 -- Joined at query time by dashboard-api; not part of the streaming pipeline.
 
 CREATE TABLE IF NOT EXISTS products_catalog (

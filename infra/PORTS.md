@@ -13,7 +13,7 @@ Backend chạy trên **k3s** trong WSL2. Build image vẫn có thể dùng Docke
 
 **Tailnet:** `http://lap1:31000`, `http://lap1:30809` (nếu Tailscale trên WSL).
 
-**Demo-shop dev:** `npm run dev` → `http://localhost:5173` — cần `VITE_TRACKING_API_URL` trỏ `:31000`.
+**Web-shop dev:** `npm run dev` → `http://localhost:3000` — cần `TRACKING_FORWARD_URL` trỏ `http://lap1:31000/track`.
 
 ## Chỉ trong cluster (ClusterIP)
 

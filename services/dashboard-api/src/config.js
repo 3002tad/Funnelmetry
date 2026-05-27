@@ -1,32 +1,40 @@
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value || !String(value).trim()) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return String(value).trim();
+}
+
 export const config = {
-  port: Number(process.env.PORT || 3000),
-  corsOrigins: (process.env.CORS_ORIGIN_DASHBOARD || process.env.CORS_ORIGIN || "http://localhost:5174,http://localhost:8090")
+  port: Number(requireEnv("PORT")),
+  corsOrigins: requireEnv("CORS_ORIGIN_DASHBOARD")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
-  jwtSecret: process.env.JWT_SECRET || "change-me-in-production",
-  jwtExpires: process.env.JWT_EXPIRES || "7d",
-  adminEmail: process.env.DASHBOARD_ADMIN_EMAIL || "admin@pipeline.local",
-  adminPassword: process.env.DASHBOARD_ADMIN_PASSWORD || "admin123",
+  jwtSecret: requireEnv("JWT_SECRET"),
+  jwtExpires: requireEnv("JWT_EXPIRES"),
+  adminEmail: requireEnv("DASHBOARD_ADMIN_EMAIL"),
+  adminPassword: requireEnv("DASHBOARD_ADMIN_PASSWORD"),
   pipeline: {
-    trackingApi: process.env.PIPELINE_TRACKING_API_URL || "http://tracking-api:3000",
+    trackingApi: requireEnv("PIPELINE_TRACKING_API_URL"),
   },
   db: {
-    host: process.env.POSTGRES_HOST || "localhost",
-    port: Number(process.env.POSTGRES_PORT || 5432),
-    database: process.env.POSTGRES_DB || "realtime",
-    user: process.env.POSTGRES_USER || "app",
-    password: process.env.POSTGRES_PASSWORD || "app",
+    host: requireEnv("POSTGRES_HOST"),
+    port: Number(requireEnv("POSTGRES_PORT")),
+    database: requireEnv("POSTGRES_DB"),
+    user: requireEnv("POSTGRES_USER"),
+    password: requireEnv("POSTGRES_PASSWORD"),
     max: 10,
     idleTimeoutMillis: 30000,
   },
   qdrant: {
-    url: (process.env.QDRANT_URL || "").trim(),
-    collection: process.env.QDRANT_COLLECTION || "pipeline_insights",
+    url: requireEnv("QDRANT_URL"),
+    collection: requireEnv("QDRANT_COLLECTION"),
   },
   ollama: {
-    url: (process.env.OLLAMA_URL || process.env.OLLAMA_URL_FALLBACK || "").trim(),
-    model: process.env.OLLAMA_MODEL || "qwen2.5:3b",
-    timeout: Number(process.env.OLLAMA_TIMEOUT_MS || 60000),
+    url: requireEnv("OLLAMA_URL"),
+    model: requireEnv("OLLAMA_MODEL"),
+    timeout: Number(requireEnv("OLLAMA_TIMEOUT_MS")),
   },
 };

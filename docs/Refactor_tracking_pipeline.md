@@ -1,6 +1,6 @@
 # Refactor tracking pipeline
 
-> **Runtime deploy:** [`RUNTIME.md`](RUNTIME.md) — k3s, không RabbitMQ; commerce qua SDK. Tài liệu dưới là spec gốc (có thể khác deploy).
+> **Runtime deploy:** [`RUNTIME.md`](RUNTIME.md) — k3s, commerce qua RabbitMQ + connector. Tài liệu dưới là spec gốc đã align runtime.
 
 TỔNG HỢP REFACTOR PROJECT
 
@@ -79,7 +79,7 @@ services/
     sink_postgres.py
     insight_generator.py
 clients/
-  demo-shop/
+  web-shop/
   dashboard/
 sdk/
   browser-behavior-sdk/
@@ -325,7 +325,7 @@ Các câu hỏi MVP nên hỗ trợ:
 | Module cũ | Module sau refactor | Cách tận dụng |
 | --- | --- | --- |
 | generator-api | tracking-api | Tận dụng phần nhận request và publish Kafka; đổi endpoint, schema và topic. |
-| clients/generator | demo-shop | Tận dụng React app cũ làm web demo TMĐT, gắn Behavior SDK. |
+| clients/generator | web-shop | Tận dụng web demo TMĐT, gắn Behavior SDK. |
 | spark-streaming | streaming-processor | Giữ Spark/Kafka/PostgreSQL integration; đổi schema và logic KPI. |
 | dashboard-api | dashboard-api + chatbot-api | Giữ service cũ, thêm endpoint overview/funnel/products/chat. |
 | clients/dashboard | tracking dashboard + chatbot UI | Đổi card/chart từ business KPI sang behavior analytics. |

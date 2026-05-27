@@ -211,7 +211,7 @@ k3s kubectl -n realtime exec deploy/dashboard-api -- wget -qO- http://ollama:114
 
 **Lưu ý:** Lần đầu gắn PVC mới, volume trống — cần `pull` lại một lần. Xóa PVC = mất model.
 
-### 6. Demo-shop / env
+### 6. Web-shop / env
 
 `infra/.env` — `VITE_TRACKING_API_URL=http://<WSL_IP>:31000`. Xem [`../PORTS.md`](../PORTS.md).
 
@@ -219,15 +219,14 @@ k3s kubectl -n realtime exec deploy/dashboard-api -- wget -qO- http://ollama:114
 
 ## Sprint 3 — Full stack (alias sprint2)
 
-`sprint3` = `sprint2` (tracking, streaming, dashboard, qdrant, ollama). **Không** deploy RabbitMQ / commerce-backend / connector.
+`sprint3` = `sprint2` + RabbitMQ + commerce-backend + commerce-connector.
 
-Commerce events (`purchase_succeeded`, `checkout_start`, …) gửi qua **browser SDK** → `tracking-api`.
+Commerce events (`purchase_succeeded`, `checkout_start`, …) đi qua `commerce-backend` → RabbitMQ → connector → `tracking-api`.
 
-### Gỡ RabbitMQ đã chạy trên cluster (một lần)
+### Khởi động/redeploy commerce path
 
 ```bash
-k3s kubectl -n realtime delete deploy rabbitmq commerce-backend commerce-connector --ignore-not-found
-k3s kubectl -n realtime delete svc rabbitmq commerce-backend --ignore-not-found
+k3s kubectl -n realtime rollout restart deploy/rabbitmq deploy/commerce-backend deploy/commerce-connector
 k3s kubectl apply -k infra/k8s/sprint3
-k3s kubectl -n realtime rollout restart deploy/dashboard-api
+k3s kubectl -n realtime rollout restart deploy/dashboard-api deploy/tracking-api
 ```

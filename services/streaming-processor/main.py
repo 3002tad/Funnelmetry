@@ -36,20 +36,27 @@ logging.basicConfig(
 logger = logging.getLogger("streaming-processor")
 
 # ── Config ─────────────────────────────────────────────────────────────────
-KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-KAFKA_TOPIC = os.environ.get("KAFKA_TOPIC_RAW", "tracking_events_raw")
-KAFKA_GROUP = os.environ.get("KAFKA_GROUP_ID", "streaming-processor")
-FLUSH_INTERVAL = int(os.environ.get("FLUSH_INTERVAL_SEC", "30"))
+def _require_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+KAFKA_BOOTSTRAP = _require_env("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = _require_env("KAFKA_TOPIC_RAW")
+KAFKA_GROUP = _require_env("KAFKA_GROUP_ID")
+FLUSH_INTERVAL = int(_require_env("FLUSH_INTERVAL_SEC"))
 # How many clean events to buffer before flushing to Postgres.
 # Higher = fewer commits = faster throughput; lower = events visible sooner.
-EVENT_BATCH_SIZE = int(os.environ.get("EVENT_BATCH_SIZE", "100"))
+EVENT_BATCH_SIZE = int(_require_env("EVENT_BATCH_SIZE"))
 
 POSTGRES_DSN = (
-    f"host={os.environ.get('POSTGRES_HOST', 'postgres')} "
-    f"port={os.environ.get('POSTGRES_PORT', '5432')} "
-    f"dbname={os.environ.get('POSTGRES_DB', 'realtime')} "
-    f"user={os.environ.get('POSTGRES_USER', 'app')} "
-    f"password={os.environ.get('POSTGRES_PASSWORD', 'app')}"
+    f"host={_require_env('POSTGRES_HOST')} "
+    f"port={_require_env('POSTGRES_PORT')} "
+    f"dbname={_require_env('POSTGRES_DB')} "
+    f"user={_require_env('POSTGRES_USER')} "
+    f"password={_require_env('POSTGRES_PASSWORD')}"
 )
 
 
@@ -67,18 +74,17 @@ def _wait_tcp(host: str, port: int, label: str) -> None:
 
 def wait_for_dependencies() -> None:
     kafka_host, _, kafka_port = KAFKA_BOOTSTRAP.partition(":")
-    pg_host = os.environ.get("POSTGRES_HOST", "postgres")
-    pg_port = int(os.environ.get("POSTGRES_PORT", "5432"))
+    pg_host = _require_env("POSTGRES_HOST")
+    pg_port = int(_require_env("POSTGRES_PORT"))
     _wait_tcp(kafka_host, int(kafka_port or 9092), "Kafka")
     _wait_tcp(pg_host, pg_port, "PostgreSQL")
-    qdrant_url = os.environ.get("QDRANT_URL", "").strip()
-    if qdrant_url:
-        from urllib.parse import urlparse
+    qdrant_url = _require_env("QDRANT_URL")
+    from urllib.parse import urlparse
 
-        parsed = urlparse(qdrant_url)
-        q_host = parsed.hostname or "qdrant"
-        q_port = parsed.port or 6333
-        _wait_tcp(q_host, q_port, "Qdrant")
+    parsed = urlparse(qdrant_url)
+    q_host = parsed.hostname or "qdrant"
+    q_port = parsed.port or 6333
+    _wait_tcp(q_host, q_port, "Qdrant")
 
 
 # ── Pipeline ────────────────────────────────────────────────────────────────

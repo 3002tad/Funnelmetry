@@ -26,10 +26,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger("commerce-connector")
 
-RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://app:app@rabbitmq:5672")
-EXCHANGE_NAME = os.environ.get("RABBITMQ_EXCHANGE", "commerce_events")
-QUEUE_NAME = os.environ.get("RABBITMQ_QUEUE", "commerce_connector_queue")
-TRACKING_URL = os.environ.get("TRACKING_API_URL", "http://tracking-api:3000")
+def _require_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+RABBITMQ_URL = _require_env("RABBITMQ_URL")
+EXCHANGE_NAME = _require_env("RABBITMQ_EXCHANGE")
+QUEUE_NAME = _require_env("RABBITMQ_QUEUE")
+TRACKING_URL = _require_env("TRACKING_API_URL")
 
 _running = True
 

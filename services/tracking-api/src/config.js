@@ -1,8 +1,19 @@
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value || !String(value).trim()) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return String(value).trim();
+}
+
 export const config = {
-  port: Number(process.env.PORT || 3000),
-  kafkaBrokers: (process.env.KAFKA_BOOTSTRAP_SERVERS || "localhost:9092").split(","),
-  kafkaTopicRaw: process.env.KAFKA_TOPIC_RAW || "tracking_events_raw",
-  corsOrigins: (process.env.CORS_ORIGIN || "http://localhost:5173")
+  port: Number(requireEnv("PORT")),
+  kafkaBrokers: requireEnv("KAFKA_BOOTSTRAP_SERVERS")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+  kafkaTopicRaw: requireEnv("KAFKA_TOPIC_RAW"),
+  corsOrigins: requireEnv("CORS_ORIGIN")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
