@@ -1,7 +1,0 @@
-feat: align runtime to web-shop and enable commerce rabbitmq path
-
-- remove demo-shop from monorepo and standardize docs/scripts to web-shop
-- enforce fail-fast required env configuration across core services
-- re-enable sprint3 commerce flow with rabbitmq, commerce-backend, and connector
-- update k8s image import script, secrets/env examples, and runtime docs
-- bump web-shop submodule to include jwt auth, resilient tracking, and diversified catalog seeding
