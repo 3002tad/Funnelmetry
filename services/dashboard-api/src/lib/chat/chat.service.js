@@ -1,8 +1,8 @@
 import { config } from "../../config.js";
 import { QdrantStore } from "../qdrant.js";
 import { detectIntent, extractMinutes } from "./intent.js";
-import { checkOllamaHealth, generateWithOllama } from "./ollama.js";
-import { buildPrompt } from "./prompt.js";
+import { buildChatMessages } from "./prompt.js";
+import { checkOllamaHealth, generateChatWithOllama, generateWithOllama } from "./ollama.js";
 import {
   fetchBanners,
   fetchFunnel,
@@ -54,7 +54,7 @@ export async function handleChatMessage(message, options = {}) {
   const minutes = options.minutes ?? extractMinutes(message, 60);
   const intent = detectIntent(message);
 
-  const needsRag = ["product_anomaly", "optimize", "general", "banner"].includes(intent);
+  const needsRag = ["product_anomaly", "optimize", "general", "banner", "overview", "funnel"].includes(intent);
   let ragHits = [];
   if (needsRag && config.qdrant.url) {
     try {
@@ -70,16 +70,25 @@ export async function handleChatMessage(message, options = {}) {
   let answer;
   let model_used = "template";
   if (config.ollama.url) {
+    const ollamaOpts = {
+      model: config.ollama.model,
+      baseUrl: config.ollama.url,
+      timeout: config.ollama.timeout,
+      temperature: config.ollama.temperature,
+      numPredict: config.ollama.numPredict,
+    };
+    const messages = buildChatMessages(intent, { minutes, data, ragHits, userMessage: message });
     try {
-      const prompt = buildPrompt(intent, { minutes, data, ragHits });
-      answer = await generateWithOllama(prompt, {
-        model: config.ollama.model,
-        baseUrl: config.ollama.url,
-        timeout: config.ollama.timeout,
-      });
+      answer = await generateChatWithOllama(messages, ollamaOpts);
       model_used = config.ollama.model;
     } catch (err) {
-      console.warn("Ollama unavailable, falling back to template:", err.message);
+      console.warn("Ollama /api/chat failed, trying /api/generate:", err.message);
+      try {
+        answer = await generateWithOllama(messagesToPrompt(messages), ollamaOpts);
+        model_used = config.ollama.model;
+      } catch (err2) {
+        console.warn("Ollama unavailable, falling back to template:", err2.message);
+      }
     }
   }
 
@@ -110,6 +119,10 @@ export async function listRecentInsights(limit = 12) {
 
 export function getQdrantStore() {
   return qdrant;
+}
+
+function messagesToPrompt(messages) {
+  return messages.map((m) => `${m.role.toUpperCase()}:\n${m.content}`).join("\n\n");
 }
 
 export async function getOllamaHealth() {

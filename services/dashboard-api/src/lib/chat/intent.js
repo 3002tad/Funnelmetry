@@ -2,43 +2,43 @@ const RULES = [
   {
     intent: "overview",
     patterns: [
-      /tóm tắt|tình hình|tổng quan|overview|hiện tại|đang như thế nào|báo cáo nhanh/,
+      /tóm tắt|tình hình|tổng quan|overview|hiện tại|đang như thế nào|báo cáo nhanh|website.*(thế nào|ra sao)|cửa hàng.*(thế nào|ra sao)/,
     ],
   },
   {
     intent: "top_products",
     patterns: [
-      /top\s*sản phẩm|sản phẩm.*(xem|view).*(nhiều|nhất)|xem nhiều nhất|bán chạy/,
+      /top\s*sản phẩm|sản phẩm.*(xem|view).*(nhiều|nhất)|xem nhiều nhất|bán chạy|hot nhất|được quan tâm/,
     ],
   },
   {
     intent: "product_anomaly",
     patterns: [
-      /nhiều view.*(ít|thấp|không).*mua|view.*click.*(doanh thu|mua).*(thấp|ít)|high.view|ít mua|không mua/,
+      /nhiều view.*(ít|thấp|không).*mua|view.*(mà|nhưng).*(không|chẳng|ít).*mua|xem nhiều.*(không|ít).*mua|high.view|ít mua|không mua|bị bỏ rơi/,
     ],
   },
   {
     intent: "funnel",
     patterns: [
-      /phễu|funnel|rớt|drop.?off|bước nào|checkout|thanh toán.*(rớt|bỏ)/,
+      /phễu|funnel|rớt|drop.?off|bước nào|checkout|thanh toán.*(rớt|bỏ)|bỏ giỏ|tỷ lệ chuyển đổi|conversion/,
     ],
   },
   {
     intent: "sessions",
-    patterns: [/session|phiên|khách.*(đang|hoạt động)|bao nhiêu.*session/],
+    patterns: [/session|phiên|khách.*(đang|hoạt động|truy cập)|bao nhiêu.*(người|khách|session)|traffic|lượt truy cập/],
   },
   {
     intent: "revenue",
-    patterns: [/doanh thu|revenue|bán được bao nhiêu/],
+    patterns: [/doanh thu|revenue|bán được bao nhiêu|kiếm được|tiền|đơn hàng/],
   },
   {
     intent: "banner",
-    patterns: [/banner|quảng cáo|ctr|impression/],
+    patterns: [/banner|quảng cáo|ctr|impression|slide|hero/],
   },
   {
     intent: "optimize",
     patterns: [
-      /gợi ý|tối ưu|optimize|conversion thấp|cải thiện|nên làm gì/,
+      /gợi ý|tối ưu|optimize|conversion thấp|cải thiện|nên làm gì|làm sao để|tăng (doanh thu|conversion|bán)/,
     ],
   },
 ];

@@ -1,18 +1,18 @@
 /**
- * Ollama client — gọi local LLM để sinh câu trả lời tự nhiên.
- * Số liệu đã được query từ PostgreSQL và truyền vào prompt (không để model tự tính).
+ * Ollama client — chat API for natural multi-turn style replies.
+ * Facts come from PostgreSQL embedded in the user message (not from model memory).
  */
 
-export async function generateWithOllama(prompt, { model, baseUrl, timeout = 60000 } = {}) {
-  const url = `${baseUrl}/api/generate`;
+export async function generateChatWithOllama(messages, { model, baseUrl, timeout = 60000, temperature = 0.65, numPredict = 768 } = {}) {
+  const url = `${baseUrl}/api/chat`;
   const body = JSON.stringify({
     model,
-    prompt,
+    messages,
     stream: false,
     options: {
-      temperature: 0.3,
+      temperature,
       top_p: 0.9,
-      num_predict: 512,
+      num_predict: numPredict,
     },
   });
 
@@ -21,6 +21,36 @@ export async function generateWithOllama(prompt, { model, baseUrl, timeout = 600
     headers: { "Content-Type": "application/json" },
     body,
     signal: AbortSignal.timeout(timeout),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Ollama chat ${res.status}: ${text.slice(0, 120)}`);
+  }
+
+  const data = await res.json();
+  return (data.message?.content || data.response || "").trim();
+}
+
+/** Fallback: single prompt string (/api/generate) for older Ollama builds. */
+export async function generateWithOllama(prompt, opts = {}) {
+  const url = `${opts.baseUrl}/api/generate`;
+  const body = JSON.stringify({
+    model: opts.model,
+    prompt,
+    stream: false,
+    options: {
+      temperature: opts.temperature ?? 0.65,
+      top_p: 0.9,
+      num_predict: opts.numPredict ?? 768,
+    },
+  });
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    signal: AbortSignal.timeout(opts.timeout ?? 60000),
   });
 
   if (!res.ok) {

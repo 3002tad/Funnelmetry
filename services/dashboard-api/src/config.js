@@ -47,5 +47,7 @@ export const config = {
     url: requireEnv("OLLAMA_URL"),
     model: requireEnv("OLLAMA_MODEL"),
     timeout: Number(requireEnv("OLLAMA_TIMEOUT_MS")),
+    temperature: Number(envOptional("OLLAMA_TEMPERATURE", "0.65")),
+    numPredict: Number(envOptional("OLLAMA_NUM_PREDICT", "768")),
   },
 };

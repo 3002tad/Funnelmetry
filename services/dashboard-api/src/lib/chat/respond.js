@@ -110,13 +110,12 @@ export function formatAnswer(intent, { minutes, data, ragHits = [] }) {
     default: {
       const k = data.kpi;
       let text =
-        `Mình chưa chắc ý câu hỏi — đây là snapshot ${period}:\n\n` +
-        `- Sessions: ${fmt(k.unique_sessions)} · Mua: ${fmt(k.purchases)} · Doanh thu: ${fmtMoney(k.total_revenue)}`;
+        `Trong ${period}, cửa hàng đang có **${fmt(k.unique_sessions)}** session, **${fmt(k.purchases)}** đơn và doanh thu **${fmtMoney(k.total_revenue)}** (conversion ~${pct(k.conversion_rate)}).`;
       if (ragHits.length) {
-        text += `\n\n**Insight liên quan:**\n${ragHits.map((h) => `- ${h.text}`).join("\n")}`;
+        text += `\n\nGhi nhận thêm từ pipeline:\n${ragHits.map((h) => `- ${h.text}`).join("\n")}`;
       }
       text +=
-        "\n\n_Bạn có thể hỏi: tóm tắt tình hình, top sản phẩm, SP nhiều view ít mua, phễu rớt ở đâu, banner CTR, gợi ý tối ưu._";
+        "\n\nBạn có thể hỏi cụ thể hơn — ví dụ phễu rớt ở đâu, sản phẩm nào xem nhiều mà không mua, hoặc nên ưu tiên tối ưu gì.";
       return text;
     }
   }
