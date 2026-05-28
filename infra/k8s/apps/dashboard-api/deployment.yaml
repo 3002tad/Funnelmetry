@@ -66,6 +66,20 @@ spec:
               value: pipeline_insights
             - name: PIPELINE_TRACKING_API_URL
               value: http://tracking-api:3000
+            - name: PIPELINE_COMMERCE_BACKEND_URL
+              value: http://commerce-backend:3000
+            - name: PIPELINE_RABBITMQ_MGMT_URL
+              value: http://rabbitmq:15672
+            - name: RABBITMQ_MGMT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_MGMT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: RABBITMQ_PASS
             # Ollama in-cluster (k3s). After deploy: kubectl exec -n realtime deploy/ollama -- ollama pull qwen2.5:3b
             - name: OLLAMA_URL
               value: http://ollama:11434

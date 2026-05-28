@@ -24,7 +24,18 @@ async function request(method, path, body) {
   }
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `${path} → ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 403) {
+      const hint =
+        data.hint === "admin_only"
+          ? "Tài khoản Analytic không truy cập được khu Admin."
+          : data.hint === "analyst_only"
+            ? "Tài khoản Admin không truy cập được khu phân tích. Đăng nhập bằng tài khoản Analytic."
+            : "Tài khoản không có quyền truy cập mục này.";
+      throw new Error(hint);
+    }
+    throw new Error(data.error || `${path} → ${res.status}`);
+  }
   return data;
 }
 
@@ -47,14 +58,17 @@ export const api = {
   overview: (minutes = 30) => get(`/api/overview?minutes=${minutes}`),
   events: (limit = 50) => get(`/api/events/recent?limit=${limit}`),
   funnel: (minutes = 60) => get(`/api/funnel?minutes=${minutes}`),
-  productsTop: (minutes = 60) => get(`/api/products/top?minutes=${minutes}`),
+  productsTop: (minutes = 60, limit = 20) =>
+    get(`/api/products/top?minutes=${minutes}&limit=${limit}`),
   productsAnomalies: (minutes = 60) => get(`/api/products/anomalies?minutes=${minutes}`),
-  searchTop: (minutes = 60) => get(`/api/search/top?minutes=${minutes}`),
+  searchTop: (minutes = 60, limit = 20) =>
+    get(`/api/search/top?minutes=${minutes}&limit=${limit}`),
   searchFilters: (minutes = 60) => get(`/api/search/filters?minutes=${minutes}`),
   banners: (minutes = 60) => get(`/api/banners?minutes=${minutes}`),
   revenueSummary: (minutes = 60) => get(`/api/revenue/summary?minutes=${minutes}`),
   revenueByCategory: (minutes = 60) => get(`/api/revenue/by-category?minutes=${minutes}`),
   systemPipeline: () => get("/api/system/pipeline"),
+  systemSetup: () => get("/api/system/setup"),
   chat: (message, minutes) =>
     post("/api/chat", minutes != null ? { message, minutes } : { message }),
   chatInsights: (limit = 12) => get(`/api/chat/insights?limit=${limit}`),

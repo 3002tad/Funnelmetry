@@ -6,9 +6,10 @@
  *   Components register callbacks; they are cleaned up automatically on unmount.
  */
 import {
-  createContext, useCallback, useContext, useEffect, useRef,
+  createContext, useCallback, useContext, useEffect, useRef, useState,
 } from "react";
-import { getToken } from "../lib/auth.js";
+import { getToken, getStoredUser } from "../lib/auth.js";
+import { isAnalystRole } from "../lib/routes.js";
 
 const LiveStreamContext = createContext(null);
 
@@ -18,14 +19,27 @@ export function LiveStreamProvider({ children }) {
   const eventHandlers = useRef(new Set());
   const kpiHandlers = useRef(new Set());
   const esRef = useRef(null);
+  const [token, setToken] = useState(() => getToken());
+  const [streamStatus, setStreamStatus] = useState("offline");
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) return;
+    const role = getStoredUser()?.role;
+    if (!token || !isAnalystRole(role)) {
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
+      setStreamStatus("offline");
+      return;
+    }
 
     const url = `${STREAM_URL}?token=${encodeURIComponent(token)}`;
     const es = new EventSource(url);
     esRef.current = es;
+    setStreamStatus("reconnecting");
+
+    es.onopen = () => setStreamStatus("live");
+    es.onerror = () => setStreamStatus("reconnecting");
 
     es.addEventListener("events", (e) => {
       try {
@@ -42,9 +56,23 @@ export function LiveStreamProvider({ children }) {
 
     return () => {
       es.close();
-      esRef.current = null;
+      if (esRef.current === es) {
+        esRef.current = null;
+      }
+      setStreamStatus("offline");
     };
-  }, []); // one connection for the lifetime of this provider
+  }, [token]); // reconnect whenever auth token changes
+
+  useEffect(() => {
+    const syncToken = () => setToken(getToken());
+    window.addEventListener("dashboard-auth-changed", syncToken);
+    window.addEventListener("storage", syncToken);
+
+    return () => {
+      window.removeEventListener("dashboard-auth-changed", syncToken);
+      window.removeEventListener("storage", syncToken);
+    };
+  }, []);
 
   const onLiveEvent = useCallback((fn) => {
     eventHandlers.current.add(fn);
@@ -57,7 +85,7 @@ export function LiveStreamProvider({ children }) {
   }, []);
 
   return (
-    <LiveStreamContext.Provider value={{ onLiveEvent, onKpiUpdate }}>
+    <LiveStreamContext.Provider value={{ onLiveEvent, onKpiUpdate, streamStatus }}>
       {children}
     </LiveStreamContext.Provider>
   );
@@ -91,4 +119,9 @@ export function useOnKpiUpdate(handler) {
     const stable = () => handlerRef.current();
     return ctx.onKpiUpdate(stable);
   }, [ctx]);
+}
+
+export function useLiveStreamStatus() {
+  const ctx = useContext(LiveStreamContext);
+  return ctx?.streamStatus || "offline";
 }

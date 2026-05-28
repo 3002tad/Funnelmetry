@@ -1,8 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
-import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
-import { GRID_STROKE, TICK_FILL, TOOLTIP_STYLE } from "../components/charts/chartTheme.js";
+import { CategoryBarChart } from "../components/charts/CategoryBarChart.jsx";
+import { SERIES, formatMoneyShort } from "../components/charts/chartTheme.js";
+import { TrendAreaChart } from "../components/charts/TrendAreaChart.jsx";
 import { DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
 import { IconRevenue } from "../components/icons.jsx";
@@ -11,9 +10,13 @@ import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
-const COLORS = ["#f54e00", "#53389e", "#15803d", "#0ea5e9", "#d97706", "#ec4899"];
-
 function money(v) { return `${Number(v || 0).toLocaleString("vi-VN")} ₫`; }
+function pctChange(current, previous) {
+  const prev = Number(previous || 0);
+  const curr = Number(current || 0);
+  if (prev <= 0) return null;
+  return ((curr - prev) / prev) * 100;
+}
 
 export function RevenuePage() {
   const [minutes, setMinutes] = useState(60);
@@ -37,6 +40,85 @@ export function RevenuePage() {
     [summary.data]
   );
 
+  const compareMetrics = useMemo(() => {
+    if (trendData.length < 4) return [];
+    const mid = Math.floor(trendData.length / 2);
+    const prev = trendData.slice(0, mid);
+    const curr = trendData.slice(mid);
+    const sum = (rows, key) => rows.reduce((acc, row) => acc + Number(row[key] || 0), 0);
+    const prevRevenue = sum(prev, "revenue");
+    const currRevenue = sum(curr, "revenue");
+    const prevPurchases = sum(prev, "purchases");
+    const currPurchases = sum(curr, "purchases");
+    const prevAov = prevPurchases > 0 ? prevRevenue / prevPurchases : 0;
+    const currAov = currPurchases > 0 ? currRevenue / currPurchases : 0;
+    const items = [
+      { label: "Doanh thu", change: pctChange(currRevenue, prevRevenue) },
+      { label: "Đơn hàng", change: pctChange(currPurchases, prevPurchases) },
+      { label: "AOV", change: pctChange(currAov, prevAov) },
+    ];
+    return items.filter((i) => i.change != null);
+  }, [trendData]);
+
+  const peakRevenuePoint = useMemo(() => {
+    if (trendData.length === 0) return null;
+    return trendData.reduce((max, row) => (row.revenue > max.revenue ? row : max), trendData[0]);
+  }, [trendData]);
+
+  const sparkRevenue = useMemo(() => trendData.map((r) => r.revenue), [trendData]);
+  const sparkOrders = useMemo(() => trendData.map((r) => r.purchases), [trendData]);
+
+  const s = summary.data?.summary || {};
+  const catData = useMemo(
+    () => (categories.data?.categories || []).map((c) => ({
+      name: c.category || "Khác",
+      revenue: Number(c.revenue),
+    })),
+    [categories.data]
+  );
+
+  const actionItems = useMemo(() => {
+    const aov = Number(s.average_order_value || 0);
+    const purchases = Number(s.total_purchases || 0);
+    const revChange = compareMetrics.find((m) => m.label === "Doanh thu")?.change;
+
+    const totalCatRev = catData.reduce((acc, c) => acc + c.revenue, 0);
+    const topCat = catData.length > 0
+      ? [...catData].sort((a, b) => b.revenue - a.revenue)[0]
+      : null;
+    const topShare = totalCatRev > 0 && topCat ? (topCat.revenue / totalCatRev) * 100 : 0;
+
+    return [
+      {
+        key: "revenue-trend",
+        level: revChange != null && revChange < -10 ? "high" : revChange != null && revChange < 0 ? "medium" : "good",
+        title: "Xu hướng doanh thu",
+        value: revChange != null ? `${revChange >= 0 ? "+" : ""}${revChange.toFixed(1)}%` : "—",
+        hint: revChange != null && revChange < 0
+          ? "Doanh thu giảm so với nửa kỳ trước — xem lại traffic và khuyến mãi."
+          : "Doanh thu đang ổn định hoặc tăng trong kỳ.",
+      },
+      {
+        key: "aov",
+        level: purchases > 0 && aov < 100000 ? "medium" : "good",
+        title: "Giá trị đơn TB",
+        value: money(aov),
+        hint: purchases > 0 && aov < 100000
+          ? "AOV thấp — cân nhắc bundle, upsell hoặc tăng giá trị giỏ hàng."
+          : "Giá trị đơn hàng trung bình đang ổn.",
+      },
+      {
+        key: "top-category",
+        level: topShare >= 65 ? "medium" : "good",
+        title: "Danh mục dẫn dắt",
+        value: topCat ? `${topShare.toFixed(0)}%` : "—",
+        hint: topCat
+          ? `${topCat.name} chiếm ${topShare.toFixed(0)}% doanh thu${topShare >= 65 ? " — phụ thuộc cao." : "."}`
+          : "Chưa đủ dữ liệu phân bổ danh mục.",
+      },
+    ];
+  }, [s, catData, compareMetrics]);
+
   if (summary.loading && !summary.data) {
     return (
       <>
@@ -54,12 +136,6 @@ export function RevenuePage() {
     );
   }
 
-  const s = summary.data?.summary || {};
-  const catData = (categories.data?.categories || []).map((c) => ({
-    name: c.category || "Khác",
-    revenue: Number(c.revenue),
-  }));
-
   return (
     <>
       <PageHeader
@@ -67,6 +143,7 @@ export function RevenuePage() {
         subtitle="Tổng hợp doanh số, giá trị đơn hàng và phân bổ theo danh mục"
         minutes={minutes}
         onMinutesChange={setMinutes}
+        lastUpdated={summary.lastUpdated}
       />
       <div className="mgr-content">
         <div className="stat-hero-row">
@@ -76,18 +153,23 @@ export function RevenuePage() {
             label="Tổng doanh thu"
             value={money(s.total_revenue)}
             sub={`Trong ${minutes} phút gần nhất`}
+            sparkline={sparkRevenue}
+            trendPct={compareMetrics.find((m) => m.label === "Doanh thu")?.change}
           />
           <StatHero
             tone="purple"
             label="Đơn hàng"
             value={Number(s.total_purchases || 0).toLocaleString()}
             sub="Giao dịch thành công"
+            sparkline={sparkOrders}
+            trendPct={compareMetrics.find((m) => m.label === "Đơn hàng")?.change}
           />
           <StatHero
             tone="success"
             label="Giá trị đơn TB"
             value={money(s.average_order_value)}
             sub="AOV trung bình"
+            trendPct={compareMetrics.find((m) => m.label === "AOV")?.change}
           />
         </div>
 
@@ -95,52 +177,73 @@ export function RevenuePage() {
           <StatCard label="SKU có doanh thu" value={Number(s.unique_products || 0).toLocaleString()} />
         </div>
 
-        <div className="mgr-cols-2">
+        {compareMetrics.length > 0 && (
+          <DataPanel title="So với nửa kỳ trước" subtitle="Biến động giữa 2 nửa của cùng khung thời gian">
+            <div className="delta-chip-row">
+              {compareMetrics.map((item) => {
+                const up = item.change >= 0;
+                return (
+                  <span key={item.label} className={`delta-chip ${up ? "up" : "down"}`}>
+                    {item.label}: {up ? "+" : ""}{item.change.toFixed(1)}%
+                  </span>
+                );
+              })}
+            </div>
+          </DataPanel>
+        )}
+
+        <div className="overview-main-grid">
           <DataPanel title="Xu hướng doanh thu" subtitle="Doanh thu theo từng phút trong kỳ">
             {trendData.length === 0 ? (
               <EmptyState message="Chưa có dữ liệu trend." />
             ) : (
               <div className="data-panel__body data-panel__body--chart">
-                <ResponsiveContainer width="100%" height={260}>
-                  <AreaChart data={trendData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f54e00" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#f54e00" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-                    <XAxis dataKey="time" tick={{ fontSize: 11, fill: TICK_FILL }} />
-                    <YAxis tick={{ fontSize: 11, fill: TICK_FILL }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip formatter={(v) => money(v)} contentStyle={TOOLTIP_STYLE} />
-                    <Area type="monotone" dataKey="revenue" stroke="#f54e00" fill="url(#gRev)" strokeWidth={2} name="Doanh thu" dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <TrendAreaChart
+                  data={trendData}
+                  height={300}
+                  peakKey="revenue"
+                  formatY={formatMoneyShort}
+                  formatTooltipValue={(v) => money(v)}
+                  series={[
+                    { dataKey: "revenue", name: "Doanh thu", ...SERIES.accent, gradientId: SERIES.accent.gradient },
+                  ]}
+                />
+                {peakRevenuePoint && (
+                  <p className="chart-insight-note">
+                    Đỉnh doanh thu tại {peakRevenuePoint.time}: {money(peakRevenuePoint.revenue)}.
+                  </p>
+                )}
               </div>
             )}
           </DataPanel>
 
-          <DataPanel title="Doanh thu theo danh mục" subtitle="Contribution từng category">
-            {catData.length === 0 ? (
-              <EmptyState message="Chưa có dữ liệu doanh thu theo danh mục." />
-            ) : (
-              <div className="data-panel__body data-panel__body--chart">
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={catData} layout="vertical" margin={{ left: 8, right: 24 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 11, fill: TICK_FILL }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                    <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11, fill: "#5c6478" }} />
-                    <Tooltip formatter={(v) => money(v)} contentStyle={TOOLTIP_STYLE} />
-                    <Bar dataKey="revenue" radius={[0, 6, 6, 0]} barSize={22}>
-                      {catData.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+          <div className="overview-right-stack">
+            <DataPanel title="Doanh thu theo danh mục" subtitle="Đóng góp từng danh mục">
+              {catData.length === 0 ? (
+                <EmptyState message="Chưa có dữ liệu doanh thu theo danh mục." />
+              ) : (
+                <div className="data-panel__body data-panel__body--chart">
+                  <CategoryBarChart
+                    data={catData}
+                    height={240}
+                    formatValue={(v) => money(v)}
+                  />
+                </div>
+              )}
+            </DataPanel>
+
+            <DataPanel title="Ưu tiên hành động" subtitle="Gợi ý tối ưu doanh thu trong kỳ này">
+              <div className="action-list">
+                {actionItems.map((item) => (
+                  <div key={item.key} className={`action-card ${item.level}`}>
+                    <span className="action-card__title">{item.title}</span>
+                    <strong className="action-card__value">{item.value}</strong>
+                    <span className="action-card__hint">{item.hint}</span>
+                  </div>
+                ))}
               </div>
-            )}
-          </DataPanel>
+            </DataPanel>
+          </div>
         </div>
       </div>
     </>

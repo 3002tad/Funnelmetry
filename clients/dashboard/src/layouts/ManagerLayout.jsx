@@ -2,18 +2,17 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { NAV_ICONS } from "../components/icons.jsx";
 import { ROLE_LABELS } from "../lib/auth.js";
-import { isAdminRole } from "../lib/routes.js";
 
 const NAV = [
   { section: "Tổng quan" },
-  { to: "/shop", label: "Overview", iconKey: "overview", end: true },
+  { to: "/shop", label: "Tổng quan", iconKey: "overview", end: true },
   { to: "/shop/revenue", label: "Doanh thu", iconKey: "revenue" },
   { section: "Hành vi người dùng" },
   { to: "/shop/products", label: "Sản phẩm", iconKey: "products" },
   { to: "/shop/funnel", label: "Phễu chuyển đổi", iconKey: "funnel" },
-  { to: "/shop/events", label: "Events", iconKey: "events" },
+  { to: "/shop/events", label: "Sự kiện", iconKey: "events" },
   { to: "/shop/search", label: "Tìm kiếm", iconKey: "search" },
-  { to: "/shop/banners", label: "Banners", iconKey: "banners" },
+  { to: "/shop/banners", label: "Banner", iconKey: "banners" },
   { section: "AI Assistant" },
   { to: "/shop/chat", label: "Chatbot", iconKey: "chat" },
 ];
@@ -62,11 +61,6 @@ export function ManagerLayout() {
           </nav>
 
           <div className="mgr-footer">
-            {isAdminRole(user?.role) && (
-              <button type="button" className="btn-sidebar" onClick={() => navigate("/admin/system")}>
-                Admin Panel
-              </button>
-            )}
             <button
               type="button"
               className="btn-sidebar"

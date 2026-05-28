@@ -17,18 +17,20 @@ export function getStoredUser() {
 export function setSession(token, user) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  window.dispatchEvent(new Event("dashboard-auth-changed"));
 }
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  window.dispatchEvent(new Event("dashboard-auth-changed"));
 }
 
 // Legacy — use lib/routes.js for route guards
 export { canAccessAdmin, canAccessShop, homeForRole, isAdminRole } from "./routes.js";
 
 export const ROLE_LABELS = {
-  super_admin: "Super Admin",
-  analyst: "Analyst",
-  viewer: "Viewer",
+  super_admin: "Admin",
+  analyst: "Analytic",
+  viewer: "Analytic",
 };

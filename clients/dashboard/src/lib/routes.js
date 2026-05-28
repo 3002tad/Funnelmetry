@@ -1,22 +1,41 @@
 /** Default landing after login */
 export function homeForRole(role) {
-  if (role === "super_admin" || role === "analyst") return "/shop";
-  return "/shop";
+  if (role === "super_admin") return "/admin";
+  if (isAnalystRole(role)) return "/shop";
+  return "/login";
+}
+
+export function resolvePostLoginPath(role, dest) {
+  if (dest?.startsWith("/admin") && canAccessAdmin(role, dest)) return dest;
+  if (dest?.startsWith("/shop") && canAccessShop(role, dest)) return dest;
+  return homeForRole(role);
 }
 
 export function isAdminRole(role) {
-  return role === "super_admin" || role === "analyst";
+  return role === "super_admin";
 }
 
-const SHOP_PATHS = ["/shop", "/shop/revenue", "/shop/products", "/shop/funnel", "/shop/chat", "/shop/events", "/shop/search", "/shop/banners"];
+export function isAnalystRole(role) {
+  return role === "analyst" || role === "viewer";
+}
+
+const SHOP_PATHS = [
+  "/shop",
+  "/shop/revenue",
+  "/shop/products",
+  "/shop/funnel",
+  "/shop/chat",
+  "/shop/events",
+  "/shop/search",
+  "/shop/banners",
+];
 
 export function canAccessAdmin(role, pathname) {
   if (!isAdminRole(role)) return false;
-  if (!pathname.startsWith("/admin")) return false;
-  if (role === "analyst" && pathname.startsWith("/admin/users")) return false;
-  return true;
+  return pathname.startsWith("/admin");
 }
 
-export function canAccessShop(_role, pathname) {
+export function canAccessShop(role, pathname) {
+  if (!isAnalystRole(role)) return false;
   return SHOP_PATHS.some((p) => pathname === p || (p !== "/shop" && pathname.startsWith(p)));
 }

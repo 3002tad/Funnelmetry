@@ -1,13 +1,9 @@
 import { Router } from "express";
 import { query } from "../db.js";
 import { hashPassword } from "../lib/password.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
-
 export const usersRouter = Router();
 
-usersRouter.use(requireAuth, requireRole("super_admin"));
-
-const ROLES = ["super_admin", "analyst", "viewer"];
+const ROLES = ["super_admin", "analyst"];
 
 usersRouter.get("/api/users", async (_req, res) => {
   try {
@@ -36,7 +32,7 @@ usersRouter.post("/api/users", async (req, res) => {
       `INSERT INTO dashboard_users (email, password_hash, display_name, role)
        VALUES ($1, $2, $3, $4)
        RETURNING id, email, display_name, role, is_active, created_at`,
-      [email.trim().toLowerCase(), hash, display_name || null, role || "viewer"]
+      [email.trim().toLowerCase(), hash, display_name || null, role || "analyst"]
     );
     res.status(201).json({ user: row });
   } catch (err) {

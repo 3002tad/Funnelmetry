@@ -93,13 +93,13 @@ export function ChatPage() {
             title="Trò chuyện"
             subtitle="Tiếng Việt · intent + SQL + RAG"
             action={
-              <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent)", fontSize: "0.8rem", fontWeight: 600 }}>
+              <span className="chat-model-badge">
                 <IconChat size={16} /> qwen2.5:3b
               </span>
             }
             className="mgr-chat-main"
           >
-            <div style={{ padding: "1rem 1.25rem" }}>
+            <div className="mgr-chat-main-body">
               <div className="mgr-chat-messages">
                 {messages.map((m, i) => (
                   <div key={i} className={`chat-bubble ${m.role}${m.error ? " error" : ""}`}>
@@ -147,7 +147,7 @@ export function ChatPage() {
             <h3>Pipeline insights</h3>
             {insights.length === 0 ? (
               <ul className="insight-list">
-                <li style={{ listStyle: "none", color: "var(--text-faint)" }}>
+                <li className="insight-empty-item">
                   Chưa có insight — cần traffic + flush KPI (~30s).
                 </li>
               </ul>

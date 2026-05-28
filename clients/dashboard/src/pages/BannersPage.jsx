@@ -1,7 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import { BarChartGrouped } from "../components/charts/SimpleBarChart.jsx";
-import { BarCell, DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
+import { BannerPerformanceTable } from "../components/BannerPerformanceTable.jsx";
+import { DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
+import { IconBanner } from "../components/icons.jsx";
+import { StatHero } from "../components/StatCard.jsx";
+import { buildBannerActionItems, buildBannerSummary } from "../lib/bannerMetrics.js";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
@@ -9,11 +13,19 @@ import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 export function BannersPage() {
   const [minutes, setMinutes] = useState(60);
   const fetcher = useCallback(() => api.banners(minutes), [minutes]);
-  const { data, loading, error, refresh } = useAutoRefresh(fetcher, 60000);
-  useOnKpiUpdate(useCallback(() => refresh(), [refresh]));
+  const overviewFetcher = useCallback(() => api.overview(minutes), [minutes]);
+  const { data, loading, error, refresh, lastUpdated } = useAutoRefresh(fetcher, 60000);
+  const overview = useAutoRefresh(overviewFetcher, 60000);
+
+  useOnKpiUpdate(useCallback(() => {
+    refresh();
+    overview.refresh();
+  }, [refresh, overview.refresh]));
 
   const banners = data?.banners || [];
-  const maxImp = Math.max(...banners.map((b) => Number(b.impressions)), 1);
+
+  const summary = useMemo(() => buildBannerSummary(banners), [banners]);
+  const actionItems = useMemo(() => buildBannerActionItems(summary), [summary]);
 
   const chartData = useMemo(
     () => banners.map((b) => ({
@@ -24,10 +36,15 @@ export function BannersPage() {
     [banners]
   );
 
+  const sparkClicks = useMemo(
+    () => (overview.data?.trend || []).map((r) => Number(r.clicks || 0)),
+    [overview.data]
+  );
+
   if (loading && !data) {
     return (
       <>
-        <PageHeader title="Banners" minutes={minutes} onMinutesChange={setMinutes} live={false} />
+        <PageHeader title="Banner" minutes={minutes} onMinutesChange={setMinutes} live={false} />
         <div className="mgr-content"><PageLoading /></div>
       </>
     );
@@ -35,7 +52,7 @@ export function BannersPage() {
   if (error) {
     return (
       <>
-        <PageHeader title="Banners" live={false} />
+        <PageHeader title="Banner" live={false} />
         <div className="mgr-content"><PageError message={error} /></div>
       </>
     );
@@ -44,10 +61,12 @@ export function BannersPage() {
   return (
     <>
       <PageHeader
-        title="Banners"
-        subtitle="Đo lường impression, click và CTR từng banner quảng cáo"
+        title="Banner"
+        subtitle="Hiệu suất quảng cáo — impressions, clicks và CTR theo banner"
         minutes={minutes}
         onMinutesChange={setMinutes}
+        onRefresh={() => { refresh(); overview.refresh(); }}
+        lastUpdated={lastUpdated}
       />
       <div className="mgr-content">
         {banners.length === 0 ? (
@@ -56,6 +75,53 @@ export function BannersPage() {
           </DataPanel>
         ) : (
           <>
+            <div className="stat-hero-row stat-hero-row--funnel">
+              <StatHero
+                tone="purple"
+                icon={IconBanner}
+                label="Impressions"
+                value={summary.totalImpressions.toLocaleString("vi-VN")}
+                sub={`${summary.bannerCount} banner`}
+              />
+              <StatHero
+                tone="primary"
+                label="Clicks"
+                value={summary.totalClicks.toLocaleString("vi-VN")}
+                sub="Tổng nhấp"
+                sparkline={sparkClicks}
+              />
+              <StatHero
+                tone="success"
+                label="CTR trung bình"
+                value={`${summary.avgCtrPct.toFixed(2)}%`}
+                sub={summary.best
+                  ? `Tốt nhất: ${summary.best.banner_id} (${(Number(summary.best.ctr) * 100).toFixed(2)}%)`
+                  : "—"}
+              />
+            </div>
+
+            <div className="overview-main-grid">
+              <DataPanel title="Bảng hiệu suất banner" subtitle="CTR và volume impression từng banner">
+                <div className="data-panel__body data-panel__body--flush">
+                  <BannerPerformanceTable banners={banners} />
+                </div>
+              </DataPanel>
+
+              <div className="overview-right-stack">
+                <DataPanel title="Ưu tiên hành động" subtitle="Gợi ý tối ưu creative & placement">
+                  <div className="action-list">
+                    {actionItems.map((item) => (
+                      <div key={item.key} className={`action-card ${item.level}`}>
+                        <span className="action-card__title">{item.title}</span>
+                        <strong className="action-card__value">{item.value}</strong>
+                        <span className="action-card__hint">{item.hint}</span>
+                      </div>
+                    ))}
+                  </div>
+                </DataPanel>
+              </div>
+            </div>
+
             <DataPanel title="Impressions vs Clicks" subtitle="So sánh trực quan từng banner">
               <div className="data-panel__body data-panel__body--chart">
                 <BarChartGrouped
@@ -64,47 +130,8 @@ export function BannersPage() {
                     { key: "impressions", label: "Impressions" },
                     { key: "clicks", label: "Clicks" },
                   ]}
-                  height={280}
+                  height={300}
                 />
-              </div>
-            </DataPanel>
-
-            <DataPanel title="Bảng chi tiết" subtitle="CTR = clicks / impressions">
-              <div className="data-panel__body--flush">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Banner</th>
-                      <th>Impressions</th>
-                      <th>Clicks</th>
-                      <th>CTR</th>
-                      <th>Đánh giá</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {banners.map((b) => {
-                      const ctr = Number(b.ctr) * 100;
-                      const badge =
-                        ctr >= 3 ? "ok" : ctr >= 1 ? "degraded" : "down";
-                      const label = ctr >= 3 ? "Tốt" : ctr >= 1 ? "Trung bình" : "Thấp";
-                      return (
-                        <tr key={b.banner_id}>
-                          <td><strong>{b.banner_id}</strong></td>
-                          <td><BarCell value={b.impressions} max={maxImp} color="#53389e" /></td>
-                          <td>{Number(b.clicks).toLocaleString()}</td>
-                          <td>
-                            <strong style={{
-                              color: ctr >= 3 ? "var(--success)" : ctr >= 1 ? "var(--warning)" : "var(--danger)",
-                            }}>
-                              {ctr.toFixed(2)}%
-                            </strong>
-                          </td>
-                          <td><span className={`badge ${badge}`}>{label}</span></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
             </DataPanel>
           </>

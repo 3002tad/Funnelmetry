@@ -7,13 +7,14 @@ Backend chạy trên **k3s** trong WSL2. Build image vẫn có thể dùng Docke
 | Dịch vụ | NodePort | Container | URL |
 |---------|----------|-----------|-----|
 | tracking-api | **31000** | 3000 | `http://<WSL_IP>:31000` — SDK `POST /track` |
+| commerce-backend | **30330** | 3000 | `http://<WSL_IP>:30330` — web-shop commerce events |
 | dashboard-api | **32000** | 3000 | `http://<WSL_IP>:32000` (dev vite) |
 | dashboard-ui | **30809** | 80 | `http://<WSL_IP>:30809` — proxy `/api/` nội bộ |
 **WSL IP:** `wsl -d Ubuntu hostname -I` → cập nhật `WSL_IP` / `VITE_*` trong `infra/.env`.
 
-**Tailnet:** `http://lap1:31000`, `http://lap1:30809` (nếu Tailscale trên WSL).
+**Tailnet:** `http://lap1:31000`, `http://lap1:30330`, `http://lap1:30809` (nếu Tailscale trên WSL).
 
-**Web-shop dev:** `npm run dev` → `http://localhost:3000` — cần `TRACKING_FORWARD_URL` trỏ `http://lap1:31000/track`.
+**Web-shop dev:** `npm run dev` → `http://localhost:3000` — cần `TRACKING_FORWARD_URL` trỏ `http://lap1:31000/track` và `COMMERCE_BACKEND_URL` trỏ `http://lap1:30330`.
 
 ## Chỉ trong cluster (ClusterIP)
 

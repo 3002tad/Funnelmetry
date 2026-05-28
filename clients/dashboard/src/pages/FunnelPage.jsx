@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
-import {
-  Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
-import { FunnelShape } from "../components/charts/FunnelShape.jsx";
-import { CHART_COLORS, GRID_STROKE, TICK_FILL, TOOLTIP_STYLE } from "../components/charts/chartTheme.js";
+import { ConversionFunnel } from "../components/charts/ConversionFunnel.jsx";
+import { FunnelDropChart } from "../components/charts/FunnelDropChart.jsx";
 import { DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
+import { IconFunnel } from "../components/icons.jsx";
+import { StatHero } from "../components/StatCard.jsx";
+import { buildFunnelRows } from "../lib/funnelMetrics.js";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
@@ -21,16 +21,51 @@ const LABELS = {
 export function FunnelPage() {
   const [minutes, setMinutes] = useState(60);
   const fetcher = useCallback(() => api.funnel(minutes), [minutes]);
-  const { data, loading, error, refresh } = useAutoRefresh(fetcher, 60000);
+  const { data, loading, error, refresh, lastUpdated } = useAutoRefresh(fetcher, 60000);
   useOnKpiUpdate(useCallback(() => refresh(), [refresh]));
 
-  const chartData = useMemo(
-    () => (data?.funnel || []).map((s) => ({
-      name: LABELS[s.step] || s.step,
-      count: Number(s.count),
-    })),
-    [data]
-  );
+  const steps = data?.funnel || [];
+  const { summary } = useMemo(() => buildFunnelRows(steps, LABELS), [steps]);
+
+  const actionItems = useMemo(() => {
+    if (!summary) return [];
+
+    const checkout = steps.find((s) => s.step === "checkout_start");
+    const checkoutCount = Number(checkout?.count || 0);
+    const purchase = summary.purchase;
+    const checkoutDrop = checkoutCount > 0 ? (1 - purchase / checkoutCount) * 100 : 0;
+
+    return [
+      {
+        key: "worst-drop",
+        level: summary.worstStep && summary.worstStep.dropPct >= 50 ? "high"
+          : summary.worstStep && summary.worstStep.dropPct >= 30 ? "medium" : "good",
+        title: "Bước rớt mạnh nhất",
+        value: summary.worstStep ? `−${summary.worstStep.dropPct.toFixed(1)}%` : "—",
+        hint: summary.worstStep
+          ? `"${summary.worstStep.label}" — ưu tiên tối ưu UX tại bước này.`
+          : "Chưa đủ dữ liệu phễu.",
+      },
+      {
+        key: "overall-conv",
+        level: summary.overallConvPct < 1 ? "high" : summary.overallConvPct < 3 ? "medium" : "good",
+        title: "Conversion tổng",
+        value: `${summary.overallConvPct.toFixed(2)}%`,
+        hint: summary.overallConvPct < 1
+          ? "Tỷ lệ mua từ xem trang thấp — xem lại toàn funnel."
+          : "Conversion tổng thể trong ngưỡng chấp nhận được.",
+      },
+      {
+        key: "checkout-drop",
+        level: checkoutDrop >= 60 ? "high" : checkoutDrop >= 40 ? "medium" : "good",
+        title: "Rớt sau checkout",
+        value: `${checkoutDrop.toFixed(1)}%`,
+        hint: checkoutDrop >= 40
+          ? "Nhiều khách checkout nhưng không mua — kiểm tra payment/shipping."
+          : "Tỷ lệ hoàn tất sau checkout ổn.",
+      },
+    ];
+  }, [steps, summary]);
 
   if (loading && !data) {
     return (
@@ -49,73 +84,80 @@ export function FunnelPage() {
     );
   }
 
-  const steps = data?.funnel || [];
-  const maxCount = steps[0]?.count || 1;
-
   return (
     <>
       <PageHeader
         title="Phễu chuyển đổi"
-        subtitle="Theo dõi từng bước trong hành trình mua hàng — xác định nơi khách rời bỏ"
+        subtitle="Phân tích conversion từng bước — xác định điểm rớt và volume mất"
         minutes={minutes}
         onMinutesChange={setMinutes}
         onRefresh={refresh}
+        lastUpdated={lastUpdated}
       />
       <div className="mgr-content">
         {steps.length === 0 ? (
-          <DataPanel title="Conversion funnel">
+          <DataPanel title="Phễu chuyển đổi">
             <EmptyState />
           </DataPanel>
         ) : (
           <>
-            <div className="mgr-cols-2">
-              <DataPanel title="Sơ đồ phễu" subtitle="Chiều rộng mỗi bước = số lượng người dùng">
-                <div className="data-panel__body">
-                  <FunnelShape steps={steps} labels={LABELS} />
+            {summary && (
+              <div className="stat-hero-row stat-hero-row--funnel">
+                <StatHero
+                  tone="purple"
+                  icon={IconFunnel}
+                  label="Vào phễu"
+                  value={summary.top.toLocaleString("vi-VN")}
+                  sub="Lượt xem trang (bước 1)"
+                />
+                <StatHero
+                  tone="success"
+                  label="Hoàn tất mua"
+                  value={summary.purchase.toLocaleString("vi-VN")}
+                  sub="Giao dịch thành công"
+                />
+                <StatHero
+                  tone="primary"
+                  label="Conversion tổng"
+                  value={`${summary.overallConvPct.toFixed(2)}%`}
+                  sub={summary.worstStep
+                    ? `Rớt mạnh: ${summary.worstStep.label}`
+                    : "Toàn phễu"}
+                />
+              </div>
+            )}
+
+            <DataPanel
+              title="Bảng conversion"
+              subtitle="Chỉ số BI theo bước — % tổng, chuyển tiếp, rớt và volume"
+            >
+              <div className="data-panel__body data-panel__body--flush">
+                <ConversionFunnel steps={steps} labels={LABELS} />
+              </div>
+            </DataPanel>
+
+            <div className="overview-main-grid">
+              <DataPanel
+                title="Người rời bỏ giữa các bước"
+                subtitle="Diagnostic chart — volume mất khi không chuyển bước"
+              >
+                <div className="data-panel__body data-panel__body--chart">
+                  <FunnelDropChart steps={steps} labels={LABELS} height={280} />
                 </div>
               </DataPanel>
 
-              <DataPanel title="Cột so sánh" subtitle="Volume từng bước trong funnel">
-                <div className="data-panel__body data-panel__body--chart">
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: TICK_FILL }} interval={0} angle={-10} textAnchor="end" height={52} />
-                      <YAxis tick={{ fontSize: 11, fill: TICK_FILL }} />
-                      <Tooltip contentStyle={TOOLTIP_STYLE} />
-                      <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={36}>
-                        {chartData.map((_, i) => (
-                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+              <DataPanel title="Ưu tiên hành động" subtitle="Gợi ý tối ưu phễu trong kỳ này">
+                <div className="action-list">
+                  {actionItems.map((item) => (
+                    <div key={item.key} className={`action-card ${item.level}`}>
+                      <span className="action-card__title">{item.title}</span>
+                      <strong className="action-card__value">{item.value}</strong>
+                      <span className="action-card__hint">{item.hint}</span>
+                    </div>
+                  ))}
                 </div>
               </DataPanel>
             </div>
-
-            <DataPanel title="Chi tiết từng bước" subtitle="Số lượng và tỷ lệ rớt giữa các bước">
-              <div className="funnel-v2">
-                {steps.map((s, i) => {
-                  const pct = maxCount > 0 ? Math.max((s.count / maxCount) * 100, 3) : 0;
-                  const drop = i > 0 && s.drop_off_rate > 0;
-                  return (
-                    <div key={s.step} className="funnel-v2__step">
-                      <span className="funnel-v2__label">{LABELS[s.step] || s.step}</span>
-                      <div className="funnel-v2__track">
-                        <div className="funnel-v2__fill" style={{ width: `${pct}%` }}>
-                          {s.count > 0 && Number(s.count).toLocaleString()}
-                        </div>
-                      </div>
-                      <span className="funnel-v2__count">{Number(s.count).toLocaleString()}</span>
-                      <span className={`funnel-v2__drop${drop ? "" : " funnel-v2__drop--ok"}`}>
-                        {drop ? `−${(s.drop_off_rate * 100).toFixed(1)}%` : "—"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </DataPanel>
           </>
         )}
       </div>

@@ -6,6 +6,12 @@ function requireEnv(name) {
   return String(value).trim();
 }
 
+function envOptional(name, fallback = "") {
+  const value = process.env[name];
+  if (!value || !String(value).trim()) return fallback;
+  return String(value).trim();
+}
+
 export const config = {
   port: Number(requireEnv("PORT")),
   corsOrigins: requireEnv("CORS_ORIGIN_DASHBOARD")
@@ -18,6 +24,11 @@ export const config = {
   adminPassword: requireEnv("DASHBOARD_ADMIN_PASSWORD"),
   pipeline: {
     trackingApi: requireEnv("PIPELINE_TRACKING_API_URL"),
+    commerceBackend: envOptional("PIPELINE_COMMERCE_BACKEND_URL", "http://commerce-backend:3000"),
+    rabbitmqMgmt: envOptional("PIPELINE_RABBITMQ_MGMT_URL", "http://rabbitmq:15672"),
+    rabbitmqUser: envOptional("RABBITMQ_MGMT_USER", "app"),
+    rabbitmqPass: envOptional("RABBITMQ_MGMT_PASS", "app"),
+    demoWslIp: envOptional("DEMO_WSL_IP", ""),
   },
   db: {
     host: requireEnv("POSTGRES_HOST"),

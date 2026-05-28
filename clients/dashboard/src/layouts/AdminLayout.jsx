@@ -5,8 +5,11 @@ import { ROLE_LABELS } from "../lib/auth.js";
 const NAV = [
   { section: "Hệ thống" },
   { to: "/admin/system", label: "Pipeline", icon: "⬡", end: true },
+  { to: "/admin/k8s-dashboard", label: "K8s Dashboard", icon: "☸" },
+  { to: "/admin/insights", label: "Chatbot & RAG", icon: "🤖" },
+  { to: "/admin/setup", label: "Demo & Ports", icon: "⚙" },
   { section: "Quản lý" },
-  { to: "/admin/users", label: "Tài khoản", icon: "👥", superOnly: true },
+  { to: "/admin/users", label: "Tài khoản", icon: "👥" },
 ];
 
 export function AdminLayout() {
@@ -33,7 +36,6 @@ export function AdminLayout() {
           <nav className="admin-nav">
             {NAV.map((item, i) => {
               if (item.section) return <div key={i} className="nav-section">{item.section}</div>;
-              if (item.superOnly && user?.role !== "super_admin") return null;
               return (
                 <NavLink
                   key={item.to}
@@ -49,14 +51,6 @@ export function AdminLayout() {
           </nav>
 
           <div className="admin-footer">
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ width: "100%", justifyContent: "center" }}
-              onClick={() => navigate("/shop")}
-            >
-              → Manager Dashboard
-            </button>
             <button
               type="button"
               className="btn btn-ghost"

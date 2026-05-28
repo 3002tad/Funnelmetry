@@ -4,12 +4,12 @@ import { api } from "../lib/api.js";
 import { ROLE_LABELS } from "../lib/auth.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
 
-const ROLES = ["super_admin", "analyst", "viewer"];
+const ROLES = ["super_admin", "analyst"];
 
 export function UsersPage() {
   const fetcher = useCallback(() => api.users(), []);
   const { data, loading, error, refresh } = useAutoRefresh(fetcher, 0);
-  const [form, setForm] = useState({ email: "", password: "", display_name: "", role: "viewer" });
+  const [form, setForm] = useState({ email: "", password: "", display_name: "", role: "analyst" });
   const [msg, setMsg] = useState("");
 
   async function handleCreate(e) {
@@ -17,7 +17,7 @@ export function UsersPage() {
     setMsg("");
     try {
       await api.createUser(form);
-      setForm({ email: "", password: "", display_name: "", role: "viewer" });
+      setForm({ email: "", password: "", display_name: "", role: "analyst" });
       setMsg("✓ Đã tạo tài khoản");
       refresh();
     } catch (err) {
@@ -62,7 +62,7 @@ export function UsersPage() {
         <h3>Danh sách</h3>
         <table className="data-table">
           <thead>
-            <tr><th>Email</th><th>Tên</th><th>Role</th><th>Trạng thái</th><th></th></tr>
+            <tr><th>Email</th><th>Tên</th><th>Role</th><th>Đăng nhập</th><th>Trạng thái</th><th></th></tr>
           </thead>
           <tbody>
             {(data?.users || []).map((u) => (
@@ -70,6 +70,11 @@ export function UsersPage() {
                 <td style={{ fontFamily: "var(--mono)" }}>{u.email}</td>
                 <td>{u.display_name || "—"}</td>
                 <td><span className="badge" style={{ background: "var(--accent-soft)", color: "#93c5fd" }}>{ROLE_LABELS[u.role]}</span></td>
+                <td style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                  {u.last_login_at
+                    ? new Date(u.last_login_at).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" })
+                    : "—"}
+                </td>
                 <td>
                   <span className={`badge ${u.is_active ? "ok" : "down"}`}>
                     {u.is_active ? "Active" : "Disabled"}

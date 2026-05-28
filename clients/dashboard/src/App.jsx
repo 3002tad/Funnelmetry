@@ -14,6 +14,9 @@ import { OverviewPage } from "./pages/OverviewPage.jsx";
 import { ProductsPage } from "./pages/ProductsPage.jsx";
 import { RevenuePage } from "./pages/RevenuePage.jsx";
 import { SearchPage } from "./pages/SearchPage.jsx";
+import { AdminInsightsPage } from "./pages/AdminInsightsPage.jsx";
+import { AdminK8sDashboardPage } from "./pages/AdminK8sDashboardPage.jsx";
+import { AdminSetupPage } from "./pages/AdminSetupPage.jsx";
 import { SystemPage } from "./pages/SystemPage.jsx";
 import { UsersPage } from "./pages/UsersPage.jsx";
 
@@ -30,7 +33,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<RootRedirect />} />
 
-      {/* Manager dashboard — all roles */}
+      {/* Manager dashboard — analytic only */}
       <Route element={<ShopGuard />}>
         <Route element={<ManagerLayout />}>
           <Route path="/shop" element={<OverviewPage />} />
@@ -44,11 +47,14 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* Admin dashboard — system only */}
+      {/* Admin dashboard — admin only */}
       <Route element={<AdminGuard />}>
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<Navigate to="/admin/system" replace />} />
           <Route path="/admin/system" element={<SystemPage />} />
+          <Route path="/admin/k8s-dashboard" element={<AdminK8sDashboardPage />} />
+          <Route path="/admin/insights" element={<AdminInsightsPage />} />
+          <Route path="/admin/setup" element={<AdminSetupPage />} />
           <Route path="/admin/users" element={<UsersPage />} />
         </Route>
       </Route>

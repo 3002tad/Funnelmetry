@@ -32,8 +32,8 @@ overviewRouter.get("/api/overview", async (req, res) => {
     const trend = await query(
       `SELECT
          window_start,
-         total_events, page_views, product_views,
-         add_to_cart, purchases, unique_sessions
+         total_events, page_views, product_views, searches,
+         add_to_cart, purchases, unique_sessions, revenue
        FROM tracking_kpi_1m
        WHERE window_start >= NOW() - ($1 || ' minutes')::interval
        ORDER BY window_start ASC`,

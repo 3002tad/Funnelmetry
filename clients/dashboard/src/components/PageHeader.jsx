@@ -1,5 +1,6 @@
 import { PeriodPills } from "./PeriodPills.jsx";
 import { IconRefresh } from "./icons.jsx";
+import { useLiveStreamStatus } from "../context/LiveStreamContext.jsx";
 
 const PERIOD_OPTS = [
   { value: 15, label: "15p" },
@@ -19,7 +20,20 @@ export function PageHeader({
   periodOptions = PERIOD_OPTS,
   variant = "mgr",
   live = true,
+  lastUpdated,
 }) {
+  const streamStatus = useLiveStreamStatus();
+  const statusClass = streamStatus === "live"
+    ? "live"
+    : streamStatus === "reconnecting"
+      ? "reconnecting"
+      : "offline";
+  const statusLabel = streamStatus === "live"
+    ? "Live"
+    : streamStatus === "reconnecting"
+      ? "Đang kết nối lại"
+      : "Offline";
+
   if (variant === "admin") {
     return (
       <div className="admin-topbar">
@@ -49,13 +63,22 @@ export function PageHeader({
           {subtitle && <p>{subtitle}</p>}
         </div>
         {live && (
-          <span className="live-badge">
+          <span className={`live-badge live-badge--${statusClass}`}>
             <span className="live-badge__dot" />
-            Live
+            {statusLabel}
           </span>
         )}
       </div>
       <div className="page-header__toolbar">
+        {lastUpdated && (
+          <span className="header-last-updated">
+            Cập nhật: {new Date(lastUpdated).toLocaleTimeString("vi-VN", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })}
+          </span>
+        )}
         {onMinutesChange && (
           <PeriodPills value={minutes} onChange={onMinutesChange} options={periodOptions} />
         )}

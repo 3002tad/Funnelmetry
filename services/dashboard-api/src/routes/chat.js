@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { handleChatMessage, listRecentInsights } from "../lib/chat/chat.service.js";
+import { handleChatMessage } from "../lib/chat/chat.service.js";
 
 export const chatRouter = Router();
 
@@ -19,17 +19,5 @@ chatRouter.post("/api/chat", async (req, res) => {
   } catch (err) {
     console.error("POST /api/chat", err.message);
     res.status(500).json({ error: "chat_failed" });
-  }
-});
-
-// GET /api/chat/insights — recent Qdrant insights for AI panel
-chatRouter.get("/api/chat/insights", async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit, 10) || 12, 30);
-  try {
-    const result = await listRecentInsights(limit);
-    res.json(result);
-  } catch (err) {
-    console.error("GET /api/chat/insights", err.message);
-    res.status(500).json({ error: "insights_failed" });
   }
 });

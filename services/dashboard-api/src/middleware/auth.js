@@ -1,12 +1,20 @@
 import { verifyToken } from "../lib/jwt.js";
+import { canAccessAdmin, canAccessShop } from "../lib/roles.js";
 
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization;
-  if (!header?.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "unauthorized" });
+  let token = null;
+
+  if (header?.startsWith("Bearer ")) {
+    token = header.slice(7);
+  } else if (req.path === "/api/events/stream" && typeof req.query?.token === "string") {
+    // EventSource cannot send Authorization header, so SSE uses token query param.
+    token = req.query.token;
   }
+
+  if (!token) return res.status(401).json({ error: "unauthorized" });
   try {
-    const payload = verifyToken(header.slice(7));
+    const payload = verifyToken(token);
     req.user = {
       id: payload.sub,
       email: payload.email,
@@ -25,4 +33,22 @@ export function requireRole(...roles) {
     }
     next();
   };
+}
+
+export function requireShopRole(req, res, next) {
+  if (canAccessShop(req.user?.role)) return next();
+  return res.status(403).json({
+    error: "forbidden",
+    hint: "analyst_only",
+    role: req.user?.role || null,
+  });
+}
+
+export function requireAdminRole(req, res, next) {
+  if (canAccessAdmin(req.user?.role)) return next();
+  return res.status(403).json({
+    error: "forbidden",
+    hint: "admin_only",
+    role: req.user?.role || null,
+  });
 }

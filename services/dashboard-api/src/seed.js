@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS dashboard_users (
   email         VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   display_name  VARCHAR(100),
-  role          VARCHAR(20) NOT NULL DEFAULT 'viewer'
-                CHECK (role IN ('super_admin', 'analyst', 'viewer')),
+  role          VARCHAR(20) NOT NULL DEFAULT 'analyst'
+                CHECK (role IN ('super_admin', 'analyst')),
   is_active     BOOLEAN NOT NULL DEFAULT true,
   last_login_at TIMESTAMP,
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

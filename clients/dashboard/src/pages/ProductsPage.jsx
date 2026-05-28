@@ -1,29 +1,53 @@
 import { useCallback, useMemo, useState } from "react";
 import { BarChartH } from "../components/charts/SimpleBarChart.jsx";
-import { BarCell, DataPanel, EmptyState, PageLoading, RankBadge } from "../components/DataPanel.jsx";
+import { ProductPerformanceTable } from "../components/ProductPerformanceTable.jsx";
+import { BarCell, DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
+import { IconProducts, IconRevenue } from "../components/icons.jsx";
+import { StatHero } from "../components/StatCard.jsx";
+import { buildProductActionItems, buildProductSummary } from "../lib/productMetrics.js";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
-function fmt(v) { return Number(v || 0).toLocaleString(); }
+function fmt(v) { return Number(v || 0).toLocaleString("vi-VN"); }
 function money(v) { return `${Number(v || 0).toLocaleString("vi-VN")} ₫`; }
 
 const TOP_N = 8;
+const TABLE_LIMIT = 20;
 
 export function ProductsPage() {
   const [minutes, setMinutes] = useState(60);
-  const topFetcher = useCallback(() => api.productsTop(minutes), [minutes]);
+  const topFetcher = useCallback(() => api.productsTop(minutes, TABLE_LIMIT), [minutes]);
   const anomFetcher = useCallback(() => api.productsAnomalies(minutes), [minutes]);
+  const overviewFetcher = useCallback(() => api.overview(minutes), [minutes]);
+
   const top = useAutoRefresh(topFetcher, 60000);
   const anom = useAutoRefresh(anomFetcher, 60000);
-  useOnKpiUpdate(useCallback(() => { top.refresh(); anom.refresh(); }, [top.refresh, anom.refresh]));
+  const overview = useAutoRefresh(overviewFetcher, 60000);
+
+  useOnKpiUpdate(useCallback(() => {
+    top.refresh();
+    anom.refresh();
+    overview.refresh();
+  }, [top.refresh, anom.refresh, overview.refresh]));
 
   const products = top.data?.products || [];
+  const anomalies = anom.data?.anomalies || [];
 
-  const maxViews = useMemo(
-    () => Math.max(...products.map((p) => Number(p.views)), 1),
-    [products]
+  const anomalyIds = useMemo(
+    () => new Set(anomalies.map((p) => p.product_id)),
+    [anomalies]
+  );
+
+  const summary = useMemo(
+    () => buildProductSummary(products, anomalies),
+    [products, anomalies]
+  );
+
+  const actionItems = useMemo(
+    () => buildProductActionItems(summary, anomalies),
+    [summary, anomalies]
   );
 
   const chartViews = useMemo(
@@ -45,114 +69,171 @@ export function ProductsPage() {
     [products]
   );
 
+  const sparkProductViews = useMemo(
+    () => (overview.data?.trend || []).map((r) => Number(r.product_views || 0)),
+    [overview.data]
+  );
+  const sparkPurchases = useMemo(
+    () => (overview.data?.trend || []).map((r) => Number(r.purchases || 0)),
+    [overview.data]
+  );
+
+  const maxAnomViews = useMemo(
+    () => Math.max(...anomalies.map((p) => Number(p.views)), 1),
+    [anomalies]
+  );
+
+  const loading = top.loading && !top.data;
+  const error = top.error;
+
+  if (loading) {
+    return (
+      <>
+        <PageHeader title="Sản phẩm" minutes={minutes} onMinutesChange={setMinutes} live={false} />
+        <div className="mgr-content"><PageLoading /></div>
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader
         title="Sản phẩm"
-        subtitle="Phân tích hiệu suất từng SKU — lượt xem, giỏ hàng, chuyển đổi và doanh thu"
+        subtitle="Phân tích SKU — traffic, conversion view→mua và doanh thu theo kỳ"
         minutes={minutes}
         onMinutesChange={setMinutes}
+        onRefresh={() => { top.refresh(); anom.refresh(); overview.refresh(); }}
+        lastUpdated={top.lastUpdated}
       />
       <div className="mgr-content">
-        {top.loading ? (
-          <PageLoading />
-        ) : products.length === 0 ? (
+        {error ? <PageError message={error} /> : null}
+        {anom.error ? <PageError message={anom.error} /> : null}
+
+        {products.length === 0 ? (
           <DataPanel title="Top sản phẩm"><EmptyState /></DataPanel>
         ) : (
           <>
-            <div className="mgr-cols-2">
-              <DataPanel title="Top lượt xem" subtitle={`${TOP_N} SKU có traffic cao nhất`}>
-                <div className="data-panel__body data-panel__body--chart">
-                  <BarChartH data={chartViews} color="#53389e" height={280} />
+            <div className="stat-hero-row stat-hero-row--funnel">
+              <StatHero
+                tone="purple"
+                icon={IconProducts}
+                label="Tổng lượt xem SP"
+                value={fmt(summary.totalViews)}
+                sub={`${summary.skuCount} SKU · top list`}
+                sparkline={sparkProductViews}
+              />
+              <StatHero
+                tone="primary"
+                icon={IconRevenue}
+                label="Doanh thu (top list)"
+                value={money(summary.totalRevenue)}
+                sub={`${fmt(summary.totalPurchases)} đơn mua`}
+                sparkline={sparkPurchases}
+              />
+              <StatHero
+                tone="success"
+                label="Conversion TB"
+                value={`${summary.avgConvPct.toFixed(2)}%`}
+                sub={`Giỏ: ${summary.cartRatePct.toFixed(1)}% view→cart`}
+              />
+            </div>
+
+            <div className="overview-main-grid">
+              <DataPanel
+                title="Bảng hiệu suất SKU"
+                subtitle={`Top ${TABLE_LIMIT} theo lượt xem — conversion và doanh thu`}
+              >
+                <div className="data-panel__body data-panel__body--flush">
+                  <ProductPerformanceTable
+                    products={products}
+                    anomaliesIds={anomalyIds}
+                  />
                 </div>
               </DataPanel>
-              <DataPanel title="Top doanh thu" subtitle={`${TOP_N} SKU đóng góp doanh thu nhiều nhất`}>
+
+              <div className="overview-right-stack">
+                <DataPanel title="Ưu tiên hành động" subtitle="Gợi ý tối ưu catalog trong kỳ này">
+                  <div className="action-list">
+                    {actionItems.map((item) => (
+                      <div key={item.key} className={`action-card ${item.level}`}>
+                        <span className="action-card__title">{item.title}</span>
+                        <strong className="action-card__value">{item.value}</strong>
+                        <span className="action-card__hint">{item.hint}</span>
+                      </div>
+                    ))}
+                  </div>
+                </DataPanel>
+
+                <DataPanel title="Top lượt xem" subtitle={`${TOP_N} SKU traffic cao`}>
+                  <div className="data-panel__body data-panel__body--chart">
+                    <BarChartH data={chartViews} color="#53389e" height={220} />
+                  </div>
+                </DataPanel>
+              </div>
+            </div>
+
+            <div className="mgr-cols-2">
+              <DataPanel title="Top doanh thu" subtitle={`${TOP_N} SKU đóng góp nhiều nhất`}>
                 <div className="data-panel__body data-panel__body--chart">
-                  <BarChartH data={chartRevenue} color="#f54e00" height={280} />
+                  <BarChartH
+                    data={chartRevenue}
+                    color="#f54e00"
+                    height={260}
+                    dataKey="value"
+                  />
+                </div>
+              </DataPanel>
+
+              <DataPanel
+                title="High view · Zero purchase"
+                subtitle="Anomaly — nhiều xem, không có đơn"
+                action={
+                  anomalies.length > 0 ? (
+                    <span className="badge down">{anomalies.length} SKU</span>
+                  ) : null
+                }
+              >
+                <div className="data-panel__body--flush">
+                  {anom.loading ? (
+                    <PageLoading />
+                  ) : anomalies.length === 0 ? (
+                    <div className="data-panel__body">
+                      <EmptyState message="Không có SKU high-view / zero-purchase trong kỳ." />
+                    </div>
+                  ) : (
+                    <table className="data-table data-table--compact">
+                      <thead>
+                        <tr>
+                          <th>Sản phẩm</th>
+                          <th>Views</th>
+                          <th>Giỏ</th>
+                          <th>Mua</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {anomalies.map((p) => (
+                          <tr key={p.product_id}>
+                            <td>
+                              <div className="product-cell">
+                                <strong>{p.product_name || p.product_id}</strong>
+                                <span>{p.product_id}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <BarCell value={p.views} max={maxAnomViews} color="#b91c1c" />
+                            </td>
+                            <td>{fmt(p.add_to_cart)}</td>
+                            <td className="bi-product__zero">0</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </DataPanel>
             </div>
-
-            <DataPanel
-              title="Bảng chi tiết"
-              subtitle="Xếp hạng theo traffic trong khoảng thời gian đã chọn"
-            >
-              <div className="data-panel__body--flush">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 48 }}>#</th>
-                      <th>Sản phẩm</th>
-                      <th>Giá</th>
-                      <th>Lượt xem</th>
-                      <th>Giỏ</th>
-                      <th>Mua</th>
-                      <th>Doanh thu</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.map((p, i) => (
-                      <tr key={p.product_id}>
-                        <td><RankBadge rank={i + 1} /></td>
-                        <td>
-                          <div className="product-cell">
-                            <strong>{p.product_name}</strong>
-                            <span>{p.product_id}</span>
-                          </div>
-                        </td>
-                        <td>{money(p.unit_price)}</td>
-                        <td><BarCell value={p.views} max={maxViews} color="#53389e" /></td>
-                        <td>{fmt(p.add_to_cart)}</td>
-                        <td style={{ fontWeight: 700 }}>{fmt(p.purchases)}</td>
-                        <td style={{ fontWeight: 700, color: "var(--accent)" }}>{money(p.revenue)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </DataPanel>
           </>
         )}
-
-        <DataPanel
-          title="Cần tối ưu"
-          subtitle="Nhiều lượt xem nhưng không có đơn mua — ưu tiên cải thiện giá, ảnh, mô tả"
-          action={<span className="badge down">Anomaly</span>}
-        >
-          <div className="data-panel__body--flush">
-            {anom.loading ? <PageLoading /> : !(anom.data?.anomalies || []).length ? (
-              <EmptyState message="Không phát hiện sản phẩm high-view / zero-purchase." />
-            ) : (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Sản phẩm</th>
-                    <th>Views</th>
-                    <th>Giỏ</th>
-                    <th>Mua</th>
-                    <th>Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {anom.data.anomalies.map((p) => (
-                    <tr key={p.product_id}>
-                      <td>
-                        <div className="product-cell">
-                          <strong>{p.product_name || p.product_id}</strong>
-                          <span>{p.product_id}</span>
-                        </div>
-                      </td>
-                      <td><BarCell value={p.views} max={maxViews} color="#b91c1c" /></td>
-                      <td>{fmt(p.add_to_cart)}</td>
-                      <td style={{ color: "var(--danger)", fontWeight: 800 }}>0</td>
-                      <td><span className="badge down">Cần xem xét</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </DataPanel>
       </div>
     </>
   );

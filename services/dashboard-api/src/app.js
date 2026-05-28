@@ -1,7 +1,8 @@
 import cors from "cors";
 import express from "express";
+import { isAdminApiPath, isShopApiPath, skipUnlessZone } from "./lib/api-zones.js";
 import { config } from "./config.js";
-import { requireAuth } from "./middleware/auth.js";
+import { requireAuth, requireAdminRole, requireShopRole } from "./middleware/auth.js";
 import { authRouter } from "./routes/auth.js";
 import { bannersRouter } from "./routes/banners.js";
 import { eventsRouter } from "./routes/events.js";
@@ -28,20 +29,25 @@ export function createApp() {
   app.use(healthRouter);
   app.use(authRouter);
 
-  const analytics = express.Router();
-  analytics.use(requireAuth);
-  analytics.use(overviewRouter);
-  analytics.use(eventsRouter);
-  analytics.use(funnelRouter);
-  analytics.use(productsRouter);
-  analytics.use(searchRouter);
-  analytics.use(bannersRouter);
-  analytics.use(revenueRouter);
-  analytics.use(systemRouter);
-  analytics.use(chatRouter);
-  app.use(analytics);
+  const shop = express.Router();
+  shop.use(skipUnlessZone(isShopApiPath));
+  shop.use(requireAuth, requireShopRole);
+  shop.use(overviewRouter);
+  shop.use(eventsRouter);
+  shop.use(funnelRouter);
+  shop.use(productsRouter);
+  shop.use(searchRouter);
+  shop.use(bannersRouter);
+  shop.use(revenueRouter);
+  shop.use(chatRouter);
+  app.use(shop);
 
-  app.use(usersRouter);
+  const adminOps = express.Router();
+  adminOps.use(skipUnlessZone(isAdminApiPath));
+  adminOps.use(requireAuth, requireAdminRole);
+  adminOps.use(systemRouter);
+  adminOps.use(usersRouter);
+  app.use(adminOps);
 
   return app;
 }
