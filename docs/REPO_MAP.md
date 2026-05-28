@@ -2,7 +2,7 @@
 
 > **Runtime thật (k3s):** [`RUNTIME.md`](RUNTIME.md) — commerce path qua RabbitMQ + connector.
 
-Ánh xạ [`Refactor_tracking_pipeline.md`](Refactor_tracking_pipeline.md) và [`Thiet_lap_mang_moi_truong.md`](Thiet_lap_mang_moi_truong.md) vào cấu trúc repo.
+Ánh xạ [`SPEC.md`](SPEC.md) vào cấu trúc repo. Cách chạy: [`RUNTIME.md`](RUNTIME.md).
 
 **Chú thích status:** `có` = đã có code/infra · `shell` = thư mục/README, chưa implement · `spec` = chỉ trong tài liệu · `đổi tên` = tên repo khác tên spec
 
@@ -39,7 +39,7 @@
 | `spark-streaming` | `services/streaming-processor/` | Đã đổi tên; giữ Spark/Kafka/Postgres; đổi logic KPI |
 | `dashboard-api` | `services/dashboard-api/` | Thêm overview, funnel, products, chat |
 | `clients/dashboard` | `clients/dashboard/` | Đổi KPI sang behavior analytics |
-| `infra` docker/k8s | `infra/k8s/` | k3s sprint1–3; Compose legacy |
+| `infra` docker/k8s | `infra/k8s/` | k3s sprint1–3 |
 | `producer-poller` | — | Bỏ; Tracking API publish thẳng Kafka |
 
 ---
@@ -127,8 +127,7 @@ Entrypoint hiện tại: `main.py` (placeholder health wait).
 | **k3s (runtime)** | `infra/k8s/sprint3/` | `k3s kubectl apply -k infra/k8s/sprint3` — NodePort 31000, 32000, 30809 |
 | Runtime doc | `docs/RUNTIME.md` | Nguồn chân lý deploy |
 | Port map | `infra/PORTS.md` | NodePort, CORS, tailnet |
-| Docker Compose (legacy) | `infra/docker-compose.yml` | Không deploy |
-| Headscale / Tailscale | — | `docs/Thiet_lap_mang_moi_truong.md` |
+| Headscale / Tailscale | — | `docs/RUNTIME.md` §8 |
 | Laptop 1 backend | WSL2 + k3s | |
 | Laptop 2 demo + bot | `clients/web-shop`, `bot-simulator/` | `TRACKING_FORWARD_URL` → `http://lap1:31000/track` |
 
@@ -158,13 +157,11 @@ Entrypoint hiện tại: `main.py` (placeholder health wait).
 │   ├── web-shop/               # Web TMĐT demo (submodule)
 │   └── dashboard/              # Analytics + chatbot UI
 ├── docs/
-│   ├── RUNTIME.md              # deploy thật (k3s)
-│   ├── PROJECT.md
+│   ├── README.md               # mục lục doc
+│   ├── RUNTIME.md              # deploy + mạng demo
 │   ├── REPO_MAP.md             # file này
-│   ├── Refactor_tracking_pipeline.md
-│   └── Thiet_lap_mang_moi_truong.md
+│   └── SPEC.md                 # spec kiến trúc / schema
 ├── infra/
-│   ├── docker-compose.yml
 │   ├── postgres/
 │   └── k8s/
 ├── sdk/

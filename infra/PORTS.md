@@ -1,6 +1,6 @@
 # Port map — k3s (runtime)
 
-Backend chạy trên **k3s** trong WSL2. Build image vẫn có thể dùng Docker (`infra/k8s/import-images-*.sh`).
+Backend chạy trên **k3s** trong WSL2. Build image: `bash infra/k8s/import-images.sh`.
 
 ## Truy cập từ Windows / Laptop 2
 
@@ -49,6 +49,3 @@ Alias (tuỳ chọn): `alias kubectl='k3s kubectl'`
 - Lần đầu sau PVC mới: `k3s kubectl -n realtime exec deploy/ollama -- ollama pull qwen2.5:3b`
 - Pod restart **không** mất model (trừ khi xóa PVC).
 
-## Legacy: Docker Compose
-
-`infra/docker-compose.yml` không dùng cho runtime. Port cũ: 3100, 3200, 8090, 3300 — tham khảo lịch sử only.

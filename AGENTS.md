@@ -1,6 +1,6 @@
 # Agent context
 
-**Runtime (k3s):** [`docs/RUNTIME.md`](docs/RUNTIME.md) · **Spec:** [`docs/PROJECT.md`](docs/PROJECT.md) · **Map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md) · **LLM:** [`docs/LLM_PRIMER.md`](docs/LLM_PRIMER.md)
+**Docs:** [`docs/README.md`](docs/README.md) · **Runtime:** [`docs/RUNTIME.md`](docs/RUNTIME.md) · **Spec:** [`docs/SPEC.md`](docs/SPEC.md) · **Map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md)
 
 ## Mục tiêu
 

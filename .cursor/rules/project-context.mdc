@@ -5,10 +5,10 @@ alwaysApply: true
 
 # Project context
 
-**Runtime:** [`docs/RUNTIME.md`](docs/RUNTIME.md). **Spec:** [`docs/PROJECT.md`](docs/PROJECT.md). **Repo map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md) — implement đúng path, không đoán tên topic/table.
+**Runtime:** [`docs/RUNTIME.md`](docs/RUNTIME.md). **Spec:** [`docs/SPEC.md`](docs/SPEC.md). **Repo map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md) — implement đúng path, không đoán tên topic/table.
 
 Refactor toward **e-commerce behavior tracking**: SDK + RabbitMQ/Kafka streaming + Postgres + Qdrant insights + dashboard/chatbot RAG. Commerce events via **commerce-backend -> RabbitMQ -> connector -> tracking-api**. Do not invent topic/table names — use the spec.
 
-**This repo today:** backend runtime = **k3s** (`infra/k8s/sprint3`). Port map: [`infra/PORTS.md`](infra/PORTS.md). `infra/docker-compose.yml` = legacy (không deploy). Build image: `infra/k8s/import-images-sprint3.sh`.
+**This repo today:** backend runtime = **k3s** (`infra/k8s/sprint3`). Port map: [`infra/PORTS.md`](infra/PORTS.md). Build image: `infra/k8s/import-images.sh`.
 
-Demo topology: Laptop 2 (web + bot) → tailnet / WSL IP → Laptop 1 WSL2 (backend). See `docs/Thiet_lap_mang_moi_truong.md`, `infra/k8s/README.md`.
+Demo topology: Laptop 2 (web + bot) → tailnet / WSL IP → Laptop 1 WSL2 (backend). See `docs/RUNTIME.md`, `infra/k8s/README.md`.

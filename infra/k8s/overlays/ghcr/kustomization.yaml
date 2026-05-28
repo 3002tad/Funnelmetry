@@ -1,0 +1,14 @@
+# Optional overlay: pull images from GHCR instead of local :dev tags.
+# Usage (set TAG to commit SHA from CD workflow):
+#   cd infra/k8s/overlays/ghcr
+#   kustomize edit set image tracking-api:dev=ghcr.io/OWNER/REPO/tracking-api:TAG
+#   ... repeat for each service ...
+#   k3s kubectl apply -k .
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../sprint3
+
+# Replace :dev with GHCR after `kustomize edit set image` (see docs/CI_CD.md).
+images: []

@@ -12,7 +12,7 @@ Realtime e-commerce **behavior tracking** demo: SDK → Tracking API → Kafka �
 - **Dashboard:** `services/dashboard-api` + `clients/dashboard`
 - **Runtime:** **k3s** on WSL2 — `infra/k8s/sprint3`
 
-**Runtime:** [`docs/RUNTIME.md`](docs/RUNTIME.md) · Spec: [`docs/PROJECT.md`](docs/PROJECT.md) · Map: [`docs/REPO_MAP.md`](docs/REPO_MAP.md) · Ports: [`infra/PORTS.md`](infra/PORTS.md)
+**Docs:** [`docs/README.md`](docs/README.md) · **Chạy project:** [`docs/RUNTIME.md`](docs/RUNTIME.md) · **CI/CD:** [`docs/CI_CD.md`](docs/CI_CD.md) · Ports: [`infra/PORTS.md`](infra/PORTS.md)
 
 ## Quick start (k3s on WSL2)
 
@@ -23,7 +23,7 @@ cp infra/.env.example infra/.env
 # Sửa POSTGRES_PASSWORD, WSL_IP, VITE_* trong infra/.env
 
 bash infra/k8s/install-k3s-wsl.sh          # once
-bash infra/k8s/import-images-sprint3.sh
+bash infra/k8s/import-images.sh
 # Tạo secret app-secrets — xem infra/k8s/README.md (POSTGRES_*, JWT_*, DASHBOARD_ADMIN_*)
 
 k3s kubectl apply -k infra/k8s/sprint3
@@ -67,6 +67,6 @@ cd services/tracking-api && npm install && npm run dev
 # Trỏ web-shop tạm tới http://localhost:31000/track qua TRACKING_FORWARD_URL
 ```
 
-## Legacy Docker Compose
+## Build image
 
-Không dùng cho triển khai. File `infra/docker-compose.yml` giữ để tham khảo / build image cũ.
+Dùng `infra/k8s/import-images.sh`, `rebuild-all-dev-images.sh` — xem [`infra/README.md`](infra/README.md).

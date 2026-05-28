@@ -1,77 +1,154 @@
-# Runtime — nguồn chân lý (k3s)
+# Runtime — cách chạy project (k3s)
 
-Tài liệu này mô tả **cách project chạy thật hôm nay**. Spec chi tiết lịch sử: [`PROJECT.md`](PROJECT.md), [`Refactor_tracking_pipeline.md`](Refactor_tracking_pipeline.md).
+Nguồn chân lý deploy. Spec kỹ thuật: [SPEC.md](SPEC.md) · Map repo: [REPO_MAP.md](REPO_MAP.md).
 
-## Triển khai
+## 1. Yêu cầu
 
-| | |
-|---|---|
-| **Runtime** | k3s trên WSL2 (Laptop 1) |
-| **Apply** | `k3s kubectl apply -k infra/k8s/sprint3` (full stack + commerce path) |
-| **Không dùng** | Docker Compose deploy |
+- Windows + **WSL2 Ubuntu**
+- **Docker Desktop** (build image, WSL integration)
+- **Git**
 
-Ports & URL: [`infra/PORTS.md`](../infra/PORTS.md) · Deploy: [`infra/k8s/README.md`](../infra/k8s/README.md)
+## 2. Clone & cấu hình
 
-## Luồng event
+```bash
+git clone https://github.com/3002tad/Business-Data-Streaming---Processing-Pipeline.git
+cd Business-Data-Streaming---Processing-Pipeline
+git submodule update --init --recursive
 
-```text
-Web-shop (browser) + Browser SDK
-        │  behavior: POST /track
-        │  commerce: commerce-backend -> RabbitMQ -> connector
-        ▼
-  tracking-api  ◄──── commerce-connector
-        │
-        └───────►  Kafka (tracking_events_raw)
-        ▲                    │
-        │                    ▼
-        │           streaming-processor
-        │                    │
-        │         ┌──────────┴──────────┐
-        │         ▼                     ▼
-        │   PostgreSQL            Qdrant (insights)
-        │   (clean + KPI)                │
-        │         │                     │
-        └─────────┴── dashboard-api ◄──┘
-                      │  /api/*
-                      ▼
-               dashboard-ui (:30809)
-                      │
-               Ollama in-cluster (chat)
+cp infra/.env.example infra/.env
+# Sửa POSTGRES_PASSWORD, WSL_IP, VITE_* (WSL_IP = hostname -I trong WSL)
 ```
 
-**Commerce** (`checkout_start`, `purchase_succeeded`, …): đi qua `commerce-backend` + RabbitMQ + `commerce-connector`, `event_source: commerce_backend_rabbitmq`.
+## 3. Cài k3s (lần đầu, trong WSL)
 
-## Pods (namespace `realtime`)
+```bash
+bash infra/k8s/install-k3s-wsl.sh
+k3s kubectl get nodes
+```
+
+Script lỗi `$'\r'`: `sed -i 's/\r$//' infra/k8s/*.sh && chmod +x infra/k8s/*.sh`
+
+## 4. Secret + deploy
+
+```bash
+k3s kubectl create namespace realtime --dry-run=client -o yaml | k3s kubectl apply -f -
+
+k3s kubectl -n realtime create secret generic app-secrets \
+  --from-literal=POSTGRES_DB=realtime \
+  --from-literal=POSTGRES_USER=app \
+  --from-literal=POSTGRES_PASSWORD='change-me' \
+  --from-literal=JWT_SECRET='change-me-use-long-random-string' \
+  --from-literal=DASHBOARD_ADMIN_EMAIL='admin@pipeline.local' \
+  --from-literal=DASHBOARD_ADMIN_PASSWORD='admin123' \
+  --from-literal=RABBITMQ_URL='amqp://app:app@rabbitmq:5672' \
+  --from-literal=RABBITMQ_USER='app' \
+  --from-literal=RABBITMQ_PASS='app' \
+  --dry-run=client -o yaml | k3s kubectl apply -f -
+
+bash infra/k8s/import-images.sh
+k3s kubectl apply -k infra/k8s/sprint3
+k3s kubectl -n realtime get pods -w
+```
+
+Ollama (chat, lần đầu): `k3s kubectl -n realtime exec deploy/ollama -- ollama pull qwen2.5:3b`
+
+Sau `git pull`: `bash infra/k8s/rebuild-all-dev-images.sh`
+
+## 5. URL truy cập
+
+`WSL_IP` = `hostname -I | awk '{print $1}'` (dùng từ Windows/Laptop 2, không dùng `localhost` cho NodePort).
+
+| Dịch vụ | URL |
+|---------|-----|
+| Dashboard UI | `http://<WSL_IP>:30809` |
+| Tracking API | `http://<WSL_IP>:31000` |
+| Commerce backend | `http://<WSL_IP>:30330` |
+
+**Đăng nhập dashboard:** `admin@pipeline.local` / `admin123` (Admin) — tạo tài khoản Analytic trong Admin → Tài khoản.
+
+## 6. Luồng event
+
+```text
+Web-shop + SDK → tracking-api → Kafka → streaming-processor → PostgreSQL + Qdrant
+                                                      ↓
+                                            dashboard-api / dashboard-ui
+```
+
+Commerce (`purchase_succeeded`, …): `commerce-backend` → RabbitMQ → `commerce-connector` → `tracking-api`.
+
+## 7. Laptop 2 — web-shop gửi event
+
+Trên **Windows** (submodule `clients/web-shop`):
+
+```powershell
+cd clients\web-shop
+copy .env.example .env
+npm install
+npm run seed
+npm run dev
+```
+
+`clients/web-shop/.env`:
+
+```env
+TRACKING_FORWARD_URL=http://<WSL_IP>:31000/track
+COMMERCE_BACKEND_URL=http://<WSL_IP>:30330
+```
+
+Tailscale (nếu dùng hostname `lap1`): `ping lap1` từ Laptop 2.
+
+Test ingest:
+
+```bash
+curl -s -X POST "http://<WSL_IP>:31000/track" \
+  -H "Content-Type: application/json" \
+  -d '{"event_type":"page_view","anonymous_id":"t1","session_id":"s1","page_url":"/"}'
+```
+
+| Lỗi | Cách sửa |
+|-----|----------|
+| CORS | Thêm origin vào CORS tracking-api, restart pod |
+| Connection refused | Kiểm tra `k3s kubectl -n realtime get pods`, WSL_IP đúng |
+| Dashboard forbidden | Role `super_admin` vs `analyst`; đăng xuất + login lại |
+
+## 8. Mạng demo (2 laptop)
+
+| Máy | Vai trò |
+|-----|---------|
+| **Laptop 1 (WSL2)** | k3s full stack |
+| **Laptop 2 (Windows)** | Web-shop + bot (tuỳ chọn) |
+| **Server** (tuỳ chọn) | Headscale + DERP |
+
+SDK trên Laptop 2 gửi event qua tailnet / WSL IP về tracking-api Laptop 1. Chi tiết Headscale: xem phần mạng trong [SPEC.md](SPEC.md) hoặc ghi chú team.
+
+## 9. Chatbot (Ollama trong k3s)
+
+```text
+/shop/chat → dashboard-api → Postgres (số thật) + Qdrant (RAG) → Ollama qwen2.5:3b
+```
+
+- Service: `http://ollama:11434` (trong cluster)
+- Code: `services/dashboard-api/src/lib/chat/`
+- Không dùng Ollama trên Windows host
+
+```bash
+k3s kubectl -n realtime exec deploy/ollama -- ollama list
+```
+
+## 10. Pods (namespace `realtime`)
 
 | Pod | Vai trò |
 |-----|---------|
-| postgres | DB |
-| kafka | Queue raw events |
+| postgres, kafka | Data + queue |
 | tracking-api | Ingest HTTP |
-| streaming-processor | Consume Kafka → Postgres + Qdrant |
-| dashboard-api | REST + chat |
-| dashboard-ui | React + nginx proxy `/api/` |
-| qdrant | Vector insights |
-| ollama | LLM (`qwen2.5:3b`, PVC `ollama-data`) |
+| streaming-processor | Kafka → Postgres + Qdrant |
+| dashboard-api, dashboard-ui | API + UI |
+| rabbitmq, commerce-backend, commerce-connector | Commerce path |
+| qdrant, ollama | RAG + LLM |
 
-## Client (Laptop 2 / Windows)
+## 11. Role dashboard
 
-```env
-# infra/.env
-VITE_TRACKING_API_URL=http://<WSL_IP>:31000
-```
-
-Dashboard: `http://<WSL_IP>:30809` — không cần gọi thẳng `:32000` từ browser.
-
-## Legacy (không deploy)
-
-| Thành phần | Path | Ghi chú |
-|------------|------|---------|
-| RabbitMQ | `infra/k8s/data/rabbitmq/` | Queue commerce events |
-| commerce-backend | `services/commerce-backend/`, `infra/k8s/apps/commerce-backend/` | Publish AMQP |
-| commerce-connector | `services/commerce-connector/`, `infra/k8s/apps/commerce-connector/` | Consume AMQP -> tracking-api |
-| Docker Compose stack | `infra/docker-compose.yml` | Build image / tham khảo |
-
-## Secret `app-secrets` (k3s)
-
-Cần: `POSTGRES_*`, `JWT_SECRET`, `DASHBOARD_ADMIN_EMAIL`, `DASHBOARD_ADMIN_PASSWORD`, `RABBITMQ_URL`.
+| Role DB | UI |
+|---------|-----|
+| `super_admin` | `/admin` — pipeline, tài khoản, K8s guide |
+| `analyst` | `/shop` — analytics, chat |

@@ -1,4 +1,4 @@
-# Build all k3s images (Sprint 1 + 2) and import into WSL k3s.
+# Build all k3s app images and import into WSL k3s.
 # Run from repo root in PowerShell.
 
 $ErrorActionPreference = "Stop"
@@ -13,7 +13,9 @@ $images = @(
   @{ Name = "tracking-api:dev"; Context = "services/tracking-api" },
   @{ Name = "streaming-processor:dev"; Context = "services/streaming-processor" },
   @{ Name = "dashboard-api:dev"; Context = "services/dashboard-api" },
-  @{ Name = "dashboard-ui:dev"; Context = "clients/dashboard"; BuildArgs = @("--build-arg", "VITE_DASHBOARD_API_URL=") }
+  @{ Name = "dashboard-ui:dev"; Context = "clients/dashboard"; BuildArgs = @("--build-arg", "VITE_DASHBOARD_API_URL=") },
+  @{ Name = "commerce-backend:dev"; Context = "services/commerce-backend" },
+  @{ Name = "commerce-connector:dev"; Context = "services/commerce-connector" }
 )
 
 foreach ($img in $images) {

@@ -4,4 +4,4 @@
 
 **Required fields:** `anonymous_id`, `session_id`; optional `user_id` after login.
 
-**Schema:** [Refactor_tracking_pipeline.md](../../docs/Refactor_tracking_pipeline.md) §5.
+**Schema:** [SPEC.md](../../docs/SPEC.md) §5.

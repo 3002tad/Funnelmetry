@@ -45,7 +45,7 @@ for img in "${IMAGES[@]}"; do
   sudo k3s ctr images rm "${img}" 2>/dev/null || true
 done
 
-echo "=== Build + import (sprint2 + sprint3) ==="
+echo "=== Build + import all app images ==="
 if [[ "${NO_CACHE:-}" == "1" ]]; then
   export DOCKER_BUILDKIT=1
   echo "Building tracking-api ..."
@@ -66,7 +66,7 @@ if [[ "${NO_CACHE:-}" == "1" ]]; then
     "$DOCKER" save "$img" | sudo k3s ctr images import -
   done
 else
-  bash infra/k8s/import-images-sprint3.sh
+  bash infra/k8s/import-images.sh
 fi
 
 echo "=== Restart app deployments in ${NS} ==="

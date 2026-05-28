@@ -39,7 +39,7 @@ export function buildAdminSetupData() {
       },
     },
     deploy: "k3s kubectl apply -k infra/k8s/sprint3",
-    docs: ["infra/PORTS.md", "docs/RUNTIME.md", "docs/Thiet_lap_mang_moi_truong.md"],
+    docs: ["infra/PORTS.md", "docs/RUNTIME.md", "docs/README.md"],
     k8s_dashboard: {
       title: "Headlamp (Kubernetes UI)",
       description:
