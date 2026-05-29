@@ -4,17 +4,23 @@ import { ProductPerformanceTable } from "../components/ProductPerformanceTable.j
 import { BarCell, DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
 import { IconProducts, IconRevenue } from "../components/icons.jsx";
+import { ActionCardValue } from "../components/MoneyText.jsx";
 import { StatHero } from "../components/StatCard.jsx";
 import { buildProductActionItems, buildProductSummary } from "../lib/productMetrics.js";
 import { api } from "../lib/api.js";
+import { formatMoney } from "../lib/format.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 function fmt(v) { return Number(v || 0).toLocaleString("vi-VN"); }
-function money(v) { return `${Number(v || 0).toLocaleString("vi-VN")} ₫`; }
 
 const TOP_N = 8;
-const TABLE_LIMIT = 20;
+const TABLE_LIMIT = 10;
+
+function skuChartLabel(p, maxLen = 28) {
+  const name = String(p.product_name || p.product_id || "").trim();
+  return name.length > maxLen ? `${name.slice(0, maxLen - 1)}…` : name;
+}
 
 export function ProductsPage() {
   const [minutes, setMinutes] = useState(60);
@@ -52,7 +58,7 @@ export function ProductsPage() {
 
   const chartViews = useMemo(
     () => products.slice(0, TOP_N).map((p) => ({
-      name: (p.product_name || p.product_id).slice(0, 18),
+      name: skuChartLabel(p),
       value: Number(p.views),
     })),
     [products]
@@ -63,7 +69,7 @@ export function ProductsPage() {
       .sort((a, b) => Number(b.revenue) - Number(a.revenue))
       .slice(0, TOP_N)
       .map((p) => ({
-        name: (p.product_name || p.product_id).slice(0, 18),
+        name: skuChartLabel(p),
         value: Number(p.revenue),
       })),
     [products]
@@ -126,7 +132,7 @@ export function ProductsPage() {
                 tone="primary"
                 icon={IconRevenue}
                 label="Doanh thu (top list)"
-                value={money(summary.totalRevenue)}
+                value={formatMoney(summary.totalRevenue)}
                 sub={`${fmt(summary.totalPurchases)} đơn mua`}
                 sparkline={sparkPurchases}
               />
@@ -141,7 +147,7 @@ export function ProductsPage() {
             <div className="overview-main-grid">
               <DataPanel
                 title="Bảng hiệu suất SKU"
-                subtitle={`Top ${TABLE_LIMIT} theo lượt xem — conversion và doanh thu`}
+                subtitle="Top 10 theo lượt xem — conversion và doanh thu"
               >
                 <div className="data-panel__body data-panel__body--flush">
                   <ProductPerformanceTable
@@ -157,7 +163,7 @@ export function ProductsPage() {
                     {actionItems.map((item) => (
                       <div key={item.key} className={`action-card ${item.level}`}>
                         <span className="action-card__title">{item.title}</span>
-                        <strong className="action-card__value">{item.value}</strong>
+                        <ActionCardValue value={item.value} />
                         <span className="action-card__hint">{item.hint}</span>
                       </div>
                     ))}

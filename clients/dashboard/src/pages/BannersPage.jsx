@@ -4,6 +4,7 @@ import { BannerPerformanceTable } from "../components/BannerPerformanceTable.jsx
 import { DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
 import { IconBanner } from "../components/icons.jsx";
+import { ActionCardValue } from "../components/MoneyText.jsx";
 import { StatHero } from "../components/StatCard.jsx";
 import { buildBannerActionItems, buildBannerSummary } from "../lib/bannerMetrics.js";
 import { api } from "../lib/api.js";
@@ -23,6 +24,8 @@ export function BannersPage() {
   }, [refresh, overview.refresh]));
 
   const banners = data?.banners || [];
+  const diagnostics = data?.diagnostics;
+  const dataSource = data?.source;
 
   const summary = useMemo(() => buildBannerSummary(banners), [banners]);
   const actionItems = useMemo(() => buildBannerActionItems(summary), [summary]);
@@ -71,7 +74,26 @@ export function BannersPage() {
       <div className="mgr-content">
         {banners.length === 0 ? (
           <DataPanel title="Hiệu suất banner">
-            <EmptyState message="Chưa có dữ liệu banner — cần event banner_impression / banner_click." />
+            <EmptyState
+              message={
+                diagnostics?.raw_banner_events > 0 && diagnostics?.missing_banner_id > 0
+                  ? `Có ${diagnostics.raw_banner_events} event banner nhưng không suy ra được id (cần metadata.banner_id hoặc metadata.name).`
+                  : diagnostics?.raw_banner_events > 0
+                    ? "Có event banner trong DB — rebuild/restart dashboard-api để dùng API mới, hoặc đợi streaming flush KPI."
+                    : "Chưa có event banner_impression / banner_click trong kỳ đã chọn — thử period 24h hoặc bật tracking trên web-shop."
+              }
+            />
+            {diagnostics != null && (
+              <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>
+                Event banner ({minutes} phút): {diagnostics.raw_banner_events ?? 0}
+                {diagnostics.missing_banner_id > 0
+                  ? ` · thiếu banner_id: ${diagnostics.missing_banner_id}`
+                  : ""}
+                {" · "}
+                KPI rows: {diagnostics.kpi_rows ?? 0}
+                {dataSource ? ` · nguồn: ${dataSource}` : ""}
+              </p>
+            )}
           </DataPanel>
         ) : (
           <>
@@ -113,7 +135,7 @@ export function BannersPage() {
                     {actionItems.map((item) => (
                       <div key={item.key} className={`action-card ${item.level}`}>
                         <span className="action-card__title">{item.title}</span>
-                        <strong className="action-card__value">{item.value}</strong>
+                        <ActionCardValue value={item.value} />
                         <span className="action-card__hint">{item.hint}</span>
                       </div>
                     ))}

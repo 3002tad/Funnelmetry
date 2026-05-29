@@ -7,8 +7,10 @@ import { VolumeBarChart } from "../components/charts/VolumeBarChart.jsx";
 import { DataPanel, PageError, PageLoading } from "../components/DataPanel.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
 import { IconEvents, IconFunnel, IconProducts, IconRevenue } from "../components/icons.jsx";
+import { ActionCardValue } from "../components/MoneyText.jsx";
 import { StatCard, StatHero } from "../components/StatCard.jsx";
 import { api } from "../lib/api.js";
+import { formatMoney } from "../lib/format.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
@@ -27,10 +29,6 @@ const FUNNEL_LABELS = {
   checkout_start: "Checkout",
   purchase: "Mua hàng",
 };
-
-function money(v) {
-  return `${Number(v || 0).toLocaleString("vi-VN")} ₫`;
-}
 
 function pctChange(current, previous) {
   const prev = Number(previous || 0);
@@ -188,7 +186,7 @@ export function OverviewPage() {
             tone="primary"
             icon={IconRevenue}
             label="Doanh thu"
-            value={money(kpi.total_revenue)}
+            value={formatMoney(kpi.total_revenue)}
             sub={`${Number(kpi.purchases || 0).toLocaleString()} đơn hàng`}
             sparkline={sparkRevenue}
           />
@@ -277,7 +275,7 @@ export function OverviewPage() {
                 {actionItems.map((item) => (
                   <div key={item.key} className={`action-card ${item.level}`}>
                     <span className="action-card__title">{item.title}</span>
-                    <strong className="action-card__value">{item.value}</strong>
+                    <ActionCardValue value={item.value} />
                     <span className="action-card__hint">{item.hint}</span>
                   </div>
                 ))}

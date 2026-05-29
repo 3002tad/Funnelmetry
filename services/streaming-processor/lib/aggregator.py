@@ -1,8 +1,8 @@
 """
 Tumbling-window aggregator (1-minute buckets).
 
-Accumulates events in memory and returns completed window KPI records when
-flush_completed() is called. A window is "completed" when now() > window_end.
+Accumulates events in memory. flush_completed() finalizes closed minutes;
+flush_current_snapshot() UPSERTs the open minute without clearing state.
 """
 from __future__ import annotations
 
@@ -24,6 +24,42 @@ _COMMERCE_TYPES = {
 
 def _floor_minute(dt: datetime) -> datetime:
     return dt.replace(second=0, microsecond=0)
+
+
+def _revenue_from_metadata(metadata: dict) -> float:
+    """Order revenue: amount, total_amount, or sum of line items (web-shop worker)."""
+    if not metadata:
+        return 0.0
+    for key in ("amount", "total_amount", "price"):
+        val = metadata.get(key)
+        if val is not None:
+            return float(val)
+    items = metadata.get("items") or []
+    total = 0.0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        line = item.get("amount")
+        if line is None:
+            price = float(item.get("price") or 0)
+            qty = float(item.get("quantity") or 1)
+            line = price * qty
+        total += float(line)
+    return total
+
+
+def _line_items(metadata: dict) -> list[dict]:
+    items = metadata.get("items") or []
+    return [i for i in items if isinstance(i, dict) and i.get("product_id")]
+
+
+def _banner_id_from_event(event: dict, metadata: dict) -> str:
+    """banner_id in metadata; web-shop may send name / banner_name only."""
+    for key in ("banner_id", "bannerId", "banner_name", "name"):
+        val = metadata.get(key) or event.get(key)
+        if val is not None and str(val).strip():
+            return str(val).strip()
+    return ""
 
 
 class WindowAggregator:
@@ -71,7 +107,7 @@ class WindowAggregator:
             tk["checkout_start"] += 1
         elif etype == "purchase_succeeded":
             tk["purchases"] += 1
-            tk["revenue"] += float(metadata.get("amount") or metadata.get("price") or 0)
+            tk["revenue"] += _revenue_from_metadata(metadata)
 
         # --- product_kpi_1m ---
         if product_id and etype in ("product_view", "add_to_cart", "purchase_succeeded"):
@@ -84,7 +120,7 @@ class WindowAggregator:
                 pk["purchases"] += 1
 
         # --- banner_kpi_1m ---
-        banner_id = metadata.get("banner_id") or ""
+        banner_id = _banner_id_from_event(event, metadata)
         if banner_id and etype in ("banner_impression", "banner_click"):
             bk = self._banner[(ws, banner_id)]
             if etype == "banner_impression":
@@ -94,7 +130,22 @@ class WindowAggregator:
             bk["target_product_id"] = metadata.get("target_product_id") or bk.get("target_product_id") or ""
 
         # --- product_revenue_kpi_1m ---
-        if product_id:
+        if etype == "purchase_succeeded":
+            line_items = _line_items(metadata)
+            if line_items:
+                for item in line_items:
+                    pid = item["product_id"]
+                    prk = self._product_revenue[(ws, pid)]
+                    prk["purchases"] += 1
+                    amt = item.get("amount")
+                    if amt is None:
+                        amt = float(item.get("price") or 0) * float(item.get("quantity") or 1)
+                    prk["revenue"] += float(amt)
+            elif product_id:
+                prk = self._product_revenue[(ws, product_id)]
+                prk["purchases"] += 1
+                prk["revenue"] += _revenue_from_metadata(metadata)
+        elif product_id:
             prk = self._product_revenue[(ws, product_id)]
             if etype == "product_view":
                 prk["views"] += 1
@@ -104,83 +155,120 @@ class WindowAggregator:
                 prk["add_to_cart"] += 1
             elif etype == "checkout_start":
                 prk["checkout_start"] += 1
-            elif etype == "purchase_succeeded":
-                prk["purchases"] += 1
-                prk["revenue"] += float(metadata.get("amount") or metadata.get("price") or 0)
+
+    def flush_current_snapshot(self) -> list[dict]:
+        """UPSERT KPI for the in-progress minute (dashboard sees revenue within flush interval)."""
+        cutoff = _floor_minute(datetime.now(timezone.utc))
+        records: list[dict] = []
+
+        if cutoff in self._tracking:
+            records.append(_tracking_kpi_record(
+                cutoff,
+                self._tracking[cutoff],
+                self._sessions.get(cutoff, set()),
+            ))
+
+        for (ws, pid), pk in self._product.items():
+            if ws == cutoff:
+                records.append(_product_kpi_record(ws, pid, pk))
+
+        for (ws, bid), bk in self._banner.items():
+            if ws == cutoff:
+                records.append(_banner_kpi_record(ws, bid, bk))
+
+        for (ws, pid), prk in self._product_revenue.items():
+            if ws == cutoff:
+                records.append(_product_revenue_kpi_record(ws, pid, prk))
+
+        return records
 
     def flush_completed(self) -> list[dict]:
         """Return KPI records for windows that have closed, then remove them."""
-        now = datetime.now(timezone.utc)
-        cutoff = _floor_minute(now)  # windows strictly before this minute are closed
-        records = []
+        cutoff = _floor_minute(datetime.now(timezone.utc))
+        records: list[dict] = []
 
         completed_ws = [ws for ws in self._tracking if ws < cutoff]
         for ws in completed_ws:
-            we = ws + timedelta(minutes=1)
             tk = self._tracking.pop(ws)
             sessions = self._sessions.pop(ws, set())
-            unique_sessions = len(sessions)
-            purchases = tk["purchases"]
-            unique_sessions_nonzero = unique_sessions or 1
-            conversion_rate = round(purchases / unique_sessions_nonzero, 4)
-
-            records.append({
-                "type": "tracking_kpi",
-                "window_start": ws,
-                "window_end": we,
-                **tk,
-                "unique_sessions": unique_sessions,
-                "conversion_rate": conversion_rate,
-            })
+            we = ws + timedelta(minutes=1)
+            records.append(_tracking_kpi_record(ws, tk, sessions))
             logger.info("flushing tracking_kpi window %s → %s (%d events)", ws, we, tk["total_events"])
 
         for (ws, pid), pk in list(self._product.items()):
             if ws < cutoff:
                 del self._product[(ws, pid)]
-                views = pk["product_views"] or 1
-                add_cart = pk["add_to_cart"]
-                purchases = pk["purchases"]
-                records.append({
-                    "type": "product_kpi",
-                    "window_start": ws,
-                    "product_id": pid,
-                    **pk,
-                    "add_to_cart_rate": round(add_cart / views, 4),
-                    "purchase_rate": round(purchases / views, 4),
-                })
+                records.append(_product_kpi_record(ws, pid, pk))
 
         for (ws, bid), bk in list(self._banner.items()):
             if ws < cutoff:
                 del self._banner[(ws, bid)]
-                we = ws + timedelta(minutes=1)
-                impressions = bk["impressions"] or 1
-                records.append({
-                    "type": "banner_kpi",
-                    "window_start": ws,
-                    "window_end": we,
-                    "banner_id": bid,
-                    "impressions": bk["impressions"],
-                    "clicks": bk["clicks"],
-                    "ctr": round(bk["clicks"] / impressions, 4),
-                    "target_product_id": bk.get("target_product_id") or None,
-                })
+                records.append(_banner_kpi_record(ws, bid, bk))
 
         for (ws, pid), prk in list(self._product_revenue.items()):
             if ws < cutoff:
                 del self._product_revenue[(ws, pid)]
-                we = ws + timedelta(minutes=1)
-                views = prk["views"] or 1
-                records.append({
-                    "type": "product_revenue_kpi",
-                    "window_start": ws,
-                    "window_end": we,
-                    "product_id": pid,
-                    **prk,
-                    "view_to_cart_rate": round(prk["add_to_cart"] / views, 4),
-                    "purchase_rate": round(prk["purchases"] / views, 4),
-                })
+                records.append(_product_revenue_kpi_record(ws, pid, prk))
 
         return records
+
+
+def _tracking_kpi_record(ws: datetime, tk: dict, sessions: set) -> dict:
+    we = ws + timedelta(minutes=1)
+    unique_sessions = len(sessions)
+    purchases = tk["purchases"]
+    denom = unique_sessions or 1
+    return {
+        "type": "tracking_kpi",
+        "window_start": ws,
+        "window_end": we,
+        **tk,
+        "unique_sessions": unique_sessions,
+        "conversion_rate": round(purchases / denom, 4),
+    }
+
+
+def _product_kpi_record(ws: datetime, pid: str, pk: dict) -> dict:
+    views = pk["product_views"] or 1
+    add_cart = pk["add_to_cart"]
+    purchases = pk["purchases"]
+    return {
+        "type": "product_kpi",
+        "window_start": ws,
+        "product_id": pid,
+        **pk,
+        "add_to_cart_rate": round(add_cart / views, 4),
+        "purchase_rate": round(purchases / views, 4),
+    }
+
+
+def _banner_kpi_record(ws: datetime, bid: str, bk: dict) -> dict:
+    we = ws + timedelta(minutes=1)
+    impressions = bk["impressions"] or 1
+    return {
+        "type": "banner_kpi",
+        "window_start": ws,
+        "window_end": we,
+        "banner_id": bid,
+        "impressions": bk["impressions"],
+        "clicks": bk["clicks"],
+        "ctr": round(bk["clicks"] / impressions, 4),
+        "target_product_id": bk.get("target_product_id") or None,
+    }
+
+
+def _product_revenue_kpi_record(ws: datetime, pid: str, prk: dict) -> dict:
+    we = ws + timedelta(minutes=1)
+    views = prk["views"] or 1
+    return {
+        "type": "product_revenue_kpi",
+        "window_start": ws,
+        "window_end": we,
+        "product_id": pid,
+        **prk,
+        "view_to_cart_rate": round(prk["add_to_cart"] / views, 4),
+        "purchase_rate": round(prk["purchases"] / views, 4),
+    }
 
 
 def _empty_tracking_kpi() -> dict:

@@ -378,9 +378,18 @@
   overflow: hidden;
 }
 
+.stat-hero--spark {
+  gap: 0.75rem 1rem;
+}
+
 .stat-hero__main {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+}
+
+.stat-hero--spark .stat-hero__main {
+  padding-right: 0.35rem;
 }
 
 .stat-hero__value-row {
@@ -388,6 +397,8 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.5rem 0.75rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .stat-hero__trend {
@@ -409,8 +420,11 @@
 }
 
 .stat-hero__spark {
-  flex-shrink: 0;
+  flex: 0 0 96px;
+  width: 96px;
   align-self: center;
+  margin-left: auto;
+  padding-left: 0.5rem;
   opacity: 0.95;
 }
 
@@ -466,11 +480,40 @@
 }
 
 .stat-hero__value {
-  font-size: 2rem;
+  font-size: clamp(1.15rem, 2.4vw, 1.85rem);
   font-weight: 800;
   letter-spacing: -0.04em;
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--text);
+  font-variant-numeric: tabular-nums;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.stat-hero--spark .stat-hero__value {
+  font-size: clamp(1.05rem, 2vw, 1.65rem);
+}
+
+/* Money: amount + currency stay together; separate from sparkline */
+.money-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2em;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: baseline;
+}
+
+.money-value__amount {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.money-value__currency {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .stat-hero__sub {
@@ -498,6 +541,30 @@
   align-items: flex-start;
   box-shadow: var(--shadow-sm);
   transition: border-color 0.12s;
+  overflow: hidden;
+}
+
+.stat-card__body {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.stat-card--spark {
+  gap: 0.65rem 0.75rem;
+}
+
+.stat-card--spark .stat-card__body {
+  padding-right: 0.25rem;
+}
+
+.stat-card__spark {
+  flex: 0 0 88px;
+  width: 88px;
+  align-self: center;
+  margin-left: auto;
+  padding-left: 0.35rem;
+  flex-shrink: 0;
 }
 
 .stat-card:hover { border-color: var(--border); }
@@ -541,6 +608,30 @@
   letter-spacing: -0.03em;
   color: var(--text);
   line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.stat-card--spark .stat-card__value {
+  font-size: clamp(1rem, 2vw, 1.25rem);
+}
+
+.bi-rank-table td.bi-product__revenue {
+  font-variant-numeric: tabular-nums;
+}
+
+.bi-product-table__col-revenue .money-value {
+  justify-content: flex-end;
+  width: auto;
+  max-width: none;
+}
+
+.bi-funnel__kpi strong {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-card__hint {
@@ -605,6 +696,10 @@
 
 .chart-frame--compact {
   background: linear-gradient(180deg, rgba(247, 248, 251, 0.85) 0%, transparent 55%);
+}
+
+.chart-frame--bar-h .recharts-yAxis .recharts-cartesian-axis-tick-value {
+  text-anchor: end;
 }
 
 .chart-tooltip {
@@ -743,6 +838,14 @@
   margin-top: 0.25rem;
   font-size: 1rem;
   color: var(--text);
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+}
+
+.stat-hero--primary .stat-hero__value .money-value {
+  color: var(--accent);
 }
 
 .action-card__hint {
@@ -876,46 +979,134 @@
 
 .bi-funnel__kpi--warn strong { color: var(--danger); }
 
-.bi-funnel__table {
+.bi-funnel__table-wrap,
+.bi-rank__table-wrap {
   padding: 0.5rem 1.35rem 1.15rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.bi-funnel__head,
-.bi-funnel__row {
-  display: grid;
-  grid-template-columns: minmax(140px, 1.4fr) 88px 72px 88px 80px 1fr;
-  gap: 0.65rem 0.75rem;
-  align-items: center;
+/* ── Shared BI data tables (rank, funnel, product) ── */
+.bi-rank-table,
+.bi-funnel-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
 }
 
-.bi-funnel--compact .bi-funnel__head,
-.bi-funnel--compact .bi-funnel__row {
-  grid-template-columns: minmax(120px, 1.2fr) 72px 64px 72px 1fr;
+.bi-rank-table { min-width: 28rem; }
+.bi-rank-table--filter { min-width: 30rem; }
+.bi-rank-table--banner { min-width: 36rem; }
+.bi-rank-table--event { min-width: 32rem; }
+.bi-funnel-table { min-width: 34rem; }
+.bi-funnel-table--compact { min-width: 28rem; }
+
+.bi-rank-table col.bi-col-rank { width: 2.75rem; }
+.bi-rank-table col.bi-col-label { width: 10rem; }
+.bi-rank-table--filter col.bi-col-label { width: 8.5rem; }
+.bi-rank-table--banner col.bi-col-label { width: 9rem; }
+.bi-rank-table--event col.bi-col-label { width: 9.5rem; }
+.bi-rank-table col.bi-col-code { width: 9rem; }
+.bi-rank-table col.bi-col-num,
+.bi-funnel-table col.bi-col-num { width: 4.5rem; }
+.bi-rank-table col.bi-col-pct,
+.bi-funnel-table col.bi-col-pct { width: 3.75rem; }
+.bi-rank-table col.bi-col-badge { width: 5.5rem; }
+.bi-rank-table col.bi-col-bar,
+.bi-funnel-table col.bi-col-bar { width: 5.5rem; }
+.bi-funnel-table col.bi-col-step { width: 11rem; }
+
+.mgr-root .bi-rank-table th,
+.mgr-root .bi-rank-table td,
+.mgr-root .bi-funnel-table th,
+.mgr-root .bi-funnel-table td {
+  padding: 0.65rem 0.5rem;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 
-.bi-funnel__head {
-  padding: 0.5rem 0 0.65rem;
-  border-bottom: 2px solid var(--border);
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
+.bi-rank-table__col-rank { text-align: center; }
+.bi-rank-table__col-label { overflow: hidden; text-overflow: ellipsis; }
+.bi-rank-table__col-label strong {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
 }
 
-.bi-funnel__head-bar {
-  text-align: left;
+.mgr-root .bi-rank-table th.bi-rank-table__col-num,
+.mgr-root .bi-rank-table td.bi-rank-table__col-num,
+.mgr-root .bi-funnel-table th.bi-funnel-table__col-num,
+.mgr-root .bi-funnel-table td.bi-funnel-table__col-num,
+.mgr-root .bi-rank-table th.bi-rank-table__col-pct,
+.mgr-root .bi-rank-table td.bi-rank-table__col-pct,
+.mgr-root .bi-funnel-table th.bi-funnel-table__col-pct,
+.mgr-root .bi-funnel-table td.bi-funnel-table__col-pct {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.bi-funnel__block + .bi-funnel__block {
-  margin-top: 0;
+/* Short count columns — centered under header */
+.mgr-root .bi-rank-table th.bi-rank-table__col-count,
+.mgr-root .bi-rank-table td.bi-rank-table__col-count,
+.mgr-root .bi-funnel-table th.bi-funnel-table__col-count,
+.mgr-root .bi-funnel-table td.bi-funnel-table__col-count {
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.bi-rank-table__col-pct,
+.bi-funnel-table__col-pct {
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.bi-rank-table__col-badge { text-align: center; }
+.bi-rank-table__col-bar,
+.bi-funnel-table__col-bar { text-align: right; }
+
+.bi-rank-table thead th.bi-rank-table__col-num,
+.bi-rank-table thead th.bi-rank-table__col-pct,
+.bi-rank-table thead th.bi-rank-table__col-bar,
+.bi-funnel-table thead th.bi-funnel-table__col-num,
+.bi-funnel-table thead th.bi-funnel-table__col-pct,
+.bi-funnel-table thead th.bi-funnel-table__col-bar {
+  text-align: right;
+}
+
+.bi-rank-table tbody tr:hover td,
+.bi-funnel-table tbody tr:hover td {
+  background: #fafbfd;
+}
+
+.bi-rank-table__row--warn td:first-child {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.bi-rank-table__row--warn td {
+  background: linear-gradient(90deg, rgba(254, 226, 226, 0.35) 0%, transparent 55%);
+}
+
+.bi-funnel-table__row--worst td:first-child {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.bi-funnel-table__row--worst td {
+  background: linear-gradient(90deg, rgba(254, 226, 226, 0.45) 0%, transparent 55%);
+}
+
+.bi-funnel-table__connector td {
+  padding: 0.25rem 0.5rem;
+  border-bottom: none;
+  background: transparent !important;
 }
 
 .bi-funnel__connector {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.35rem 0 0.35rem 2.5rem;
+  padding: 0.15rem 0 0.15rem 1.5rem;
   font-size: 0.72rem;
   color: var(--text-faint);
 }
@@ -931,23 +1122,6 @@
 .bi-funnel__connector-text strong {
   color: var(--text);
   font-weight: 700;
-}
-
-.bi-funnel__row {
-  padding: 0.7rem 0;
-  border-bottom: 1px solid var(--border-light);
-  transition: background 0.12s;
-}
-
-.bi-funnel__row:hover {
-  background: #fafbfd;
-}
-
-.bi-funnel__row--worst {
-  background: linear-gradient(90deg, rgba(254, 226, 226, 0.45) 0%, transparent 55%);
-  border-left: 3px solid var(--danger);
-  padding-left: 0.5rem;
-  margin-left: -0.5rem;
 }
 
 .bi-funnel__step {
@@ -1071,43 +1245,155 @@
   background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
 }
 
-.bi-product__table {
+.bi-product__table-wrap {
   padding: 0.5rem 1.35rem 1.15rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.bi-product__head,
-.bi-product__row {
-  display: grid;
-  grid-template-columns: 44px minmax(140px, 1.5fr) 72px 56px 56px 76px 76px 100px 1fr;
-  gap: 0.5rem 0.65rem;
-  align-items: center;
+/* colgroup defines widths once — thead/tbody stay aligned when scrolling */
+.bi-product-table {
+  width: max-content;
+  min-width: max(100%, 53rem);
+  table-layout: fixed;
+  border-collapse: collapse;
 }
 
-.bi-product__head {
-  padding: 0.5rem 0 0.65rem;
-  border-bottom: 2px solid var(--border);
-  font-size: 0.66rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.bi-product-table col.bi-col-rank { width: 2.75rem; }
+.bi-product-table col.bi-col-name { width: 11rem; }
+.bi-product-table col.bi-col-num { width: 3.5rem; }
+.bi-product-table col.bi-col-rate { width: 5.25rem; }
+.bi-product-table col.bi-col-revenue { width: 9.5rem; }
+.bi-product-table col.bi-col-bar { width: 5.5rem; }
+
+/* Keep # + product label aligned when scrolling metrics horizontally */
+.bi-product-table th.bi-product-table__col-rank,
+.bi-product-table td.bi-product-table__col-rank {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.bi-product-table thead th.bi-product-table__col-rank {
+  z-index: 3;
+  background: var(--surface-2);
+}
+
+.bi-product-table th.bi-product-table__col-name,
+.bi-product-table td.bi-product-table__col-name {
+  position: sticky;
+  left: 2.75rem;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: 4px 0 10px -6px rgba(15, 23, 42, 0.12);
+}
+
+.bi-product-table thead th.bi-product-table__col-name {
+  z-index: 3;
+  background: var(--surface-2);
+}
+
+.bi-product-table__row--warn td.bi-product-table__col-rank,
+.bi-product-table__row--warn td.bi-product-table__col-name {
+  background: #fff5f5;
+}
+
+.mgr-root .bi-product-table th,
+.mgr-root .bi-product-table td {
+  padding: 0.65rem 0.5rem;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.bi-product-table__col-rank {
+  text-align: center;
+}
+
+.bi-product-table__col-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Count metrics (views/cart/buy) — centered so single digits don’t hug product column */
+.mgr-root .bi-product-table th.bi-product-table__col-count,
+.mgr-root .bi-product-table td.bi-product-table__col-count {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
-.bi-product__row {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--border-light);
-  transition: background 0.12s;
+.mgr-root .bi-product-table td.bi-product-table__col-count.bi-product__num--bold {
+  font-weight: 800;
+  color: var(--text);
 }
 
-.bi-product__row:hover {
+.mgr-root .bi-product-table th.bi-product-table__col-count--lead,
+.mgr-root .bi-product-table td.bi-product-table__col-count--lead {
+  border-left: 1px solid var(--border-light);
+  padding-left: 0.85rem;
+}
+
+.mgr-root .bi-product-table th.bi-product-table__col-num,
+.mgr-root .bi-product-table td.bi-product-table__col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mgr-root .bi-product-table th.bi-product-table__col-rate,
+.mgr-root .bi-product-table td.bi-product-table__col-rate {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+}
+
+.bi-product-table__th-short {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.mgr-root .bi-product-table th.bi-product-table__col-revenue,
+.mgr-root .bi-product-table td.bi-product-table__col-revenue {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-left: 0.5rem;
+  padding-right: 0.75rem;
+}
+
+.mgr-root .bi-product-table td.bi-product-table__col-revenue .money-value__amount {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.mgr-root .bi-product-table th.bi-product-table__col-bar,
+.mgr-root .bi-product-table td.bi-product-table__col-bar {
+  text-align: right;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--border-light);
+}
+
+.mgr-root .bi-product-table td.bi-product-table__col-bar .bi-product__bar {
+  width: 5rem;
+  max-width: 5rem;
+  margin-left: auto;
+}
+
+.bi-product-table tbody tr:hover td {
   background: #fafbfd;
 }
 
-.bi-product__row--warn {
-  background: linear-gradient(90deg, rgba(254, 226, 226, 0.35) 0%, transparent 60%);
-  border-left: 3px solid var(--danger);
-  padding-left: 0.45rem;
-  margin-left: -0.45rem;
+.bi-product-table__row--warn td:first-child {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.bi-product-table__row--warn td:not(.bi-product-table__col-rank):not(.bi-product-table__col-name) {
+  background: linear-gradient(90deg, rgba(254, 226, 226, 0.35) 0%, transparent 55%);
 }
 
 .bi-product__name {
@@ -1174,6 +1460,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+.bi-product-table thead th.bi-product-table__col-revenue {
+  white-space: nowrap;
+}
+
 .bi-product__bar {
   height: 8px;
   background: var(--surface-3);
@@ -1217,80 +1507,6 @@
 .bi-rank__summary--3 {
   grid-template-columns: repeat(3, 1fr);
 }
-
-.bi-rank__head,
-.bi-rank__row {
-  display: grid;
-  gap: 0.5rem 0.65rem;
-  align-items: center;
-  padding-left: 1.35rem;
-  padding-right: 1.35rem;
-}
-
-.bi-rank__head {
-  grid-template-columns: 44px 1fr 72px 56px 1fr;
-  padding-top: 0.5rem;
-  padding-bottom: 0.65rem;
-  border-bottom: 2px solid var(--border);
-  font-size: 0.66rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-
-.bi-rank__head--filter,
-.bi-rank__row--filter {
-  grid-template-columns: 1fr 1fr 72px 56px 1fr;
-}
-
-.bi-rank__head--filter { padding-left: 1.35rem; }
-
-.bi-rank__row--filter { padding-left: 1.35rem; }
-
-.bi-rank__head--banner,
-.bi-rank__row--banner {
-  grid-template-columns: minmax(100px, 1fr) 88px 72px 72px 88px 1fr;
-}
-
-.bi-rank__head--event,
-.bi-rank__row--event {
-  grid-template-columns: minmax(120px, 1.2fr) minmax(100px, 1fr) 72px 56px 1fr;
-}
-
-.bi-rank__row {
-  grid-template-columns: 44px 1fr 72px 56px 1fr;
-  padding-top: 0.7rem;
-  padding-bottom: 0.7rem;
-  border-bottom: 1px solid var(--border-light);
-  transition: background 0.12s;
-}
-
-.bi-rank__row:hover {
-  background: #fafbfd;
-}
-
-.bi-rank__row--warn {
-  background: linear-gradient(90deg, rgba(254, 226, 226, 0.35) 0%, transparent 55%);
-  border-left: 3px solid var(--danger);
-}
-
-.bi-rank__label strong {
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.bi-rank__num,
-.bi-rank__pct {
-  font-size: 0.84rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  color: var(--text-muted);
-}
-
-.bi-rank__pct { color: var(--text-faint); font-weight: 600; }
 
 .bi-rank__ctr {
   font-size: 0.84rem;
@@ -1373,72 +1589,18 @@
   .bi-rank__summary {
     grid-template-columns: repeat(2, 1fr);
   }
-
-  .bi-rank__head--banner,
-  .bi-rank__row--banner {
-    grid-template-columns: 1fr 72px 72px;
-  }
-
-  .bi-rank__head--banner span:nth-child(5),
-  .bi-rank__head--banner span:nth-child(6),
-  .bi-rank__row--banner .badge,
-  .bi-rank__row--banner .bi-rank__bar {
-    display: none;
-  }
 }
 
 @media (max-width: 1200px) {
   .bi-product__summary {
     grid-template-columns: repeat(2, 1fr);
   }
-
-  .bi-product__head,
-  .bi-product__row {
-    grid-template-columns: 40px 1fr 64px 64px;
-    grid-template-areas:
-      "rank name name name"
-      "views views cart buy"
-      "rates rates revenue bar";
-  }
-
-  .bi-product__head span:nth-child(n+6),
-  .bi-product__row .bi-product__rate,
-  .bi-product__row .bi-product__revenue {
-    display: none;
-  }
-
-  .bi-product__rank { grid-area: rank; }
-  .bi-product__name { grid-area: name; }
-  .bi-product__num:nth-of-type(1) { grid-area: views; }
-  .bi-product__num:nth-of-type(2) { grid-area: cart; }
-  .bi-product__num:nth-of-type(3) { grid-area: buy; }
-  .bi-product__bar { grid-area: bar; }
 }
 
 @media (max-width: 1100px) {
   .bi-funnel__summary {
     grid-template-columns: repeat(2, 1fr);
   }
-
-  .bi-funnel__head,
-  .bi-funnel__row {
-    grid-template-columns: 1fr 72px 64px;
-    grid-template-areas:
-      "step count pct"
-      "bar bar bar";
-  }
-
-  .bi-funnel__head span:nth-child(4),
-  .bi-funnel__head span:nth-child(5),
-  .bi-funnel__row .bi-funnel__conv,
-  .bi-funnel__row .bi-funnel__drop {
-    display: none;
-  }
-
-  .bi-funnel__step { grid-area: step; }
-  .bi-funnel__count { grid-area: count; text-align: right; }
-  .bi-funnel__pct { grid-area: pct; text-align: right; }
-  .bi-funnel__bar { grid-area: bar; }
 }
 
 /* legacy SVG funnel — unused */

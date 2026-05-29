@@ -1,13 +1,12 @@
 import {
   Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { ChartGradients } from "./ChartGradients.jsx";
 import { ChartTooltip } from "./ChartTooltip.jsx";
 import {
   AXIS_TICK, CHART_COLORS, CHART_MARGIN, GRID_STROKE, formatCompact,
 } from "./chartTheme.js";
 
-/** Vertical bars with per-bar gradient and rounded tops */
+/** Vertical bars — volume compare on Overview */
 export function VolumeBarChart({
   data,
   dataKey = "value",
@@ -17,16 +16,10 @@ export function VolumeBarChart({
 }) {
   if (!data?.length) return null;
 
-  const gradients = data.map((_, i) => ({
-    id: `volBar${i}`,
-    color: CHART_COLORS[i % CHART_COLORS.length],
-  }));
-
   return (
     <div className="chart-frame">
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ ...CHART_MARGIN, bottom: 8 }}>
-          <ChartGradients items={gradients} />
           <CartesianGrid stroke={GRID_STROKE} strokeDasharray="4 6" vertical={false} />
           <XAxis
             dataKey={nameKey}
@@ -44,6 +37,7 @@ export function VolumeBarChart({
             tickLine={false}
             width={44}
             tickFormatter={formatValue}
+            domain={[0, "auto"]}
           />
           <Tooltip
             content={<ChartTooltip valueFormatter={(v) => formatValue(v)} />}
@@ -54,9 +48,13 @@ export function VolumeBarChart({
             radius={[8, 8, 0, 0]}
             barSize={32}
             maxBarSize={48}
+            isAnimationActive={false}
           >
-            {data.map((_, i) => (
-              <Cell key={i} fill={`url(#volBar${i}Bar)`} />
+            {data.map((row, i) => (
+              <Cell
+                key={row[nameKey] ?? i}
+                fill={CHART_COLORS[i % CHART_COLORS.length]}
+              />
             ))}
           </Bar>
         </BarChart>

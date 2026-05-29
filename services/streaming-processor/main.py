@@ -167,7 +167,7 @@ def run_pipeline(consumer: KafkaConsumer, sink: PostgresSink, window: WindowAggr
 
         # Periodic KPI flush (runs even when consumer_timeout_ms fires with no msgs).
         if time.monotonic() - last_flush >= FLUSH_INTERVAL:
-            kpi_records = window.flush_completed()
+            kpi_records = window.flush_completed() + window.flush_current_snapshot()
             if kpi_records:
                 try:
                     sink.write_kpi_batch(kpi_records)
@@ -205,7 +205,7 @@ def main() -> None:
         run_pipeline(consumer, sink, window)
     finally:
         logger.info("flushing remaining KPI windows…")
-        kpi_records = window.flush_completed()
+        kpi_records = window.flush_completed() + window.flush_current_snapshot()
         if kpi_records:
             try:
                 sink.write_kpi_batch(kpi_records)

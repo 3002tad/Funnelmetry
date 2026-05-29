@@ -86,7 +86,7 @@ spec:
             - name: OLLAMA_MODEL
               value: qwen2.5:3b
             - name: OLLAMA_TIMEOUT_MS
-              value: "60000"
+              value: "30000"
             - name: OLLAMA_TEMPERATURE
               value: "0.65"
             - name: OLLAMA_NUM_PREDICT

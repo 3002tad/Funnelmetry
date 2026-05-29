@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { buildFunnelRows } from "../../lib/funnelMetrics.js";
 
 function fmt(n) {
@@ -16,6 +17,8 @@ function dropClass(pct) {
 export function ConversionFunnel({ steps, labels = {}, compact = false }) {
   const { rows, summary } = buildFunnelRows(steps, labels);
   if (!rows.length || !summary) return null;
+
+  const colCount = compact ? 5 : 6;
 
   return (
     <div className={`bi-funnel${compact ? " bi-funnel--compact" : ""}`}>
@@ -50,60 +53,81 @@ export function ConversionFunnel({ steps, labels = {}, compact = false }) {
         </div>
       )}
 
-      <div className="bi-funnel__table" role="table">
-        <div className="bi-funnel__head" role="row">
-          <span role="columnheader">Bước</span>
-          <span role="columnheader">Người dùng</span>
-          <span role="columnheader">% Tổng</span>
-          {!compact && <span role="columnheader">Chuyển tiếp</span>}
-          <span role="columnheader">Rớt bước</span>
-          <span role="columnheader" className="bi-funnel__head-bar">Volume</span>
-        </div>
-
-        {rows.map((row, i) => (
-          <div key={row.step} className="bi-funnel__block">
-            {i > 0 && (
-              <div className="bi-funnel__connector" aria-hidden>
-                <span className="bi-funnel__connector-line" />
-                <span className="bi-funnel__connector-text">
-                  Chuyển tiếp <strong>{row.stepConvPct.toFixed(1)}%</strong>
-                  {row.lost > 0 && (
-                    <> · Mất <strong>{fmt(row.lost)}</strong></>
+      <div className="bi-funnel__table-wrap">
+        <table
+          className={`data-table bi-funnel-table${compact ? " bi-funnel-table--compact" : ""}`}
+        >
+          <colgroup>
+            <col className="bi-col-step" />
+            <col className="bi-col-num" />
+            <col className="bi-col-pct" />
+            {!compact && <col className="bi-col-pct" />}
+            <col className="bi-col-pct" />
+            <col className="bi-col-bar" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="bi-funnel-table__col-step">Bước</th>
+              <th className="bi-funnel-table__col-num">Người dùng</th>
+              <th className="bi-funnel-table__col-pct">% Tổng</th>
+              {!compact && <th className="bi-funnel-table__col-pct">Chuyển tiếp</th>}
+              <th className="bi-funnel-table__col-pct">Rớt bước</th>
+              <th className="bi-funnel-table__col-bar">Volume</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <Fragment key={row.step}>
+                {i > 0 && (
+                  <tr className="bi-funnel-table__connector">
+                    <td colSpan={colCount}>
+                      <div className="bi-funnel__connector" aria-hidden>
+                        <span className="bi-funnel__connector-line" />
+                        <span className="bi-funnel__connector-text">
+                          Chuyển tiếp <strong>{row.stepConvPct.toFixed(1)}%</strong>
+                          {row.lost > 0 && (
+                            <> · Mất <strong>{fmt(row.lost)}</strong></>
+                          )}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                <tr className={row.isWorst ? "bi-funnel-table__row--worst" : undefined}>
+                  <td className="bi-funnel-table__col-step">
+                    <div className="bi-funnel__step">
+                      <span className="bi-funnel__index">{row.index}</span>
+                      <span className="bi-funnel__name">{row.label}</span>
+                      {row.isWorst && <span className="bi-funnel__badge">Rớt nhiều</span>}
+                    </div>
+                  </td>
+                  <td className="bi-funnel-table__col-num">{fmt(row.count)}</td>
+                  <td className="bi-funnel-table__col-pct">{row.ofTotalPct.toFixed(1)}%</td>
+                  {!compact && (
+                    <td className="bi-funnel-table__col-pct">
+                      {row.isFirst ? "—" : `${row.stepConvPct.toFixed(1)}%`}
+                    </td>
                   )}
-                </span>
-              </div>
-            )}
-            <div
-              className={`bi-funnel__row${row.isWorst ? " bi-funnel__row--worst" : ""}`}
-              role="row"
-            >
-              <div className="bi-funnel__step" role="cell">
-                <span className="bi-funnel__index">{row.index}</span>
-                <span className="bi-funnel__name">{row.label}</span>
-                {row.isWorst && <span className="bi-funnel__badge">Rớt nhiều</span>}
-              </div>
-              <span className="bi-funnel__count" role="cell">{fmt(row.count)}</span>
-              <span className="bi-funnel__pct" role="cell">{row.ofTotalPct.toFixed(1)}%</span>
-              {!compact && (
-                <span className="bi-funnel__conv" role="cell">
-                  {row.isFirst ? "—" : `${row.stepConvPct.toFixed(1)}%`}
-                </span>
-              )}
-              <span
-                className={`bi-funnel__drop ${row.isFirst ? "bi-funnel__drop--na" : dropClass(row.dropPct)}`}
-                role="cell"
-              >
-                {row.isFirst ? "—" : `−${row.dropPct.toFixed(1)}%`}
-              </span>
-              <div className="bi-funnel__bar" role="cell">
-                <div
-                  className="bi-funnel__bar-fill"
-                  style={{ width: `${Math.max(row.ofTotalPct, 2)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
+                  <td
+                    className={`bi-funnel-table__col-pct bi-funnel__drop ${
+                      row.isFirst ? "bi-funnel__drop--na" : dropClass(row.dropPct)
+                    }`}
+                  >
+                    {row.isFirst ? "—" : `−${row.dropPct.toFixed(1)}%`}
+                  </td>
+                  <td className="bi-funnel-table__col-bar">
+                    <div className="bi-funnel__bar">
+                      <div
+                        className="bi-funnel__bar-fill"
+                        style={{ width: `${Math.max(row.ofTotalPct, 2)}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

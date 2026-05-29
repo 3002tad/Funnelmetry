@@ -1,11 +1,9 @@
 import { RankBadge } from "./DataPanel.jsx";
+import { formatMoney } from "../lib/format.js";
+import { MoneyText } from "./MoneyText.jsx";
 
 function fmt(n) {
   return Number(n || 0).toLocaleString("vi-VN");
-}
-
-function money(v) {
-  return `${Number(v || 0).toLocaleString("vi-VN")} ₫`;
 }
 
 function pct(rate) {
@@ -42,7 +40,9 @@ export function ProductPerformanceTable({ products, anomaliesIds = new Set() }) 
         </div>
         <div className="bi-funnel__kpi bi-funnel__kpi--accent">
           <span className="bi-funnel__kpi-label">Tổng doanh thu</span>
-          <strong>{money(products.reduce((s, p) => s + Number(p.revenue), 0))}</strong>
+          <strong>
+            <MoneyText value={formatMoney(products.reduce((s, p) => s + Number(p.revenue), 0))} />
+          </strong>
           <span className="bi-funnel__kpi-hint">Top list</span>
         </div>
         <div className="bi-funnel__kpi">
@@ -58,56 +58,89 @@ export function ProductPerformanceTable({ products, anomaliesIds = new Set() }) 
         </div>
       </div>
 
-      <div className="bi-product__table" role="table">
-        <div className="bi-product__head" role="row">
-          <span>#</span>
-          <span>Sản phẩm</span>
-          <span>Lượt xem</span>
-          <span>Giỏ</span>
-          <span>Mua</span>
-          <span>View→Giỏ</span>
-          <span>View→Mua</span>
-          <span>Doanh thu</span>
-          <span>Traffic</span>
-        </div>
+      <div className="bi-product__table-wrap">
+        <table className="data-table bi-product-table">
+          <colgroup>
+            <col className="bi-col-rank" />
+            <col className="bi-col-name" />
+            <col className="bi-col-num" />
+            <col className="bi-col-num" />
+            <col className="bi-col-num" />
+            <col className="bi-col-num" />
+            <col className="bi-col-rate" />
+            <col className="bi-col-rate" />
+            <col className="bi-col-revenue" />
+            <col className="bi-col-bar" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="bi-product-table__col-rank">#</th>
+              <th className="bi-product-table__col-name">Sản phẩm</th>
+              <th className="bi-product-table__col-count bi-product-table__col-count--lead" title="Lượt xem">
+                Xem
+              </th>
+              <th className="bi-product-table__col-count" title="Thêm giỏ">Giỏ</th>
+              <th className="bi-product-table__col-count" title="Mua hàng">Mua</th>
+              <th className="bi-product-table__col-rate" title="View → Giỏ">
+                <span className="bi-product-table__th-short">→ Giỏ</span>
+              </th>
+              <th className="bi-product-table__col-rate" title="View → Mua">
+                <span className="bi-product-table__th-short">→ Mua</span>
+              </th>
+              <th className="bi-product-table__col-revenue">Doanh thu</th>
+              <th className="bi-product-table__col-bar">Traffic</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((p, i) => {
+              const views = Number(p.views);
+              const volPct = maxViews > 0 ? (views / maxViews) * 100 : 0;
+              const isAnomaly = anomaliesIds.has(p.product_id);
 
-        {products.map((p, i) => {
-          const views = Number(p.views);
-          const volPct = maxViews > 0 ? (views / maxViews) * 100 : 0;
-          const isAnomaly = anomaliesIds.has(p.product_id);
-
-          return (
-            <div
-              key={p.product_id}
-              className={`bi-product__row${isAnomaly ? " bi-product__row--warn" : ""}`}
-              role="row"
-            >
-              <span className="bi-product__rank" role="cell">
-                <RankBadge rank={i + 1} />
-              </span>
-              <div className="bi-product__name" role="cell">
-                <strong>{p.product_name || p.product_id}</strong>
-                <span>{p.category || p.product_id}</span>
-                {isAnomaly && <em className="bi-product__flag">Cần tối ưu</em>}
-              </div>
-              <span className="bi-product__num" role="cell">{fmt(views)}</span>
-              <span className="bi-product__num" role="cell">{fmt(p.add_to_cart)}</span>
-              <span className="bi-product__num bi-product__num--bold" role="cell">
-                {fmt(p.purchases)}
-              </span>
-              <span className={`bi-product__rate ${rateClass(p.view_to_cart_rate)}`} role="cell">
-                {pct(p.view_to_cart_rate)}
-              </span>
-              <span className={`bi-product__rate ${rateClass(p.purchase_rate)}`} role="cell">
-                {pct(p.purchase_rate)}
-              </span>
-              <span className="bi-product__revenue" role="cell">{money(p.revenue)}</span>
-              <div className="bi-product__bar" role="cell">
-                <div className="bi-product__bar-fill" style={{ width: `${Math.max(volPct, 4)}%` }} />
-              </div>
-            </div>
-          );
-        })}
+              return (
+                <tr
+                  key={p.product_id}
+                  className={isAnomaly ? "bi-product-table__row--warn" : undefined}
+                >
+                  <td className="bi-product-table__col-rank">
+                    <RankBadge rank={i + 1} />
+                  </td>
+                  <td className="bi-product-table__col-name">
+                    <div className="bi-product__name">
+                      <strong>{p.product_name || p.product_id}</strong>
+                      <span>{p.category || p.product_id}</span>
+                      {isAnomaly && <em className="bi-product__flag">Cần tối ưu</em>}
+                    </div>
+                  </td>
+                  <td className="bi-product-table__col-count bi-product-table__col-count--lead">
+                    {fmt(views)}
+                  </td>
+                  <td className="bi-product-table__col-count">{fmt(p.add_to_cart)}</td>
+                  <td className="bi-product-table__col-count bi-product__num--bold">
+                    {fmt(p.purchases)}
+                  </td>
+                  <td className={`bi-product-table__col-rate bi-product__rate ${rateClass(p.view_to_cart_rate)}`}>
+                    {pct(p.view_to_cart_rate)}
+                  </td>
+                  <td className={`bi-product-table__col-rate bi-product__rate ${rateClass(p.purchase_rate)}`}>
+                    {pct(p.purchase_rate)}
+                  </td>
+                  <td className="bi-product-table__col-revenue bi-product__revenue">
+                    <MoneyText value={formatMoney(p.revenue)} />
+                  </td>
+                  <td className="bi-product-table__col-bar">
+                    <div className="bi-product__bar">
+                      <div
+                        className="bi-product__bar-fill"
+                        style={{ width: `${Math.max(volPct, 4)}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

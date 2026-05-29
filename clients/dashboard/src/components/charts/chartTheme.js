@@ -44,9 +44,4 @@ export function formatCompact(n) {
   return v.toLocaleString("vi-VN");
 }
 
-export function formatMoneyShort(v) {
-  const n = Number(v);
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M ₫`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k ₫`;
-  return `${n.toLocaleString("vi-VN")} ₫`;
-}
+export { formatMoneyShort } from "../../lib/format.js";

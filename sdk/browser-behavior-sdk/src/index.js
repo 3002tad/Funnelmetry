@@ -1,3 +1,5 @@
+import { createBannerTracking } from "./banner-tracking.js";
+
 const ANON_KEY = "pipeline_anonymous_id";
 const SESS_KEY = "pipeline_session_id";
 
@@ -170,6 +172,10 @@ export function createBehaviorSdk(options = {}) {
         }
       };
       window.addEventListener("scroll", onScroll, { passive: true });
+    },
+    /** Wire [data-banner-id] elements → banner_impression (50% visible ≥1s) + banner_click. */
+    initBannerTracking(options) {
+      return createBannerTracking(this, options).start();
     },
   };
 }

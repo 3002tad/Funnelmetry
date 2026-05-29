@@ -1,16 +1,17 @@
 import { useCallback, useMemo, useState } from "react";
 import { CategoryBarChart } from "../components/charts/CategoryBarChart.jsx";
 import { SERIES, formatMoneyShort } from "../components/charts/chartTheme.js";
+import { formatMoney } from "../lib/format.js";
 import { TrendAreaChart } from "../components/charts/TrendAreaChart.jsx";
 import { DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
 import { IconRevenue } from "../components/icons.jsx";
+import { ActionCardValue } from "../components/MoneyText.jsx";
 import { StatCard, StatHero } from "../components/StatCard.jsx";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
-function money(v) { return `${Number(v || 0).toLocaleString("vi-VN")} ₫`; }
 function pctChange(current, previous) {
   const prev = Number(previous || 0);
   const curr = Number(current || 0);
@@ -70,10 +71,13 @@ export function RevenuePage() {
 
   const s = summary.data?.summary || {};
   const catData = useMemo(
-    () => (categories.data?.categories || []).map((c) => ({
-      name: c.category || "Khác",
-      revenue: Number(c.revenue),
-    })),
+    () => (categories.data?.categories || [])
+      .map((c) => ({
+        name: c.category || "Khác",
+        revenue: Number(c.revenue),
+      }))
+      .filter((c) => c.revenue > 0)
+      .sort((a, b) => b.revenue - a.revenue),
     [categories.data]
   );
 
@@ -102,7 +106,7 @@ export function RevenuePage() {
         key: "aov",
         level: purchases > 0 && aov < 100000 ? "medium" : "good",
         title: "Giá trị đơn TB",
-        value: money(aov),
+        value: formatMoney(aov),
         hint: purchases > 0 && aov < 100000
           ? "AOV thấp — cân nhắc bundle, upsell hoặc tăng giá trị giỏ hàng."
           : "Giá trị đơn hàng trung bình đang ổn.",
@@ -151,7 +155,7 @@ export function RevenuePage() {
             tone="primary"
             icon={IconRevenue}
             label="Tổng doanh thu"
-            value={money(s.total_revenue)}
+            value={formatMoney(s.total_revenue)}
             sub={`Trong ${minutes} phút gần nhất`}
             sparkline={sparkRevenue}
             trendPct={compareMetrics.find((m) => m.label === "Doanh thu")?.change}
@@ -167,7 +171,7 @@ export function RevenuePage() {
           <StatHero
             tone="success"
             label="Giá trị đơn TB"
-            value={money(s.average_order_value)}
+            value={formatMoney(s.average_order_value)}
             sub="AOV trung bình"
             trendPct={compareMetrics.find((m) => m.label === "AOV")?.change}
           />
@@ -203,14 +207,14 @@ export function RevenuePage() {
                   height={300}
                   peakKey="revenue"
                   formatY={formatMoneyShort}
-                  formatTooltipValue={(v) => money(v)}
+                  formatTooltipValue={(v) => formatMoney(v)}
                   series={[
                     { dataKey: "revenue", name: "Doanh thu", ...SERIES.accent, gradientId: SERIES.accent.gradient },
                   ]}
                 />
                 {peakRevenuePoint && (
                   <p className="chart-insight-note">
-                    Đỉnh doanh thu tại {peakRevenuePoint.time}: {money(peakRevenuePoint.revenue)}.
+                    Đỉnh doanh thu tại {peakRevenuePoint.time}: {formatMoney(peakRevenuePoint.revenue)}.
                   </p>
                 )}
               </div>
@@ -218,7 +222,12 @@ export function RevenuePage() {
           </DataPanel>
 
           <div className="overview-right-stack">
-            <DataPanel title="Doanh thu theo danh mục" subtitle="Đóng góp từng danh mục">
+            <DataPanel
+              title="Doanh thu theo danh mục"
+              subtitle={catData.length > 0
+                ? `${catData.length} danh mục có doanh thu trong kỳ`
+                : "Đóng góp từng danh mục"}
+            >
               {catData.length === 0 ? (
                 <EmptyState message="Chưa có dữ liệu doanh thu theo danh mục." />
               ) : (
@@ -226,7 +235,7 @@ export function RevenuePage() {
                   <CategoryBarChart
                     data={catData}
                     height={240}
-                    formatValue={(v) => money(v)}
+                    formatValue={(v) => formatMoney(v)}
                   />
                 </div>
               )}
@@ -237,7 +246,7 @@ export function RevenuePage() {
                 {actionItems.map((item) => (
                   <div key={item.key} className={`action-card ${item.level}`}>
                     <span className="action-card__title">{item.title}</span>
-                    <strong className="action-card__value">{item.value}</strong>
+                    <ActionCardValue value={item.value} />
                     <span className="action-card__hint">{item.hint}</span>
                   </div>
                 ))}

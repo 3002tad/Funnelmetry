@@ -86,7 +86,11 @@ export function ChatPage() {
         },
       ]);
     } catch (err) {
-      setMessages((m) => [...m, { role: "assistant", content: `Lỗi: ${err.message}`, error: true }]);
+      const msg =
+        err.name === "TimeoutError"
+          ? "Hết thời gian chờ phản hồi (~75s). Kiểm tra Ollama trên Lap1 (`kubectl -n realtime get pods`) hoặc thử câu ngắn hơn — hệ thống vẫn có thể trả lời bằng template nếu Ollama tắt."
+          : err.message;
+      setMessages((m) => [...m, { role: "assistant", content: `Lỗi: ${msg}`, error: true }]);
     } finally {
       setLoading(false);
     }
@@ -127,7 +131,9 @@ export function ChatPage() {
                 ))}
                 {loading && (
                   <div className="chat-bubble assistant">
-                    <div className="chat-bubble-inner muted">Đang phân tích dữ liệu…</div>
+                    <div className="chat-bubble-inner muted">
+                      Đang truy vấn PostgreSQL và (nếu bật) Ollama — thường 5–30 giây…
+                    </div>
                   </div>
                 )}
                 <div ref={bottomRef} />

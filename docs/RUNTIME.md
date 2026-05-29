@@ -152,8 +152,36 @@ Web-shop + tracking.js → tracking-api → Kafka → streaming-processor → Po
 ```
 
 - **Tracking API không consume RabbitMQ** — chỉ Adapter gọi HTTPS ingest.
-- Doanh thu / đơn: `order.completed`; hủy: `order.cancelled` (server-side).
+- Doanh thu / đơn: `order.completed` → Kafka `purchase_succeeded` (metadata `total_amount` / `amount`).
+- Hủy: `order.cancelled` (server-side).
 - Chi tiết: `docs/RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx`
+
+**Doanh thu dashboard “chậm ~30s” sau khi mua hàng?**
+
+| Bước | Độ trễ | Ghi chú |
+|------|--------|---------|
+| Lap2 worker + adapter → tracking-api | ~vài giây | Log `202 accepted` = ingest OK |
+| Kafka → streaming-processor | vài trăm ms | |
+| **KPI flush Postgres** | **`FLUSH_INTERVAL_SEC` (mặc định 5s)** + snapshot phút đang mở | UPSERT `tracking_kpi_1m` mỗi chu kỳ flush (không chờ hết phút) |
+| Dashboard SSE `kpi` | ~2s | `event-poller` mỗi 2s; UI `useOnKpiUpdate` refresh |
+
+**Tổng cảm giác sau checkout:** thường **~5–10s** (Kafka + aggregate + flush + SSE), không còn chờ tới phút kế tiếp.
+
+Adapter prefetch >1 có thể đảo thứ tự ingest; **không ảnh hưởng tổng doanh thu** nếu chỉ tính `order.completed`. Cần thứ tự tuyệt đối: `RABBITMQ_ADAPTER_PREFETCH=1` trên Lap2.
+
+Sau đổi `FLUSH_INTERVAL_SEC`, rebuild: `bash infra/k8s/rebuild-all-dev-images.sh` + restart `streaming-processor`.
+
+**Chatbot kẹt “Đang phân tích…”:** thường do **Ollama** (model chưa pull hoặc chậm). Trên Lap1:
+
+```bash
+k3s kubectl -n realtime get pods -l app=ollama
+k3s kubectl -n realtime exec deploy/ollama -- ollama list
+# nếu thiếu model:
+k3s kubectl -n realtime exec deploy/ollama -- ollama pull qwen2.5:3b
+k3s kubectl rollout restart deployment/dashboard-api -n realtime
+```
+
+Nếu Ollama down, API vẫn trả lời bằng **template** (vài giây). Rebuild `dashboard-api` + `dashboard-ui` sau khi sửa timeout chat.
 
 ## 7. Laptop 2 — web-shop gửi event
 
@@ -184,6 +212,17 @@ Test ingest (behavior):
 curl -s -X POST "http://<WSL_IP>:31000/track" \
   -H "Content-Type: application/json" \
   -d '{"event_type":"page_view","anonymous_id":"t1","session_id":"s1","page_url":"/"}'
+```
+
+**Dashboard Banner trống?** Cần `banner_impression` / `banner_click`. Id banner lấy từ `metadata.banner_id`, hoặc fallback `metadata.name` / `banner_name` (web-shop hay gửi `name` thay vì `banner_id`). Rebuild `dashboard-api` sau khi đổi query. Trên web-shop: `data-banner-id` + `initBannerTracking()` — [`sdk/browser-behavior-sdk`](../sdk/browser-behavior-sdk/).
+
+Test banner nhanh:
+
+```bash
+curl -s -X POST "http://<WSL_IP>:31000/track" -H "Content-Type: application/json" -d '{
+  "event_type":"banner_impression","anonymous_id":"t1","session_id":"s1","page_url":"/",
+  "metadata":{"banner_id":"hero_home_top","position":"homepage_hero"}
+}'
 ```
 
 Test order → RabbitMQ (business):

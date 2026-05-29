@@ -29,38 +29,66 @@ export function BannerPerformanceTable({ banners }) {
         </div>
       </div>
 
-      <div className="bi-rank__head bi-rank__head--banner">
-        <span>Banner</span>
-        <span>Impressions</span>
-        <span>Clicks</span>
-        <span>CTR</span>
-        <span>Đánh giá</span>
-        <span>Volume</span>
+      <div className="bi-rank__table-wrap">
+        <table className="data-table bi-rank-table bi-rank-table--banner">
+          <colgroup>
+            <col className="bi-col-label" />
+            <col className="bi-col-num" />
+            <col className="bi-col-num" />
+            <col className="bi-col-num" />
+            <col className="bi-col-badge" />
+            <col className="bi-col-bar" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="bi-rank-table__col-label">Banner</th>
+              <th className="bi-rank-table__col-num">Impressions</th>
+              <th className="bi-rank-table__col-num">Clicks</th>
+              <th className="bi-rank-table__col-num">CTR</th>
+              <th className="bi-rank-table__col-badge">Đánh giá</th>
+              <th className="bi-rank-table__col-bar">Volume</th>
+            </tr>
+          </thead>
+          <tbody>
+            {banners.map((b) => {
+              const imp = Number(b.impressions);
+              const ctr = Number(b.ctr) * 100;
+              const vol = (imp / maxImp) * 100;
+              const level = ctrLevel(b.ctr);
+              return (
+                <tr
+                  key={b.banner_id}
+                  className={level === "low" ? "bi-rank-table__row--warn" : undefined}
+                >
+                  <td className="bi-rank-table__col-label">
+                    <strong>{b.banner_id}</strong>
+                  </td>
+                  <td className="bi-rank-table__col-num">{imp.toLocaleString("vi-VN")}</td>
+                  <td className="bi-rank-table__col-num">
+                    {Number(b.clicks).toLocaleString("vi-VN")}
+                  </td>
+                  <td className={`bi-rank-table__col-num bi-rank__ctr bi-rank__ctr--${level}`}>
+                    {ctr.toFixed(2)}%
+                  </td>
+                  <td className="bi-rank-table__col-badge">
+                    <span className={`badge ${level === "ok" ? "ok" : level === "med" ? "degraded" : "down"}`}>
+                      {ctrLabel(b.ctr)}
+                    </span>
+                  </td>
+                  <td className="bi-rank-table__col-bar">
+                    <div className="bi-rank__bar">
+                      <div
+                        className="bi-rank__bar-fill bi-rank__bar-fill--purple"
+                        style={{ width: `${Math.max(vol, 4)}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-
-      {banners.map((b) => {
-        const imp = Number(b.impressions);
-        const ctr = Number(b.ctr) * 100;
-        const vol = (imp / maxImp) * 100;
-        const level = ctrLevel(b.ctr);
-        return (
-          <div
-            key={b.banner_id}
-            className={`bi-rank__row bi-rank__row--banner${level === "low" ? " bi-rank__row--warn" : ""}`}
-          >
-            <span className="bi-rank__label"><strong>{b.banner_id}</strong></span>
-            <span className="bi-rank__num">{imp.toLocaleString("vi-VN")}</span>
-            <span className="bi-rank__num">{Number(b.clicks).toLocaleString("vi-VN")}</span>
-            <span className={`bi-rank__ctr bi-rank__ctr--${level}`}>{ctr.toFixed(2)}%</span>
-            <span className={`badge ${level === "ok" ? "ok" : level === "med" ? "degraded" : "down"}`}>
-              {ctrLabel(b.ctr)}
-            </span>
-            <div className="bi-rank__bar">
-              <div className="bi-rank__bar-fill bi-rank__bar-fill--purple" style={{ width: `${Math.max(vol, 4)}%` }} />
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }

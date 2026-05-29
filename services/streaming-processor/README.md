@@ -22,7 +22,7 @@ Kafka `tracking_events_raw` → parse → validate → clean → Postgres (`trac
 | `KAFKA_BOOTSTRAP_SERVERS` | `kafka:9092` |
 | `KAFKA_TOPIC_RAW` | `tracking_events_raw` |
 | `KAFKA_GROUP_ID` | `streaming-processor` |
-| `FLUSH_INTERVAL_SEC` | `30` |
+| `FLUSH_INTERVAL_SEC` | `10` (demo; tăng nếu muốn giảm tải DB) |
 | `POSTGRES_*` | xem `infra/.env` |
 | `QDRANT_URL` | `http://qdrant:6333` |
 | `QDRANT_COLLECTION` | `pipeline_insights` |

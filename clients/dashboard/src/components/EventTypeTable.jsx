@@ -25,28 +25,51 @@ export function EventTypeTable({ rows }) {
         </div>
       </div>
 
-      <div className="bi-rank__head bi-rank__head--event">
-        <span>Loại event</span>
-        <span>Mã</span>
-        <span>Số lượng</span>
-        <span>%</span>
-        <span>Volume</span>
+      <div className="bi-rank__table-wrap">
+        <table className="data-table bi-rank-table bi-rank-table--event">
+          <colgroup>
+            <col className="bi-col-label" />
+            <col className="bi-col-code" />
+            <col className="bi-col-num" />
+            <col className="bi-col-pct" />
+            <col className="bi-col-bar" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="bi-rank-table__col-label">Loại event</th>
+              <th className="bi-rank-table__col-code">Mã</th>
+              <th className="bi-rank-table__col-num">Số lượng</th>
+              <th className="bi-rank-table__col-pct">%</th>
+              <th className="bi-rank-table__col-bar">Volume</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const vol = (r.count / max) * 100;
+              return (
+                <tr key={r.type}>
+                  <td className="bi-rank-table__col-label">
+                    <strong>{r.label}</strong>
+                  </td>
+                  <td className="bi-rank-table__col-code">
+                    <code className="event-code">{r.type}</code>
+                  </td>
+                  <td className="bi-rank-table__col-num">{r.count.toLocaleString("vi-VN")}</td>
+                  <td className="bi-rank-table__col-pct">{r.sharePct.toFixed(1)}%</td>
+                  <td className="bi-rank-table__col-bar">
+                    <div className="bi-rank__bar">
+                      <div
+                        className="bi-rank__bar-fill bi-rank__bar-fill--teal"
+                        style={{ width: `${Math.max(vol, 4)}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-
-      {rows.map((r) => {
-        const vol = (r.count / max) * 100;
-        return (
-          <div key={r.type} className="bi-rank__row bi-rank__row--event">
-            <span className="bi-rank__label"><strong>{r.label}</strong></span>
-            <span><code className="event-code">{r.type}</code></span>
-            <span className="bi-rank__num">{r.count.toLocaleString("vi-VN")}</span>
-            <span className="bi-rank__pct">{r.sharePct.toFixed(1)}%</span>
-            <div className="bi-rank__bar">
-              <div className="bi-rank__bar-fill bi-rank__bar-fill--teal" style={{ width: `${Math.max(vol, 4)}%` }} />
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }

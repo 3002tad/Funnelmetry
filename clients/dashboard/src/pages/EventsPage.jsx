@@ -4,6 +4,7 @@ import { EventTypeTable } from "../components/EventTypeTable.jsx";
 import { DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
 import { IconEvents } from "../components/icons.jsx";
+import { ActionCardValue } from "../components/MoneyText.jsx";
 import { StatHero } from "../components/StatCard.jsx";
 import {
   buildEventActionItems,
@@ -139,7 +140,7 @@ export function EventsPage() {
                 {actionItems.map((item) => (
                   <div key={item.key} className={`action-card ${item.level}`}>
                     <span className="action-card__title">{item.title}</span>
-                    <strong className="action-card__value">{item.value}</strong>
+                    <ActionCardValue value={item.value} />
                     <span className="action-card__hint">{item.hint}</span>
                   </div>
                 ))}

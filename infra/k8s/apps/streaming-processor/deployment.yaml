@@ -44,7 +44,7 @@ spec:
                   name: app-secrets
                   key: POSTGRES_PASSWORD
             - name: FLUSH_INTERVAL_SEC
-              value: "30"
+              value: "5"
             - name: EVENT_BATCH_SIZE
               value: "100"
             - name: QDRANT_URL

@@ -36,4 +36,19 @@ def clean(raw: dict) -> dict:
     if not isinstance(event.get("metadata"), dict):
         event["metadata"] = {}
 
+    etype = event.get("event_type") or ""
+    if etype in ("banner_impression", "banner_click"):
+        meta = event["metadata"]
+        bid = (
+            meta.get("banner_id")
+            or meta.get("bannerId")
+            or meta.get("banner_name")
+            or meta.get("name")
+            or event.get("banner_id")
+            or event.get("bannerId")
+            or event.get("name")
+        )
+        if bid is not None and str(bid).strip():
+            meta["banner_id"] = str(bid).strip()
+
     return event

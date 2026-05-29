@@ -16,6 +16,33 @@ const qdrant = new QdrantStore(config.qdrant.url, config.qdrant.collection);
 
 const RAG_SEARCH_LIMIT = 12;
 const RAG_PROMPT_LIMIT = 5;
+const POLISH_TIMEOUT_CAP_MS = 28_000;
+
+function modelAvailable(health, model) {
+  if (!model || !health?.models?.length) return false;
+  const want = model.split(":")[0];
+  return health.models.some((m) => m === model || m.startsWith(`${want}:`) || m.startsWith(want));
+}
+
+async function tryPolishAnswer(brief, message, ollamaOpts) {
+  if (!brief || !ollamaOpts.baseUrl) return null;
+  const health = await checkOllamaHealth(ollamaOpts.baseUrl);
+  if (health.status !== "ok" || !modelAvailable(health, ollamaOpts.model)) {
+    console.warn(
+      "chat: skip Ollama polish —",
+      health.status !== "ok" ? health.error || "ollama down" : `model ${ollamaOpts.model} not pulled`
+    );
+    return null;
+  }
+  const timeout = Math.min(ollamaOpts.timeout ?? 60_000, POLISH_TIMEOUT_CAP_MS);
+  try {
+    const polished = await polishGroundedAnswer(brief, message, { ...ollamaOpts, timeout });
+    return polished && polished.length > 40 ? polished : null;
+  } catch (err) {
+    console.warn("Ollama analyst polish failed:", err.message);
+    return null;
+  }
+}
 
 async function fetchRagHits(message, plan) {
   if (!plan.needs_rag || !config.qdrant.url) return [];
@@ -140,14 +167,10 @@ export async function handleChatMessage(message, options = {}) {
     answer = fallback();
     model_used = "analyst-template";
   } else if (brief) {
-    try {
-      const polished = await polishGroundedAnswer(brief, message, ollamaOpts);
-      if (polished && polished.length > 40) {
-        answer = polished;
-        model_used = `${config.ollama.model} (analyst)`;
-      }
-    } catch (err) {
-      console.warn("Ollama analyst polish failed:", err.message);
+    const polished = await tryPolishAnswer(brief, message, ollamaOpts);
+    if (polished) {
+      answer = polished;
+      model_used = `${config.ollama.model} (analyst)`;
     }
   }
 

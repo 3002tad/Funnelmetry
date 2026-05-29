@@ -3,7 +3,7 @@ import { markSeen } from "../lib/business-event.dedup.js";
 import { businessEventToTracking } from "../lib/business-event.mapper.js";
 import { validateBusinessBatch } from "../lib/business-event.validator.js";
 import { requireIngestAuth } from "../middleware/ingest-auth.js";
-import { ingestOne } from "../tracking.service.js";
+import { ingestBatch } from "../tracking.service.js";
 
 export const ingestRouter = Router();
 
@@ -21,6 +21,7 @@ async function handleBusinessBatch(req, res) {
     let duplicate_count = 0;
     let rejected_count = validated.rejected?.length || 0;
     const ingest_errors = [];
+    const to_ingest = [];
 
     for (const canonical of validated.events) {
       if (markSeen(canonical.event_id)) {
@@ -34,13 +35,19 @@ async function handleBusinessBatch(req, res) {
         continue;
       }
 
+      to_ingest.push({ canonical, tracking });
+    }
+
+    if (to_ingest.length > 0) {
       try {
-        await ingestOne(tracking);
-        accepted_count += 1;
+        await ingestBatch(to_ingest.map((row) => row.tracking));
+        accepted_count += to_ingest.length;
       } catch (err) {
-        console.error("business ingest kafka failed", canonical.event_id, err.message);
-        ingest_errors.push({ event_id: canonical.event_id, error: "kafka_unavailable" });
-        rejected_count += 1;
+        console.error("business ingest kafka batch failed", err.message);
+        for (const { canonical } of to_ingest) {
+          ingest_errors.push({ event_id: canonical.event_id, error: "kafka_unavailable" });
+          rejected_count += 1;
+        }
       }
     }
 

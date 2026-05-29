@@ -17,6 +17,8 @@ describe("business ingest", () => {
     });
     assert.equal(mapped.event_type, "purchase_succeeded");
     assert.equal(mapped.event_source, "rabbitmq_adapter");
+    assert.equal(mapped.metadata.amount, 100);
+    assert.equal(mapped.metadata.total_amount, 100);
   });
 
   it("validates batch payload", () => {

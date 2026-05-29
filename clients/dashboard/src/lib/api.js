@@ -7,7 +7,8 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function request(method, path, body) {
+async function request(method, path, body, options = {}) {
+  const { timeoutMs } = options;
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
@@ -15,6 +16,7 @@ async function request(method, path, body) {
       ...authHeaders(),
     },
     body: body ? JSON.stringify(body) : undefined,
+    signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
   });
 
   if (res.status === 401) {
@@ -73,7 +75,7 @@ export const api = {
     const body = { message };
     if (minutes != null) body.minutes = minutes;
     if (session_id) body.session_id = session_id;
-    return post("/api/chat", body);
+    return request("POST", "/api/chat", body, { timeoutMs: 75_000 });
   },
   chatInsights: (limit = 12) => get(`/api/chat/insights?limit=${limit}`),
 };

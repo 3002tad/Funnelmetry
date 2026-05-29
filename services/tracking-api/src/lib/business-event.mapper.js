@@ -22,6 +22,10 @@ export function businessEventToTracking(canonical) {
   meta.business_event_source = canonical.event_source;
   if (canonical.order_id) meta.order_id = canonical.order_id;
   if (canonical.tenant_id) meta.tenant_id = canonical.tenant_id;
+  // Worker sends total_amount on order.completed; streaming KPI reads amount.
+  if (meta.amount == null && meta.total_amount != null) {
+    meta.amount = meta.total_amount;
+  }
 
   const items = meta.items || [];
   let product_id = canonical.product_id || null;

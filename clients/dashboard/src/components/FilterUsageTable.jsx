@@ -23,30 +23,49 @@ export function FilterUsageTable({ filters }) {
         </div>
       </div>
 
-      <div className="bi-rank__head bi-rank__head--filter">
-        <span>Danh mục</span>
-        <span>Sắp xếp</span>
-        <span>Lượt</span>
-        <span>%</span>
-        <span>Volume</span>
+      <div className="bi-rank__table-wrap">
+        <table className="data-table bi-rank-table bi-rank-table--filter">
+          <colgroup>
+            <col className="bi-col-label" />
+            <col className="bi-col-label" />
+            <col className="bi-col-num" />
+            <col className="bi-col-pct" />
+            <col className="bi-col-bar" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="bi-rank-table__col-label">Danh mục</th>
+              <th className="bi-rank-table__col-label">Sắp xếp</th>
+              <th className="bi-rank-table__col-num">Lượt</th>
+              <th className="bi-rank-table__col-pct">%</th>
+              <th className="bi-rank-table__col-bar">Volume</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filters.map((r, i) => {
+              const n = Number(r.filter_events);
+              const share = total > 0 ? (n / total) * 100 : 0;
+              const vol = (n / max) * 100;
+              return (
+                <tr key={`${r.category}-${r.sort_mode}-${i}`}>
+                  <td className="bi-rank-table__col-label">{r.category || "all"}</td>
+                  <td className="bi-rank-table__col-label">{r.sort_mode || "default"}</td>
+                  <td className="bi-rank-table__col-num">{n.toLocaleString("vi-VN")}</td>
+                  <td className="bi-rank-table__col-pct">{share.toFixed(1)}%</td>
+                  <td className="bi-rank-table__col-bar">
+                    <div className="bi-rank__bar">
+                      <div
+                        className="bi-rank__bar-fill bi-rank__bar-fill--accent"
+                        style={{ width: `${Math.max(vol, 4)}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-
-      {filters.map((r, i) => {
-        const n = Number(r.filter_events);
-        const share = total > 0 ? (n / total) * 100 : 0;
-        const vol = (n / max) * 100;
-        return (
-          <div key={`${r.category}-${r.sort_mode}-${i}`} className="bi-rank__row bi-rank__row--filter">
-            <span>{r.category || "all"}</span>
-            <span>{r.sort_mode || "default"}</span>
-            <span className="bi-rank__num">{n.toLocaleString("vi-VN")}</span>
-            <span className="bi-rank__pct">{share.toFixed(1)}%</span>
-            <div className="bi-rank__bar">
-              <div className="bi-rank__bar-fill bi-rank__bar-fill--accent" style={{ width: `${Math.max(vol, 4)}%` }} />
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
