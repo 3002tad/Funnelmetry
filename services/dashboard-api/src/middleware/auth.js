@@ -1,5 +1,5 @@
 import { verifyToken } from "../lib/jwt.js";
-import { canAccessAdmin, canAccessShop } from "../lib/roles.js";
+import { canAccessAdmin, canAccessChat, canAccessShop } from "../lib/roles.js";
 
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization;
@@ -49,6 +49,15 @@ export function requireAdminRole(req, res, next) {
   return res.status(403).json({
     error: "forbidden",
     hint: "admin_only",
+    role: req.user?.role || null,
+  });
+}
+
+export function requireChatRole(req, res, next) {
+  if (canAccessChat(req.user?.role)) return next();
+  return res.status(403).json({
+    error: "forbidden",
+    hint: "chat_requires_admin_or_analyst",
     role: req.user?.role || null,
   });
 }

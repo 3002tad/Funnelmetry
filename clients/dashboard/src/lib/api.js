@@ -69,7 +69,11 @@ export const api = {
   revenueByCategory: (minutes = 60) => get(`/api/revenue/by-category?minutes=${minutes}`),
   systemPipeline: () => get("/api/system/pipeline"),
   systemSetup: () => get("/api/system/setup"),
-  chat: (message, minutes) =>
-    post("/api/chat", minutes != null ? { message, minutes } : { message }),
+  chat: (message, minutes, session_id) => {
+    const body = { message };
+    if (minutes != null) body.minutes = minutes;
+    if (session_id) body.session_id = session_id;
+    return post("/api/chat", body);
+  },
   chatInsights: (limit = 12) => get(`/api/chat/insights?limit=${limit}`),
 };

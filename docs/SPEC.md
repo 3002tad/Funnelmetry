@@ -69,7 +69,6 @@ services/
       chat.service.js
       intent.service.js
       rag.service.js
-  commerce-connector/
   streaming-processor/
     consumer.py
     parser.py

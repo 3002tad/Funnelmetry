@@ -35,20 +35,30 @@ export class QdrantStore {
     return this.ready;
   }
 
-  async searchByText(text, limit = 5) {
+  /**
+   * @param {string} text
+   * @param {{ limit?: number, filter?: object }} [options]
+   */
+  async searchByText(text, options = {}) {
+    const limit = typeof options === "number" ? options : options.limit ?? 5;
+    const filter = typeof options === "number" ? null : options.filter ?? null;
+
     if (!this.baseUrl) return [];
     if (!(await this.ensureCollection())) return [];
+
+    const body = {
+      vector: embedText(text),
+      limit,
+      with_payload: true,
+    };
+    if (filter) body.filter = filter;
 
     const res = await fetch(
       `${this.baseUrl}/collections/${this.collection}/points/search`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vector: embedText(text),
-          limit,
-          with_payload: true,
-        }),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(5000),
       }
     );

@@ -9,7 +9,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/../../../.." && pwd)"
 KUBECTL="${KUBECTL:-k3s kubectl}"
 NS="kube-system"
 RELEASE="headlamp"
-LOCAL_PORT="${LOCAL_PORT:-8443}"
+LOCAL_PORT="${LOCAL_PORT:-8080}"
 
 echo "Checking Headlamp release..."
 if ! helm -n "${NS}" ls 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "${RELEASE}"; then

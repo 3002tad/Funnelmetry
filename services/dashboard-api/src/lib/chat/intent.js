@@ -2,7 +2,7 @@ const RULES = [
   {
     intent: "overview",
     patterns: [
-      /tóm tắt|tình hình|tổng quan|overview|hiện tại|đang như thế nào|báo cáo nhanh|website.*(thế nào|ra sao)|cửa hàng.*(thế nào|ra sao)/,
+      /tóm tắt|tình hình|tổng quan|overview|hiện tại|đang như thế nào|báo cáo nhanh|website.*(thế nào|ra sao)|cửa hàng.*(thế nào|ra sao)|sức khỏe shop|shop thế nào/,
     ],
   },
   {
@@ -18,9 +18,15 @@ const RULES = [
     ],
   },
   {
+    intent: "optimize",
+    patterns: [
+      /gợi ý|tối ưu|optimize|conversion thấp|cải thiện|nên làm gì|làm sao để|tăng (doanh thu|conversion|bán)/,
+    ],
+  },
+  {
     intent: "funnel",
     patterns: [
-      /phễu|funnel|rớt|drop.?off|bước nào|checkout|thanh toán.*(rớt|bỏ)|bỏ giỏ|tỷ lệ chuyển đổi|conversion/,
+      /phễu|funnel|rớt|drop.?off|bước nào|checkout|thanh toán.*(rớt|bỏ)|bỏ giỏ|tỷ lệ chuyển đổi/,
     ],
   },
   {
@@ -36,10 +42,8 @@ const RULES = [
     patterns: [/banner|quảng cáo|ctr|impression|slide|hero/],
   },
   {
-    intent: "optimize",
-    patterns: [
-      /gợi ý|tối ưu|optimize|conversion thấp|cải thiện|nên làm gì|làm sao để|tăng (doanh thu|conversion|bán)/,
-    ],
+    intent: "comparison",
+    patterns: [/so sánh|kỳ trước|so với.*trước|hôm qua/i],
   },
 ];
 
@@ -56,7 +60,9 @@ export function detectIntent(message) {
 }
 
 export function extractMinutes(message, fallback = 60) {
-  const text = message || "";
+  const text = (message || "").toLowerCase();
+  if (/hôm nay|today|cả ngày|24\s*h/.test(text)) return 1440;
+  if (/gần đây|vừa rồi|mới đây/.test(text)) return Math.min(fallback, 120);
   const m = text.match(/(\d+)\s*(phút|minute|min)/i);
   if (m) return Math.min(parseInt(m[1], 10), 1440);
   const h = text.match(/(\d+)\s*(giờ|hour|h)\b/i);

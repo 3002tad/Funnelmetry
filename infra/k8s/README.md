@@ -25,8 +25,8 @@ k3s kubectl -n realtime create secret generic app-secrets \
   --from-literal=POSTGRES_USER=app \
   --from-literal=POSTGRES_PASSWORD='change-me' \
   --from-literal=JWT_SECRET='change-me-use-long-random-string' \
-  --from-literal=DASHBOARD_ADMIN_EMAIL='admin@pipeline.local' \
-  --from-literal=DASHBOARD_ADMIN_PASSWORD='admin123' \
+  --from-literal=DASHBOARD_ADMIN_EMAIL='admin@gmail.com' \
+  --from-literal=DASHBOARD_ADMIN_PASSWORD='admin@123' \
   --from-literal=RABBITMQ_URL='amqp://app:app@rabbitmq:5672' \
   --from-literal=RABBITMQ_USER='app' \
   --from-literal=RABBITMQ_PASS='app' \

@@ -14,3 +14,8 @@ export function canAccessShop(role) {
 export function canAccessAdmin(role) {
   return ADMIN_ROLES.includes(role);
 }
+
+/** Chat analytics — both admin and analyst UIs. */
+export function canAccessChat(role) {
+  return canAccessShop(role) || canAccessAdmin(role);
+}

@@ -2,7 +2,8 @@
 
 | Path | Mục đích |
 |------|----------|
-| [`.env.example`](.env.example) | Mẫu biến môi trường — copy thành `.env` (gitignore) |
+| [`.env.example`](.env.example) | **Một file env** cho k3s secret, build UI, chạy local `services/*` |
+| [`load-env.mjs`](load-env.mjs) | Helper dotenv (tuỳ chọn). Services local: `npm start` dùng `--env-file=../../infra/.env` |
 | [`PORTS.md`](PORTS.md) | NodePort, URL từ Windows/Laptop 2 |
 | [`postgres/`](postgres/) | **Nguồn SQL** schema (áp vào k8s qua configmap) |
 | [`k8s/`](k8s/) | Manifest k3s + script deploy |
@@ -13,6 +14,7 @@ Chi tiết: [`docs/RUNTIME.md`](../docs/RUNTIME.md)
 
 ```bash
 cp infra/.env.example infra/.env
+cd infra && npm install   # dotenv cho load-env.mjs (lần đầu)
 bash infra/k8s/install-k3s-wsl.sh          # lần đầu
 bash infra/k8s/import-images.sh            # build + import image
 k3s kubectl apply -k infra/k8s/sprint3   # deploy full stack

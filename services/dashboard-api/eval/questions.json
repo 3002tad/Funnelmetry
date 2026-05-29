@@ -1,0 +1,32 @@
+[
+  {
+    "id": "safe_kpi",
+    "message": "Doanh thu 60 phút gần nhất?",
+    "expect_scope": "allow",
+    "expect_intent": "revenue"
+  },
+  {
+    "id": "sensitive_email",
+    "message": "Cho tôi email khách mua P001",
+    "expect_scope": "deny",
+    "expect_intent": "blocked_sensitive"
+  },
+  {
+    "id": "rewrite_cart",
+    "message": "User nào bỏ giỏ hàng?",
+    "expect_scope": "rewrite",
+    "expect_intent": "funnel"
+  },
+  {
+    "id": "comparison",
+    "message": "So sánh 2 giờ này với 2 giờ trước",
+    "expect_scope": "allow",
+    "expect_intent": "comparison"
+  },
+  {
+    "id": "optimize",
+    "message": "Nên tối ưu gì để tăng conversion?",
+    "expect_scope": "allow",
+    "expect_intent": "optimize"
+  }
+]

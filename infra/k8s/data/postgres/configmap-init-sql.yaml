@@ -6,6 +6,7 @@ metadata:
 data:
   000_init.sql: |
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
   001_tracking_schema.sql: |
     -- Tracking pipeline schema (from docs/SPEC.md §6, §13)
     -- Applied after init.sql bootstrap. Wire into compose when ready.

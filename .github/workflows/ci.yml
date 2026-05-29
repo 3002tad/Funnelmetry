@@ -23,6 +23,20 @@ jobs:
       - name: Validate sprint3 manifest
         run: kubectl kustomize infra/k8s/sprint3 > /tmp/sprint3.yaml
 
+  dashboard-api-chat:
+    name: dashboard-api chat guards
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/dashboard-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm test
+      - run: npm run test:eval
+
   dashboard-ui:
     name: Build dashboard UI
     runs-on: ubuntu-latest
@@ -62,9 +76,6 @@ jobs:
             build_args: "VITE_DASHBOARD_API_URL="
           - service: commerce-backend
             context: services/commerce-backend
-            build_args: ""
-          - service: commerce-connector
-            context: services/commerce-connector
             build_args: ""
     steps:
       - uses: actions/checkout@v4

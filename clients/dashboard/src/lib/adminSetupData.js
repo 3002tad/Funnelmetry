@@ -17,7 +17,7 @@ export function buildAdminSetupData() {
     source: "client",
     ports: [
       { service: "tracking-api", nodePort: 31000, internal: "tracking-api:3000", use: "SDK POST /track" },
-      { service: "commerce-backend", nodePort: 30330, internal: "commerce-backend:3000", use: "Web-shop commerce events" },
+      { service: "commerce-backend", nodePort: 30330, internal: "commerce-backend:3000", use: "POST /api/orders → RabbitMQ" },
       { service: "dashboard-api", nodePort: 32000, internal: "dashboard-api:3000", use: "Vite proxy /api (dev)" },
       { service: "dashboard-ui", nodePort: 30809, internal: "dashboard-ui:80", use: "Production UI" },
     ],

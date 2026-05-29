@@ -41,9 +41,6 @@ jobs:
           - service: commerce-backend
             context: services/commerce-backend
             build_args: ""
-          - service: commerce-connector
-            context: services/commerce-connector
-            build_args: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -85,7 +82,7 @@ jobs:
           OWNER_REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           SHA="${{ github.sha }}"
           echo "## Published images (GHCR)" >> "$GITHUB_STEP_SUMMARY"
-          for svc in tracking-api streaming-processor dashboard-api dashboard-ui commerce-backend commerce-connector; do
+          for svc in tracking-api streaming-processor dashboard-api dashboard-ui commerce-backend; do
             echo "- \`ghcr.io/${OWNER_REPO}/${svc}:${SHA}\`" >> "$GITHUB_STEP_SUMMARY"
           done
           echo "" >> "$GITHUB_STEP_SUMMARY"

@@ -14,8 +14,7 @@ $images = @(
   @{ Name = "streaming-processor:dev"; Context = "services/streaming-processor" },
   @{ Name = "dashboard-api:dev"; Context = "services/dashboard-api" },
   @{ Name = "dashboard-ui:dev"; Context = "clients/dashboard"; BuildArgs = @("--build-arg", "VITE_DASHBOARD_API_URL=") },
-  @{ Name = "commerce-backend:dev"; Context = "services/commerce-backend" },
-  @{ Name = "commerce-connector:dev"; Context = "services/commerce-connector" }
+  @{ Name = "commerce-backend:dev"; Context = "services/commerce-backend" }
 )
 
 foreach ($img in $images) {

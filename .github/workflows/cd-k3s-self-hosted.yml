@@ -28,7 +28,7 @@ jobs:
         run: |
           NS=realtime
           for dep in tracking-api streaming-processor dashboard-api dashboard-ui \
-            commerce-backend commerce-connector; do
+            commerce-backend; do
             k3s kubectl -n "$NS" rollout restart "deploy/${dep}" 2>/dev/null || true
           done
 

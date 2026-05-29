@@ -28,11 +28,15 @@ export function LoginPage() {
       navigate(resolvePostLoginPath(u.role, dest), { replace: true });
     } catch (err) {
       const msg = err.message || "";
-      setError(
-        msg.includes("invalid_credentials") || msg.includes("401")
-          ? "Email hoặc mật khẩu không đúng"
-          : msg
-      );
+      let hint = msg;
+      if (msg.includes("invalid_credentials") || msg.includes("401")) {
+        hint = "Email hoặc mật khẩu không đúng (mặc định: admin@gmail.com / admin@123)";
+      } else if (msg.includes("login_failed")) {
+        hint = "Lỗi server — kiểm tra pod dashboard-api và kết nối Postgres";
+      } else if (/failed to fetch|networkerror/i.test(msg)) {
+        hint = "Không gọi được API — mở dashboard qua http://<WSL_IP>:30809 (không chỉ localhost nếu chạy từ máy khác)";
+      }
+      setError(hint);
     } finally {
       setSubmitting(false);
     }

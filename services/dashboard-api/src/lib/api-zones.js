@@ -1,7 +1,11 @@
 /** Path belongs to manager (analytic) APIs — not admin/system/users. */
+/** POST /api/chat — shared analytics (not shop-only). */
+export function isChatApiPath(path) {
+  return path === "/api/chat";
+}
+
 export function isShopApiPath(path) {
-  if (path === "/api/chat") return true;
-  if (path.startsWith("/api/chat/")) return false;
+  if (isChatApiPath(path)) return false;
   return (
     path.startsWith("/api/overview")
     || path.startsWith("/api/events")

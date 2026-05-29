@@ -1,8 +1,7 @@
-# Full stack + RabbitMQ path (Integration Guide: API + worker + tracking consumer).
+# Full stack + RabbitMQ. Order worker chạy trên Lap2 (web-shop npm run worker), không deploy worker trong k3s.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../sprint2
   - ../data/rabbitmq
   - ../apps/commerce-backend
-  - ../apps/web-demo-worker

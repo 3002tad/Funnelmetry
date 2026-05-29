@@ -3,12 +3,10 @@
 | Path | Spec component | Status |
 |------|----------------|--------|
 | [tracking-api/](tracking-api/) | Tracking API — ingest `/track` → Kafka | có |
-| [commerce-backend/](commerce-backend/) | Web Demo API stand-in — `POST /api/orders` → RabbitMQ | có |
-| [web-demo-worker/](web-demo-worker/) | Order processing queue consumer | có |
-| [commerce-connector/](commerce-connector/) | Tracking business consumer → tracking-api | có |
+| [commerce-backend/](commerce-backend/) | Order API stand-in trên k3s (tuỳ chọn; demo chính = web-shop Lap2) | có |
 | [streaming-processor/](streaming-processor/) | Kafka → Postgres + Qdrant | có |
 | [dashboard-api/](dashboard-api/) | Dashboard + Chatbot API | có |
 
-RabbitMQ topology: `docs/RabbitMQ Integration Guide.docx` · [RUNTIME.md](../docs/RUNTIME.md) §6.
+RabbitMQ / adapter: [`docs/RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx`](../docs/RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx) · [RUNTIME.md](../docs/RUNTIME.md) §6–7.
 
 Mapping: [docs/REPO_MAP.md](../docs/REPO_MAP.md)

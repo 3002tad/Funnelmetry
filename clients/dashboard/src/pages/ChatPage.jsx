@@ -5,11 +5,11 @@ import { IconChat } from "../components/icons.jsx";
 import { api } from "../lib/api.js";
 
 const SUGGESTIONS = [
-  "Tóm tắt tình hình website hiện tại",
-  "Top sản phẩm được xem nhiều nhất?",
-  "Sản phẩm nào nhiều view nhưng ít mua?",
-  "Người dùng rớt nhiều nhất ở bước nào?",
-  "Gợi ý tối ưu conversion rate",
+  "Phân tích tình hình shop 60 phút gần nhất",
+  "Vấn đề lớn nhất đang là gì và nên làm gì trước?",
+  "Sản phẩm nào nhiều view nhưng không mua?",
+  "Phễu đang rớt ở bước nào — giải thích giúp",
+  "So sánh 2 giờ này với 2 giờ trước",
 ];
 
 function renderAnswer(text) {
@@ -26,17 +26,29 @@ export function ChatPage() {
     {
       role: "assistant",
       content:
-        "Xin chào! Mình là **trợ lý phân tích hành vi** cho cửa hàng của bạn.\n\n" +
-        "• Số liệu lấy từ **PostgreSQL** (chính xác)\n" +
-        "• Insight ngữ cảnh từ **Qdrant**\n" +
-        "• Trả lời bằng **Ollama** khi đã cấu hình\n\n" +
-        "Hãy chọn gợi ý bên dưới hoặc tự nhập câu hỏi.",
+        "Xin chào! Mình là **Analytics Assistant** — không chỉ trả lời câu hỏi mà **phân tích** shop: chỉ ra vấn đề, ưu tiên việc cần làm.\n\n" +
+        "• Số liệu: **PostgreSQL** · Ngữ cảnh: **Qdrant** · Diễn đạt: **Ollama**\n\n" +
+        "Thử: *Phân tích vấn đề lớn nhất 2 giờ qua* hoặc *Nên tối ưu gì trước?*",
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [insights, setInsights] = useState([]);
   const bottomRef = useRef(null);
+  const sessionIdRef = useRef(
+    typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem("chat_session_id") ||
+          `chat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+      : `chat_${Date.now()}`
+  );
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("chat_session_id", sessionIdRef.current);
+    } catch {
+      /* private mode */
+    }
+  }, []);
 
   const loadInsights = useCallback(async () => {
     try {
@@ -64,7 +76,7 @@ export function ChatPage() {
     setMessages((m) => [...m, { role: "user", content: msg }]);
     setLoading(true);
     try {
-      const res = await api.chat(msg);
+      const res = await api.chat(msg, undefined, sessionIdRef.current);
       setMessages((m) => [
         ...m,
         {

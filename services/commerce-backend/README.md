@@ -7,4 +7,4 @@ HTTP API mô phỏng **web-shop backend** trên k3s cho đến khi `clients/web-
 
 **Không** chạy trên Laptop 2; web-shop gọi `COMMERCE_BACKEND_URL=http://<WSL_IP>:30330`.
 
-Luồng đầy đủ: [`docs/RabbitMQ Integration Guide.docx`](../../docs/RabbitMQ%20Integration%20Guide.docx) · [`docs/RUNTIME.md`](../../docs/RUNTIME.md) §6.
+Luồng đầy đủ: [`docs/RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx`](../../docs/RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx) · [`docs/RUNTIME.md`](../../docs/RUNTIME.md) §6–7.

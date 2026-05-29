@@ -1,6 +1,6 @@
 # Tài liệu project
 
-Chỉ **4 file** — đọc theo nhu cầu:
+Markdown chính:
 
 | File | Khi nào đọc |
 |------|-------------|
@@ -9,5 +9,7 @@ Chỉ **4 file** — đọc theo nhu cầu:
 | **[SPEC.md](SPEC.md)** | Kiến trúc chi tiết, event schema, pipeline, dashboard |
 | **[../infra/PORTS.md](../infra/PORTS.md)** | Bảng port NodePort |
 | **[CI_CD.md](CI_CD.md)** | GitHub Actions CI/CD |
+
+Tài liệu RabbitMQ (Word): **[RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx](RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx)** — adapter Lap2 → tracking-api ingest.
 
 Infra / k8s: [`../infra/README.md`](../infra/README.md)

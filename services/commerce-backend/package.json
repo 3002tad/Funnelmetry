@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "start": "node --env-file=../../infra/.env src/index.js",
+    "dev": "node --watch --env-file=../../infra/.env src/index.js"
   },
   "dependencies": {
     "amqplib": "^0.10.4",

@@ -108,9 +108,8 @@ systemRouter.get("/api/system/pipeline", async (_req, res) => {
       (lastEvent && now - lastEvent.getTime() < 3 * 60 * 1000);
 
     const commerceEvents5m = stats.commerce_events_5m ?? 0;
-    const connectorOk =
-      rabbitProbe.status === "ok" &&
-      services[2]?.status === "ok" &&
+    const ingestOk =
+      services[0]?.status === "ok" &&
       (commerceEvents5m > 0 || stats.events_last_5m === 0);
 
     const lag = {
@@ -152,9 +151,9 @@ systemRouter.get("/api/system/pipeline", async (_req, res) => {
       services[2],
       rabbitProbe,
       {
-        name: "commerce-connector",
-        status: connectorOk ? "ok" : stats.events_total > 0 ? "degraded" : "unknown",
-        url: "rabbitmq → tracking-api",
+        name: "tracking-api-ingest",
+        status: ingestOk ? "ok" : stats.events_total > 0 ? "degraded" : "unknown",
+        url: "POST /api/ingest/business-events (Lap2 adapter)",
         detail:
           commerceEvents5m > 0
             ? `${commerceEvents5m} commerce events / 5m`

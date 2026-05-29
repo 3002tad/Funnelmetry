@@ -19,3 +19,9 @@ Thumbs.db
 
 # Friend's web-shop (tracked in separate repo)
 clients/web-shop/
+
+# Doc extract / temp (keep single .docx in docs/)
+docs/_rabbitmq_docx_extract/
+docs/_rabbitmq*.zip
+docs/_rabbitmq_guide*.txt
+docs/_rabbitmq_adapter_standard.txt

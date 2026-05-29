@@ -1,8 +1,8 @@
 import cors from "cors";
 import express from "express";
-import { isAdminApiPath, isShopApiPath, skipUnlessZone } from "./lib/api-zones.js";
+import { isAdminApiPath, isChatApiPath, isShopApiPath, skipUnlessZone } from "./lib/api-zones.js";
 import { config } from "./config.js";
-import { requireAuth, requireAdminRole, requireShopRole } from "./middleware/auth.js";
+import { requireAuth, requireAdminRole, requireChatRole, requireShopRole } from "./middleware/auth.js";
 import { authRouter } from "./routes/auth.js";
 import { bannersRouter } from "./routes/banners.js";
 import { eventsRouter } from "./routes/events.js";
@@ -39,8 +39,13 @@ export function createApp() {
   shop.use(searchRouter);
   shop.use(bannersRouter);
   shop.use(revenueRouter);
-  shop.use(chatRouter);
   app.use(shop);
+
+  const chatApi = express.Router();
+  chatApi.use(skipUnlessZone(isChatApiPath));
+  chatApi.use(requireAuth, requireChatRole);
+  chatApi.use(chatRouter);
+  app.use(chatApi);
 
   const adminOps = express.Router();
   adminOps.use(skipUnlessZone(isAdminApiPath));

@@ -42,7 +42,9 @@ helm upgrade --install headlamp headlamp/headlamp \
 bash infra/k8s/ops/kubernetes-dashboard/port-forward.sh
 ```
 
-Mở **http://localhost:8443**.
+Mở **http://localhost:8080** (mặc định). **Không** dùng `https://` — port-forward không có chứng chỉ TLS; `https://localhost:8443` sẽ báo *can't provide a secure connection*.
+
+Muốn port cũ: `LOCAL_PORT=8443 bash .../port-forward.sh` rồi vẫn mở **`http://`** (không phải https).
 
 ### Cách 2 — Từ Windows qua WSL
 

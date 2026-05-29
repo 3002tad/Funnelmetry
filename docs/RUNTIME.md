@@ -16,7 +16,9 @@ cd Business-Data-Streaming---Processing-Pipeline
 git submodule update --init --recursive
 
 cp infra/.env.example infra/.env
-# Sửa POSTGRES_PASSWORD, WSL_IP, VITE_* (WSL_IP = hostname -I trong WSL)
+cd infra && npm install
+# Sửa POSTGRES_PASSWORD, WSL_IP, VITE_*, TRACKING_INGEST_API_KEY (WSL_IP = hostname -I trong WSL)
+# Một file infra/.env cho pipeline (k3s + services local). Web-shop Lap2: clients/web-shop/.env riêng.
 ```
 
 ## 3. Cài k3s (lần đầu, trong WSL)
@@ -38,8 +40,8 @@ k3s kubectl -n realtime create secret generic app-secrets \
   --from-literal=POSTGRES_USER=app \
   --from-literal=POSTGRES_PASSWORD='change-me' \
   --from-literal=JWT_SECRET='change-me-use-long-random-string' \
-  --from-literal=DASHBOARD_ADMIN_EMAIL='admin@pipeline.local' \
-  --from-literal=DASHBOARD_ADMIN_PASSWORD='admin123' \
+  --from-literal=DASHBOARD_ADMIN_EMAIL='admin@gmail.com' \
+  --from-literal=DASHBOARD_ADMIN_PASSWORD='admin@123' \
   --from-literal=RABBITMQ_URL='amqp://app:app@rabbitmq:5672' \
   --from-literal=RABBITMQ_USER='app' \
   --from-literal=RABBITMQ_PASS='app' \
@@ -53,7 +55,23 @@ k3s kubectl -n realtime get pods -w
 
 Ollama (chat, lần đầu): `k3s kubectl -n realtime exec deploy/ollama -- ollama pull qwen2.5:3b`
 
-Sau `git pull`: `bash infra/k8s/rebuild-all-dev-images.sh`
+Sau `git pull` / đổi code service:
+
+```bash
+bash infra/k8s/rebuild-all-dev-images.sh
+```
+
+Image lẫn layer / pod crash sau rebuild — **xóa sạch rồi import lại** (ổn định hơn pipe `docker save | sudo`):
+
+```bash
+CLEAN=1 bash infra/k8s/rebuild-all-dev-images.sh
+```
+
+Chỉ xóa pod lỗi, giữ pod cũ đang chạy (nhanh, không rebuild):
+
+```bash
+k3s kubectl -n realtime delete pod -l app=tracking-api --field-selector=status.phase!=Running
+```
 
 ## 5. URL truy cập
 
@@ -65,7 +83,55 @@ Sau `git pull`: `bash infra/k8s/rebuild-all-dev-images.sh`
 | Tracking API | `http://<WSL_IP>:31000` |
 | Commerce backend | `http://<WSL_IP>:30330` |
 
-**Đăng nhập dashboard:** `admin@pipeline.local` / `admin123` (Admin) — tạo tài khoản Analytic trong Admin → Tài khoản.
+**Đăng nhập dashboard:** `admin@gmail.com` / `admin@123` (Admin) — tạo tài khoản Analytic trong Admin → Tài khoản.
+
+**Không đăng nhập được?**
+
+1. Mở UI đúng URL: `http://<WSL_IP>:30809` (F12 → Network: `POST /api/auth/login` phải **200**, không 401/502).
+2. Postgres cũ có thể còn user/mật khẩu lần deploy trước — `dashboard-api` **đồng bộ lại** email/mật khẩu từ secret `DASHBOARD_ADMIN_*` mỗi lần start (cần **rebuild + restart** pod sau khi pull code mới).
+3. Kiểm tra nhanh (WSL):
+
+```bash
+curl -s -X POST "http://127.0.0.1:32000/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@gmail.com","password":"admin@123"}'
+```
+
+Kết quả có `"token"` là API OK; UI lỗi thì xem proxy/nginx.
+
+**`invalid_credentials` — sửa nhanh (WSL):**
+
+```bash
+# 1) Secret có đúng email/mật khẩu không?
+k3s kubectl -n realtime get secret app-secrets -o jsonpath='{.data.DASHBOARD_ADMIN_EMAIL}' | base64 -d; echo
+k3s kubectl -n realtime get secret app-secrets -o jsonpath='{.data.DASHBOARD_ADMIN_PASSWORD}' | base64 -d; echo
+
+# 2) User hiện trong DB
+k3s kubectl -n realtime exec deploy/postgres -- psql -U app -d realtime -c \
+  "SELECT email, role, is_active FROM dashboard_users;"
+
+# 3) Rebuild dashboard-api (code seed mới) + sync admin
+bash infra/k8s/rebuild-all-dev-images.sh
+k3s kubectl -n realtime rollout restart deployment/dashboard-api
+k3s kubectl -n realtime rollout status deployment/dashboard-api --timeout=120s
+k3s kubectl -n realtime exec deploy/dashboard-api -- node scripts/sync-admin.mjs
+
+# 4) Thử lại login
+curl -s -X POST "http://127.0.0.1:32000/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@gmail.com","password":"admin@123"}'
+```
+
+Nếu bước 3 báo `scripts/sync-admin.mjs` không tồn tại → image chưa rebuild. Cách tạm **không rebuild**: xóa user cũ, restart (pod cũ seed lại nếu bảng trống):
+
+```bash
+k3s kubectl -n realtime exec deploy/postgres -- psql -U app -d realtime -c "DELETE FROM dashboard_users;"
+k3s kubectl -n realtime rollout restart deployment/dashboard-api
+sleep 15
+# curl login lại
+```
+
+Vẫn lỗi: `DELETE_PVC=1 bash infra/k8s/fresh-deploy.sh`
 
 ## 6. Luồng event
 
@@ -79,8 +145,8 @@ Web-shop + tracking.js → tracking-api → Kafka → streaming-processor → Po
 
 ```text
 [Laptop 2] Web-shop API → RabbitMQ (ecommerce.events)
-              ├→ webdemo.order-processing → web-demo-worker (k3s hoặc local)
-              └→ tracking.adapter.business-events → tracking-rabbitmq-adapter (Laptop 2)
+              ├→ webdemo.order-processing → web-shop worker (Lap2: npm run worker)
+              └→ tracking.adapter.business-events → web-shop adapter (Laptop 2: npm run adapter)
                         → POST /api/ingest/business-events/batch (Tailscale/WSL_IP)
 [Laptop 1] tracking-api → Kafka → streaming-processor → PostgreSQL
 ```
@@ -143,13 +209,11 @@ cd clients\web-shop
 npm run adapter
 ```
 
-*(Tuỳ chọn)* bản standalone trong monorepo: `services/tracking-rabbitmq-adapter` — chỉ khi không dùng adapter trong web-shop.
+Worker (bắt buộc trên Lap2, cùng RabbitMQ web-shop):
 
-Worker (nếu RabbitMQ trên k3s, chạy worker trên WSL hoặc cùng broker):
-
-```bash
-# Trong WSL — web-demo-worker đã deploy trên k3s; hoặc local:
-cd services/web-demo-worker && npm install && npm start
+```powershell
+cd clients\web-shop
+npm run worker
 ```
 
 Test hủy đơn:
@@ -204,8 +268,8 @@ k3s kubectl -n realtime exec deploy/ollama -- ollama list
 | tracking-api | Ingest HTTP |
 | streaming-processor | Kafka → Postgres + Qdrant |
 | dashboard-api, dashboard-ui | API + UI |
-| rabbitmq, commerce-backend, web-demo-worker | RabbitMQ broker + order API/worker (k3s) |
-| *(Laptop 2)* tracking-rabbitmq-adapter | Consume adapter queue → ingest API |
+| rabbitmq, commerce-backend | RabbitMQ + order API stand-in (k3s); worker = web-shop Lap2 |
+| *(Laptop 2)* web-shop `npm run adapter` | Consume adapter queue → ingest API |
 | qdrant, ollama | RAG + LLM |
 
 ## 11. Role dashboard
@@ -272,6 +336,17 @@ k3s kubectl delete -k infra/k8s/sprint3
 ```
 
 Deploy lại khi cần: làm lại mục **§4** (`import-images.sh` + `apply -k sprint3`).
+
+### Reset sạch (dừng → xóa deploy → import lại từ đầu)
+
+Một lệnh trong WSL (giữ PVC mặc định; thêm `DELETE_PVC=1` nếu muốn DB trống):
+
+```bash
+cd /mnt/d/Detai/Business-Data-Streaming---Processing-Pipeline
+NO_CACHE=1 bash infra/k8s/fresh-deploy.sh
+```
+
+Script: `infra/k8s/fresh-deploy.sh` — scale 0, `delete -k sprint3`, xóa deploy cũ (connector/worker), `CLEAN=1` + `import-images.sh`, `apply` lại, đợi rollout.
 
 ### Mức 4 — Gỡ hẳn k3s (máy nhẹ nhất)
 

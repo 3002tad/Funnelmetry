@@ -40,7 +40,7 @@ export async function fetchTopProducts(minutes, limit = 5) {
 }
 
 export async function fetchProductAnomalies(minutes, limit = 5) {
-  return query(
+  const rows = await query(
     `SELECT
        k.product_id,
        COALESCE(c.name, k.product_id) AS product_name,
@@ -53,6 +53,90 @@ export async function fetchProductAnomalies(minutes, limit = 5) {
      GROUP BY k.product_id, c.name
      HAVING SUM(k.views) >= 5 AND SUM(k.purchases) = 0
      ORDER BY views DESC
+     LIMIT $2`,
+    [minutes, limit]
+  );
+  return rows.map((r) => ({
+    ...r,
+    severity_score: Number(r.views) + Number(r.clicks) * 0.3,
+  }));
+}
+
+export async function fetchKpiComparison(minutes) {
+  const [current] = await query(
+    `SELECT
+       COALESCE(SUM(unique_sessions), 0) AS unique_sessions,
+       COALESCE(SUM(purchases), 0) AS purchases,
+       COALESCE(SUM(revenue), 0) AS total_revenue,
+       CASE WHEN SUM(unique_sessions) > 0
+         THEN ROUND(SUM(purchases)::numeric / SUM(unique_sessions), 4) ELSE 0 END AS conversion_rate
+     FROM tracking_kpi_1m
+     WHERE window_start >= NOW() - ($1 || ' minutes')::interval`,
+    [minutes]
+  );
+  const [previous] = await query(
+    `SELECT
+       COALESCE(SUM(unique_sessions), 0) AS unique_sessions,
+       COALESCE(SUM(purchases), 0) AS purchases,
+       COALESCE(SUM(revenue), 0) AS total_revenue,
+       CASE WHEN SUM(unique_sessions) > 0
+         THEN ROUND(SUM(purchases)::numeric / SUM(unique_sessions), 4) ELSE 0 END AS conversion_rate
+     FROM tracking_kpi_1m
+     WHERE window_start >= NOW() - ($1::int * 2 || ' minutes')::interval
+       AND window_start < NOW() - ($1 || ' minutes')::interval`,
+    [minutes]
+  );
+  return {
+    current,
+    previous,
+    delta: {
+      sessions_pct: pctDelta(previous.unique_sessions, current.unique_sessions),
+      purchases_pct: pctDelta(previous.purchases, current.purchases),
+      revenue_pct: pctDelta(previous.total_revenue, current.total_revenue),
+      conversion_delta: Number(current.conversion_rate) - Number(previous.conversion_rate),
+    },
+  };
+}
+
+function pctDelta(prev, cur) {
+  const p = Number(prev) || 0;
+  const c = Number(cur) || 0;
+  if (p === 0) return c > 0 ? 1 : 0;
+  return Number(((c - p) / p).toFixed(4));
+}
+
+export async function fetchRevenueTrend(minutes, bucketMinutes = 15) {
+  const bucket = Math.max(5, Math.min(bucketMinutes, minutes));
+  return query(
+    `SELECT
+       window_start,
+       COALESCE(SUM(revenue), 0) AS revenue,
+       COALESCE(SUM(purchases), 0) AS purchases,
+       COALESCE(SUM(unique_sessions), 0) AS sessions
+     FROM tracking_kpi_1m
+     WHERE window_start >= NOW() - ($1 || ' minutes')::interval
+     GROUP BY window_start
+     ORDER BY window_start ASC`,
+    [minutes]
+  );
+}
+
+export async function fetchProductConversion(minutes, limit = 10) {
+  return query(
+    `SELECT
+       k.product_id,
+       COALESCE(c.name, k.product_id) AS product_name,
+       SUM(k.views) AS views,
+       SUM(k.purchases) AS purchases,
+       CASE WHEN SUM(k.views) > 0
+         THEN ROUND(SUM(k.purchases)::numeric / SUM(k.views), 4) ELSE 0 END AS conversion_rate,
+       SUM(k.revenue) AS revenue
+     FROM product_revenue_kpi_1m k
+     LEFT JOIN products_catalog c USING (product_id)
+     WHERE k.window_start >= NOW() - ($1 || ' minutes')::interval
+     GROUP BY k.product_id, c.name
+     HAVING SUM(k.views) >= 3
+     ORDER BY conversion_rate DESC, views DESC
      LIMIT $2`,
     [minutes, limit]
   );

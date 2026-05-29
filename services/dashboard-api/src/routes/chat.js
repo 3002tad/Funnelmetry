@@ -12,9 +12,10 @@ chatRouter.post("/api/chat", async (req, res) => {
   const minutes = req.body?.minutes
     ? Math.min(parseInt(req.body.minutes, 10) || 60, 1440)
     : undefined;
+  const session_id = (req.body?.session_id || req.headers["x-chat-session"] || "").trim() || undefined;
 
   try {
-    const result = await handleChatMessage(message, { minutes });
+    const result = await handleChatMessage(message, { minutes, session_id });
     res.json(result);
   } catch (err) {
     console.error("POST /api/chat", err.message);
