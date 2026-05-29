@@ -101,7 +101,9 @@ npm run seed
 npm run dev
 ```
 
-`clients/web-shop/.env`:
+Một file `.env` ở thư mục gốc web-shop cho cả `dev`, `worker`, `adapter` (không cần `tracking-adapter\.env`).
+
+`clients/web-shop/.env` (tóm tắt):
 
 ```env
 TRACKING_FORWARD_URL=http://<WSL_IP>:31000/track
@@ -128,17 +130,20 @@ curl -s -X POST "http://<WSL_IP>:30330/api/orders" \
 
 ## 7b. Laptop 2 — RabbitMQ Adapter (bắt buộc cho business events)
 
-Adapter chạy trên **Windows**, không deploy trong k3s.
+Adapter nằm trong web-shop (`npm run adapter`), dùng **cùng** `.env` ở §7. Cấu hình ingest:
+
+```env
+TRACKING_INGEST_URL=http://<WSL_IP hoặc lap1>:31000
+TRACKING_INGEST_PATH=/api/ingest/business-events
+TRACKING_INGEST_API_KEY=   # trùng secret k3s TRACKING_INGEST_API_KEY
+```
 
 ```powershell
-cd services\tracking-rabbitmq-adapter
-copy .env.example .env
-# RABBITMQ_URL: broker local hoặc amqp://app:app@<WSL_IP>:5672 (nếu port-forward RabbitMQ từ k3s)
-# TRACKING_BACKEND_INGEST_URL=http://<WSL_IP>:31000/api/ingest/business-events/batch
-# TRACKING_INGEST_API_KEY= trùng secret TRACKING_INGEST_API_KEY trên cluster
-npm install
-npm start
+cd clients\web-shop
+npm run adapter
 ```
+
+*(Tuỳ chọn)* bản standalone trong monorepo: `services/tracking-rabbitmq-adapter` — chỉ khi không dùng adapter trong web-shop.
 
 Worker (nếu RabbitMQ trên k3s, chạy worker trên WSL hoặc cùng broker):
 
@@ -161,6 +166,8 @@ k3s kubectl -n realtime port-forward svc/rabbitmq 5672:5672
 
 | Lỗi | Cách sửa |
 |-----|----------|
+| `commerce-connector` CrashLoopBackOff | Deployment cũ — **xóa**: `k3s kubectl -n realtime delete deploy commerce-connector`. Business events qua Adapter trên Laptop 2, không chạy connector trong k3s. |
+| `tracking-api` CreateContainerConfigError | Secret thiếu key: `k3s kubectl -n realtime patch secret app-secrets --type merge -p '{"stringData":{"TRACKING_INGEST_API_KEY":"demo-ingest-key-change-me"}}'` rồi restart pod tracking-api. |
 | CORS | Thêm origin vào CORS tracking-api, restart pod |
 | Connection refused | Kiểm tra `k3s kubectl -n realtime get pods`, WSL_IP đúng |
 | Dashboard forbidden | Role `super_admin` vs `analyst`; đăng xuất + login lại |
