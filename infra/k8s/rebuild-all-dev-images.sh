@@ -36,7 +36,7 @@ IMAGES=(
   dashboard-api:dev
   dashboard-ui:dev
   commerce-backend:dev
-  commerce-connector:dev
+  web-demo-worker:dev
 )
 
 echo "=== Remove old :dev images from k3s containerd (best-effort) ==="
@@ -59,6 +59,8 @@ if [[ "${NO_CACHE:-}" == "1" ]]; then
     --build-arg VITE_DASHBOARD_API_URL= clients/dashboard
   echo "Building commerce-backend ..."
   "$DOCKER" build "${BUILD_FLAGS[@]}" -t commerce-backend:dev services/commerce-backend
+  echo "Building web-demo-worker ..."
+  "$DOCKER" build "${BUILD_FLAGS[@]}" -t web-demo-worker:dev services/web-demo-worker
   echo "Building commerce-connector ..."
   "$DOCKER" build "${BUILD_FLAGS[@]}" -t commerce-connector:dev services/commerce-connector
   for img in "${IMAGES[@]}"; do
@@ -71,7 +73,7 @@ fi
 
 echo "=== Restart app deployments in ${NS} ==="
 for dep in tracking-api streaming-processor dashboard-api dashboard-ui \
-  commerce-backend commerce-connector; do
+  commerce-backend web-demo-worker; do
   if ${KUBECTL} -n "${NS}" get deploy "${dep}" >/dev/null 2>&1; then
     ${KUBECTL} -n "${NS}" rollout restart "deploy/${dep}"
   fi
@@ -79,7 +81,7 @@ done
 
 echo "=== Wait for rollouts ==="
 for dep in tracking-api streaming-processor dashboard-api dashboard-ui \
-  commerce-backend commerce-connector; do
+  commerce-backend web-demo-worker; do
   if ${KUBECTL} -n "${NS}" get deploy "${dep}" >/dev/null 2>&1; then
     ${KUBECTL} -n "${NS}" rollout status "deploy/${dep}" --timeout=180s || true
   fi

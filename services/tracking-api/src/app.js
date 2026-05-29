@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import { config } from "./config.js";
 import { healthRouter } from "./routes/health.js";
+import { ingestRouter } from "./routes/ingest.js";
 import { trackRouter } from "./routes/track.js";
 
 export function createApp() {
@@ -15,5 +16,6 @@ export function createApp() {
   app.use(express.json({ limit: "512kb" }));
   app.use(healthRouter);
   app.use(trackRouter);
+  app.use(ingestRouter);
   return app;
 }

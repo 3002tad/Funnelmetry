@@ -1,7 +1,10 @@
-# commerce-backend (legacy)
+# commerce-backend (Web Demo API — stand-in)
 
-**Không deploy** trong runtime k3s hiện tại.
+HTTP API mô phỏng **web-shop backend** trên k3s cho đến khi `clients/web-shop` publish RabbitMQ trực tiếp.
 
-Commerce events (`checkout_start`, `purchase_succeeded`, …) gửi qua **browser SDK** → `tracking-api`.
+- `POST /api/orders` — tạo đơn, publish `order.created` → exchange `ecommerce.events` (topic)
+- Legacy: `POST /commerce/*` — tương thích cũ
 
-Manifest cũ: `infra/k8s/apps/commerce-backend/` · Xem [`docs/RUNTIME.md`](../../docs/RUNTIME.md).
+**Không** chạy trên Laptop 2; web-shop gọi `COMMERCE_BACKEND_URL=http://<WSL_IP>:30330`.
+
+Luồng đầy đủ: [`docs/RabbitMQ Integration Guide.docx`](../../docs/RabbitMQ%20Integration%20Guide.docx) · [`docs/RUNTIME.md`](../../docs/RUNTIME.md) §6.

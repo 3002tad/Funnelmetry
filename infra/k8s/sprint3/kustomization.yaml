@@ -1,8 +1,8 @@
-# Full stack + commerce path (RabbitMQ + commerce-backend + connector).
+# Full stack + RabbitMQ path (Integration Guide: API + worker + tracking consumer).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../sprint2
   - ../data/rabbitmq
   - ../apps/commerce-backend
-  - ../apps/commerce-connector
+  - ../apps/web-demo-worker

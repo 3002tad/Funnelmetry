@@ -7,10 +7,10 @@ function requireEnv(name) {
 }
 
 export const config = {
-  port: Number(requireEnv("PORT")),
   rabbitmqUrl: requireEnv("RABBITMQ_URL"),
   exchange: requireEnv("RABBITMQ_EXCHANGE"),
   exchangeType: process.env.RABBITMQ_EXCHANGE_TYPE?.trim() || "topic",
-  corsOrigins: requireEnv("CORS_ORIGIN")
-    .split(",").map((s) => s.trim()).filter(Boolean),
+  orderQueue: requireEnv("RABBITMQ_ORDER_QUEUE"),
+  orderBindingKey: process.env.RABBITMQ_ORDER_BINDING_KEY?.trim() || "order.created",
+  processDelayMs: Number(process.env.WORKER_STEP_DELAY_MS || 800),
 };

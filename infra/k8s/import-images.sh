@@ -60,7 +60,7 @@ build_and_import dashboard-api:dev services/dashboard-api
 build_and_import dashboard-ui:dev clients/dashboard \
   --build-arg VITE_DASHBOARD_API_URL=
 build_and_import commerce-backend:dev services/commerce-backend
-build_and_import commerce-connector:dev services/commerce-connector
+build_and_import web-demo-worker:dev services/web-demo-worker
 
 echo "Done. Images in k3s:"
-sudo k3s ctr images ls | grep -E 'tracking-api|streaming-processor|dashboard-api|dashboard-ui|commerce-' || true
+sudo k3s ctr images ls | grep -E 'tracking-api|streaming-processor|dashboard-api|dashboard-ui|commerce-|web-demo-worker' || true

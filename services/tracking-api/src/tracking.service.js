@@ -10,9 +10,16 @@ export function enrichEvent(raw) {
   if (!event.event_id) event.event_id = newEventId();
   if (!event.timestamp) event.timestamp = new Date().toISOString();
   if (!event.event_source) event.event_source = "browser_sdk";
+  if (!event.timestamp && event.occurred_at) event.timestamp = event.occurred_at;
+  const commerceSources = new Set([
+    "commerce_backend_rabbitmq",
+    "web_demo_backend",
+    "web_demo_worker",
+    "web_demo_api",
+    "rabbitmq_adapter",
+  ]);
   if (!event.event_category) {
-    event.event_category =
-      event.event_source === "commerce_backend_rabbitmq" ? "commerce" : "behavior";
+    event.event_category = commerceSources.has(event.event_source) ? "commerce" : "behavior";
   }
   if (event.metadata == null) event.metadata = {};
   return event;

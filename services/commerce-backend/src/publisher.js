@@ -6,12 +6,22 @@ let connectPromise = null;
 
 async function connect() {
   const conn = await amqp.connect(config.rabbitmqUrl);
-  const ch = await conn.createChannel();
-  await ch.assertExchange(config.exchange, "fanout", { durable: true });
-  conn.on("error", () => { channel = null; connectPromise = null; });
-  conn.on("close", () => { channel = null; connectPromise = null; });
+  const ch = await conn.createConfirmChannel();
+  await ch.assertExchange(config.exchange, config.exchangeType, { durable: true });
+  conn.on("error", () => {
+    channel = null;
+    connectPromise = null;
+  });
+  conn.on("close", () => {
+    channel = null;
+    connectPromise = null;
+  });
   channel = ch;
-  console.log("rabbitmq connected — exchange=%s", config.exchange);
+  console.log(
+    "rabbitmq connected — exchange=%s type=%s",
+    config.exchange,
+    config.exchangeType
+  );
 }
 
 async function getChannel() {
@@ -22,11 +32,21 @@ async function getChannel() {
   return channel;
 }
 
-export async function publish(event) {
+/**
+ * Publish with routing key (topic exchange per Integration Guide).
+ */
+export async function publishBusinessEvent(routingKey, event) {
   const ch = await getChannel();
-  ch.publish(
-    config.exchange, "",
-    Buffer.from(JSON.stringify(event)),
-    { persistent: true, contentType: "application/json" }
-  );
+  const body = Buffer.from(JSON.stringify(event));
+  return new Promise((resolve, reject) => {
+    ch.publish(config.exchange, routingKey, body, {
+      persistent: true,
+      contentType: "application/json",
+      messageId: event.event_id,
+      timestamp: Date.now(),
+    }, (err) => {
+      if (err) reject(err);
+      else resolve(true);
+    });
+  });
 }

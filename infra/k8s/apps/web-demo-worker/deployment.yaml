@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: commerce-connector
+  name: web-demo-worker
   namespace: realtime
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: commerce-connector
+      app: web-demo-worker
   template:
     metadata:
       labels:
-        app: commerce-connector
+        app: web-demo-worker
     spec:
       containers:
-        - name: commerce-connector
-          image: commerce-connector:dev
+        - name: web-demo-worker
+          image: web-demo-worker:dev
           imagePullPolicy: IfNotPresent
           env:
             - name: RABBITMQ_URL
@@ -27,16 +27,12 @@ spec:
               value: ecommerce.events
             - name: RABBITMQ_EXCHANGE_TYPE
               value: topic
-            - name: RABBITMQ_TRACKING_QUEUE
-              value: tracking.business-events
-            - name: RABBITMQ_TRACKING_BINDING_KEYS
-              value: order.*,payment.*,inventory.*
-            - name: RABBITMQ_TRACKING_DLX
-              value: ecommerce.events.dlx
-            - name: RABBITMQ_TRACKING_DLQ
-              value: tracking.business-events.dlq
-            - name: TRACKING_API_URL
-              value: http://tracking-api:3000
+            - name: RABBITMQ_ORDER_QUEUE
+              value: webdemo.order-processing
+            - name: RABBITMQ_ORDER_BINDING_KEY
+              value: order.created
+            - name: WORKER_STEP_DELAY_MS
+              value: "600"
           resources:
             requests:
               cpu: 50m

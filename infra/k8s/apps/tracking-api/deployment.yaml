@@ -28,6 +28,13 @@ spec:
               value: tracking_events_raw
             - name: CORS_ORIGIN
               value: http://localhost:5173,http://localhost:8080,http://localhost:8090,http://localhost:30809,http://127.0.0.1:5173,http://127.0.0.1:8080,http://lap2:3000,http://lap2:8080
+            - name: ENABLE_BUSINESS_EVENT_INGEST
+              value: "true"
+            - name: TRACKING_INGEST_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: TRACKING_INGEST_API_KEY
           readinessProbe:
             httpGet:
               path: /health

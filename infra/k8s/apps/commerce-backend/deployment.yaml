@@ -28,7 +28,9 @@ spec:
                   name: app-secrets
                   key: RABBITMQ_URL
             - name: RABBITMQ_EXCHANGE
-              value: commerce_events
+              value: ecommerce.events
+            - name: RABBITMQ_EXCHANGE_TYPE
+              value: topic
             - name: CORS_ORIGIN
               value: http://localhost:5173,http://localhost:8080,http://localhost:3000,http://127.0.0.1:8080
           readinessProbe:

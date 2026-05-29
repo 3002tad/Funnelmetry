@@ -15,9 +15,17 @@ const COMMERCE_TYPES = new Set([
   "purchase_succeeded",
   "payment_failed",
   "cart_abandoned",
+  "order_cancelled",
 ]);
 
-const SOURCES = new Set(["browser_sdk", "commerce_backend_rabbitmq"]);
+const SOURCES = new Set([
+  "browser_sdk",
+  "commerce_backend_rabbitmq",
+  "web_demo_backend",
+  "web_demo_worker",
+  "web_demo_api",
+  "rabbitmq_adapter",
+]);
 const CATEGORIES = new Set(["behavior", "commerce"]);
 
 function isNonEmptyString(v) {

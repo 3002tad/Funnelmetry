@@ -1,5 +1,5 @@
-# commerce-connector (legacy)
+# commerce-connector (deprecated)
 
-**Không deploy** — từng consume RabbitMQ → forward `tracking-api`.
+Thay bằng **[tracking-rabbitmq-adapter](../tracking-rabbitmq-adapter/)** — Adapter Standard: consume `tracking.adapter.business-events`, gọi `POST /api/ingest/business-events/batch`.
 
-Runtime: [`docs/RUNTIME.md`](../../docs/RUNTIME.md).
+Không deploy trong `sprint3`. Giữ code tham khảo; không dùng cho production path.
