@@ -1,4 +1,4 @@
-import { isGreetingMessage } from "./static-intents.js";
+import { isGreetingMessage, isHelpMessage } from "./static-intents.js";
 
 const RULES = [
   {
@@ -156,6 +156,7 @@ export function detectIntent(message) {
   const text = (message || "").toLowerCase().trim();
   if (!text) return "unknown";
   if (isGreetingMessage(message)) return "greeting";
+  if (isHelpMessage(message)) return "help";
 
   for (const rule of RULES) {
     if (rule.patterns.some((re) => re.test(text))) {
