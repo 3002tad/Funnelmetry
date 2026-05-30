@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { ConversionFunnel } from "../components/charts/ConversionFunnel.jsx";
 import { FunnelDropChart } from "../components/charts/FunnelDropChart.jsx";
 import { DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
@@ -9,6 +9,7 @@ import { StatHero } from "../components/StatCard.jsx";
 import { buildFunnelRows } from "../lib/funnelMetrics.js";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useManagerPeriod } from "../hooks/useManagerPeriod.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 const LABELS = {
@@ -20,8 +21,8 @@ const LABELS = {
 };
 
 export function FunnelPage() {
-  const [minutes, setMinutes] = useState(60);
-  const fetcher = useCallback(() => api.funnel(minutes), [minutes]);
+  const period = useManagerPeriod(60);
+  const fetcher = useCallback(() => api.funnel(period.periodParams), [period.periodParams]);
   const { data, loading, error, refresh, lastUpdated } = useAutoRefresh(fetcher, 60000);
   useOnKpiUpdate(useCallback(() => refresh(), [refresh]));
 
@@ -71,7 +72,14 @@ export function FunnelPage() {
   if (loading && !data) {
     return (
       <>
-        <PageHeader title="Phễu chuyển đổi" minutes={minutes} onMinutesChange={setMinutes} live={false} />
+        <PageHeader
+          title="Phễu chuyển đổi"
+          minutes={period.minutes}
+          onMinutesChange={period.selectMinutes}
+          date={period.date}
+          onDateChange={period.selectDate}
+          live={false}
+        />
         <div className="mgr-content"><PageLoading /></div>
       </>
     );
@@ -90,8 +98,10 @@ export function FunnelPage() {
       <PageHeader
         title="Phễu chuyển đổi"
         subtitle="Phân tích conversion từng bước — xác định điểm rớt và volume mất"
-        minutes={minutes}
-        onMinutesChange={setMinutes}
+        minutes={period.minutes}
+        onMinutesChange={period.selectMinutes}
+        date={period.date}
+        onDateChange={period.selectDate}
         onRefresh={refresh}
         lastUpdated={lastUpdated}
       />

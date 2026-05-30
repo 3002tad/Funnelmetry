@@ -28,5 +28,23 @@
     "message": "Nên tối ưu gì để tăng conversion?",
     "expect_scope": "allow",
     "expect_intent": "optimize"
+  },
+  {
+    "id": "greeting",
+    "message": "hello",
+    "expect_scope": "allow",
+    "expect_intent": "greeting"
+  },
+  {
+    "id": "help",
+    "message": "bạn làm được gì",
+    "expect_scope": "allow",
+    "expect_intent": "help"
+  },
+  {
+    "id": "insights",
+    "message": "insight pipeline gần đây",
+    "expect_scope": "allow",
+    "expect_intent": "insights"
   }
 ]

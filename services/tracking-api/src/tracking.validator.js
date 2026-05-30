@@ -11,12 +11,15 @@ const BEHAVIOR_TYPES = new Set([
 
 const COMMERCE_TYPES = new Set([
   "add_to_cart",
+  "remove_from_cart",
   "checkout_start",
   "purchase_succeeded",
   "payment_failed",
   "cart_abandoned",
   "order_cancelled",
 ]);
+
+export { BEHAVIOR_TYPES, COMMERCE_TYPES };
 
 const SOURCES = new Set([
   "browser_sdk",

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { CategoryBarChart } from "../components/charts/CategoryBarChart.jsx";
 import { SERIES, formatMoneyShort } from "../components/charts/chartTheme.js";
 import { formatMoney } from "../lib/format.js";
@@ -10,6 +10,7 @@ import { ActionCardValue } from "../components/MoneyText.jsx";
 import { StatCard, StatHero } from "../components/StatCard.jsx";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useManagerPeriod } from "../hooks/useManagerPeriod.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 function pctChange(current, previous) {
@@ -20,9 +21,9 @@ function pctChange(current, previous) {
 }
 
 export function RevenuePage() {
-  const [minutes, setMinutes] = useState(60);
-  const summaryFetcher = useCallback(() => api.revenueSummary(minutes), [minutes]);
-  const catFetcher = useCallback(() => api.revenueByCategory(minutes), [minutes]);
+  const period = useManagerPeriod(60);
+  const summaryFetcher = useCallback(() => api.revenueSummary(period.periodParams), [period.periodParams]);
+  const catFetcher = useCallback(() => api.revenueByCategory(period.periodParams), [period.periodParams]);
   const summary = useAutoRefresh(summaryFetcher, 60000);
   const categories = useAutoRefresh(catFetcher, 60000);
 
@@ -126,7 +127,14 @@ export function RevenuePage() {
   if (summary.loading && !summary.data) {
     return (
       <>
-        <PageHeader title="Doanh thu" minutes={minutes} onMinutesChange={setMinutes} live={false} />
+        <PageHeader
+          title="Doanh thu"
+          minutes={period.minutes}
+          onMinutesChange={period.selectMinutes}
+          date={period.date}
+          onDateChange={period.selectDate}
+          live={false}
+        />
         <div className="mgr-content"><PageLoading /></div>
       </>
     );
@@ -145,8 +153,10 @@ export function RevenuePage() {
       <PageHeader
         title="Doanh thu"
         subtitle="Tổng hợp doanh số, giá trị đơn hàng và phân bổ theo danh mục"
-        minutes={minutes}
-        onMinutesChange={setMinutes}
+        minutes={period.minutes}
+        onMinutesChange={period.selectMinutes}
+        date={period.date}
+        onDateChange={period.selectDate}
         lastUpdated={summary.lastUpdated}
       />
       <div className="mgr-content">
@@ -156,7 +166,7 @@ export function RevenuePage() {
             icon={IconRevenue}
             label="Tổng doanh thu"
             value={formatMoney(s.total_revenue)}
-            sub={`Trong ${minutes} phút gần nhất`}
+            sub={period.periodLabel}
             sparkline={sparkRevenue}
             trendPct={compareMetrics.find((m) => m.label === "Doanh thu")?.change}
           />

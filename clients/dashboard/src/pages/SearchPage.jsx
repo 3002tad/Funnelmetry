@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { BarChartH } from "../components/charts/SimpleBarChart.jsx";
 import { FilterUsageTable } from "../components/FilterUsageTable.jsx";
 import { SearchQueryTable } from "../components/SearchQueryTable.jsx";
@@ -10,16 +10,17 @@ import { StatHero } from "../components/StatCard.jsx";
 import { buildSearchActionItems, buildSearchSummary } from "../lib/searchMetrics.js";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useManagerPeriod } from "../hooks/useManagerPeriod.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 const TOP_N = 10;
 const LIMIT = 20;
 
 export function SearchPage() {
-  const [minutes, setMinutes] = useState(60);
-  const topFetcher = useCallback(() => api.searchTop(minutes, LIMIT), [minutes]);
-  const filterFetcher = useCallback(() => api.searchFilters(minutes), [minutes]);
-  const overviewFetcher = useCallback(() => api.overview(minutes), [minutes]);
+  const period = useManagerPeriod(60);
+  const topFetcher = useCallback(() => api.searchTop(period.periodParams, LIMIT), [period.periodParams]);
+  const filterFetcher = useCallback(() => api.searchFilters(period.periodParams), [period.periodParams]);
+  const overviewFetcher = useCallback(() => api.overview(period.periodParams), [period.periodParams]);
 
   const top = useAutoRefresh(topFetcher, 60000);
   const filters = useAutoRefresh(filterFetcher, 60000);
@@ -71,7 +72,14 @@ export function SearchPage() {
   if (loading) {
     return (
       <>
-        <PageHeader title="Tìm kiếm & Bộ lọc" minutes={minutes} onMinutesChange={setMinutes} live={false} />
+        <PageHeader
+          title="Tìm kiếm & Bộ lọc"
+          minutes={period.minutes}
+          onMinutesChange={period.selectMinutes}
+          date={period.date}
+          onDateChange={period.selectDate}
+          live={false}
+        />
         <div className="mgr-content"><PageLoading /></div>
       </>
     );
@@ -82,8 +90,10 @@ export function SearchPage() {
       <PageHeader
         title="Tìm kiếm & Bộ lọc"
         subtitle="Merchandising insight — từ khóa và hành vi lọc sản phẩm"
-        minutes={minutes}
-        onMinutesChange={setMinutes}
+        minutes={period.minutes}
+        onMinutesChange={period.selectMinutes}
+        date={period.date}
+        onDateChange={period.selectDate}
         onRefresh={() => { top.refresh(); filters.refresh(); overview.refresh(); }}
         lastUpdated={top.lastUpdated}
       />

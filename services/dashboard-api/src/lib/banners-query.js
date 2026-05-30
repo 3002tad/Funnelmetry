@@ -1,4 +1,5 @@
 import { query } from "../db.js";
+import { kpiPeriodFilter } from "./period.js";
 
 /** Resolve banner id — web-shop often sends metadata.name without banner_id. */
 const BANNER_ID_SQL = `COALESCE(
@@ -8,7 +9,10 @@ const BANNER_ID_SQL = `COALESCE(
   NULLIF(TRIM(metadata->>'name'), '')
 )`;
 
-const KPI_SQL = `
+function buildKpiSql(period) {
+  const tf = kpiPeriodFilter("window_start", period, 1);
+  return {
+    sql: `
   SELECT
     banner_id,
     SUM(impressions)::int AS impressions,
@@ -18,12 +22,17 @@ const KPI_SQL = `
       ELSE 0 END AS ctr,
     MAX(target_product_id) AS target_product_id
   FROM banner_kpi_1m
-  WHERE window_start >= NOW() - ($1 || ' minutes')::interval
-    AND COALESCE(banner_id, '') <> ''
+  WHERE COALESCE(banner_id, '') <> ''${tf.clause}
   GROUP BY banner_id
-  ORDER BY impressions DESC`;
+  ORDER BY impressions DESC`,
+    params: tf.params,
+  };
+}
 
-const CLEAN_SQL = `
+function buildCleanSql(period) {
+  const tf = kpiPeriodFilter("event_time", period, 1);
+  return {
+    sql: `
   SELECT
     bid AS banner_id,
     COUNT(*) FILTER (WHERE event_type = 'banner_impression')::int AS impressions,
@@ -39,48 +48,48 @@ const CLEAN_SQL = `
   FROM (
     SELECT event_type, metadata, ${BANNER_ID_SQL} AS bid
     FROM tracking_events_clean
-    WHERE event_time >= NOW() - ($1 || ' minutes')::interval
-      AND event_type IN ('banner_impression', 'banner_click')
+    WHERE event_type IN ('banner_impression', 'banner_click')${tf.clause}
   ) t
   WHERE COALESCE(bid, '') <> ''
   GROUP BY bid
-  ORDER BY impressions DESC`;
+  ORDER BY impressions DESC`,
+    params: tf.params,
+  };
+}
 
-async function countRawBannerEvents(minutes) {
+async function countRawBannerEvents(period) {
+  const tf = kpiPeriodFilter("event_time", period, 1);
   const [row] = await query(
     `SELECT COUNT(*)::int AS n
      FROM tracking_events_clean
-     WHERE event_time >= NOW() - ($1 || ' minutes')::interval
-       AND event_type IN ('banner_impression', 'banner_click')`,
-    [minutes]
+     WHERE event_type IN ('banner_impression', 'banner_click')${tf.clause}`,
+    tf.params
   );
   return row?.n ?? 0;
 }
 
-async function countMissingBannerId(minutes) {
+async function countMissingBannerId(period) {
+  const tf = kpiPeriodFilter("event_time", period, 1);
   const [row] = await query(
     `SELECT COUNT(*)::int AS n
      FROM tracking_events_clean
-     WHERE event_time >= NOW() - ($1 || ' minutes')::interval
-       AND event_type IN ('banner_impression', 'banner_click')
-       AND (${BANNER_ID_SQL}) IS NULL`,
-    [minutes]
+     WHERE event_type IN ('banner_impression', 'banner_click')
+       AND (${BANNER_ID_SQL}) IS NULL${tf.clause}`,
+    tf.params
   );
   return row?.n ?? 0;
 }
 
-/**
- * Banner metrics: aggregate from clean events when present (matches Events stream),
- * else minute KPI table.
- */
-export async function fetchBannersForPeriod(minutes) {
-  const raw_banner_events = await countRawBannerEvents(minutes);
-  const missing_banner_id = await countMissingBannerId(minutes);
+export async function fetchBannersForPeriod(period) {
+  const raw_banner_events = await countRawBannerEvents(period);
+  const missing_banner_id = await countMissingBannerId(period);
   const diagnostics = { raw_banner_events, missing_banner_id };
 
-  const eventRows = await query(CLEAN_SQL, [minutes]);
+  const clean = buildCleanSql(period);
+  const eventRows = await query(clean.sql, clean.params);
   if (eventRows.length > 0) {
-    const kpiRows = await query(KPI_SQL, [minutes]);
+    const kpi = buildKpiSql(period);
+    const kpiRows = await query(kpi.sql, kpi.params);
     return {
       banners: eventRows,
       source: "events",
@@ -88,7 +97,8 @@ export async function fetchBannersForPeriod(minutes) {
     };
   }
 
-  const kpiRows = await query(KPI_SQL, [minutes]);
+  const kpi = buildKpiSql(period);
+  const kpiRows = await query(kpi.sql, kpi.params);
   if (kpiRows.length > 0) {
     return {
       banners: kpiRows,

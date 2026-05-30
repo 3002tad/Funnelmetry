@@ -86,11 +86,19 @@ spec:
             - name: OLLAMA_MODEL
               value: qwen2.5:3b
             - name: OLLAMA_TIMEOUT_MS
-              value: "30000"
+              value: "55000"
             - name: OLLAMA_TEMPERATURE
               value: "0.65"
             - name: OLLAMA_NUM_PREDICT
-              value: "768"
+              value: "900"
+            - name: CHAT_POLISH_TEMPERATURE
+              value: "0.75"
+            - name: CHAT_POLISH_NUM_PREDICT
+              value: "1024"
+            - name: CHAT_LLM_PLANNER
+              value: "true"
+            - name: CHAT_PLANNER_TIMEOUT_MS
+              value: "12000"
           readinessProbe:
             httpGet:
               path: /health

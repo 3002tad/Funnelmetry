@@ -22,8 +22,19 @@ function withActions(text, actions) {
   return text + formatActionsMarkdown(actions);
 }
 
+function formatPeriod(minutes) {
+  const m = Number(minutes);
+  if (!m) return "toàn bộ dữ liệu";
+  if (m >= 43200) return "30 ngày gần nhất";
+  if (m >= 10080) return "7 ngày gần nhất";
+  if (m >= 1440 && m % 1440 === 0) return `${m / 1440} ngày gần nhất`;
+  if (m >= 1440) return "24 giờ gần nhất";
+  if (m >= 60 && m % 60 === 0) return `${m / 60} giờ gần nhất`;
+  return `${m} phút gần nhất`;
+}
+
 export function formatAnswer(intent, { minutes, data, ragHits = [], rewritten = false, actions = [] }) {
-  const period = `trong ${minutes} phút gần nhất`;
+  const period = formatPeriod(minutes);
 
   switch (intent) {
     case "comparison": {
@@ -63,26 +74,199 @@ export function formatAnswer(intent, { minutes, data, ragHits = [], rewritten = 
 
     case "overview": {
       const k = data.kpi || {};
-      return withActions(
-        `**Tóm tắt ${period}** (số liệu từ PostgreSQL):\n\n` +
-        `- **Sessions:** ${fmt(k.unique_sessions)}\n` +
-        `- **Page views:** ${fmt(k.page_views)} · **Product views:** ${fmt(k.product_views)}\n` +
-        `- **Thêm giỏ:** ${fmt(k.add_to_cart)} · **Checkout:** ${fmt(k.checkout_start)} · **Đơn mua:** ${fmt(k.purchases)}\n` +
-        `- **Doanh thu:** ${fmtMoney(k.total_revenue)}\n` +
-        `- **Tỷ lệ chuyển đổi (mua/session):** ${pct(k.conversion_rate)}\n` +
-        `- **Tổng events:** ${fmt(k.total_events)}\n\n` +
-          `**Độ tin cậy:** ${Number(k.total_events) > 0 ? "cao" : "thấp — cần thêm event từ web-shop"}.`,
-        actions
+      const thin = Number(k.total_events) === 0;
+      const body = thin
+        ? `Chưa thấy traffic đáng kể trong ${period} — cần bật web-shop và gửi event (SDK) trước khi phân tích sâu.`
+        : `Trong ${period}, shop có **${fmt(k.unique_sessions)}** phiên, **${fmt(k.purchases)}** đơn và doanh thu **${fmtMoney(k.total_revenue)}** (conversion ~${pct(k.conversion_rate)}). ` +
+          `Traffic: ${fmt(k.page_views)} lượt xem trang, ${fmt(k.product_views)} xem SP; ${fmt(k.add_to_cart)} thêm giỏ, ${fmt(k.checkout_start)} checkout. ` +
+          `Tổng ${fmt(k.total_events)} event trong cửa sổ này.`;
+      return withActions(`${body}\n\n*(Ollama chưa polish — trả lời template từ PostgreSQL.)*`, actions);
+    }
+
+    case "checkout": {
+      const { steps = [] } = data.funnel || data;
+      const checkout = steps.find((s) => s.step === "checkout_start");
+      const purchase = steps.find((s) => s.step === "purchase");
+      const cart = steps.find((s) => s.step === "add_to_cart");
+      let text =
+        `**Checkout ${period}:**\n\n` +
+        `- **Thêm giỏ:** ${fmt(cart?.count)}\n` +
+        `- **Checkout:** ${fmt(checkout?.count)}\n` +
+        `- **Mua:** ${fmt(purchase?.count)}\n`;
+      if (checkout?.drop_off_rate > 0) {
+        text += `- Rớt checkout → mua: **${pct(checkout.drop_off_rate)}**\n`;
+      }
+      return text;
+    }
+
+    case "orders": {
+      const k = data.kpi || {};
+      return (
+        `**Số đơn mua ${period}:** **${fmt(k.purchases)}** đơn\n\n` +
+        `- Doanh thu: ${fmtMoney(k.total_revenue)}\n` +
+        `- Sessions: ${fmt(k.unique_sessions)}`
       );
     }
 
-    case "top_products": {
-      const lines = (data.products || []).map(
-        (p, i) =>
-          `${i + 1}. **${p.product_name}** (${p.product_id}) — ${fmt(p.views)} view, ${fmt(p.purchases)} mua, ${fmtMoney(p.revenue)}`
+    case "aov": {
+      const k = data.kpi || {};
+      const purchases = Number(k.purchases) || 0;
+      const aov = purchases > 0 ? Number(k.total_revenue) / purchases : 0;
+      return (
+        `**Giá trị đơn trung bình (AOV) ${period}:** **${fmtMoney(aov)}**\n\n` +
+        `- ${fmt(purchases)} đơn · tổng doanh thu ${fmtMoney(k.total_revenue)}`
+      );
+    }
+
+    case "pageviews": {
+      const k = data.kpi || {};
+      return (
+        `**Lượt xem ${period}:**\n\n` +
+        `- **Page views:** ${fmt(k.page_views)}\n` +
+        `- **Product views:** ${fmt(k.product_views)}\n` +
+        `- **Sessions:** ${fmt(k.unique_sessions)}`
+      );
+    }
+
+    case "events": {
+      const k = data.kpi || {};
+      return `**Tổng events tracking ${period}:** **${fmt(k.total_events)}** (KPI aggregate 1 phút).`;
+    }
+
+    case "catalog": {
+      const cat = data.catalog || {};
+      return `**Catalog PostgreSQL:** **${fmt(cat.product_count)}** sản phẩm (từ \`products_catalog\`, cập nhật qua event pipeline).`;
+    }
+
+    case "search": {
+      const lines = (data.searches || []).map(
+        (s, i) => `${i + 1}. **${s.search_query}** — ${fmt(s.searches)} lượt tìm`
       );
       return (
-        `**Top sản phẩm theo lượt xem ${period}:**\n\n` +
+        `**Top từ khóa tìm kiếm ${period}:**\n\n` +
+        (lines.length ? lines.join("\n") : "_Chưa có event \`search\` trong cửa sổ này._")
+      );
+    }
+
+    case "filters": {
+      const lines = (data.filters || []).map(
+        (f) =>
+          `- **${f.category || "all"}**${f.sort_mode ? ` / sort: ${f.sort_mode}` : ""} — ${fmt(f.filter_events)} lần lọc`
+      );
+      return (
+        `**Bộ lọc / filter ${period}:**\n\n` +
+        (lines.length ? lines.join("\n") : "_Chưa có event \`filter_apply\`._")
+      );
+    }
+
+    case "category": {
+      const lines = (data.categories || []).map(
+        (c, i) =>
+          `${i + 1}. **${c.category}** — ${fmtMoney(c.revenue)} doanh thu, ${fmt(c.purchases)} mua, ${fmt(c.views)} view`
+      );
+      return (
+        `**Hiệu suất theo danh mục ${period}:**\n\n` +
+        (lines.length ? lines.join("\n") : "_Chưa có KPI theo category._")
+      );
+    }
+
+    case "banner_detail": {
+      const bd = data.banner_detail;
+      if (!bd?.found) {
+        return `_Không tìm thấy banner khớp **"${bd?.query || "?"}"** trong KPI ${period}._`;
+      }
+      const b = bd.banner;
+      return (
+        `**Banner \`${b.banner_id}\` ${period}:**\n\n` +
+        `- Impression: ${fmt(b.impressions)} · Click: ${fmt(b.clicks)} · CTR: ${pct(b.ctr)}`
+      );
+    }
+
+    case "insights": {
+      const k = data.kpi || {};
+      const lines = ragHits.map((h) => `- ${h.text}${h.insight_type ? ` _(${h.insight_type})_` : ""}`);
+      let text = `**Insight pipeline (Qdrant) ${period}:**\n\n`;
+      text += lines.length ? lines.join("\n") : "_Chưa có insight khớp trong cửa sổ này._";
+      if (Number(k.total_events) > 0) {
+        text += `\n\n**Bối cảnh KPI:** ${fmt(k.purchases)} đơn, doanh thu ${fmtMoney(k.total_revenue)}, conversion ${pct(k.conversion_rate)}.`;
+      }
+      return text;
+    }
+
+    case "cart_abandon": {
+      const { steps = [], worst_drop } = data.funnel || data;
+      const cart = steps.find((s) => s.step === "add_to_cart");
+      const checkout = steps.find((s) => s.step === "checkout_start");
+      const purchase = steps.find((s) => s.step === "purchase");
+      let text =
+        `**Giỏ hàng / bỏ giỏ ${period}:**\n\n` +
+        `- **Thêm giỏ:** ${fmt(cart?.count)}\n` +
+        `- **Checkout:** ${fmt(checkout?.count)}\n` +
+        `- **Mua:** ${fmt(purchase?.count)}\n`;
+      if (cart?.count > 0 && checkout?.drop_off_rate != null) {
+        text += `- Rớt từ thêm giỏ → checkout: **${pct(checkout.drop_off_rate)}**\n`;
+      }
+      if (worst_drop?.from) {
+        text += `\n**Bước rớt mạnh nhất:** ${worst_drop.from} → ${worst_drop.label}.`;
+      }
+      if (ragHits.length) {
+        text += `\n\n**Insight:**\n${ragHits.map((h) => `- ${h.text}`).join("\n")}`;
+      }
+      return text;
+    }
+
+    case "conversion": {
+      const k = data.kpi || {};
+      const { steps = [] } = data.funnel || data;
+      const lines = steps.map((s) => `- **${s.label}:** ${fmt(s.count)}`).join("\n");
+      return (
+        `**Conversion shop ${period}:**\n\n` +
+        `- **Mua / session:** ${pct(k.conversion_rate)} (${fmt(k.purchases)} đơn / ${fmt(k.unique_sessions)} session)\n` +
+        `- **Doanh thu:** ${fmtMoney(k.total_revenue)}\n\n` +
+        `**Phễu:**\n${lines || "_Chưa có dữ liệu phễu._"}`
+      );
+    }
+
+    case "product_detail": {
+      const pd = data.product_detail;
+      if (!pd?.found) {
+        return withActions(
+          `_Không tìm thấy sản phẩm khớp **"${pd?.query || "?"}"** trong catalog PostgreSQL._\n\n` +
+            `Gợi ý: kiểm tra tên trên dashboard Products hoặc hỏi bằng mã \`P001\`. Catalog được sync từ event web-shop.`,
+          actions
+        );
+      }
+      const p = pd.product || {};
+      const s = pd.stats || {};
+      let text =
+        `**${p.name || s.product_name}** (\`${p.product_id}\`) — ${period}:\n\n` +
+        `- **Giá catalog:** ${fmtMoney(p.price)} · **Danh mục:** ${p.category || "—"}\n` +
+        `- **View:** ${fmt(s.views)} · **Click:** ${fmt(s.clicks)} · **Mua:** ${fmt(s.purchases)}\n` +
+        `- **Doanh thu:** ${fmtMoney(s.revenue)} · **Conversion (view→mua):** ${pct(s.conversion_rate)}\n\n` +
+        `**Độ tin cậy:** cao (KPI PostgreSQL + catalog).`;
+      if (Number(s.views) >= 5 && Number(s.purchases) === 0) {
+        text += `\n\n**Lưu ý:** SP có view nhưng chưa có đơn — có thể thuộc nhóm high-view/low-purchase.`;
+      }
+      if (ragHits.length) {
+        text += `\n\n**Insight pipeline:**\n${ragHits.map((h) => `- ${h.text}`).join("\n")}`;
+      }
+      return withActions(text, actions);
+    }
+
+    case "top_products": {
+      const sort = data.product_sort || "views";
+      const title =
+        sort === "purchases"
+          ? `**Top sản phẩm theo lượt mua ${period}:**`
+          : sort === "revenue"
+            ? `**Top sản phẩm theo doanh thu ${period}:**`
+            : `**Top sản phẩm theo lượt xem ${period}:**`;
+      const lines = (data.products || []).map(
+        (p, i) =>
+          `${i + 1}. **${p.product_name}** (${p.product_id}) — ${fmt(p.purchases)} mua, ${fmt(p.views)} view, ${fmtMoney(p.revenue)}`
+      );
+      return (
+        `${title}\n\n` +
         (lines.length ? lines.join("\n") : "_Chưa có dữ liệu sản phẩm trong khoảng thời gian này._")
       );
     }
@@ -125,9 +309,7 @@ export function formatAnswer(intent, { minutes, data, ragHits = [], rewritten = 
     case "revenue": {
       const k = data.kpi || {};
       return withActions(
-        `**Kết luận:** Doanh thu ${period} là **${fmtMoney(k.total_revenue)}** từ **${fmt(k.purchases)}** đơn mua.\n\n` +
-          `**Bằng chứng:** conversion ~${pct(k.conversion_rate)}, ${fmt(k.unique_sessions)} session.\n\n` +
-          `**Độ tin cậy:** cao (KPI PostgreSQL).`,
+        `Doanh thu ${period} là **${fmtMoney(k.total_revenue)}**, từ **${fmt(k.purchases)}** đơn trên **${fmt(k.unique_sessions)}** phiên (conversion ~${pct(k.conversion_rate)}).`,
         actions
       );
     }
@@ -162,12 +344,11 @@ export function formatAnswer(intent, { minutes, data, ragHits = [], rewritten = 
     default: {
       const k = data.kpi || {};
       let text =
-        `**Kết luận:** Trong ${period} — **${fmt(k.unique_sessions)}** session, **${fmt(k.purchases)}** đơn, doanh thu **${fmtMoney(k.total_revenue)}** (conversion ~${pct(k.conversion_rate)}).\n\n`;
+        `Snapshot ${period}: **${fmt(k.unique_sessions)}** phiên, **${fmt(k.purchases)}** đơn, doanh thu **${fmtMoney(k.total_revenue)}** (conversion ~${pct(k.conversion_rate)}).`;
       if (ragHits.length) {
-        text += `**Insight pipeline:**\n${ragHits.map((h) => `- ${h.text}`).join("\n")}\n\n`;
+        text += `\n\nInsight pipeline gần đây:\n${ragHits.map((h) => `- ${h.text}`).join("\n")}`;
       }
-      text +=
-        "**Gợi ý:** Hỏi thêm phễu rớt ở đâu, SP xem nhiều không mua, hoặc nên tối ưu gì trước.\n\n**Độ tin cậy:** trung bình (snapshot KPI).";
+      text += "\n\nBạn có thể hỏi sâu hơn: phễu rớt ở đâu, SP xem nhiều không mua, hoặc nên tối ưu gì trước.";
       return text;
     }
   }

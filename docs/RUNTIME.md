@@ -299,6 +299,28 @@ SDK trên Laptop 2 gửi event qua tailnet / WSL IP về tracking-api Laptop 1. 
 k3s kubectl -n realtime exec deploy/ollama -- ollama list
 ```
 
+**Lịch sử chat (PostgreSQL):** mỗi tin nhắn được lưu theo `dashboard_users` trong `chat_sessions` / `chat_messages`. UI `/shop/chat` có sidebar chọn cuộc trò chuyện cũ.
+
+| API | Mô tả |
+|-----|--------|
+| `GET /api/chat/sessions` | Danh sách session |
+| `POST /api/chat/sessions` | Tạo session mới |
+| `GET /api/chat/sessions/:id/messages` | Khôi phục tin nhắn |
+| `DELETE /api/chat/sessions/:id` | Xóa session |
+
+**Postgres đã chạy từ trước** (init SQL cũ, không có bảng chat): áp migration thủ công trên Lap1:
+
+```bash
+k3s kubectl -n realtime exec -i deploy/postgres -- psql -U app -d realtime < infra/postgres/004_chat_history.sql
+k3s kubectl -n realtime exec -i deploy/postgres -- psql -U app -d realtime < infra/postgres/005_remove_from_cart_kpi.sql
+```
+
+Cluster Postgres **mới** (PVC trống): bảng có trong `infra/k8s/data/postgres/configmap-init-sql.yaml` (`004_chat_history.sql`).
+
+**Giọng trả lời tự nhiên (giống chat tư vấn):** số lấy từ Postgres → báo cáo nội bộ → Ollama **polish** (`CHAT_POLISH_TEMPERATURE`, `CHAT_POLISH_NUM_PREDICT`). Nếu Ollama chậm/lỗi, fallback template (liệt kê KPI — cứng hơn). Muốn mượt hơn: pull model lớn hơn (vd. `qwen2.5:7b`) và set `OLLAMA_MODEL` + restart `dashboard-api`.
+
+**Khoảng thời gian dashboard manager:** thanh pill — `15p` … `24h`, **`7 ngày`**, **`30 ngày`**, **`Tất cả`** (rolling từ *bây giờ* lùi về; `minutes=0` = mọi KPI đã ingest). **Một ngày cố định:** ô **Ngày** (date picker) trên header → `?date=YYYY-MM-DD` (biên ngày theo **UTC** 00:00–24:00). Khi chọn ngày, pill rolling tạm không active; xóa ngày để quay lại pill. Chat API: `POST /api/chat` body `{ "date": "2026-05-15" }` (hoặc `minutes` khi không có `date`).
+
 ## 10. Pods (namespace `realtime`)
 
 | Pod | Vai trò |

@@ -50,4 +50,10 @@ export const config = {
     temperature: Number(envOptional("OLLAMA_TEMPERATURE", "0.65")),
     numPredict: Number(envOptional("OLLAMA_NUM_PREDICT", "768")),
   },
+  chat: {
+    llmPlanner: envOptional("CHAT_LLM_PLANNER", "true") !== "false",
+    plannerTimeoutMs: Number(envOptional("CHAT_PLANNER_TIMEOUT_MS", "12000")),
+    polishTemperature: Number(envOptional("CHAT_POLISH_TEMPERATURE", "0.75")),
+    polishNumPredict: Number(envOptional("CHAT_POLISH_NUM_PREDICT", "1024")),
+  },
 };

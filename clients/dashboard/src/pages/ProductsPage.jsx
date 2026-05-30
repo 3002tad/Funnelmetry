@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { BarChartH } from "../components/charts/SimpleBarChart.jsx";
 import { ProductPerformanceTable } from "../components/ProductPerformanceTable.jsx";
 import { BarCell, DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
@@ -10,6 +10,7 @@ import { buildProductActionItems, buildProductSummary } from "../lib/productMetr
 import { api } from "../lib/api.js";
 import { formatMoney } from "../lib/format.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useManagerPeriod } from "../hooks/useManagerPeriod.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 function fmt(v) { return Number(v || 0).toLocaleString("vi-VN"); }
@@ -23,10 +24,13 @@ function skuChartLabel(p, maxLen = 28) {
 }
 
 export function ProductsPage() {
-  const [minutes, setMinutes] = useState(60);
-  const topFetcher = useCallback(() => api.productsTop(minutes, TABLE_LIMIT), [minutes]);
-  const anomFetcher = useCallback(() => api.productsAnomalies(minutes), [minutes]);
-  const overviewFetcher = useCallback(() => api.overview(minutes), [minutes]);
+  const period = useManagerPeriod(60);
+  const topFetcher = useCallback(
+    () => api.productsTop(period.periodParams, TABLE_LIMIT),
+    [period.periodParams]
+  );
+  const anomFetcher = useCallback(() => api.productsAnomalies(period.periodParams), [period.periodParams]);
+  const overviewFetcher = useCallback(() => api.overview(period.periodParams), [period.periodParams]);
 
   const top = useAutoRefresh(topFetcher, 60000);
   const anom = useAutoRefresh(anomFetcher, 60000);
@@ -95,7 +99,14 @@ export function ProductsPage() {
   if (loading) {
     return (
       <>
-        <PageHeader title="Sản phẩm" minutes={minutes} onMinutesChange={setMinutes} live={false} />
+        <PageHeader
+          title="Sản phẩm"
+          minutes={period.minutes}
+          onMinutesChange={period.selectMinutes}
+          date={period.date}
+          onDateChange={period.selectDate}
+          live={false}
+        />
         <div className="mgr-content"><PageLoading /></div>
       </>
     );
@@ -106,8 +117,10 @@ export function ProductsPage() {
       <PageHeader
         title="Sản phẩm"
         subtitle="Phân tích SKU — traffic, conversion view→mua và doanh thu theo kỳ"
-        minutes={minutes}
-        onMinutesChange={setMinutes}
+        minutes={period.minutes}
+        onMinutesChange={period.selectMinutes}
+        date={period.date}
+        onDateChange={period.selectDate}
         onRefresh={() => { top.refresh(); anom.refresh(); overview.refresh(); }}
         lastUpdated={top.lastUpdated}
       />

@@ -4,6 +4,7 @@ const TYPE_LABELS = {
   search: "Tìm kiếm",
   filter_apply: "Áp dụng lọc",
   add_to_cart: "Thêm giỏ",
+  remove_from_cart: "Bỏ khỏi giỏ",
   checkout_start: "Checkout",
   purchase: "Mua hàng",
   banner_impression: "Banner imp.",

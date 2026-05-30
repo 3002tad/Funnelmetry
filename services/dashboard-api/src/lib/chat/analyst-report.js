@@ -99,6 +99,34 @@ function intentFocus(intent, data, minutes) {
       return "Câu hỏi so sánh kỳ hiện tại với kỳ trước (cùng độ dài cửa sổ).";
     case "top_products":
       return "Câu hỏi về top sản phẩm theo lượt xem / mua.";
+    case "product_detail":
+      return "Câu hỏi chi tiết một sản phẩm cụ thể — view, mua, doanh thu, conversion.";
+    case "insights":
+      return "Câu hỏi về insight/cảnh báo từ pipeline (Qdrant).";
+    case "cart_abandon":
+      return "Câu hỏi về bỏ giỏ / rớt sau thêm giỏ.";
+    case "conversion":
+      return "Câu hỏi về tỷ lệ chuyển đổi tổng shop.";
+    case "search":
+      return "Câu hỏi về từ khóa tìm kiếm trên shop.";
+    case "filters":
+      return "Câu hỏi về bộ lọc / filter_apply events.";
+    case "category":
+      return "Câu hỏi hiệu suất theo danh mục sản phẩm.";
+    case "orders":
+      return "Câu hỏi về số đơn mua.";
+    case "aov":
+      return "Câu hỏi giá trị đơn trung bình (AOV).";
+    case "pageviews":
+      return "Câu hỏi lượt xem trang / product view.";
+    case "events":
+      return "Câu hỏi tổng volume event tracking.";
+    case "catalog":
+      return "Câu hỏi về catalog sản phẩm trong Postgres.";
+    case "checkout":
+      return "Câu hỏi bước checkout / thanh toán.";
+    case "banner_detail":
+      return "Câu hỏi chi tiết một banner cụ thể.";
     case "banner":
       return "Câu hỏi về hiệu quả banner.";
     case "optimize":
@@ -163,10 +191,33 @@ export function composeAnalystReport({
     }
   }
 
+  if (data.product_detail) {
+    const pd = data.product_detail;
+    lines.push(`\n## CHI TIẾT SẢN PHẨM`);
+    if (!pd.found) {
+      lines.push(`- Không tìm thấy sản phẩm khớp "${pd.query}" trong catalog.`);
+    } else {
+      const p = pd.product || {};
+      const s = pd.stats || {};
+      lines.push(`- ${p.name || s.product_name} (${p.product_id})`);
+      lines.push(`- Giá catalog: ${money(p.price)} | Danh mục: ${p.category || "—"}`);
+      lines.push(
+        `- View: ${fmt(s.views)} | Click: ${fmt(s.clicks)} | Mua: ${fmt(s.purchases)} | Doanh thu: ${money(s.revenue)} | CR: ${pct(s.conversion_rate)}`
+      );
+    }
+  }
+
   if (data.products?.length) {
-    lines.push(`\n## TOP SẢN PHẨM (view)`);
+    const sort = data.product_sort || "views";
+    const heading =
+      sort === "purchases"
+        ? "TOP SẢN PHẨM (mua)"
+        : sort === "revenue"
+          ? "TOP SẢN PHẨM (doanh thu)"
+          : "TOP SẢN PHẨM (view)";
+    lines.push(`\n## ${heading}`);
     data.products.slice(0, 5).forEach((p, i) => {
-      lines.push(`${i + 1}. ${p.product_name}: ${fmt(p.views)} view, ${fmt(p.purchases)} mua`);
+      lines.push(`${i + 1}. ${p.product_name}: ${fmt(p.purchases)} mua, ${fmt(p.views)} view, ${money(p.revenue)}`);
     });
   }
 
@@ -202,10 +253,63 @@ export function composeAnalystReport({
     lines.push(`- Bật web-shop + tracking SDK; tạo vài session test rồi hỏi lại.`);
   }
 
-  lines.push(`\n## GHI CHÚ CHO ASSISTANT`);
-  lines.push(`- Trình bày như analyst: kết luận → bằng chứng → vấn đề → ưu tiên → độ tin cậy.`);
-  lines.push(`- Phân biệt rõ dữ kiện (có số) vs giả thuyết (đoán nguyên nhân, ghi "có thể").`);
-  lines.push(`- Không thêm số mới ngoài báo cáo này.`);
+  for (const line of buildDeliveryHints(intent, data, minutes)) {
+    lines.push(line);
+  }
 
   return lines.join("\n");
+}
+
+/** Hints for polish step — not shown to end user. */
+function buildDeliveryHints(intent, data) {
+  const lines = [`\n## HƯỚNG VIẾT (cho bước diễn đạt)`];
+  const k = data.kpi || {};
+  const worst = data.funnel?.worst_drop || data.worst_drop;
+
+  switch (intent) {
+    case "funnel":
+      lines.push("- Mở đầu: bước phễu đang rớt mạnh nhất và mức rớt (%).");
+      lines.push("- Liệt kê ngắn 2–3 bước then chốt nếu cần hành động.");
+      break;
+    case "revenue":
+    case "orders":
+    case "aov":
+      lines.push("- Mở đầu: con số doanh thu/đơn/AOV trả lời trực tiếp câu hỏi.");
+      lines.push("- Thêm 1 câu bối cảnh (session hoặc conversion) nếu có trong báo cáo.");
+      break;
+    case "product_detail":
+      lines.push("- Nêu tên SP + view/mua/doanh thu; nếu không tìm thấy thì nói rõ và gợi ý gõ ID.");
+      break;
+    case "product_anomaly":
+    case "top_products":
+      lines.push("- Gọi tên 2–3 SP cụ thể từ báo cáo; tránh chỉ nói chung chung.");
+      break;
+    case "comparison":
+    case "trend":
+      lines.push("- Nêu hướng tăng/giảm so với kỳ trước bằng % có trong báo cáo.");
+      break;
+    case "cart_abandon":
+    case "checkout":
+      lines.push("- So sánh thêm giỏ vs checkout vs mua; chỉ ra nghẽn có thể.");
+      break;
+    case "banner":
+    case "banner_detail":
+      lines.push("- CTR/impression của banner được hỏi; so sánh ngắn nếu có nhiều banner.");
+      break;
+    case "optimize":
+    case "general":
+      lines.push("- Tổng hợp 1 câu sức khỏe shop, rồi 1–2 vấn đề từ PHÁT HIỆN, rồi ưu tiên hành động.");
+      break;
+    default:
+      if (Number(k.purchases) === 0 && Number(k.add_to_cart) > 0) {
+        lines.push("- Nhấn mạnh: có giỏ nhưng chưa có đơn — gợi ý checkout/payment.");
+      }
+      if (worst?.label) {
+        lines.push(`- Nhắc phễu rớt tại bước ${worst.label} nếu liên quan câu hỏi.`);
+      }
+      lines.push("- Trả lời đúng intent; đoạn văn tự nhiên, không slide.");
+  }
+
+  lines.push('- Không thêm số mới; giả thuyết phải có "có thể".');
+  return lines;
 }

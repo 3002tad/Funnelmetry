@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { COMMERCE_TYPES } from "./tracking.validator.js";
 import { getProducer } from "./kafka.producer.js";
 
 function newEventId() {
@@ -19,7 +20,11 @@ export function enrichEvent(raw) {
     "rabbitmq_adapter",
   ]);
   if (!event.event_category) {
-    event.event_category = commerceSources.has(event.event_source) ? "commerce" : "behavior";
+    if (COMMERCE_TYPES.has(event.event_type)) {
+      event.event_category = "commerce";
+    } else {
+      event.event_category = commerceSources.has(event.event_source) ? "commerce" : "behavior";
+    }
   }
   if (event.metadata == null) event.metadata = {};
   return event;

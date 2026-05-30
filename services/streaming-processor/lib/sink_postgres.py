@@ -27,11 +27,11 @@ ON CONFLICT (event_id) DO NOTHING;
 _UPSERT_TRACKING_KPI = """
 INSERT INTO tracking_kpi_1m
   (window_start, window_end, total_events, page_views, product_views,
-   clicks, searches, add_to_cart, checkout_start, purchases, revenue,
+   clicks, searches, add_to_cart, remove_from_cart, checkout_start, purchases, revenue,
    unique_sessions, conversion_rate)
 VALUES
   (%(window_start)s, %(window_end)s, %(total_events)s, %(page_views)s,
-   %(product_views)s, %(clicks)s, %(searches)s, %(add_to_cart)s,
+   %(product_views)s, %(clicks)s, %(searches)s, %(add_to_cart)s, %(remove_from_cart)s,
    %(checkout_start)s, %(purchases)s, %(revenue)s, %(unique_sessions)s,
    %(conversion_rate)s)
 ON CONFLICT (window_start) DO UPDATE SET
@@ -41,6 +41,7 @@ ON CONFLICT (window_start) DO UPDATE SET
   clicks          = EXCLUDED.clicks,
   searches        = EXCLUDED.searches,
   add_to_cart     = EXCLUDED.add_to_cart,
+  remove_from_cart = EXCLUDED.remove_from_cart,
   checkout_start  = EXCLUDED.checkout_start,
   purchases       = EXCLUDED.purchases,
   revenue         = EXCLUDED.revenue,
@@ -51,14 +52,15 @@ ON CONFLICT (window_start) DO UPDATE SET
 
 _UPSERT_PRODUCT_KPI = """
 INSERT INTO product_kpi_1m
-  (window_start, product_id, product_views, add_to_cart, purchases,
+  (window_start, product_id, product_views, add_to_cart, remove_from_cart, purchases,
    add_to_cart_rate, purchase_rate)
 VALUES
-  (%(window_start)s, %(product_id)s, %(product_views)s, %(add_to_cart)s,
+  (%(window_start)s, %(product_id)s, %(product_views)s, %(add_to_cart)s, %(remove_from_cart)s,
    %(purchases)s, %(add_to_cart_rate)s, %(purchase_rate)s)
 ON CONFLICT (window_start, product_id) DO UPDATE SET
   product_views   = EXCLUDED.product_views,
   add_to_cart     = EXCLUDED.add_to_cart,
+  remove_from_cart = EXCLUDED.remove_from_cart,
   purchases       = EXCLUDED.purchases,
   add_to_cart_rate = EXCLUDED.add_to_cart_rate,
   purchase_rate   = EXCLUDED.purchase_rate;
@@ -79,16 +81,17 @@ ON CONFLICT (window_start, banner_id) DO UPDATE SET
 
 _UPSERT_PRODUCT_REVENUE_KPI = """
 INSERT INTO product_revenue_kpi_1m
-  (window_start, window_end, product_id, views, clicks, add_to_cart,
+  (window_start, window_end, product_id, views, clicks, add_to_cart, remove_from_cart,
    checkout_start, purchases, revenue, view_to_cart_rate, purchase_rate)
 VALUES
   (%(window_start)s, %(window_end)s, %(product_id)s, %(views)s, %(clicks)s,
-   %(add_to_cart)s, %(checkout_start)s, %(purchases)s, %(revenue)s,
+   %(add_to_cart)s, %(remove_from_cart)s, %(checkout_start)s, %(purchases)s, %(revenue)s,
    %(view_to_cart_rate)s, %(purchase_rate)s)
 ON CONFLICT (window_start, product_id) DO UPDATE SET
   views            = EXCLUDED.views,
   clicks           = EXCLUDED.clicks,
   add_to_cart      = EXCLUDED.add_to_cart,
+  remove_from_cart = EXCLUDED.remove_from_cart,
   checkout_start   = EXCLUDED.checkout_start,
   purchases        = EXCLUDED.purchases,
   revenue          = EXCLUDED.revenue,

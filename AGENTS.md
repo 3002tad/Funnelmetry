@@ -1,6 +1,6 @@
 # Agent context
 
-**Docs:** [`docs/README.md`](docs/README.md) · **Runtime:** [`docs/RUNTIME.md`](docs/RUNTIME.md) · **Spec:** [`docs/SPEC.md`](docs/SPEC.md) · **Map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md)
+**Docs:** [`docs/README.md`](docs/README.md) · **Runtime:** [`docs/RUNTIME.md`](docs/RUNTIME.md) · **Stack:** [`docs/TECH_STACK.md`](docs/TECH_STACK.md) · **Spec:** [`docs/SPEC.md`](docs/SPEC.md) · **Map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md)
 
 ## Mục tiêu
 

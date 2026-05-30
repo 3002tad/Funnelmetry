@@ -4,6 +4,20 @@ const INSIGHT_TYPES_BY_INTENT = {
     "product_high_view_low_purchase",
     "product_high_click_low_purchase",
   ],
+  product_detail: [
+    "product_high_view_low_purchase",
+    "product_high_click_low_purchase",
+  ],
+  insights: [
+    "product_high_view_low_purchase",
+    "product_high_click_low_purchase",
+    "cart_no_purchase",
+    "sessions_no_cart",
+    "banner_low_ctr",
+    "banner_strong_ctr",
+  ],
+  cart_abandon: ["cart_no_purchase", "sessions_no_cart"],
+  conversion: ["cart_no_purchase", "sessions_no_cart"],
   banner: ["banner_low_ctr", "banner_strong_ctr"],
   funnel: ["cart_no_purchase", "sessions_no_cart"],
   optimize: [
@@ -16,7 +30,7 @@ const INSIGHT_TYPES_BY_INTENT = {
 };
 
 export function windowStartIso(minutes) {
-  const ms = Math.min(Math.max(Number(minutes) || 60, 1), 1440) * 60 * 1000;
+  const ms = Math.min(Math.max(Number(minutes) || 60, 1), 10080) * 60 * 1000;
   return new Date(Date.now() - ms).toISOString();
 }
 
@@ -56,6 +70,10 @@ const RAG_INTENTS = new Set([
   "comparison",
   "trend",
   "product_conversion",
+  "product_detail",
+  "insights",
+  "cart_abandon",
+  "conversion",
 ]);
 
 export function needsRagForIntent(intent) {

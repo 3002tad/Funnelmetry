@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { query } from "../db.js";
+import { kpiPeriodFilter, periodToJson, resolveAnalyticsPeriod } from "../lib/period.js";
 
 export const revenueRouter = Router();
 
 revenueRouter.get("/api/revenue/summary", async (req, res) => {
-  const minutes = Math.min(parseInt(req.query.minutes) || 60, 1440);
+  const period = resolveAnalyticsPeriod(req.query, 60);
+  const tf = kpiPeriodFilter("window_start", period, 1);
   try {
     const [summary] = await query(
       `SELECT
@@ -13,26 +15,23 @@ revenueRouter.get("/api/revenue/summary", async (req, res) => {
          COALESCE(SUM(checkout_start), 0)::int AS checkout_starts,
          COALESCE(SUM(add_to_cart), 0)::int AS add_to_cart
        FROM tracking_kpi_1m
-       WHERE window_start >= NOW() - ($1 || ' minutes')::interval`,
-      [minutes]
+       WHERE 1=1${tf.clause}`,
+      tf.params
     );
 
     const trend = await query(
-      `SELECT
-         window_start,
-         revenue,
-         purchases
+      `SELECT window_start, revenue, purchases
        FROM tracking_kpi_1m
-       WHERE window_start >= NOW() - ($1 || ' minutes')::interval
+       WHERE 1=1${tf.clause}
        ORDER BY window_start ASC`,
-      [minutes]
+      tf.params
     );
 
     const purchases = Number(summary.total_purchases) || 0;
     const totalRevenue = Number(summary.total_revenue) || 0;
 
     res.json({
-      period_minutes: minutes,
+      ...periodToJson(period),
       summary: {
         ...summary,
         average_order_value: purchases > 0 ? Math.round(totalRevenue / purchases) : 0,
@@ -50,7 +49,8 @@ revenueRouter.get("/api/revenue/summary", async (req, res) => {
 });
 
 revenueRouter.get("/api/revenue/by-category", async (req, res) => {
-  const minutes = Math.min(parseInt(req.query.minutes) || 60, 1440);
+  const period = resolveAnalyticsPeriod(req.query, 60);
+  const tf = kpiPeriodFilter("k.window_start", period, 1);
   try {
     const rows = await query(
       `SELECT
@@ -60,12 +60,12 @@ revenueRouter.get("/api/revenue/by-category", async (req, res) => {
          SUM(k.views)::int AS views
        FROM product_revenue_kpi_1m k
        LEFT JOIN products_catalog c USING (product_id)
-       WHERE k.window_start >= NOW() - ($1 || ' minutes')::interval
+       WHERE 1=1${tf.clause}
        GROUP BY c.category
        ORDER BY revenue DESC`,
-      [minutes]
+      tf.params
     );
-    res.json({ period_minutes: minutes, categories: rows });
+    res.json({ ...periodToJson(period), categories: rows });
   } catch (err) {
     console.error("GET /api/revenue/by-category", err.message);
     res.status(500).json({ error: "query_failed" });

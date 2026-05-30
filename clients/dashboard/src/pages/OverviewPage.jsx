@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { DonutBreakdown } from "../components/charts/DonutBreakdown.jsx";
 import { ConversionFunnel } from "../components/charts/ConversionFunnel.jsx";
 import { SERIES } from "../components/charts/chartTheme.js";
@@ -12,10 +12,12 @@ import { StatCard, StatHero } from "../components/StatCard.jsx";
 import { api } from "../lib/api.js";
 import { formatMoney } from "../lib/format.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useManagerPeriod } from "../hooks/useManagerPeriod.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 const SECONDARY = [
   { key: "add_to_cart", label: "Thêm giỏ", icon: IconProducts },
+  { key: "remove_from_cart", label: "Bỏ khỏi giỏ", icon: IconProducts },
   { key: "product_views", label: "Xem SP", icon: IconProducts },
   { key: "page_views", label: "Lượt xem trang", icon: IconEvents },
   { key: "checkout_start", label: "Checkout", icon: IconFunnel },
@@ -37,10 +39,17 @@ function pctChange(current, previous) {
   return ((curr - prev) / prev) * 100;
 }
 
+const periodHeaderProps = (p) => ({
+  minutes: p.minutes,
+  onMinutesChange: p.selectMinutes,
+  date: p.date,
+  onDateChange: p.selectDate,
+});
+
 export function OverviewPage() {
-  const [minutes, setMinutes] = useState(60);
-  const overviewFetcher = useCallback(() => api.overview(minutes), [minutes]);
-  const funnelFetcher = useCallback(() => api.funnel(minutes), [minutes]);
+  const period = useManagerPeriod(60);
+  const overviewFetcher = useCallback(() => api.overview(period.periodParams), [period.periodParams]);
+  const funnelFetcher = useCallback(() => api.funnel(period.periodParams), [period.periodParams]);
   const { data, loading, error, refresh, lastUpdated } = useAutoRefresh(overviewFetcher, 60000);
   const funnelState = useAutoRefresh(funnelFetcher, 60000);
 
@@ -156,7 +165,7 @@ export function OverviewPage() {
   if (loading && !data) {
     return (
       <>
-        <PageHeader title="Tổng quan" subtitle="Đang tải dữ liệu…" minutes={minutes} onMinutesChange={setMinutes} live={false} />
+        <PageHeader title="Tổng quan" subtitle="Đang tải dữ liệu…" {...periodHeaderProps(period)} live={false} />
         <div className="mgr-content"><PageLoading /></div>
       </>
     );
@@ -164,7 +173,7 @@ export function OverviewPage() {
   if (error) {
     return (
       <>
-        <PageHeader title="Tổng quan" minutes={minutes} onMinutesChange={setMinutes} onRefresh={refresh} live={false} />
+        <PageHeader title="Tổng quan" {...periodHeaderProps(period)} onRefresh={refresh} live={false} />
         <div className="mgr-content"><PageError message={error} /></div>
       </>
     );
@@ -175,8 +184,7 @@ export function OverviewPage() {
       <PageHeader
         title="Tổng quan"
         subtitle="Theo dõi hành vi khách hàng, doanh thu và chuyển đổi theo thời gian thực"
-        minutes={minutes}
-        onMinutesChange={setMinutes}
+        {...periodHeaderProps(period)}
         onRefresh={refresh}
         lastUpdated={lastUpdated}
       />

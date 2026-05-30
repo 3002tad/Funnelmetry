@@ -1,21 +1,17 @@
 import { PeriodPills } from "./PeriodPills.jsx";
 import { IconRefresh } from "./icons.jsx";
 import { useLiveStreamStatus } from "../context/LiveStreamContext.jsx";
+import { MANAGER_PERIOD_OPTIONS } from "../lib/period.js";
 
-const PERIOD_OPTS = [
-  { value: 15, label: "15p" },
-  { value: 30, label: "30p" },
-  { value: 60, label: "1h" },
-  { value: 180, label: "3h" },
-  { value: 720, label: "12h" },
-  { value: 1440, label: "24h" },
-];
+const PERIOD_OPTS = MANAGER_PERIOD_OPTIONS;
 
 export function PageHeader({
   title,
   subtitle,
   minutes,
   onMinutesChange,
+  date,
+  onDateChange,
   onRefresh,
   periodOptions = PERIOD_OPTS,
   variant = "mgr",
@@ -34,6 +30,29 @@ export function PageHeader({
       ? "Đang kết nối lại"
       : "Offline";
 
+  const periodToolbar = (onMinutesChange || onDateChange) && (
+    <div className="page-header__period">
+      {onMinutesChange && (
+        <PeriodPills
+          value={date ? null : minutes}
+          onChange={onMinutesChange}
+          options={periodOptions}
+        />
+      )}
+      {onDateChange && (
+        <label className="period-date-picker">
+          <span className="period-date-picker__label">Ngày</span>
+          <input
+            type="date"
+            value={date || ""}
+            onChange={(e) => onDateChange(e.target.value)}
+            title="Xem KPI đúng một ngày (00:00–24:00 UTC)"
+          />
+        </label>
+      )}
+    </div>
+  );
+
   if (variant === "admin") {
     return (
       <div className="admin-topbar">
@@ -42,9 +61,7 @@ export function PageHeader({
           {subtitle && <p className="muted" style={{ marginTop: "0.2rem" }}>{subtitle}</p>}
         </div>
         <div className="admin-topbar-actions">
-          {onMinutesChange && (
-            <PeriodPills value={minutes} onChange={onMinutesChange} options={periodOptions} />
-          )}
+          {periodToolbar}
           {onRefresh && (
             <button type="button" className="btn btn-ghost" onClick={onRefresh} aria-label="Làm mới">
               <IconRefresh />
@@ -79,9 +96,7 @@ export function PageHeader({
             })}
           </span>
         )}
-        {onMinutesChange && (
-          <PeriodPills value={minutes} onChange={onMinutesChange} options={periodOptions} />
-        )}
+        {periodToolbar}
         {onRefresh && (
           <button type="button" className="btn btn-ghost btn-icon" onClick={onRefresh}>
             <IconRefresh />

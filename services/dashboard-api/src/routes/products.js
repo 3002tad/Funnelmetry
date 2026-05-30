@@ -1,12 +1,14 @@
 import { Router } from "express";
 import { query } from "../db.js";
+import { kpiPeriodFilter, periodToJson, resolveAnalyticsPeriod } from "../lib/period.js";
 
 export const productsRouter = Router();
 
-// GET /api/products/top?minutes=60&limit=10
 productsRouter.get("/api/products/top", async (req, res) => {
-  const minutes = Math.min(parseInt(req.query.minutes) || 60, 1440);
-  const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+  const period = resolveAnalyticsPeriod(req.query, 60);
+  const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
+  const tf = kpiPeriodFilter("k.window_start", period, 1);
+  const limitIdx = tf.params.length + 1;
   try {
     const rows = await query(
       `SELECT
@@ -17,6 +19,7 @@ productsRouter.get("/api/products/top", async (req, res) => {
          SUM(k.views)        AS views,
          SUM(k.clicks)       AS clicks,
          SUM(k.add_to_cart)  AS add_to_cart,
+         SUM(k.remove_from_cart) AS remove_from_cart,
          SUM(k.purchases)    AS purchases,
          SUM(k.revenue)      AS revenue,
          CASE WHEN SUM(k.views) > 0
@@ -27,22 +30,22 @@ productsRouter.get("/api/products/top", async (req, res) => {
            ELSE 0 END AS purchase_rate
        FROM product_revenue_kpi_1m k
        LEFT JOIN products_catalog c USING (product_id)
-       WHERE k.window_start >= NOW() - ($1 || ' minutes')::interval
+       WHERE 1=1${tf.clause}
        GROUP BY k.product_id, c.name, c.price, c.category
        ORDER BY views DESC
-       LIMIT $2`,
-      [minutes, limit]
+       LIMIT $${limitIdx}`,
+      [...tf.params, limit]
     );
-    res.json({ period_minutes: minutes, products: rows });
+    res.json({ ...periodToJson(period), products: rows });
   } catch (err) {
     console.error("GET /api/products/top", err.message);
     res.status(500).json({ error: "query_failed" });
   }
 });
 
-// GET /api/products/anomalies?minutes=60 — high view, low purchase
 productsRouter.get("/api/products/anomalies", async (req, res) => {
-  const minutes = Math.min(parseInt(req.query.minutes) || 60, 1440);
+  const period = resolveAnalyticsPeriod(req.query, 60);
+  const tf = kpiPeriodFilter("k.window_start", period, 1);
   try {
     const rows = await query(
       `SELECT
@@ -57,13 +60,13 @@ productsRouter.get("/api/products/anomalies", async (req, res) => {
            ELSE 0 END AS purchase_rate
        FROM product_revenue_kpi_1m k
        LEFT JOIN products_catalog c USING (product_id)
-       WHERE k.window_start >= NOW() - ($1 || ' minutes')::interval
+       WHERE 1=1${tf.clause}
        GROUP BY k.product_id, c.name, c.price
        HAVING SUM(k.views) >= 5 AND SUM(k.purchases) = 0
        ORDER BY views DESC`,
-      [minutes]
+      tf.params
     );
-    res.json({ period_minutes: minutes, anomalies: rows });
+    res.json({ ...periodToJson(period), anomalies: rows });
   } catch (err) {
     console.error("GET /api/products/anomalies", err.message);
     res.status(500).json({ error: "query_failed" });

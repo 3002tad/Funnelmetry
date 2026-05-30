@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { BarChartGrouped } from "../components/charts/SimpleBarChart.jsx";
 import { BannerPerformanceTable } from "../components/BannerPerformanceTable.jsx";
 import { DataPanel, EmptyState, PageError, PageLoading } from "../components/DataPanel.jsx";
@@ -9,12 +9,13 @@ import { StatHero } from "../components/StatCard.jsx";
 import { buildBannerActionItems, buildBannerSummary } from "../lib/bannerMetrics.js";
 import { api } from "../lib/api.js";
 import { useAutoRefresh } from "../hooks/useAutoRefresh.js";
+import { useManagerPeriod } from "../hooks/useManagerPeriod.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 export function BannersPage() {
-  const [minutes, setMinutes] = useState(60);
-  const fetcher = useCallback(() => api.banners(minutes), [minutes]);
-  const overviewFetcher = useCallback(() => api.overview(minutes), [minutes]);
+  const period = useManagerPeriod(60);
+  const fetcher = useCallback(() => api.banners(period.periodParams), [period.periodParams]);
+  const overviewFetcher = useCallback(() => api.overview(period.periodParams), [period.periodParams]);
   const { data, loading, error, refresh, lastUpdated } = useAutoRefresh(fetcher, 60000);
   const overview = useAutoRefresh(overviewFetcher, 60000);
 
@@ -47,7 +48,14 @@ export function BannersPage() {
   if (loading && !data) {
     return (
       <>
-        <PageHeader title="Banner" minutes={minutes} onMinutesChange={setMinutes} live={false} />
+        <PageHeader
+          title="Banner"
+          minutes={period.minutes}
+          onMinutesChange={period.selectMinutes}
+          date={period.date}
+          onDateChange={period.selectDate}
+          live={false}
+        />
         <div className="mgr-content"><PageLoading /></div>
       </>
     );
@@ -66,8 +74,10 @@ export function BannersPage() {
       <PageHeader
         title="Banner"
         subtitle="Hiệu suất quảng cáo — impressions, clicks và CTR theo banner"
-        minutes={minutes}
-        onMinutesChange={setMinutes}
+        minutes={period.minutes}
+        onMinutesChange={period.selectMinutes}
+        date={period.date}
+        onDateChange={period.selectDate}
         onRefresh={() => { refresh(); overview.refresh(); }}
         lastUpdated={lastUpdated}
       />
@@ -85,7 +95,7 @@ export function BannersPage() {
             />
             {diagnostics != null && (
               <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>
-                Event banner ({minutes} phút): {diagnostics.raw_banner_events ?? 0}
+                Event banner ({period.periodLabel}): {diagnostics.raw_banner_events ?? 0}
                 {diagnostics.missing_banner_id > 0
                   ? ` · thiếu banner_id: ${diagnostics.missing_banner_id}`
                   : ""}

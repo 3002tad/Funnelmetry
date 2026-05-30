@@ -42,6 +42,11 @@ async function request(method, path, body, options = {}) {
 }
 
 const get = (path) => request("GET", path);
+
+function periodQs(period = {}) {
+  if (period.date) return `date=${encodeURIComponent(period.date)}`;
+  return `minutes=${period.minutes ?? 60}`;
+}
 const post = (path, body) => request("POST", path, body);
 const patch = (path, body) => request("PATCH", path, body);
 const del = (path) => request("DELETE", path);
@@ -57,25 +62,33 @@ export const api = {
   updateUser: (id, body) => patch(`/api/users/${id}`, body),
   deleteUser: (id) => del(`/api/users/${id}`),
 
-  overview: (minutes = 30) => get(`/api/overview?minutes=${minutes}`),
+  overview: (period = { minutes: 30 }) => get(`/api/overview?${periodQs(period)}`),
   events: (limit = 50) => get(`/api/events/recent?limit=${limit}`),
-  funnel: (minutes = 60) => get(`/api/funnel?minutes=${minutes}`),
-  productsTop: (minutes = 60, limit = 20) =>
-    get(`/api/products/top?minutes=${minutes}&limit=${limit}`),
-  productsAnomalies: (minutes = 60) => get(`/api/products/anomalies?minutes=${minutes}`),
-  searchTop: (minutes = 60, limit = 20) =>
-    get(`/api/search/top?minutes=${minutes}&limit=${limit}`),
-  searchFilters: (minutes = 60) => get(`/api/search/filters?minutes=${minutes}`),
-  banners: (minutes = 60) => get(`/api/banners?minutes=${minutes}`),
-  revenueSummary: (minutes = 60) => get(`/api/revenue/summary?minutes=${minutes}`),
-  revenueByCategory: (minutes = 60) => get(`/api/revenue/by-category?minutes=${minutes}`),
+  funnel: (period = { minutes: 60 }) => get(`/api/funnel?${periodQs(period)}`),
+  productsTop: (period = { minutes: 60 }, limit = 20) =>
+    get(`/api/products/top?${periodQs(period)}&limit=${limit}`),
+  productsAnomalies: (period = { minutes: 60 }) =>
+    get(`/api/products/anomalies?${periodQs(period)}`),
+  searchTop: (period = { minutes: 60 }, limit = 20) =>
+    get(`/api/search/top?${periodQs(period)}&limit=${limit}`),
+  searchFilters: (period = { minutes: 60 }) => get(`/api/search/filters?${periodQs(period)}`),
+  banners: (period = { minutes: 60 }) => get(`/api/banners?${periodQs(period)}`),
+  revenueSummary: (period = { minutes: 60 }) => get(`/api/revenue/summary?${periodQs(period)}`),
+  revenueByCategory: (period = { minutes: 60 }) =>
+    get(`/api/revenue/by-category?${periodQs(period)}`),
   systemPipeline: () => get("/api/system/pipeline"),
   systemSetup: () => get("/api/system/setup"),
-  chat: (message, minutes, session_id) => {
+  chat: (message, period, session_id) => {
     const body = { message };
-    if (minutes != null) body.minutes = minutes;
+    if (period?.date) body.date = period.date;
+    else if (period?.minutes != null) body.minutes = period.minutes;
+    else if (typeof period === "number") body.minutes = period;
     if (session_id) body.session_id = session_id;
     return request("POST", "/api/chat", body, { timeoutMs: 75_000 });
   },
   chatInsights: (limit = 12) => get(`/api/chat/insights?limit=${limit}`),
+  chatSessions: () => get("/api/chat/sessions"),
+  chatSessionCreate: () => post("/api/chat/sessions", {}),
+  chatSessionMessages: (sessionId) => get(`/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`),
+  chatSessionDelete: (sessionId) => del(`/api/chat/sessions/${encodeURIComponent(sessionId)}`),
 };

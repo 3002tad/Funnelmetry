@@ -17,7 +17,7 @@ _BEHAVIOR_TYPES = {
     "search", "filter_apply", "banner_impression", "banner_click",
 }
 _COMMERCE_TYPES = {
-    "add_to_cart", "checkout_start", "purchase_succeeded",
+    "add_to_cart", "remove_from_cart", "checkout_start", "purchase_succeeded",
     "payment_failed", "cart_abandoned",
 }
 
@@ -103,6 +103,8 @@ class WindowAggregator:
             tk["searches"] += 1
         elif etype == "add_to_cart":
             tk["add_to_cart"] += 1
+        elif etype == "remove_from_cart":
+            tk["remove_from_cart"] += 1
         elif etype == "checkout_start":
             tk["checkout_start"] += 1
         elif etype == "purchase_succeeded":
@@ -110,12 +112,14 @@ class WindowAggregator:
             tk["revenue"] += _revenue_from_metadata(metadata)
 
         # --- product_kpi_1m ---
-        if product_id and etype in ("product_view", "add_to_cart", "purchase_succeeded"):
+        if product_id and etype in ("product_view", "add_to_cart", "remove_from_cart", "purchase_succeeded"):
             pk = self._product[(ws, product_id)]
             if etype == "product_view":
                 pk["product_views"] += 1
             elif etype == "add_to_cart":
                 pk["add_to_cart"] += 1
+            elif etype == "remove_from_cart":
+                pk["remove_from_cart"] += 1
             elif etype == "purchase_succeeded":
                 pk["purchases"] += 1
 
@@ -153,6 +157,8 @@ class WindowAggregator:
                 prk["clicks"] += 1
             elif etype == "add_to_cart":
                 prk["add_to_cart"] += 1
+            elif etype == "remove_from_cart":
+                prk["remove_from_cart"] += 1
             elif etype == "checkout_start":
                 prk["checkout_start"] += 1
 
@@ -274,13 +280,13 @@ def _product_revenue_kpi_record(ws: datetime, pid: str, prk: dict) -> dict:
 def _empty_tracking_kpi() -> dict:
     return {
         "total_events": 0, "page_views": 0, "product_views": 0,
-        "clicks": 0, "searches": 0, "add_to_cart": 0,
+        "clicks": 0, "searches": 0, "add_to_cart": 0, "remove_from_cart": 0,
         "checkout_start": 0, "purchases": 0, "revenue": 0.0,
     }
 
 
 def _empty_product_kpi() -> dict:
-    return {"product_views": 0, "add_to_cart": 0, "purchases": 0}
+    return {"product_views": 0, "add_to_cart": 0, "remove_from_cart": 0, "purchases": 0}
 
 
 def _empty_banner_kpi() -> dict:
@@ -289,6 +295,6 @@ def _empty_banner_kpi() -> dict:
 
 def _empty_product_revenue_kpi() -> dict:
     return {
-        "views": 0, "clicks": 0, "add_to_cart": 0,
+        "views": 0, "clicks": 0, "add_to_cart": 0, "remove_from_cart": 0,
         "checkout_start": 0, "purchases": 0, "revenue": 0.0,
     }

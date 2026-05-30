@@ -154,6 +154,42 @@ export function createBehaviorSdk(options = {}) {
         })
       );
     },
+    trackAddToCart(productId, metadata = {}) {
+      return send({
+        event_source: "browser_sdk",
+        event_category: "commerce",
+        event_type: "add_to_cart",
+        anonymous_id: getAnonymousId(),
+        session_id: getSessionId(),
+        user_id: userId,
+        page_url: typeof window !== "undefined" ? window.location.pathname : "/",
+        product_id: productId,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          device: /Mobi/i.test(navigator.userAgent) ? "mobile" : "desktop",
+          browser: navigator.userAgent?.split(" ").pop() || "unknown",
+          ...metadata,
+        },
+      });
+    },
+    trackRemoveFromCart(productId, metadata = {}) {
+      return send({
+        event_source: "browser_sdk",
+        event_category: "commerce",
+        event_type: "remove_from_cart",
+        anonymous_id: getAnonymousId(),
+        session_id: getSessionId(),
+        user_id: userId,
+        page_url: typeof window !== "undefined" ? window.location.pathname : "/",
+        product_id: productId,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          device: /Mobi/i.test(navigator.userAgent) ? "mobile" : "desktop",
+          browser: navigator.userAgent?.split(" ").pop() || "unknown",
+          ...metadata,
+        },
+      });
+    },
     trackCustom(eventType, fields = {}) {
       return send({ ...basePayload(eventType), ...fields });
     },

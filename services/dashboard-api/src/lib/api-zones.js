@@ -1,7 +1,7 @@
 /** Path belongs to manager (analytic) APIs — not admin/system/users. */
-/** POST /api/chat — shared analytics (not shop-only). */
+/** POST /api/chat and session history — shared analytics (not shop-only). */
 export function isChatApiPath(path) {
-  return path === "/api/chat";
+  return path === "/api/chat" || path.startsWith("/api/chat/sessions");
 }
 
 export function isShopApiPath(path) {

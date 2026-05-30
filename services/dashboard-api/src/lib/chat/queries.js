@@ -1,6 +1,91 @@
 import { query } from "../../db.js";
+import { kpiPeriodFilter, parseCalendarDate } from "../period.js";
 
-export async function fetchOverview(minutes) {
+function asPeriod(minutes, calendarDate) {
+  const date = parseCalendarDate(calendarDate);
+  if (date) return { type: "day", date };
+  return { type: "rolling", minutes };
+}
+
+function escapeLike(value) {
+  return String(value).replace(/[%_\\]/g, "\\$&");
+}
+
+/** Resolve product_id from catalog by id or partial name match. */
+export async function resolveProductRef(ref) {
+  if (!ref) return null;
+  const trimmed = String(ref).trim();
+  const idMatch = trimmed.match(/\b(P\d{3,}|SKU[-\w]+)\b/i);
+  if (idMatch) {
+    const productId = idMatch[1].toUpperCase();
+    const [row] = await query(
+      `SELECT product_id, name, price, category FROM products_catalog WHERE product_id = $1`,
+      [productId]
+    );
+    return row || { product_id: productId, name: trimmed, price: 0, category: null };
+  }
+
+  const normalized = trimmed.replace(/\s+/g, " ");
+  const [exact] = await query(
+    `SELECT product_id, name, price, category FROM products_catalog WHERE name ILIKE $1 LIMIT 1`,
+    [normalized]
+  );
+  if (exact) return exact;
+
+  const tokens = normalized.split(" ").filter((t) => t.length >= 2);
+  const tail = tokens.slice(-3).join(" ");
+  const [partial] = await query(
+    `SELECT product_id, name, price, category FROM products_catalog
+     WHERE name ILIKE $1 OR ($2 <> '' AND name ILIKE $3)
+     ORDER BY CASE WHEN name ILIKE $1 THEN 0 ELSE 1 END, length(name) ASC
+     LIMIT 1`,
+    [`%${escapeLike(normalized)}%`, tail, `%${escapeLike(tail)}%`]
+  );
+  return partial || null;
+}
+
+export async function fetchProductDetail(minutes, productRef, calendarDate = null) {
+  const catalog = await resolveProductRef(productRef);
+  if (!catalog) {
+    return { found: false, query: productRef, product: null, stats: null };
+  }
+
+  const tf = kpiPeriodFilter("k.window_start", asPeriod(minutes, calendarDate), 2);
+  const [stats] = await query(
+    `SELECT
+       k.product_id,
+       COALESCE(c.name, k.product_id) AS product_name,
+       SUM(k.views) AS views,
+       SUM(k.clicks) AS clicks,
+       SUM(k.purchases) AS purchases,
+       SUM(k.revenue) AS revenue,
+       CASE WHEN SUM(k.views) > 0
+         THEN ROUND(SUM(k.purchases)::numeric / SUM(k.views), 4) ELSE 0 END AS conversion_rate
+     FROM product_revenue_kpi_1m k
+     LEFT JOIN products_catalog c USING (product_id)
+     WHERE k.product_id = $1${tf.clause}
+     GROUP BY k.product_id, c.name`,
+    [catalog.product_id, ...tf.params]
+  );
+
+  return {
+    found: true,
+    query: productRef,
+    product: catalog,
+    stats: stats || {
+      product_id: catalog.product_id,
+      product_name: catalog.name,
+      views: 0,
+      clicks: 0,
+      purchases: 0,
+      revenue: 0,
+      conversion_rate: 0,
+    },
+  };
+}
+
+export async function fetchOverview(minutes, calendarDate = null) {
+  const tf = kpiPeriodFilter("t.window_start", asPeriod(minutes, calendarDate), 1);
   const [kpi] = await query(
     `SELECT
        COALESCE(SUM(t.total_events), 0)   AS total_events,
@@ -13,15 +98,19 @@ export async function fetchOverview(minutes) {
        CASE WHEN SUM(t.unique_sessions) > 0
          THEN ROUND(SUM(t.purchases)::numeric / SUM(t.unique_sessions), 4)
          ELSE 0 END AS conversion_rate,
-         COALESCE(SUM(t.revenue), 0) AS total_revenue
+       COALESCE(SUM(t.revenue), 0) AS total_revenue
      FROM tracking_kpi_1m t
-     WHERE t.window_start >= NOW() - ($1 || ' minutes')::interval`,
-    [minutes]
+     WHERE 1=1${tf.clause}`,
+    tf.params
   );
   return kpi;
 }
 
-export async function fetchTopProducts(minutes, limit = 5) {
+export async function fetchTopProducts(minutes, limit = 5, sortBy = "views", calendarDate = null) {
+  const orderCol =
+    sortBy === "purchases" ? "purchases" : sortBy === "revenue" ? "revenue" : "views";
+  const tf = kpiPeriodFilter("k.window_start", asPeriod(minutes, calendarDate), 1);
+  const limitIdx = tf.params.length + 1;
   return query(
     `SELECT
        k.product_id,
@@ -31,15 +120,17 @@ export async function fetchTopProducts(minutes, limit = 5) {
        SUM(k.revenue) AS revenue
      FROM product_revenue_kpi_1m k
      LEFT JOIN products_catalog c USING (product_id)
-     WHERE k.window_start >= NOW() - ($1 || ' minutes')::interval
+     WHERE 1=1${tf.clause}
      GROUP BY k.product_id, c.name
-     ORDER BY views DESC
-     LIMIT $2`,
-    [minutes, limit]
+     ORDER BY ${orderCol} DESC
+     LIMIT $${limitIdx}`,
+    [...tf.params, limit]
   );
 }
 
-export async function fetchProductAnomalies(minutes, limit = 5) {
+export async function fetchProductAnomalies(minutes, limit = 5, calendarDate = null) {
+  const tf = kpiPeriodFilter("k.window_start", asPeriod(minutes, calendarDate), 1);
+  const limitIdx = tf.params.length + 1;
   const rows = await query(
     `SELECT
        k.product_id,
@@ -49,12 +140,12 @@ export async function fetchProductAnomalies(minutes, limit = 5) {
        SUM(k.purchases) AS purchases
      FROM product_revenue_kpi_1m k
      LEFT JOIN products_catalog c USING (product_id)
-     WHERE k.window_start >= NOW() - ($1 || ' minutes')::interval
+     WHERE 1=1${tf.clause}
      GROUP BY k.product_id, c.name
      HAVING SUM(k.views) >= 5 AND SUM(k.purchases) = 0
      ORDER BY views DESC
-     LIMIT $2`,
-    [minutes, limit]
+     LIMIT $${limitIdx}`,
+    [...tf.params, limit]
   );
   return rows.map((r) => ({
     ...r,
@@ -63,6 +154,7 @@ export async function fetchProductAnomalies(minutes, limit = 5) {
 }
 
 export async function fetchKpiComparison(minutes) {
+  const span = minutes || 1440;
   const [current] = await query(
     `SELECT
        COALESCE(SUM(unique_sessions), 0) AS unique_sessions,
@@ -71,8 +163,8 @@ export async function fetchKpiComparison(minutes) {
        CASE WHEN SUM(unique_sessions) > 0
          THEN ROUND(SUM(purchases)::numeric / SUM(unique_sessions), 4) ELSE 0 END AS conversion_rate
      FROM tracking_kpi_1m
-     WHERE window_start >= NOW() - ($1 || ' minutes')::interval`,
-    [minutes]
+     WHERE window_start >= NOW() - ($1::int || ' minutes')::interval`,
+    [span]
   );
   const [previous] = await query(
     `SELECT
@@ -84,7 +176,7 @@ export async function fetchKpiComparison(minutes) {
      FROM tracking_kpi_1m
      WHERE window_start >= NOW() - ($1::int * 2 || ' minutes')::interval
        AND window_start < NOW() - ($1 || ' minutes')::interval`,
-    [minutes]
+    [span]
   );
   return {
     current,
@@ -105,8 +197,8 @@ function pctDelta(prev, cur) {
   return Number(((c - p) / p).toFixed(4));
 }
 
-export async function fetchRevenueTrend(minutes, bucketMinutes = 15) {
-  const bucket = Math.max(5, Math.min(bucketMinutes, minutes));
+export async function fetchRevenueTrend(minutes, bucketMinutes = 15, calendarDate = null) {
+  const tf = kpiPeriodFilter("window_start", asPeriod(minutes, calendarDate), 1);
   return query(
     `SELECT
        window_start,
@@ -114,14 +206,16 @@ export async function fetchRevenueTrend(minutes, bucketMinutes = 15) {
        COALESCE(SUM(purchases), 0) AS purchases,
        COALESCE(SUM(unique_sessions), 0) AS sessions
      FROM tracking_kpi_1m
-     WHERE window_start >= NOW() - ($1 || ' minutes')::interval
+     WHERE 1=1${tf.clause}
      GROUP BY window_start
      ORDER BY window_start ASC`,
-    [minutes]
+    tf.params
   );
 }
 
-export async function fetchProductConversion(minutes, limit = 10) {
+export async function fetchProductConversion(minutes, limit = 10, calendarDate = null) {
+  const tf = kpiPeriodFilter("k.window_start", asPeriod(minutes, calendarDate), 1);
+  const limitIdx = tf.params.length + 1;
   return query(
     `SELECT
        k.product_id,
@@ -133,16 +227,17 @@ export async function fetchProductConversion(minutes, limit = 10) {
        SUM(k.revenue) AS revenue
      FROM product_revenue_kpi_1m k
      LEFT JOIN products_catalog c USING (product_id)
-     WHERE k.window_start >= NOW() - ($1 || ' minutes')::interval
+     WHERE 1=1${tf.clause}
      GROUP BY k.product_id, c.name
      HAVING SUM(k.views) >= 3
      ORDER BY conversion_rate DESC, views DESC
-     LIMIT $2`,
-    [minutes, limit]
+     LIMIT $${limitIdx}`,
+    [...tf.params, limit]
   );
 }
 
-export async function fetchFunnel(minutes) {
+export async function fetchFunnel(minutes, calendarDate = null) {
+  const tf = kpiPeriodFilter("window_start", asPeriod(minutes, calendarDate), 1);
   const [row] = await query(
     `SELECT
        COALESCE(SUM(page_views), 0)     AS page_view,
@@ -151,8 +246,8 @@ export async function fetchFunnel(minutes) {
        COALESCE(SUM(checkout_start), 0) AS checkout_start,
        COALESCE(SUM(purchases), 0)      AS purchase
      FROM tracking_kpi_1m
-     WHERE window_start >= NOW() - ($1 || ' minutes')::interval`,
-    [minutes]
+     WHERE 1=1${tf.clause}`,
+    tf.params
   );
   const steps = [
     { step: "page_view", label: "Xem trang", count: Number(row.page_view) },
@@ -173,7 +268,9 @@ export async function fetchFunnel(minutes) {
   return { steps, worst_drop: worst };
 }
 
-export async function fetchBanners(minutes, limit = 5) {
+export async function fetchBanners(minutes, limit = 5, calendarDate = null) {
+  const tf = kpiPeriodFilter("window_start", asPeriod(minutes, calendarDate), 1);
+  const limitIdx = tf.params.length + 1;
   return query(
     `SELECT banner_id,
             SUM(impressions) AS impressions,
@@ -182,10 +279,82 @@ export async function fetchBanners(minutes, limit = 5) {
               THEN ROUND(SUM(clicks)::numeric / SUM(impressions), 4)
               ELSE 0 END AS ctr
      FROM banner_kpi_1m
-     WHERE window_start >= NOW() - ($1 || ' minutes')::interval
+     WHERE 1=1${tf.clause}
      GROUP BY banner_id
      ORDER BY impressions DESC
-     LIMIT $2`,
-    [minutes, limit]
+     LIMIT $${limitIdx}`,
+    [...tf.params, limit]
   );
+}
+
+export async function fetchBannerDetail(minutes, bannerRef, calendarDate = null) {
+  if (!bannerRef) return { found: false, query: null, banner: null };
+  const ref = String(bannerRef).trim().toLowerCase();
+  const rows = await fetchBanners(minutes, 30, calendarDate);
+  const banner =
+    rows.find((b) => String(b.banner_id).toLowerCase() === ref) ||
+    rows.find((b) => String(b.banner_id).toLowerCase().includes(ref));
+  return {
+    found: Boolean(banner),
+    query: bannerRef,
+    banner: banner || null,
+  };
+}
+
+export async function fetchTopSearches(minutes, limit = 10, calendarDate = null) {
+  const tf = kpiPeriodFilter("event_time", asPeriod(minutes, calendarDate), 1);
+  const limitIdx = tf.params.length + 1;
+  return query(
+    `SELECT
+       COALESCE(metadata->>'query', '') AS search_query,
+       COUNT(*)::int AS searches
+     FROM tracking_events_clean
+     WHERE event_type = 'search'
+       AND COALESCE(metadata->>'query', '') <> ''${tf.clause}
+     GROUP BY metadata->>'query'
+     ORDER BY searches DESC
+     LIMIT $${limitIdx}`,
+    [...tf.params, limit]
+  );
+}
+
+export async function fetchSearchFilters(minutes, limit = 10, calendarDate = null) {
+  const tf = kpiPeriodFilter("event_time", asPeriod(minutes, calendarDate), 1);
+  const limitIdx = tf.params.length + 1;
+  return query(
+    `SELECT
+       COUNT(*)::int AS filter_events,
+       COALESCE(metadata->'filters'->>'category', metadata->>'category', 'all') AS category,
+       COALESCE(metadata->'filters'->>'sortMode', metadata->>'sortMode', '') AS sort_mode
+     FROM tracking_events_clean
+     WHERE event_type = 'filter_apply'${tf.clause}
+     GROUP BY 2, 3
+     ORDER BY filter_events DESC
+     LIMIT $${limitIdx}`,
+    [...tf.params, limit]
+  );
+}
+
+export async function fetchCategoryPerformance(minutes, limit = 10, calendarDate = null) {
+  const tf = kpiPeriodFilter("k.window_start", asPeriod(minutes, calendarDate), 1);
+  const limitIdx = tf.params.length + 1;
+  return query(
+    `SELECT
+       COALESCE(NULLIF(c.category, ''), 'unknown') AS category,
+       SUM(k.views) AS views,
+       SUM(k.purchases) AS purchases,
+       SUM(k.revenue) AS revenue
+     FROM product_revenue_kpi_1m k
+     LEFT JOIN products_catalog c USING (product_id)
+     WHERE 1=1${tf.clause}
+     GROUP BY c.category
+     ORDER BY revenue DESC
+     LIMIT $${limitIdx}`,
+    [...tf.params, limit]
+  );
+}
+
+export async function fetchCatalogStats() {
+  const [row] = await query(`SELECT COUNT(*)::int AS product_count FROM products_catalog`);
+  return row || { product_count: 0 };
 }
