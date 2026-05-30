@@ -54,6 +54,14 @@ describe("buildPlan", () => {
     assert.equal(plan.needs_rag, false);
   });
 
+  it("plans help for capability questions (eval case)", () => {
+    const scope = classifyScope("bạn làm được gì");
+    assert.equal(scope.decision, "allow");
+    const plan = buildPlan("bạn làm được gì", { scope });
+    assert.equal(plan.intent, "help");
+    assert.equal(plan.tools.length, 0);
+  });
+
   it("plans product detail by name", () => {
     const msg = "mình hỏi chi tiết sản phẩm Hang chon loc Điện tử Modern 026";
     assert.equal(
