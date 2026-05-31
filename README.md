@@ -10,9 +10,10 @@ Realtime e-commerce **behavior tracking** demo: SDK → Tracking API → Kafka �
 - **Web shop:** `clients/web-shop` (submodule)
 - **Streaming Processor:** `services/streaming-processor` → Postgres + Qdrant insights
 - **Dashboard:** `services/dashboard-api` + `clients/dashboard`
+- **API docs (Swagger):** `clients/api-docs` — localhost `:5190`
 - **Runtime:** **k3s** on WSL2 — `infra/k8s/sprint3`
 
-**Docs:** [`docs/README.md`](docs/README.md) · **Chạy project:** [`docs/RUNTIME.md`](docs/RUNTIME.md) · **CI/CD:** [`docs/CI_CD.md`](docs/CI_CD.md) · Ports: [`infra/PORTS.md`](infra/PORTS.md)
+**Docs:** [`docs/README.md`](docs/README.md) · **Chạy project:** [`docs/RUNTIME.md`](docs/RUNTIME.md)
 
 ## Quick start (k3s on WSL2)
 
@@ -24,7 +25,7 @@ cp infra/.env.example infra/.env
 
 bash infra/k8s/install-k3s-wsl.sh          # once
 bash infra/k8s/import-images.sh
-# Tạo secret app-secrets — xem infra/k8s/README.md (POSTGRES_*, JWT_*, DASHBOARD_ADMIN_*)
+# Tạo secret app-secrets — xem docs/RUNTIME.md §4
 
 k3s kubectl apply -k infra/k8s/sprint3
 k3s kubectl -n realtime get pods
@@ -48,7 +49,7 @@ npm install && npm run seed && npm run dev
 # → http://localhost:3000
 ```
 
-Chi tiết: [`infra/k8s/README.md`](infra/k8s/README.md)
+Chi tiết: [`docs/RUNTIME.md`](docs/RUNTIME.md)
 
 ## Test ingest
 
@@ -69,4 +70,4 @@ cd services/tracking-api && npm install && npm run dev
 
 ## Build image
 
-Dùng `infra/k8s/import-images.sh`, `rebuild-all-dev-images.sh` — xem [`infra/README.md`](infra/README.md).
+Dùng `infra/k8s/import-images.sh`, `rebuild-all-dev-images.sh` — xem [`docs/RUNTIME.md`](docs/RUNTIME.md).

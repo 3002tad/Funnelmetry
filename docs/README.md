@@ -1,16 +1,14 @@
 # Tài liệu project
 
-Markdown chính:
+Toàn bộ markdown nằm trong **`docs/`** (7 file). README thư mục con chỉ trỏ về đây.
 
-| File | Khi nào đọc |
-|------|-------------|
-| **[RUNTIME.md](RUNTIME.md)** | Clone repo, cài k3s, deploy, web-shop, mạng demo, chatbot |
-| **[TECH_STACK.md](TECH_STACK.md)** | Toàn bộ công nghệ + luồng chạy (behavior, commerce, chat, deploy) |
-| **[REPO_MAP.md](REPO_MAP.md)** | Spec → path trong repo (dev / agent) |
-| **[SPEC.md](SPEC.md)** | Kiến trúc chi tiết, event schema, pipeline, dashboard |
-| **[../infra/PORTS.md](../infra/PORTS.md)** | Bảng port NodePort |
-| **[CI_CD.md](CI_CD.md)** | GitHub Actions CI/CD |
+| File | Đọc khi |
+|------|---------|
+| **[BAO_CAO_DU_AN.md](BAO_CAO_DU_AN.md)** | Báo cáo / luận văn — tổng quan đầy đủ |
+| **[RUNTIME.md](RUNTIME.md)** | **Chạy project:** k3s, port, web-shop, mạng, chatbot, CI/CD, Postgres schema, Headlamp |
+| **[TECH_STACK.md](TECH_STACK.md)** | Công nghệ + luồng behavior / commerce / chat |
+| **[SPEC.md](SPEC.md)** | Kiến trúc, event schema, pipeline |
+| **[REPO_MAP.md](REPO_MAP.md)** | Spec → path code (dev / agent) |
+| **[API.md](API.md)** | HTTP API + Swagger `:5190` |
 
-Tài liệu RabbitMQ (Word): **[RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx](RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx)** — adapter Lap2 → tracking-api ingest.
-
-Infra / k8s: [`../infra/README.md`](../infra/README.md)
+**Khác:** RabbitMQ [docx](RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx) · Agent [../AGENTS.md](../AGENTS.md)

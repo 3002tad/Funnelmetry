@@ -9,6 +9,6 @@ alwaysApply: true
 
 Refactor toward **e-commerce behavior tracking**: SDK + RabbitMQ/Kafka streaming + Postgres + Qdrant insights + dashboard/chatbot RAG. Commerce events: **Lap2 web-shop (adapter) -> tracking-api ingest**; k3s có **commerce-backend + RabbitMQ** (không deploy connector/worker trong cluster). Do not invent topic/table names — use the spec.
 
-**This repo today:** backend runtime = **k3s** (`infra/k8s/sprint3`). Port map: [`infra/PORTS.md`](infra/PORTS.md). Build image: `infra/k8s/import-images.sh`.
+**This repo today:** backend runtime = **k3s** (`infra/k8s/sprint3`). Port map: [`docs/RUNTIME.md`](docs/RUNTIME.md) §5. Build image: `infra/k8s/import-images.sh`.
 
-Demo topology: Laptop 2 (web + bot) → tailnet / WSL IP → Laptop 1 WSL2 (backend). See `docs/RUNTIME.md`, `infra/k8s/README.md`.
+Demo topology: Laptop 2 (web + bot) → tailnet / WSL IP → Laptop 1 WSL2 (backend). See `docs/RUNTIME.md`.

@@ -325,7 +325,7 @@ Các câu hỏi MVP nên hỗ trợ:
 | --- | --- | --- |
 | generator-api | tracking-api | Tận dụng phần nhận request và publish Kafka; đổi endpoint, schema và topic. |
 | clients/generator | web-shop | Tận dụng web demo TMĐT, gắn Behavior SDK. |
-| spark-streaming | streaming-processor | Giữ Spark/Kafka/PostgreSQL integration; đổi schema và logic KPI. |
+| spark-streaming | streaming-processor | Đổi tên; **runtime Python** (kafka-python), không Spark; Kafka/PostgreSQL + KPI + Qdrant insight. |
 | dashboard-api | dashboard-api + chatbot-api | Giữ service cũ, thêm endpoint overview/funnel/products/chat. |
 | clients/dashboard | tracking dashboard + chatbot UI | Đổi card/chart từ business KPI sang behavior analytics. |
 | infra/docker/k8s | infra mới | Giữ Kafka/PostgreSQL/Nginx/K8s, thêm RabbitMQ/Qdrant nếu kịp. |

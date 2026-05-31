@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pipeline API Docs</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui.css"
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="/site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div>
+          <p class="eyebrow">Business Data Streaming Pipeline</p>
+          <h1>API Documentation</h1>
+          <p class="sub">
+            Request qua <strong>Vite proxy</strong> (tránh CORS). Chọn <strong>Server</strong>
+            <code>/proxy/dashboard</code> | <code>tracking</code> | <code>commerce</code> trước
+            <em>Try it out</em>.
+          </p>
+        </div>
+        <ul class="ports">
+          <li><span>dashboard-api</span> <code>:32000</code></li>
+          <li><span>tracking-api</span> <code>:31000</code></li>
+          <li><span>commerce-backend</span> <code>:30330</code></li>
+        </ul>
+      </div>
+    </header>
+    <div id="swagger-ui"></div>
+    <script
+      src="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui-bundle.js"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui-standalone-preset.js"
+      crossorigin="anonymous"
+    ></script>
+    <script src="/init.js"></script>
+  </body>
+</html>

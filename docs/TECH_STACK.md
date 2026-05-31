@@ -2,7 +2,7 @@
 
 Tổng hợp **công nghệ**, **vai trò**, và **luồng runtime** của toàn project (repo gốc + submodule `clients/web-shop`).
 
-**Liên quan:** [RUNTIME.md](RUNTIME.md) (deploy) · [REPO_MAP.md](REPO_MAP.md) (path) · [SPEC.md](SPEC.md) (spec) · [PORTS.md](../infra/PORTS.md) (port)
+**Liên quan:** [RUNTIME.md](RUNTIME.md) (deploy, port, CI/CD) · [REPO_MAP.md](REPO_MAP.md) (path) · [SPEC.md](SPEC.md) (spec) · [API.md](API.md) (REST)
 
 ---
 
@@ -167,7 +167,7 @@ dashboard-api/src/lib/chat/
       → data-loader (SQL Postgres — số thật)
       → rag-filters (search Qdrant pipeline_insights)
       → analyst-report + respond (template grounded)
-      → polish (Ollama qwen2.5:3b, tuỳ chọn, cap ~28s)
+      → polish (Ollama qwen2.5:3b, tuỳ chọn, cap `POLISH_TIMEOUT_CAP_MS` = 55s)
       → output.guard → JSON answer + action cards
 ```
 
@@ -379,7 +379,7 @@ RABBITMQ_URL=amqp://...@localhost:5672
 
 Login dashboard: `admin@gmail.com` / `admin@123` (Admin).
 
-Chi tiết port: [../infra/PORTS.md](../infra/PORTS.md).
+Chi tiết port: [RUNTIME.md §5](RUNTIME.md#5-url--port).
 
 ---
 
@@ -416,8 +416,13 @@ curl -X POST "http://<WSL_IP>:30330/api/orders" -H "Content-Type: application/js
 
 | File | Nội dung |
 |------|----------|
-| [RUNTIME.md](RUNTIME.md) | Deploy, troubleshoot, tắt stack |
+| [README.md](README.md) | Mục lục doc |
+| [RUNTIME.md](RUNTIME.md) | Deploy, port, Postgres, CI/CD, Headlamp |
 | [REPO_MAP.md](REPO_MAP.md) | Spec → path code |
 | [SPEC.md](SPEC.md) | Event schema, kiến trúc gốc |
-| [RabbitMQ docx](RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx) | Adapter standard chi tiết |
-| [clients/web-shop/README.md](../clients/web-shop/README.md) | API shop, RabbitMQ topology Lap2 |
+| [API.md](API.md) | REST + Swagger |
+| [BAO_CAO_DU_AN.md](BAO_CAO_DU_AN.md) | Báo cáo / luận văn |
+| [RabbitMQ docx](RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx) | Adapter standard |
+| [clients/web-shop/README.md](../clients/web-shop/README.md) | Shop Lap2 (submodule) |
+
+**Swagger localhost:** `cd clients/api-docs && npm run dev` → `:5190` — proxy `/proxy/dashboard|tracking|commerce`, xem [API.md](API.md).

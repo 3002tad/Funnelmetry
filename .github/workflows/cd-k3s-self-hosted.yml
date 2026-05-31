@@ -1,5 +1,5 @@
 # CD k3s — deploy on your WSL machine (self-hosted runner with label `k3s`).
-# Setup: docs/CI_CD.md § Self-hosted runner
+# Setup: docs/RUNTIME.md §14 CI/CD
 name: "CD k3s (self-hosted)"
 
 on:

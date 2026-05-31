@@ -146,6 +146,7 @@ export function composeAnalystReport({
   data,
   ragHits = [],
   actions = [],
+  sub_intents = [],
 }) {
   const k = data.kpi || {};
   const period = `${minutes} phút gần nhất`;
@@ -154,7 +155,13 @@ export function composeAnalystReport({
 
   lines.push(`## BỐI CẢNH PHÂN TÍCH`);
   lines.push(`- Cửa sổ: ${period}`);
-  lines.push(`- ${intentFocus(intent, data, minutes)}`);
+  if (intent === "compound" && sub_intents?.length) {
+    lines.push(
+      `- Câu hỏi kép (${sub_intents.length} phần): ${sub_intents.map((s) => `"${s.clause}" → ${s.intent}`).join("; ")}`
+    );
+  } else {
+    lines.push(`- ${intentFocus(intent, data, minutes)}`);
+  }
   lines.push(`- Câu hỏi người dùng: "${(userMessage || "").trim()}"`);
 
   lines.push(`\n## CHỈ SỐ CHÍNH (PostgreSQL)`);
@@ -299,6 +306,10 @@ function buildDeliveryHints(intent, data) {
     case "optimize":
     case "general":
       lines.push("- Tổng hợp 1 câu sức khỏe shop, rồi 1–2 vấn đề từ PHÁT HIỆN, rồi ưu tiên hành động.");
+      break;
+    case "compound":
+      lines.push("- Trả lời **từng phần** câu hỏi kép theo thứ tự; mỗi phần có số liệu riêng, không gộp lẫn.");
+      lines.push("- Dùng tiêu đề ngắn hoặc chuyển ý rõ giữa các phần.");
       break;
     default:
       if (Number(k.purchases) === 0 && Number(k.add_to_cart) > 0) {

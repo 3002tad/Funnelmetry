@@ -12,6 +12,7 @@ import {
 import { needsRagForIntent } from "./rag-filters.js";
 import { validateToolCall } from "./tool.registry.js";
 import { tryLlmPlanSlots } from "./llm-planner.js";
+import { isCompoundCandidate, splitCompoundClauses } from "./compound.js";
 
 const COMPARISON_RE = /so sánh|compare|với\s+(\d+)?\s*(giờ|phút)?\s*trước|kỳ trước|hôm qua/i;
 const TREND_RE = /xu hướng|trend|biến động|tăng|giảm/i;
@@ -49,8 +50,78 @@ export function extractEntities(message, memory) {
  * Rule-based query plan (fast path). LLM enrichment via buildPlanAsync when enabled.
  */
 export function buildPlan(message, { scope, memory } = {}) {
+  const compound = buildCompoundPlan(message, { scope, memory });
+  if (compound) return compound;
   return finalizePlan(message, resolveCorePlan(message, { scope, memory }));
 }
+
+function buildCompoundPlan(message, { scope, memory } = {}) {
+  if (scope?.decision === "deny" || !isCompoundCandidate(message)) return null;
+
+  const clauses = splitCompoundClauses(message);
+  if (!clauses) return null;
+
+  const subCores = clauses.map((clause) => ({
+    clause,
+    ...resolveCorePlan(clause, { scope, memory }),
+  }));
+
+  const analytics = subCores.filter((s) => !NON_COMPOUND_INTENTS.has(s.intent));
+  const uniqueIntents = [...new Set(analytics.map((s) => s.intent))];
+  if (uniqueIntents.length < 2) return null;
+
+  const minutes = extractMinutes(message, memory?.last_minutes ?? 60);
+  const entities = extractEntities(message, memory);
+  const product_sort =
+    analytics.find((s) => s.intent === "top_products")?.product_sort ||
+    extractProductSort(message) ||
+    memory?.last_product_sort ||
+    "views";
+
+  const toolSet = new Set();
+  for (const sub of analytics) {
+    for (const t of toolsForIntent(sub.intent, sub.clause)) {
+      toolSet.add(t);
+    }
+  }
+
+  const validated = [...toolSet].filter((name) => {
+    const v = validateToolCall(name, { minutes, limit: 20 });
+    return v.ok;
+  });
+
+  const needs_rag = analytics.some(
+    (s) => s.intent === "insights" || needsRagForIntent(s.intent) || s.intent === "comparison"
+  );
+
+  return {
+    intent: "compound",
+    compound: true,
+    sub_intents: analytics.map(({ clause, intent, product_sort: ps }) => ({
+      clause,
+      intent,
+      product_sort: ps,
+    })),
+    minutes,
+    product_sort,
+    entities,
+    tools: validated,
+    needs_rag,
+    from_memory: false,
+    planner_source: "compound",
+  };
+}
+
+const NON_COMPOUND_INTENTS = new Set([
+  "greeting",
+  "help",
+  "thanks",
+  "goodbye",
+  "ack",
+  "off_topic",
+  "general",
+  "optimize",
+]);
 
 function resolveCorePlan(message, { scope, memory } = {}) {
   const minutes = extractMinutes(message, memory?.last_minutes ?? 60);
@@ -183,6 +254,7 @@ export function applyLlmSlots(rulePlan, llmSlots, message, memory) {
 }
 
 function shouldUseLlmPlanner(message, rulePlan) {
+  if (rulePlan.intent === "compound" || rulePlan.compound) return false;
   if (detectStaticIntent(message, null, detectIntent(message) === "general")) return false;
   const rawIntent = detectIntent(message);
   if (STATIC_ANALYTICS_INTENTS.has(rawIntent) && rawIntent !== "general") return false;
@@ -276,6 +348,7 @@ function toolsForIntent(intent, message = "") {
     thanks: [],
     goodbye: [],
     off_topic: [],
+    compound: [],
     overview: ["fetchOverview", "fetchFunnel"],
     sessions: ["fetchOverview"],
     revenue: ["fetchOverview", "fetchRevenueTrend", "fetchFunnel"],

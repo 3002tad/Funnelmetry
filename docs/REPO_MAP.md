@@ -17,13 +17,14 @@
 | Demo Commerce Backend | `services/commerce-backend/` | có | Deploy, publish commerce events vào RabbitMQ |
 | Tracking API | `services/tracking-api/` | có | `POST /track` + `POST /api/ingest/business-events` → Kafka |
 | Kafka | `infra/k8s/data/kafka/` | có | Topic: `tracking_events_raw` |
-| Streaming Processor | `services/streaming-processor/` | có (placeholder) | Spark job: Kafka → Postgres + KPI |
+| Streaming Processor | `services/streaming-processor/` | có | Python consumer: Kafka → Postgres + KPI + Qdrant |
 | PostgreSQL | `infra/postgres/`, `infra/k8s/data/postgres/` | có | Schema + k8s init |
 | Qdrant | `infra/k8s/data/qdrant/` | có | Collection `pipeline_insights`; RAG chatbot |
 | Ollama | `infra/k8s/apps/ollama/` | có | LLM in-cluster; PVC `ollama-data` |
 | RabbitMQ | `infra/k8s/data/rabbitmq/` | có | Queue nội bộ cho commerce events |
 | Dashboard API + Chatbot API | `services/dashboard-api/` | có | `GET /api/*`, `POST /api/chat`, `GET /api/chat/insights` |
-| Dashboard + Chatbot UI | `clients/dashboard/` | có | Overview, funnel, product, `/admin/chat`, `/shop/chat` |
+| Dashboard + Chatbot UI | `clients/dashboard/` | có | `/shop/*` analytics + `/shop/chat`; admin `/admin/system` |
+| API docs (Swagger) | `clients/api-docs/` | có | localhost:5190 — không gắn dashboard UI |
 | Bot Simulator | `bot-simulator/` | shell | Playwright; chạy Laptop 2 (spec mạng) |
 | API Gateway / Nginx | `infra/nginx/` (TBD) | spec | Gom `/track`, `/api`, `/commerce`, dashboard |
 
@@ -35,7 +36,7 @@
 |-----------|-----------------|----------|
 | `generator-api` | `services/tracking-api/` | Nhận request, publish Kafka; đổi schema + topic |
 | `clients/generator` | `clients/web-shop/` | Web TMĐT + SDK |
-| `spark-streaming` | `services/streaming-processor/` | Đã đổi tên; giữ Spark/Kafka/Postgres; đổi logic KPI |
+| `spark-streaming` | `services/streaming-processor/` | Đổi tên; **runtime Python** (không Spark); Kafka/Postgres + KPI |
 | `dashboard-api` | `services/dashboard-api/` | Thêm overview, funnel, products, chat |
 | `clients/dashboard` | `clients/dashboard/` | Đổi KPI sang behavior analytics |
 | `infra` docker/k8s | `infra/k8s/` | k3s sprint1–3 |
@@ -58,7 +59,7 @@
 |------|-------------|------------|
 | Ingest (behavior + commerce) | `POST /track`, `/track/batch` | `services/tracking-api/` |
 | Raw events | Kafka `tracking_events_raw` | `infra` + producers |
-| Clean + KPI | Spark job | `services/streaming-processor/` |
+| Clean + KPI | Python streaming job | `services/streaming-processor/` |
 | Serving | `GET /api/overview`, `/api/funnel`, … | `services/dashboard-api/` |
 | Chat | `POST /api/chat` | `services/dashboard-api/` (module chatbot) |
 
@@ -69,10 +70,14 @@
 | Bảng (spec) | File đích | Status |
 |-------------|-----------|--------|
 | `tracking_events_clean` | `infra/postgres/001_tracking_schema.sql` | có (init on fresh volume) |
-| `tracking_kpi_1m` | ↑ | shell |
-| `product_kpi_1m` | ↑ | shell |
-| `banner_kpi_1m` | ↑ (§13) | shell |
-| `product_revenue_kpi_1m` | ↑ (§13) | shell |
+| `tracking_kpi_1m` | `001_tracking_schema.sql` | có |
+| `product_kpi_1m` | ↑ | có |
+| `banner_kpi_1m` | ↑ | có |
+| `product_revenue_kpi_1m` | ↑ | có |
+| `products_catalog` | `002_products_catalog.sql` | có |
+| `dashboard_users` | `003_dashboard_users.sql` | có |
+| `chat_sessions`, `chat_messages` | `004_chat_history.sql` | có |
+| `remove_from_cart` KPI cols | `005_remove_from_cart_kpi.sql` | có (migration; PVC cũ) |
 
 `init.sql` giữ extension bootstrap; migration numbered chạy sau init.
 
@@ -84,38 +89,43 @@
 |-------------|------------|----------|
 | tracking | *tách sang `tracking-api/`* | `/track`, `/track/batch` |
 | dashboard | `routes/overview.*`, `routes/products.*` | `/api/overview`, `/api/events/recent`, `/api/funnel`, `/api/products/top` |
-| chatbot | `routes/chat.*`, `lib/chat/`, `lib/rag/` | `/api/chat` |
+| chatbot | `routes/chat.js`, `lib/chat/*` | `/api/chat`, `/api/chat/sessions` |
 | health | `routes/health.*` | `/health` |
 
 ---
 
 ## 6. `services/streaming-processor/` pipeline (spec §0.2)
 
-| File spec | Path repo (tạo dần) |
-|-----------|---------------------|
-| `consumer.py` | `lib/consumer.py` |
-| `parser.py` | `lib/parser.py` |
-| `validator.py` | `lib/validator.py` |
-| `cleaner.py` | `lib/cleaner.py` |
-| `aggregator.py` | `lib/aggregator.py` |
-| `sink_postgres.py` | `lib/sink_postgres.py` |
-| `insight_generator.py` | `lib/insight_generator.py` |
+| Module | Path repo | Ghi chú |
+|--------|-----------|---------|
+| Kafka consumer loop | `main.py` | `kafka-python` consumer group |
+| `parser.py` | `lib/parser.py` | |
+| `validator.py` | `lib/validator.py` | |
+| `cleaner.py` | `lib/cleaner.py` | |
+| `aggregator.py` | `lib/aggregator.py` | Tumbling 1 phút |
+| `sink_postgres.py` | `lib/sink_postgres.py` | Idempotent upsert |
+| `insight_generator.py` | `lib/insight_generator.py` | → Qdrant |
+| `qdrant_client.py`, `embed.py` | `lib/` | Vector insight |
 
-Entrypoint hiện tại: `main.py` (placeholder health wait).
+**k8s:** `readinessProbe` / `livenessProbe` **chưa** khai báo cho deployment này (khác tracking-api/dashboard-api).
 
 ---
 
 ## 7. `clients/dashboard/` (spec §7)
 
-| Feature spec | Path gợi ý |
-|--------------|------------|
-| Overview cards | `src/features/overview/` |
-| Realtime event stream | `src/features/events/` |
-| Conversion funnel | `src/features/funnel/` |
-| Product analytics | `src/features/products/` |
-| Banner performance (§13) | `src/features/banners/` |
-| Chatbot UI | `src/features/chatbot/` |
-| System status | `src/features/system-status/` |
+| Feature | Path thực tế (React) |
+|---------|---------------------|
+| Overview | `src/pages/OverviewPage.jsx` |
+| Revenue | `src/pages/RevenuePage.jsx` |
+| Products / anomalies | `src/pages/ProductsPage.jsx` |
+| Funnel | `src/pages/FunnelPage.jsx` |
+| Live events + SSE | `src/pages/EventsPage.jsx`, `context/LiveStreamContext.jsx` |
+| Search / filters | `src/pages/SearchPage.jsx` |
+| Banners | `src/pages/BannersPage.jsx` |
+| Chat + history | `src/pages/ChatPage.jsx` |
+| Admin pipeline | `src/pages/SystemPage.jsx` |
+| Admin users / setup / insights | `src/pages/UsersPage.jsx`, `AdminSetupPage.jsx`, `AdminInsightsPage.jsx` |
+| Period `minutes` / `date` | `src/hooks/useManagerPeriod.js`, `src/lib/period.js` |
 
 ---
 
@@ -125,7 +135,7 @@ Entrypoint hiện tại: `main.py` (placeholder health wait).
 |------------|------|---------|
 | **k3s (runtime)** | `infra/k8s/sprint3/` | `k3s kubectl apply -k infra/k8s/sprint3` — NodePort 31000, 32000, 30809 |
 | Runtime doc | `docs/RUNTIME.md` | Nguồn chân lý deploy |
-| Port map | `infra/PORTS.md` | NodePort, CORS, tailnet |
+| Port map | `docs/RUNTIME.md` §5 | NodePort, CORS, tailnet |
 | Headscale / Tailscale | — | `docs/RUNTIME.md` §8 |
 | Laptop 1 backend | WSL2 + k3s | |
 | Laptop 2 demo + bot | `clients/web-shop`, `bot-simulator/` | `TRACKING_FORWARD_URL` → `http://lap1:31000/track` |
@@ -136,7 +146,7 @@ Entrypoint hiện tại: `main.py` (placeholder health wait).
 
 | Phase | Việc | Path chính |
 |-------|------|------------|
-| 0 | Infra Kafka + Postgres + streaming shell | `infra/`, `services/streaming-processor/` | **Done** |
+| 0 | Infra Kafka + Postgres + streaming | `infra/`, `services/streaming-processor/` | **Done** |
 | 1 | Schema Postgres + Tracking API + SDK + web-shop | `infra/postgres/`, `tracking-api/`, `sdk/`, `clients/web-shop/` | **Done** |
 | 2 | Streaming: consume `tracking_events_raw`, sink clean + KPI | `services/streaming-processor/lib/` | **Done** |
 | 3 | Dashboard API + UI overview/funnel/events/products | `dashboard-api/`, `clients/dashboard/` | **Done** |
@@ -153,13 +163,12 @@ Entrypoint hiện tại: `main.py` (placeholder health wait).
 ├── AGENTS.md
 ├── bot-simulator/              # Playwright bot (Laptop 2)
 ├── clients/
-│   ├── web-shop/               # Web TMĐT demo (submodule)
-│   └── dashboard/              # Analytics + chatbot UI
-├── docs/
-│   ├── README.md               # mục lục doc
-│   ├── RUNTIME.md              # deploy + mạng demo
-│   ├── REPO_MAP.md             # file này
-│   └── SPEC.md                 # spec kiến trúc / schema
+│   ├── web-shop/               # Web TMĐT demo (submodule); npm run adapter|worker
+│   ├── dashboard/              # Analytics + chatbot UI
+│   └── api-docs/               # Swagger localhost :5190
+├── docs/                       # **7 file markdown**
+│   ├── README.md, BAO_CAO_DU_AN.md, RUNTIME.md, TECH_STACK.md
+│   ├── SPEC.md, API.md, REPO_MAP.md
 ├── infra/
 │   ├── postgres/
 │   └── k8s/

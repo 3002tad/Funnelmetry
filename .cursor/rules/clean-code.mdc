@@ -21,7 +21,7 @@ alwaysApply: true
 |------|------|-------|
 | Streaming | `services/streaming-processor/` | Env config (`KAFKA_*`, `POSTGRES_*`); separate job setup from transforms |
 | API | `services/dashboard-api/` | Thin routes; logic in `lib/`; validate at boundary |
-| UI | `clients/dashboard/` | `features/`, `components/`, `hooks/` — colocate state with owner |
+| UI | `clients/dashboard/` | `pages/`, `components/`, `hooks/` — colocate state with owner |
 | Infra | `infra/` | Declarative only; no app logic |
 
 ## Avoid

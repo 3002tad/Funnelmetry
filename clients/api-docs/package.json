@@ -1,0 +1,14 @@
+{
+  "name": "pipeline-api-docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone Swagger UI — localhost only, not part of dashboard UI",
+  "scripts": {
+    "dev": "vite --port 5190 --open",
+    "build": "vite build",
+    "preview": "vite preview --port 5190 --open"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11"
+  }
+}

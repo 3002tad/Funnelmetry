@@ -68,12 +68,17 @@ async function tryPolishAnswer(brief, message, ollamaOpts) {
 async function fetchRagHits(message, plan) {
   if (!plan.needs_rag || !config.qdrant.url) return [];
   try {
-    const filter = buildQdrantFilters(plan.intent, plan.minutes);
+    const ragIntent =
+      plan.intent === "compound" && plan.sub_intents?.length
+        ? plan.sub_intents.find((s) => s.intent === "insights" || s.intent === "product_anomaly")?.intent ||
+          plan.sub_intents[0].intent
+        : plan.intent;
+    const filter = buildQdrantFilters(ragIntent, plan.minutes);
     const raw = await qdrant.searchByText(message, {
       limit: RAG_SEARCH_LIMIT,
       filter,
     });
-    return rerankInsights(raw, plan.intent).slice(0, RAG_PROMPT_LIMIT);
+    return rerankInsights(raw, ragIntent).slice(0, RAG_PROMPT_LIMIT);
   } catch (err) {
     console.warn("chat RAG search failed:", err.message);
     return [];
@@ -201,12 +206,15 @@ export async function handleChatMessage(message, options = {}) {
     data,
     ragHits,
     actions,
+    sub_intents: plan.sub_intents,
   };
   const brief = composeAnalystReport(reportCtx);
   const displayIntent =
-    plan.tools.length >= 3 && plan.intent === "general" && !plan.tools.includes("fetchTopProducts")
-      ? "optimize"
-      : plan.intent;
+    plan.intent === "compound"
+      ? "compound"
+      : plan.tools.length >= 3 && plan.intent === "general" && !plan.tools.includes("fetchTopProducts")
+        ? "optimize"
+        : plan.intent;
 
   let answer;
   let model_used = "analyst-template";
@@ -218,6 +226,7 @@ export async function handleChatMessage(message, options = {}) {
       ragHits,
       rewritten,
       actions,
+      sub_intents: plan.sub_intents,
     });
 
   if (!config.ollama.url) {
@@ -246,7 +255,11 @@ export async function handleChatMessage(message, options = {}) {
   const { text: safeAnswer, status: output_guard } = guardOutput(answer);
 
   updateSessionMemory(options.session_id, {
-    last_intent: STATIC_INTENT_NAMES.has(plan.intent) ? memory?.last_intent : plan.intent,
+    last_intent: plan.intent === "compound"
+      ? plan.sub_intents?.[0]?.intent || memory?.last_intent
+      : STATIC_INTENT_NAMES.has(plan.intent)
+        ? memory?.last_intent
+        : plan.intent,
     last_minutes: plan.minutes,
     last_product_sort: plan.product_sort,
     last_product_id: plan.entities?.product_id || null,

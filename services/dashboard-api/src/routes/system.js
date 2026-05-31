@@ -267,7 +267,7 @@ systemRouter.get("/api/system/setup", async (_req, res) => {
       },
     },
     deploy: "k3s kubectl apply -k infra/k8s/sprint3",
-    docs: ["infra/PORTS.md", "docs/RUNTIME.md", "docs/README.md"],
+    docs: ["docs/RUNTIME.md", "docs/README.md"],
     k8s_dashboard: {
       title: "Headlamp (Kubernetes UI)",
       description:

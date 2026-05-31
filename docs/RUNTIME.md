@@ -73,15 +73,36 @@ Chỉ xóa pod lỗi, giữ pod cũ đang chạy (nhanh, không rebuild):
 k3s kubectl -n realtime delete pod -l app=tracking-api --field-selector=status.phase!=Running
 ```
 
-## 5. URL truy cập
+## 5. URL & port
 
-`WSL_IP` = `hostname -I | awk '{print $1}'` (dùng từ Windows/Laptop 2, không dùng `localhost` cho NodePort).
+`WSL_IP` = `hostname -I | awk '{print $1}'` (dùng từ Windows/Laptop 2, không dùng `localhost` cho NodePort). Cập nhật `WSL_IP` / `VITE_*` trong `infra/.env`.
 
-| Dịch vụ | URL |
-|---------|-----|
-| Dashboard UI | `http://<WSL_IP>:30809` |
-| Tracking API | `http://<WSL_IP>:31000` |
-| Commerce backend | `http://<WSL_IP>:30330` |
+### NodePort (từ Windows / Laptop 2)
+
+| Dịch vụ | NodePort | URL |
+|---------|----------|-----|
+| tracking-api | **31000** | `http://<WSL_IP>:31000` — SDK `POST /track` |
+| commerce-backend | **30330** | `http://<WSL_IP>:30330` |
+| dashboard-api | **32000** | `http://<WSL_IP>:32000` |
+| dashboard-ui | **30809** | `http://<WSL_IP>:30809` — proxy `/api/` |
+| api-docs (Swagger) | **5190** | `http://localhost:5190` — `clients/api-docs`, Lap2 only |
+| web-shop dev | **3000** | `http://localhost:3000` — Lap2 |
+
+**Tailnet:** `http://lap1:31000`, `http://lap1:30330`, `http://lap1:30809` (nếu Tailscale trên WSL).
+
+### ClusterIP (trong cluster)
+
+| Dịch vụ | Port |
+|---------|------|
+| kafka | 9092 |
+| postgres | 5432 |
+| qdrant | 6333 |
+| ollama | 11434 (`http://ollama:11434`, PVC `ollama-data` 10Gi) |
+| rabbitmq | 5672 (AMQP) |
+
+**Port-forward:** `infra/k8s/port-forward-tracking.sh` → `:31000`; `port-forward-dashboard.sh` → UI `:8090`.
+
+Luôn `kubectl apply -k infra/k8s/sprint3` — không apply riêng `sprint1` (mất NodePort tracking).
 
 **Đăng nhập dashboard:** `admin@gmail.com` / `admin@123` (Admin) — tạo tài khoản Analytic trong Admin → Tài khoản.
 
@@ -340,7 +361,36 @@ Cluster Postgres **mới** (PVC trống): bảng có trong `infra/k8s/data/postg
 | `super_admin` | `/admin` — pipeline, tài khoản, K8s guide |
 | `analyst` | `/shop` — analytics, chat |
 
-## 12. Tắt / giảm tải (khi không demo)
+## 12. Quản trị k3s (UC12 — Kubernetes Admin)
+
+**Mục tiêu:** deploy, kiểm tra pod, xem log, cập nhật secret, restart — **không** phải dashboard phân tích shop (`/shop`).
+
+| UC12 (luận văn) | Thực hiện trong project |
+|-----------------|-------------------------|
+| Deploy / cập nhật manifest | `k3s kubectl apply -k infra/k8s/sprint3`; sau đổi code: `bash infra/k8s/rebuild-all-dev-images.sh` |
+| Kiểm tra pod / service | `k3s kubectl -n realtime get pods`; tuỳ chọn **Headlamp**: Admin → K8s Dashboard → `infra/k8s/ops/kubernetes-dashboard/` |
+| Xem log khi lỗi | `k3s kubectl -n realtime logs deploy/<tên> --tail=100`; `describe pod` |
+| Restart / secret | `rollout restart deployment/<tên>`; `patch secret app-secrets`; xem bảng lỗi §7 |
+| Giám sát sức khỏe pipeline (app) | Admin → **Pipeline Monitor** (`/api/system/pipeline`) — lag ingest/KPI, không thay kubectl |
+
+**Tiêu chí demo (pod `Running` / `Ready` trong `realtime`):**
+
+| Bắt buộc (UC) | Bổ sung (pipeline đủ) |
+|---------------|------------------------|
+| postgres, kafka, tracking-api, dashboard-api, qdrant | streaming-processor, dashboard-ui |
+| | ollama (chat), rabbitmq + commerce-backend (đơn hàng) |
+
+**Không deploy trong k3s:** `commerce-connector` — business events qua **adapter** trên Laptop 2 (`clients/web-shop`).
+
+**Ngoại lệ thường gặp:**
+
+- k3s chưa chạy → `sudo systemctl start k3s`
+- Image chưa import → `bash infra/k8s/import-images.sh` (hoặc `CLEAN=1` nếu layer lỗi)
+- Lap2 `TRACKING_INGEST_API_KEY` ≠ secret k3s → patch `app-secrets`, restart `tracking-api`
+
+CI tự deploy (tuỳ chọn): GitHub Actions — xem [§14 CI/CD](#14-cicd).
+
+## 13. Tắt / giảm tải (khi không demo)
 
 Stack chạy nền tốn **RAM/CPU** (đặc biệt Kafka, Postgres, Ollama). Chọn mức phù hợp:
 
@@ -433,3 +483,53 @@ Cài lại: `bash infra/k8s/install-k3s-wsl.sh` rồi deploy từ đầu (§4).
 | Nghỉ vài ngày, máy vẫn bị nặng | Mức 2 |
 | Dọn sạch stack, giữ k3s | Mức 3 |
 | Không dùng k3s trên máy này | Mức 4 |
+
+---
+
+## 14. CI/CD
+
+GitHub Actions trong [`.github/workflows/`](../.github/workflows/).
+
+| File | Khi chạy | Việc làm |
+|------|----------|----------|
+| [`ci.yml`](../.github/workflows/ci.yml) | PR + push `main` | Validate kustomize, `dashboard-api` tests, build UI, build **5** Docker image (không push) |
+| [`cd.yml`](../.github/workflows/cd.yml) | Push `main` | Build + push image lên **GHCR** |
+| [`cd-k3s-self-hosted.yml`](../.github/workflows/cd-k3s-self-hosted.yml) | Push `main` (runner WSL label `k3s`) | `import-images.sh` + `apply sprint3` + rollout |
+
+**CD GHCR:** Repo → Settings → Actions → **Read and write**. Kéo image: `docker pull ghcr.io/OWNER/REPO/tracking-api:TAG` → tag `:dev` → `k3s ctr images import`. Overlay: [`infra/k8s/overlays/ghcr/`](../infra/k8s/overlays/ghcr/).
+
+**Self-hosted runner (WSL):** Settings → Actions → Runners → New → `./config.sh` với label `k3s`. Deploy tay: `bash infra/k8s/rebuild-all-dev-images.sh`.
+
+CI/CD **không** build `clients/web-shop` submodule.
+
+---
+
+## 15. Postgres schema
+
+Nguồn SQL: [`infra/postgres/`](../infra/postgres/) — mount qua ConfigMap `postgres-init-sql` ([`configmap-init-sql.yaml`](../infra/k8s/data/postgres/configmap-init-sql.yaml)). Sửa schema → cập nhật **cả hai** hoặc PVC mới.
+
+| File | Nội dung |
+|------|----------|
+| `init.sql` | Extensions |
+| `001_tracking_schema.sql` | Events + KPI |
+| `002_products_catalog.sql` | Catalog demo |
+| `003_dashboard_users.sql` | Auth |
+| `004_tracking_kpi_revenue.sql` | Revenue columns |
+| `004_chat_history.sql` | Chat sessions/messages |
+| `005_remove_from_cart_kpi.sql` | Migration KPI (PVC cũ) |
+
+**FK:** `chat_sessions` → `dashboard_users`; `chat_messages` → `chat_sessions`. KPI join `product_id` theo app, không FK cứng.
+
+---
+
+## 16. Headlamp (K8s UI, tuỳ chọn)
+
+[Headlamp](https://headlamp.dev/) — ops cluster (khác Admin Pipeline `/admin/system` trong app).
+
+```bash
+bash infra/k8s/ops/kubernetes-dashboard/install.sh   # Helm, cần Helm 3
+bash infra/k8s/ops/kubernetes-dashboard/port-forward.sh   # http://localhost:8080
+bash infra/k8s/ops/kubernetes-dashboard/create-admin-token.sh   # Bearer token
+```
+
+Login → chọn namespace **`realtime`**. Token `admin-user` = `cluster-admin` — chỉ lab/demo.

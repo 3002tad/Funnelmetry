@@ -10,5 +10,5 @@ kind: Kustomization
 resources:
   - ../../sprint3
 
-# Replace :dev with GHCR after `kustomize edit set image` (see docs/CI_CD.md).
+# Replace :dev with GHCR after `kustomize edit set image` (see docs/RUNTIME.md §14).
 images: []

@@ -1,6 +1,6 @@
 # Agent context
 
-**Docs:** [`docs/README.md`](docs/README.md) · **Runtime:** [`docs/RUNTIME.md`](docs/RUNTIME.md) · **Stack:** [`docs/TECH_STACK.md`](docs/TECH_STACK.md) · **Spec:** [`docs/SPEC.md`](docs/SPEC.md) · **Map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md)
+**Docs:** [`docs/README.md`](docs/README.md) · **Chạy:** [`docs/RUNTIME.md`](docs/RUNTIME.md) · **Stack:** [`docs/TECH_STACK.md`](docs/TECH_STACK.md) · **Map:** [`docs/REPO_MAP.md`](docs/REPO_MAP.md)
 
 ## Mục tiêu
 
@@ -23,7 +23,7 @@ Web-shop + SDK → Tracking API → Kafka → Streaming → PostgreSQL + Qdrant 
 
 - Event-Driven + Pub/Sub + Pipeline (parse → validate → clean → aggregate → persist → insight)
 - Backend API: Controller–Service–Repository/Producer
-- Streaming: pipeline modules (`consumer`, `parser`, `aggregator`, `sink_postgres`, …)
+- Streaming: `main.py` + `lib/` (`parser`, `aggregator`, `sink_postgres`, `insight_generator`, …)
 - Chatbot: Service layer + RAG
 
 ## Triển khai demo (xem doc mạng)
@@ -37,7 +37,7 @@ Web-shop + SDK → Tracking API → Kafka → Streaming → PostgreSQL + Qdrant 
 | Có sẵn | Shell / phase sau |
 |--------|------------------|
 | Phase 1–6: tracking, streaming, dashboard, chatbot+Qdrant (commerce qua RabbitMQ path) | Phase 4: `bot-simulator` |
-| `infra/k8s/sprint3` + `infra/PORTS.md` | RabbitMQ + commerce-backend trên k3s; adapter/worker trên Lap2 |
+| `infra/k8s/sprint3` + `docs/RUNTIME.md` §5 | RabbitMQ + commerce-backend trên k3s; adapter/worker trên Lap2 |
 | `services/dashboard-api/`, `clients/dashboard/` | `POST /api/chat`, insight → Qdrant |
 
 Chi tiết path + phase: [`docs/REPO_MAP.md`](docs/REPO_MAP.md).

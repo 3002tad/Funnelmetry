@@ -33,10 +33,22 @@ function formatPeriod(minutes) {
   return `${m} phút gần nhất`;
 }
 
-export function formatAnswer(intent, { minutes, data, ragHits = [], rewritten = false, actions = [] }) {
+export function formatAnswer(
+  intent,
+  { minutes, data, ragHits = [], rewritten = false, actions = [], sub_intents = [] }
+) {
   const period = formatPeriod(minutes);
 
   switch (intent) {
+    case "compound": {
+      const parts = (sub_intents || []).map(({ intent: subIntent, clause }, i) => {
+        const body = formatAnswer(subIntent, { minutes, data, ragHits, rewritten, actions: [] });
+        const label = clause ? `**${i + 1}. ${clause}**` : `**Phần ${i + 1}**`;
+        return `${label}\n\n${body}`;
+      });
+      return withActions(parts.join("\n\n---\n\n"), actions);
+    }
+
     case "comparison": {
       const c = data.comparison || {};
       const d = c.delta || {};

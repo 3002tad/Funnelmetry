@@ -1,0 +1,94 @@
+:root {
+  --bar-bg: #0f172a;
+  --bar-fg: #e2e8f0;
+  --accent: #38bdf8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f8fafc;
+}
+
+.topbar {
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  padding: 1rem 1.5rem 1.25rem;
+  border-bottom: 3px solid var(--accent);
+}
+
+.topbar-inner {
+  max-width: 1460px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.topbar h1 {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.sub {
+  margin: 0;
+  max-width: 42rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.sub code {
+  background: #1e293b;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.ports {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: #1e293b;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.ports li {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  padding: 0.2rem 0;
+}
+
+.ports span {
+  color: #94a3b8;
+}
+
+.ports code {
+  color: var(--accent);
+}
+
+#swagger-ui {
+  max-width: 1460px;
+  margin: 0 auto;
+  padding: 0 1rem 2rem;
+}
+
+.swagger-ui .topbar {
+  display: none;
+}
