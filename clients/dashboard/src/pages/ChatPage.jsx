@@ -79,7 +79,6 @@ export function ChatPage() {
   const [sessionReady, setSessionReady] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState("");
-  const [insights, setInsights] = useState([]);
   const bottomRef = useRef(null);
   const sessionIdRef = useRef("");
 
@@ -165,21 +164,6 @@ export function ChatPage() {
       cancelled = true;
     };
   }, [loadMessages, persistSessionId, refreshSessions, useLocalSessionFallback]);
-
-  const loadInsights = useCallback(async () => {
-    try {
-      const d = await api.chatInsights(10);
-      setInsights(d.insights || []);
-    } catch {
-      setInsights([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadInsights();
-    const t = setInterval(loadInsights, 30000);
-    return () => clearInterval(t);
-  }, [loadInsights]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -273,11 +257,7 @@ export function ChatPage() {
 
   return (
     <>
-      <PageHeader
-        title="AI Chatbot"
-        subtitle="Hỏi về hành vi khách hàng — lịch sử chat lưu trên PostgreSQL khi đã migration"
-        live={false}
-      />
+      <PageHeader title="AI Chatbot" live={false} />
       <div className="mgr-content">
         {historyError ? (
           <p className="mgr-chat-history-warn" role="status">
@@ -403,21 +383,6 @@ export function ChatPage() {
               </div>
             </div>
           </DataPanel>
-
-          <section className="data-panel chat-insights">
-            <h3>Pipeline insights</h3>
-            {insights.length === 0 ? (
-              <ul className="insight-list">
-                <li className="insight-empty-item">Chưa có insight — cần traffic + flush KPI (~30s).</li>
-              </ul>
-            ) : (
-              <ul className="insight-list">
-                {insights.map((item, i) => (
-                  <li key={i}>{item.text}</li>
-                ))}
-              </ul>
-            )}
-          </section>
         </div>
       </div>
     </>

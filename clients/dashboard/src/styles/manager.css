@@ -1975,7 +1975,7 @@
 
 .mgr-chat-layout {
   display: grid;
-  grid-template-columns: minmax(200px, 220px) 1fr minmax(260px, 300px);
+  grid-template-columns: minmax(200px, 220px) 1fr;
   gap: 1.25rem;
   align-items: start;
 }
