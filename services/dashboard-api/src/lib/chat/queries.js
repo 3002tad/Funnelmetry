@@ -358,3 +358,82 @@ export async function fetchCatalogStats() {
   const [row] = await query(`SELECT COUNT(*)::int AS product_count FROM products_catalog`);
   return row || { product_count: 0 };
 }
+
+function normalizeLineItems(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.filter((i) => i && typeof i === "object");
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+const PURCHASE_EVENT_PREDICATE = `(
+  event_type = 'purchase_succeeded'
+  OR metadata->>'business_event_type' = 'order.completed'
+  OR (
+    COALESCE(metadata->>'order_id', metadata->>'orderCode', '') <> ''
+    AND COALESCE(NULLIF(metadata->>'amount', ''), NULLIF(metadata->>'total_amount', ''), '') <> ''
+  )
+)`;
+
+/** Recent purchase events with line items from metadata (no separate orders table). */
+export async function fetchRecentPurchases(
+  minutes,
+  calendarDate = null,
+  limit = 8,
+  focusOrderId = null,
+  { sortByAmount = false } = {}
+) {
+  const tf = kpiPeriodFilter("event_time", asPeriod(minutes, calendarDate), 1);
+  const limitIdx = tf.params.length + 1;
+  const orderSql = sortByAmount
+    ? "amount DESC NULLS LAST, event_time DESC"
+    : "event_time DESC";
+  const rows = await query(
+    `SELECT
+       event_id,
+       event_time,
+       session_id,
+       anonymous_id,
+       COALESCE(metadata->>'order_id', metadata->>'orderCode', '') AS order_id,
+       metadata->'items' AS items,
+       COALESCE(
+         NULLIF(metadata->>'amount', '')::numeric,
+         NULLIF(metadata->>'total_amount', '')::numeric,
+         0
+       ) AS amount
+     FROM tracking_events_clean
+     WHERE ${PURCHASE_EVENT_PREDICATE}${tf.clause}
+     ORDER BY ${orderSql}
+     LIMIT $${limitIdx}`,
+    [...tf.params, limit]
+  );
+
+  let orders = rows.map((row) => ({
+    event_id: row.event_id,
+    event_time: row.event_time,
+    session_id: row.session_id,
+    anonymous_id: row.anonymous_id,
+    order_id: row.order_id || null,
+    amount: Number(row.amount || 0),
+    items: normalizeLineItems(row.items),
+  }));
+
+  const focus = (focusOrderId || "").trim();
+  if (focus) {
+    const idx = orders.findIndex(
+      (o) => o.order_id === focus || o.event_id === focus || String(o.order_id || "").includes(focus)
+    );
+    if (idx > 0) {
+      const [match] = orders.splice(idx, 1);
+      orders = [match, ...orders];
+    }
+  }
+  return orders;
+}

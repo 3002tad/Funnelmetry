@@ -1,41 +1,13 @@
-import { useCallback, useMemo, useState } from "react";
-import { formatCalendarDayLabel, formatPeriodLabel } from "../lib/period.js";
+import { useManagerPeriodContext } from "../context/ManagerPeriodContext.jsx";
 
 /**
- * Manager dashboard period: rolling minutes OR a single calendar day (YYYY-MM-DD).
+ * Shared manager period (rolling minutes or calendar day).
+ * State lives in ManagerPeriodProvider + URL ?minutes= / ?date=.
  */
-export function useManagerPeriod(initialMinutes = 60) {
-  const [minutes, setMinutes] = useState(initialMinutes);
-  const [date, setDate] = useState("");
-
-  const selectMinutes = useCallback((m) => {
-    setDate("");
-    setMinutes(m);
-  }, []);
-
-  const selectDate = useCallback((d) => {
-    setDate(d || "");
-  }, []);
-
-  const periodLabel = useMemo(
-    () => (date ? formatCalendarDayLabel(date) : formatPeriodLabel(minutes)),
-    [date, minutes]
-  );
-
-  const periodKey = date || `m${minutes}`;
-
-  const periodParams = useMemo(
-    () => (date ? { date } : { minutes }),
-    [date, minutes]
-  );
-
-  return {
-    minutes,
-    date,
-    periodLabel,
-    periodKey,
-    periodParams,
-    selectMinutes,
-    selectDate,
-  };
+export function useManagerPeriod() {
+  const ctx = useManagerPeriodContext();
+  if (!ctx) {
+    throw new Error("useManagerPeriod must be used within ManagerPeriodProvider");
+  }
+  return ctx;
 }

@@ -24,7 +24,7 @@ function skuChartLabel(p, maxLen = 28) {
 }
 
 export function ProductsPage() {
-  const period = useManagerPeriod(60);
+  const period = useManagerPeriod();
   const topFetcher = useCallback(
     () => api.productsTop(period.periodParams, TABLE_LIMIT),
     [period.periodParams]

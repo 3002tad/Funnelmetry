@@ -20,6 +20,7 @@ export const VALID_INTENTS = new Set([
   "filters",
   "category",
   "orders",
+  "recent_purchases",
   "aov",
   "pageviews",
   "events",

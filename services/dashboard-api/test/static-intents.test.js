@@ -31,6 +31,24 @@ describe("static intents", () => {
     const hit = detectStaticIntent("còn hôm qua", { last_intent: "revenue" }, true);
     assert.equal(hit, null);
   });
+
+  it("allows giải thích tại sao after analytics answer", () => {
+    const hit = detectStaticIntent(
+      "giải thích tại sao",
+      { last_intent: "product_anomaly" },
+      true
+    );
+    assert.equal(hit, null);
+  });
+
+  it("allows month window follow-up after product_anomaly", () => {
+    const hit = detectStaticIntent(
+      "trong 1 tháng thì sao",
+      { last_intent: "product_anomaly" },
+      true
+    );
+    assert.equal(hit, null);
+  });
 });
 
 describe("analytics intents", () => {

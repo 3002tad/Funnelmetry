@@ -17,7 +17,7 @@ const TOP_N = 10;
 const LIMIT = 20;
 
 export function SearchPage() {
-  const period = useManagerPeriod(60);
+  const period = useManagerPeriod();
   const topFetcher = useCallback(() => api.searchTop(period.periodParams, LIMIT), [period.periodParams]);
   const filterFetcher = useCallback(() => api.searchFilters(period.periodParams), [period.periodParams]);
   const overviewFetcher = useCallback(() => api.overview(period.periodParams), [period.periodParams]);

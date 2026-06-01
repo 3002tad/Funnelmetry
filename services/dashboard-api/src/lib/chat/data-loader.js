@@ -13,6 +13,7 @@ import {
   fetchSearchFilters,
   fetchTopProducts,
   fetchTopSearches,
+  fetchRecentPurchases,
 } from "./queries.js";
 
 const day = (plan) => plan?.calendar_date || null;
@@ -25,7 +26,7 @@ const RUNNERS = {
       product_sort: plan?.product_sort || "views",
     })),
   fetchProductAnomalies: (m, plan) =>
-    fetchProductAnomalies(m, 5, day(plan)).then((anomalies) => ({ anomalies })),
+    fetchProductAnomalies(m, 8, day(plan)).then((anomalies) => ({ anomalies })),
   fetchFunnel: (m, plan) => fetchFunnel(m, day(plan)).then((funnel) => ({ funnel, ...funnel })),
   fetchBanners: (m, plan) => fetchBanners(m, 5, day(plan)).then((banners) => ({ banners })),
   fetchKpiComparison: (m) => fetchKpiComparison(m).then((comparison) => ({ comparison })),
@@ -42,6 +43,16 @@ const RUNNERS = {
   fetchCategoryPerformance: (m, plan) =>
     fetchCategoryPerformance(m, 10, day(plan)).then((categories) => ({ categories })),
   fetchCatalogStats: () => fetchCatalogStats().then((catalog) => ({ catalog })),
+  fetchRecentPurchases: (m, plan) => {
+    const focus = plan?.entities?.focus_order_id || null;
+    const sortByAmount = plan?.entities?.order_sort === "amount_desc";
+    const limit = sortByAmount ? 20 : 8;
+    return fetchRecentPurchases(m, day(plan), limit, focus, { sortByAmount }).then((recent_purchases) => ({
+      recent_purchases,
+      focus_order_id: focus,
+      order_sort: plan?.entities?.order_sort || null,
+    }));
+  },
   fetchBannerDetail: (m, plan) => {
     const ref = plan?.entities?.banner_id || plan?.entities?.banner_name;
     if (!ref) return Promise.resolve({});
@@ -78,6 +89,16 @@ export async function loadDataByPlan(plan) {
   if (intent === "optimize" && !data.funnel) {
     const funnel = await fetchFunnel(minutes, cal);
     Object.assign(data, { funnel, ...funnel });
+  }
+
+  if (
+    intent === "recent_purchases" &&
+    !data.recent_purchases?.length &&
+    Number(data.kpi?.purchases) > 0
+  ) {
+    data.products = await fetchTopProducts(minutes, 5, "revenue", cal);
+    data.product_sort = "revenue";
+    data.purchase_events_missing = true;
   }
 
   return data;

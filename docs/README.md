@@ -1,10 +1,11 @@
 # Tài liệu project
 
-Toàn bộ markdown nằm trong **`docs/`** (7 file). README thư mục con chỉ trỏ về đây.
+Toàn bộ markdown nằm trong **`docs/`**. README thư mục con chỉ trỏ về đây.
 
 | File | Đọc khi |
 |------|---------|
-| **[BAO_CAO_DU_AN.md](BAO_CAO_DU_AN.md)** | Báo cáo / luận văn — tổng quan đầy đủ |
+| **[BAO_CAO_DU_AN.md](BAO_CAO_DU_AN.md)** | Báo cáo / luận văn — **bắt đầu mục 0** nếu chưa nắm hệ thống |
+| **[PHU_LUC.md](PHU_LUC.md)** | **Phụ lục A–E** — schema JSON, API, cây repo, checklist Lap1/Lap2, ảnh/log |
 | **[RUNTIME.md](RUNTIME.md)** | **Chạy project:** k3s, port, web-shop, mạng, chatbot, CI/CD, Postgres schema, Headlamp |
 | **[TECH_STACK.md](TECH_STACK.md)** | Công nghệ + luồng behavior / commerce / chat |
 | **[SPEC.md](SPEC.md)** | Kiến trúc, event schema, pipeline |

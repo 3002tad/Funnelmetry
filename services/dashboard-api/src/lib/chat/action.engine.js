@@ -2,9 +2,21 @@
  * Rule-based action cards (Sprint 3).
  * @returns {Array<{ id, title, priority, impact, confidence, evidence, suggestion, owner_hint }>}
  */
+const FUNNEL_BANNER_INTENTS = new Set([
+  "optimize",
+  "funnel",
+  "checkout",
+  "cart_abandon",
+  "conversion",
+  "banner",
+  "overview",
+  "general",
+]);
+
 export function buildActionCards({ intent, data, ragHits = [], minutes }) {
   const cards = [];
   const period = `${minutes} phút gần nhất`;
+  const includeFunnelBanner = FUNNEL_BANNER_INTENTS.has(intent);
 
   for (const p of (data.anomalies || []).slice(0, 3)) {
     const sev = Number(p.severity_score) || p.views || 0;
@@ -21,7 +33,7 @@ export function buildActionCards({ intent, data, ragHits = [], minutes }) {
   }
 
   const worst = data.funnel?.worst_drop || data.worst_drop;
-  if (worst?.label && (worst.drop_off_rate || 0) > 0.2) {
+  if (includeFunnelBanner && worst?.label && (worst.drop_off_rate || 0) > 0.2) {
     cards.push({
       id: `funnel_${worst.step || worst.label}`,
       title: `Giảm rớt tại bước ${worst.label}`,
@@ -32,6 +44,10 @@ export function buildActionCards({ intent, data, ragHits = [], minutes }) {
       suggestion: "Rút ngắn form checkout hoặc hiển thị phí ship sớm hơn.",
       owner_hint: "product",
     });
+  }
+
+  if (!includeFunnelBanner) {
+    return cards.slice(0, 5);
   }
 
   for (const b of (data.banners || []).filter((x) => Number(x.impressions) >= 10 && Number(x.ctr) < 0.02).slice(0, 2)) {

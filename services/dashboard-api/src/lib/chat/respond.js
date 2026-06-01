@@ -1,4 +1,5 @@
 import { formatActionsMarkdown } from "./action.engine.js";
+import { formatCalendarDayLabel, formatPeriodLabel } from "../period.js";
 
 function fmt(n) {
   return Number(n || 0).toLocaleString("vi-VN");
@@ -22,27 +23,166 @@ function withActions(text, actions) {
   return text + formatActionsMarkdown(actions);
 }
 
-function formatPeriod(minutes) {
-  const m = Number(minutes);
-  if (!m) return "toàn bộ dữ liệu";
-  if (m >= 43200) return "30 ngày gần nhất";
-  if (m >= 10080) return "7 ngày gần nhất";
-  if (m >= 1440 && m % 1440 === 0) return `${m / 1440} ngày gần nhất`;
-  if (m >= 1440) return "24 giờ gần nhất";
-  if (m >= 60 && m % 60 === 0) return `${m / 60} giờ gần nhất`;
-  return `${m} phút gần nhất`;
+function formatViewPurchaseGapExplanation(products, period) {
+  const rows = (products || [])
+    .map((p) => ({
+      ...p,
+      views: Number(p.views) || 0,
+      purchases: Number(p.purchases) || 0,
+    }))
+    .filter((p) => p.views >= 3)
+    .map((p) => ({
+      ...p,
+      rate: p.views > 0 ? p.purchases / p.views : 0,
+    }))
+    .sort((a, b) => a.rate - b.rate || b.views - a.views);
+
+  if (!rows.length) {
+    return `_Chưa đủ dữ liệu sản phẩm trong ${period} để so sánh view/mua._`;
+  }
+
+  const zeroBuy = rows.filter((p) => p.purchases === 0 && p.views >= 5);
+  const lowCr = rows.filter((p) => p.purchases > 0 && p.rate > 0 && p.rate < 0.2 && p.views >= 5);
+
+  const lines = [];
+  if (zeroBuy.length) {
+    lines.push(
+      `**Nhiều view nhưng 0 mua** (quan tâm nhưng chưa chốt đơn):\n` +
+        zeroBuy
+          .slice(0, 5)
+          .map(
+            (p) =>
+              `- **${p.product_name}** (\`${p.product_id}\`): ${fmt(p.views)} view, 0 mua — có thể do giá, mô tả, CTA hoặc nghẽn checkout.`
+          )
+          .join("\n")
+    );
+  }
+  if (lowCr.length) {
+    lines.push(
+      `**View cao, mua thấp** (conversion SP < 20%):\n` +
+        lowCr
+          .slice(0, 5)
+          .map(
+            (p) =>
+              `- **${p.product_name}** (\`${p.product_id}\`): ${fmt(p.views)} view, ${fmt(p.purchases)} mua (~${pct(p.rate)})`
+          )
+          .join("\n")
+    );
+  }
+
+  const topView = [...rows].sort((a, b) => b.views - a.views)[0];
+  if (topView && topView.views >= 5 && topView.rate >= 0.25 && !zeroBuy.length && !lowCr.length) {
+    return (
+      `**Giải thích ${period}:**\n\n` +
+      `**${topView.product_name}** (\`${topView.product_id}\`) có **${fmt(topView.views)}** view và **${fmt(topView.purchases)}** mua (~**${pct(topView.rate)}** mua/view) — đây là SP **được quan tâm và có chuyển đổi**, không thuộc nhóm “xem nhiều nhưng không mua”.\n\n` +
+      `_Nếu bạn muốn SP “nhiều view, 0 mua”, hỏi lại: *sản phẩm nào nhiều view nhưng không mua* — mình sẽ liệt kê theo ngưỡng ≥5 view và 0 đơn._`
+    );
+  }
+  if (topView && !zeroBuy.find((p) => p.product_id === topView.product_id)) {
+    lines.push(
+      `_SP được xem nhiều nhất ${period}: **${topView.product_name}** — ${fmt(topView.views)} view, ${fmt(topView.purchases)} mua (~${pct(topView.rate)} mua/view)._`
+    );
+  }
+
+  if (!lines.length) {
+    return (
+      `Trong ${period}, các SP có traffic đều có tín hiệu mua — không thấy pattern “xem nhiều, mua ít” rõ ở ngưỡng ≥5 view. ` +
+      `_Có thể hỏi lại với cửa sổ dài hơn hoặc xem phễu checkout._`
+    );
+  }
+
+  return lines.join("\n\n");
+}
+
+function periodLabel(minutes, calendarDate = null) {
+  if (calendarDate) return formatCalendarDayLabel(calendarDate);
+  return formatPeriodLabel(minutes);
+}
+
+function formatPurchaseLineItem(item) {
+  const id = item.product_id || item.productId || item.sku || "—";
+  const name = item.name || item.product_name || id;
+  const qty = Number(item.quantity ?? item.qty ?? 1);
+  const unit = Number(item.price ?? item.unit_price ?? 0);
+  const lineTotal = unit * qty;
+  return `  - **${name}** (\`${id}\`) × ${fmt(qty)} — ${fmtMoney(lineTotal || unit)}`;
+}
+
+function formatRecentPurchasesBlock(orders, period, focusOrderId = null, opts = {}) {
+  const { highlightHighest = false, kpi = null, topProducts = [], eventsMissing = false } = opts;
+
+  if (!orders?.length) {
+    let text = `_Không có event mua hàng chi tiết trong ${period}._`;
+    const kpiPurchases = Number(kpi?.purchases || 0);
+    if (kpiPurchases > 0) {
+      text += `\n\nKPI tổng hợp vẫn ghi **${fmt(kpiPurchases)} đơn**, doanh thu **${fmtMoney(kpi.total_revenue)}** — số đó từ \`tracking_kpi_1m\`, không phải từng đơn lưu riêng.`;
+      if (eventsMissing) {
+        text += `\n\n_Cần commerce ingest (\`purchase_succeeded\` + \`metadata.items\`) trên Lap2 để hỏi chi tiết đơn._`;
+      }
+    }
+    if (topProducts?.length) {
+      text += `\n\n**Top sản phẩm theo doanh thu ${period}:**\n\n`;
+      text += topProducts
+        .map(
+          (p, i) =>
+            `${i + 1}. **${p.product_name}** (\`${p.product_id}\`) — ${fmtMoney(p.revenue)}`
+        )
+        .join("\n");
+      text += `\n\n_(Doanh thu theo sản phẩm — không thay cho một đơn cụ thể.)_`;
+    }
+    return text;
+  }
+
+  const formatOne = (o, i) => {
+    const oid = o.order_id || `event-${String(o.event_id || i + 1).slice(0, 8)}`;
+    const time = o.event_time ? new Date(o.event_time).toLocaleString("vi-VN") : "—";
+    const lines = (o.items || []).map(formatPurchaseLineItem);
+    const itemsText = lines.length ? lines.join("\n") : "  - _(không có `items[]` trong metadata)_";
+    return `**${oid}** · ${time} · ${fmtMoney(o.amount)}\n${itemsText}`;
+  };
+
+  if (highlightHighest && orders[0]) {
+    return (
+      `**Đơn có giá trị cao nhất ${period}:**\n\n` +
+      `${formatOne(orders[0], 0)}\n\n` +
+      (orders.length > 1
+        ? `_Các đơn khác:_\n\n${orders.slice(1, 4).map((o, i) => formatOne(o, i + 1)).join("\n\n")}`
+        : "")
+    );
+  }
+
+  return (
+    `**Các đơn gần nhất ${period}:**\n\n` +
+    orders.map((o, i) => formatOne(o, i)).join("\n\n") +
+    `\n\n_"Đơn đó" sau câu KPI tổng = đơn đầu tiên trong danh sách (gần nhất), không phải đơn lớn nhất từ tổng hợp._`
+  );
 }
 
 export function formatAnswer(
   intent,
-  { minutes, data, ragHits = [], rewritten = false, actions = [], sub_intents = [] }
+  {
+    minutes,
+    calendar_date = null,
+    data,
+    ragHits = [],
+    rewritten = false,
+    actions = [],
+    sub_intents = [],
+  }
 ) {
-  const period = formatPeriod(minutes);
+  const period = periodLabel(minutes, calendar_date);
 
   switch (intent) {
     case "compound": {
       const parts = (sub_intents || []).map(({ intent: subIntent, clause }, i) => {
-        const body = formatAnswer(subIntent, { minutes, data, ragHits, rewritten, actions: [] });
+        const body = formatAnswer(subIntent, {
+          minutes,
+          calendar_date,
+          data,
+          ragHits,
+          rewritten,
+          actions: [],
+        });
         const label = clause ? `**${i + 1}. ${clause}**` : `**Phần ${i + 1}**`;
         return `${label}\n\n${body}`;
       });
@@ -92,7 +232,7 @@ export function formatAnswer(
         : `Trong ${period}, shop có **${fmt(k.unique_sessions)}** phiên, **${fmt(k.purchases)}** đơn và doanh thu **${fmtMoney(k.total_revenue)}** (conversion ~${pct(k.conversion_rate)}). ` +
           `Traffic: ${fmt(k.page_views)} lượt xem trang, ${fmt(k.product_views)} xem SP; ${fmt(k.add_to_cart)} thêm giỏ, ${fmt(k.checkout_start)} checkout. ` +
           `Tổng ${fmt(k.total_events)} event trong cửa sổ này.`;
-      return withActions(`${body}\n\n*(Ollama chưa polish — trả lời template từ PostgreSQL.)*`, actions);
+      return withActions(body, actions);
     }
 
     case "checkout": {
@@ -284,13 +424,16 @@ export function formatAnswer(
     }
 
     case "product_anomaly": {
-      const lines = (data.anomalies || []).map(
+      const strict = (data.anomalies || []).map(
         (p) =>
-          `- **${p.product_name}** (${p.product_id}): ${fmt(p.views)} view, ${fmt(p.clicks)} click, **0 mua**`
+          `- **${p.product_name}** (\`${p.product_id}\`): ${fmt(p.views)} view, ${fmt(p.clicks)} click, **0 mua**`
       );
-      let text =
-        `**Sản phẩm nhiều view nhưng ít/không mua ${period}:**\n\n` +
-        (lines.length ? lines.join("\n") : "_Không phát hiện anomaly (cần ≥5 view và 0 mua)._");
+      let text = `**Sản phẩm nhiều view nhưng ít/không mua ${period}:**\n\n`;
+      if (strict.length) {
+        text += strict.join("\n");
+      } else {
+        text += formatViewPurchaseGapExplanation(data.products, period);
+      }
       if (ragHits.length) {
         text += `\n\n**Insight từ pipeline (Qdrant):**\n${ragHits.map((h) => `- ${h.text}`).join("\n")}`;
       }
@@ -318,10 +461,22 @@ export function formatAnswer(
       return `**Sessions ${period}:** ${fmt(k.unique_sessions)} session (theo KPI 1 phút, không trùng lặp giữa các cửa sổ).`;
     }
 
+    case "recent_purchases": {
+      return withActions(
+        formatRecentPurchasesBlock(data.recent_purchases, period, data.focus_order_id, {
+          highlightHighest: data.order_sort === "amount_desc",
+          kpi: data.kpi,
+          topProducts: data.products,
+          eventsMissing: data.purchase_events_missing,
+        }),
+        actions
+      );
+    }
+
     case "revenue": {
       const k = data.kpi || {};
       return withActions(
-        `Doanh thu ${period} là **${fmtMoney(k.total_revenue)}**, từ **${fmt(k.purchases)}** đơn trên **${fmt(k.unique_sessions)}** phiên (conversion ~${pct(k.conversion_rate)}).`,
+        `Trong **${period}**, shop đạt doanh thu **${fmtMoney(k.total_revenue)}** với **${fmt(k.purchases)}** đơn trên **${fmt(k.unique_sessions)}** phiên (conversion ~${pct(k.conversion_rate)}).`,
         actions
       );
     }

@@ -21,7 +21,8 @@
     "id": "comparison",
     "message": "So sánh 2 giờ này với 2 giờ trước",
     "expect_scope": "allow",
-    "expect_intent": "comparison"
+    "expect_intent": "comparison",
+    "expect_minutes": 120
   },
   {
     "id": "optimize",
@@ -46,5 +47,102 @@
     "message": "insight pipeline gần đây",
     "expect_scope": "allow",
     "expect_intent": "insights"
+  },
+  {
+    "id": "revenue_analyze_month",
+    "message": "phân tích doanh thu trong 1 tháng qua",
+    "expect_scope": "allow",
+    "expect_intent": "revenue",
+    "expect_minutes": 43200
+  },
+  {
+    "id": "top_purchases_one_week",
+    "message": "sản phẩm nào bán nhiều nhất trong 1 tuần",
+    "expect_scope": "allow",
+    "expect_intent": "top_products",
+    "expect_minutes": 10080
+  },
+  {
+    "id": "top_purchases_default_window",
+    "message": "sản phẩm nào đc mua nhiều nhất",
+    "expect_scope": "allow",
+    "expect_intent": "top_products",
+    "expect_minutes": 10080
+  },
+  {
+    "id": "revenue_month",
+    "message": "thu nhập tháng này",
+    "expect_scope": "allow",
+    "expect_intent": "revenue",
+    "expect_minutes": 43200
+  },
+  {
+    "id": "order_highest_followup",
+    "message": "trong các đơn đó đơn nào cao nhất",
+    "expect_scope": "allow",
+    "expect_intent": "recent_purchases",
+    "memory": { "last_intent": "orders", "last_minutes": 43200 },
+    "expect_minutes": 43200
+  },
+  {
+    "id": "order_items_followup",
+    "message": "đơn đó có sản phẩm nào",
+    "expect_scope": "allow",
+    "expect_intent": "recent_purchases",
+    "memory": { "last_intent": "recent_purchases", "last_minutes": 1440 }
+  },
+  {
+    "id": "revenue_followup_window",
+    "message": "thế còn sao?",
+    "expect_scope": "allow",
+    "expect_intent": "revenue",
+    "memory": { "last_intent": "revenue", "last_minutes": 120 },
+    "expect_minutes": 120
+  },
+  {
+    "id": "revenue_current_month",
+    "message": "doanh thu trong tháng hiện tại như thế nào",
+    "expect_scope": "allow",
+    "expect_intent": "revenue",
+    "expect_minutes": 43200
+  },
+  {
+    "id": "explain_why_short",
+    "message": "giải thích tại sao",
+    "expect_scope": "allow",
+    "expect_intent": "product_anomaly",
+    "memory": { "last_intent": "product_anomaly", "last_minutes": 43200 },
+    "expect_minutes": 43200
+  },
+  {
+    "id": "explain_view_buy_gap",
+    "message": "giải thích tại sao lại đc xem nhiều nhưng lại mua ít",
+    "expect_scope": "allow",
+    "expect_intent": "product_anomaly",
+    "memory": { "last_intent": "top_products", "last_minutes": 43200 },
+    "expect_minutes": 43200
+  },
+  {
+    "id": "top_products_month_only",
+    "message": "1 tháng",
+    "expect_scope": "allow",
+    "expect_intent": "top_products",
+    "memory": { "last_intent": "top_products", "last_minutes": 60 },
+    "expect_minutes": 43200
+  },
+  {
+    "id": "anomaly_month_followup",
+    "message": "trong 1 tháng thì sao",
+    "expect_scope": "allow",
+    "expect_intent": "product_anomaly",
+    "memory": { "last_intent": "product_anomaly", "last_minutes": 60 },
+    "expect_minutes": 43200
+  },
+  {
+    "id": "today_calendar",
+    "message": "doanh thu hôm nay",
+    "expect_scope": "allow",
+    "expect_intent": "revenue",
+    "expect_calendar": true
   }
 ]

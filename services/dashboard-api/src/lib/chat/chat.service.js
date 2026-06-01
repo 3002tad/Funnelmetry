@@ -5,6 +5,7 @@ import { composeAnalystReport } from "./analyst-report.js";
 import { formatAnswer } from "./respond.js";
 import { polishGroundedAnswer } from "./polish.js";
 import { guardOutput } from "./output.guard.js";
+import { isUnsafePolish } from "./polish-guard.js";
 import { classifyScope, REWRITE_NOTE } from "./scope.guard.js";
 import { buildQdrantFilters, rerankInsights } from "./rag-filters.js";
 import { buildPlanAsync } from "./planner.js";
@@ -28,6 +29,36 @@ const RAG_SEARCH_LIMIT = 12;
 const RAG_PROMPT_LIMIT = 5;
 // Full analyst brief + ~500 tokens often exceeds 30s on CPU WSL; stay under UI (~75s) / nginx (~90s).
 const POLISH_TIMEOUT_CAP_MS = 55_000;
+
+/** KPI / orders / products — numbers must match PostgreSQL exactly. */
+const GROUNDED_TEMPLATE_INTENTS = new Set([
+  "recent_purchases",
+  "product_detail",
+  "revenue",
+  "orders",
+  "aov",
+  "conversion",
+  "top_products",
+  "comparison",
+  "funnel",
+  "cart_abandon",
+  "checkout",
+  "category",
+  "banner_detail",
+  "sessions",
+  "pageviews",
+  "events",
+  "banner",
+  "trend",
+  "product_conversion",
+  "product_anomaly",
+  "search",
+  "filters",
+  "overview",
+]);
+
+/** Open-ended analysis — safe to polish for natural tone. */
+const POLISH_INTENTS = new Set(["optimize", "general", "insights", "compound"]);
 
 function modelAvailable(health, model) {
   if (!model || !health?.models?.length) return false;
@@ -56,6 +87,10 @@ async function tryPolishAnswer(brief, message, ollamaOpts) {
     const polished = await polishGroundedAnswer(brief, message, polishOpts);
     if (!polished || polished.length <= 40) {
       console.warn("chat: Ollama polish too short or empty");
+      return null;
+    }
+    if (isUnsafePolish(polished, brief)) {
+      console.warn("chat: discard polish — invented numbers/IDs");
       return null;
     }
     return polished;
@@ -202,6 +237,7 @@ export async function handleChatMessage(message, options = {}) {
   const reportCtx = {
     intent: plan.intent,
     minutes: plan.minutes,
+    calendar_date: plan.calendar_date || null,
     userMessage: message,
     data,
     ragHits,
@@ -222,6 +258,7 @@ export async function handleChatMessage(message, options = {}) {
   const fallback = () =>
     formatAnswer(displayIntent, {
       minutes: plan.minutes,
+      calendar_date: plan.calendar_date || null,
       data,
       ragHits,
       rewritten,
@@ -229,10 +266,13 @@ export async function handleChatMessage(message, options = {}) {
       sub_intents: plan.sub_intents,
     });
 
-  if (!config.ollama.url) {
+  const useGroundedTemplate = GROUNDED_TEMPLATE_INTENTS.has(plan.intent);
+  const mayPolish = config.ollama.url && POLISH_INTENTS.has(plan.intent) && brief;
+
+  if (!config.ollama.url || useGroundedTemplate) {
     answer = fallback();
-    model_used = "analyst-template";
-  } else if (brief) {
+    model_used = useGroundedTemplate ? "grounded-template" : "analyst-template";
+  } else if (mayPolish) {
     const polished = await tryPolishAnswer(brief, message, ollamaOpts);
     if (polished) {
       answer = polished;
@@ -245,7 +285,12 @@ export async function handleChatMessage(message, options = {}) {
 
   if (!answer || answer.length < 30) {
     answer = fallback();
-    model_used = config.ollama.url ? "template-fallback" : "analyst-template";
+    model_used =
+      useGroundedTemplate || !config.ollama.url
+        ? "grounded-template"
+        : config.ollama.url
+          ? "template-fallback"
+          : "analyst-template";
   }
 
   if (rewritten) {
@@ -254,6 +299,7 @@ export async function handleChatMessage(message, options = {}) {
 
   const { text: safeAnswer, status: output_guard } = guardOutput(answer);
 
+  const topPurchase = data.recent_purchases?.[0];
   updateSessionMemory(options.session_id, {
     last_intent: plan.intent === "compound"
       ? plan.sub_intents?.[0]?.intent || memory?.last_intent
@@ -261,11 +307,16 @@ export async function handleChatMessage(message, options = {}) {
         ? memory?.last_intent
         : plan.intent,
     last_minutes: plan.minutes,
+    last_calendar_date: plan.calendar_date || null,
     last_product_sort: plan.product_sort,
     last_product_id: plan.entities?.product_id || null,
     last_product_name: plan.entities?.product_name || null,
     last_banner_id: plan.entities?.banner_id || null,
     last_banner_name: plan.entities?.banner_name || null,
+    last_order_id:
+      plan.intent === "recent_purchases"
+        ? topPurchase?.order_id || topPurchase?.event_id || memory?.last_order_id || null
+        : memory?.last_order_id || null,
     last_message: message.slice(0, 200),
   });
 

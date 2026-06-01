@@ -20,6 +20,7 @@ PHONG CÁCH (giống chat tư vấn chuyên nghiệp, không phải slide):
 CẤM:
 - Không copy nguyên tiêu đề ## từ báo cáo.
 - Không bịa số, tên SP/banner, % mới.
+- Không thêm product_id dạng số (12345) — chỉ dùng mã có trong báo cáo (vd. P001).
 - Không khẳng định nguyên nhân như fact — dùng "có thể", "nên kiểm tra".
 - Không bảng markdown; tránh lặp cùng một con số >2 lần.
 

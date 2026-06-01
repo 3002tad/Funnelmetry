@@ -17,8 +17,10 @@ for (const c of cases) {
   const scope = classifyScope(c.message);
   let ok = scope.decision === c.expect_scope;
   if (c.expect_scope !== "deny") {
-    const plan = buildPlan(c.message, { scope });
+    const plan = buildPlan(c.message, { scope, memory: c.memory || null });
     if (c.expect_intent && plan.intent !== c.expect_intent) ok = false;
+    if (c.expect_minutes != null && plan.minutes !== c.expect_minutes) ok = false;
+    if (c.expect_calendar && !plan.calendar_date) ok = false;
   } else if (c.expect_intent !== "blocked_sensitive") {
     ok = false;
   }
@@ -27,7 +29,13 @@ for (const c of cases) {
     console.log(`OK  ${c.id}`);
   } else {
     fail++;
-    console.log(`FAIL ${c.id} scope=${scope.decision}`);
+    const plan =
+      c.expect_scope !== "deny"
+        ? buildPlan(c.message, { scope, memory: c.memory || null })
+        : null;
+    console.log(
+      `FAIL ${c.id} scope=${scope.decision} intent=${plan?.intent} minutes=${plan?.minutes} cal=${plan?.calendar_date}`
+    );
   }
 }
 

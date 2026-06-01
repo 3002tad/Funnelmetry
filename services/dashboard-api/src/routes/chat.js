@@ -16,16 +16,24 @@ chatRouter.post("/api/chat", async (req, res) => {
   if (!message) {
     return res.status(400).json({ error: "message_required" });
   }
-  const period = resolveAnalyticsPeriod(
-    { minutes: req.body?.minutes, date: req.body?.date },
-    60
-  );
+  const dateRaw = (req.body?.date || "").trim() || undefined;
+  const hasBodyMinutes = req.body?.minutes != null && req.body?.minutes !== "";
+  let minutes;
+  let date;
+  if (dateRaw) {
+    const period = resolveAnalyticsPeriod({ date: dateRaw }, 60);
+    date = period.type === "day" ? period.date : dateRaw;
+  } else if (hasBodyMinutes) {
+    const period = resolveAnalyticsPeriod({ minutes: req.body.minutes }, 60);
+    minutes = period.type === "rolling" ? period.minutes : undefined;
+  }
+
   const session_id = (req.body?.session_id || req.headers["x-chat-session"] || "").trim() || undefined;
 
   try {
     const result = await handleChatMessage(message, {
-      minutes: period.type === "rolling" ? period.minutes : undefined,
-      date: period.type === "day" ? period.date : undefined,
+      minutes,
+      date,
       session_id,
       user_id: req.user?.id,
     });

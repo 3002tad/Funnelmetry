@@ -1,11 +1,13 @@
 # Báo cáo chi tiết dự án — Business Data Streaming & Processing Pipeline
 
-> Tài liệu **đầy đủ** cho báo cáo / luận văn / demo. Tham chiếu: [`SPEC.md`](SPEC.md) · [`RUNTIME.md`](RUNTIME.md) · [`TECH_STACK.md`](TECH_STACK.md) · [`API.md`](API.md).
+> Tài liệu **đầy đủ** cho báo cáo / luận văn / demo.  
+> **Chưa nắm hệ thống?** Đọc **[mục 0](#0-hiểu-hệ-thống-trước-đọc-phần-này-trước)** trước. Các mục §1–§15 viết theo cùng phong cách: **kể chuyện + ví dụ**; bảng/schema chi tiết nằm ở **[Phụ lục A–E](PHU_LUC.md)** hoặc [`API.md`](API.md).
 
 ---
 
 ## Mục lục
 
+0. **[Hiểu hệ thống trước](#0-hiểu-hệ-thống-trước-đọc-phần-này-trước)** ← bắt đầu tại đây  
 1. [Tóm tắt](#1-tóm-tắt-executive-summary)  
 2. [Bối cảnh & mục tiêu](#2-bối-cảnh--mục-tiêu)  
 3. [Kiến trúc tổng thể](#3-kiến-trúc-tổng-thể)  
@@ -22,56 +24,250 @@
 14. [Kết quả & số liệu mẫu](#14-kết-quả--số-liệu-mẫu)  
 15. [Hạn chế & hướng phát triển](#15-hạn-chế--hướng-phát-triển)  
 16. [Tài liệu tham chiếu](#16-tài-liệu-tham-chiếu)  
-17. [Gợi ý cấu trúc báo cáo Word/PDF](#17-gợi-ý-cấu-trúc-báo-cáo-wordpdf)
+17. [Gợi ý cấu trúc báo cáo Word/PDF](#17-gợi-ý-cấu-trúc-báo-cáo-wordpdf)  
+— **[Phụ lục A–E](PHU_LUC.md)** (schema, API, cây thư mục, checklist, ảnh/log)
+
+---
+
+## 0. Hiểu hệ thống trước (đọc phần này trước)
+
+### Hệ thống này làm gì? (một câu)
+
+**Ghi lại mọi hành động trên web-shop (xem, click, mua…), xử lý thành số liệu theo phút, rồi hiển thị trên dashboard và cho chatbot trả lời dựa trên số thật trong database.**
+
+Không phải “web bán hàng” — web-shop chỉ là nơi phát sinh dữ liệu. Phần lõi là **pipeline analytics realtime** chạy trên Laptop 1 (k3s).
+
+---
+
+### Hai máy — ai làm việc gì?
+
+| Máy | Vai trò dễ nhớ | Chạy gì |
+|-----|------------------|---------|
+| **Laptop 2 (Windows)** | Cửa hàng + khách | Web TMĐT (`clients/web-shop`), SDK gửi hành vi, worker/adapter xử lý đơn hàng |
+| **Laptop 1 (WSL + k3s)** | Nhà máy số liệu | Nhận event, Kafka, xử lý, Postgres, dashboard, chatbot |
+
+Laptop 2 **không** tính KPI phức tạp. Laptop 1 **không** hiển thị giao diện shop cho khách. Hai máy nối nhau qua **WSL IP** hoặc **Tailscale** (`lap1`).
+
+---
+
+### Hai loại dữ liệu (đừng trộn)
+
+| Loại | Ví dụ | Ai gửi | Đi đường nào (tóm tắt) |
+|------|--------|--------|-------------------------|
+| **Behavior** (hành vi) | Xem trang, click SP, search | SDK trên trình duyệt | Web-shop → `POST /track` → Kafka → xử lý → Postgres |
+| **Commerce** (mua bán) | Tạo đơn, thanh toán, hủy đơn | Backend shop / commerce-api | RabbitMQ → worker → **adapter** → ingest có mật khẩu → Kafka → cùng pipeline behavior |
+
+Cả hai loại cuối cùng **gộp một topic Kafka** (`tracking_events_raw`) để dashboard nhìn **một nguồn sự thật**.
+
+---
+
+### Một câu chuyện từ đầu đến cuối
+
+**Kịch bản A — Khách chỉ xem sản phẩm**
+
+1. Bạn mở web-shop trên Lap2 (`localhost:3000`).
+2. SDK ghi: “vừa `page_view` / `product_view`”.
+3. Gói JSON gửi tới Lap1: `http://<WSL_IP>:31000/track`.
+4. `tracking-api` kiểm tra hợp lệ → bỏ vào **Kafka** (hàng chờ trung tâm).
+5. `streaming-processor` (Python) đọc Kafka → lưu event sạch + cộng KPI phút (view, session…).
+6. Mở dashboard Lap1 `:30809` → trang Overview / Events thấy số và event mới (vài giây sau).
+
+**Kịch bản B — Khách mua hàng (thêm bước đơn hàng)**
+
+1. Checkout trên web-shop → backend tạo đơn, bắn message **RabbitMQ** (`order.created`, …).
+2. **Worker** Lap2 xử lý đơn (giả lập kho/thanh toán) → sinh `order.completed`.
+3. **Adapter** Lap2 đọc queue → gọi `POST /api/ingest/business-events` (có **API key**).
+4. Từ đây **giống kịch bản A**: Kafka → streaming → Postgres → dashboard **Revenue** tăng.
+
+**Điểm cần nhớ:** mua hàng **không** nhảy thẳng từ trình duyệt vào Kafka — phải qua RabbitMQ + adapter để an toàn và giống TMĐT thật.
+
+---
+
+### Năm “hộp” trong đầu (thay vì nhớ 15 công nghệ)
+
+```text
+[1 Thu thập]  web-shop + SDK / adapter
+      ↓
+[2 Hàng chờ]  Kafka (tracking_events_raw)
+      ↓
+[3 Xử lý]     streaming-processor (làm sạch + KPI/phút)
+      ↓
+[4 Kho số]    PostgreSQL (+ Qdrant cho câu insight chat)
+      ↓
+[5 Hiển thị]  dashboard-ui + chatbot (đọc qua dashboard-api)
+```
+
+- **RabbitMQ** chỉ xuất hiện **trước hộp [2]** cho luồng commerce (Lap2), không thay Kafka.
+- **Ollama** chỉ giúp chat **nói cho mượt**; số vẫn lấy từ Postgres.
+
+---
+
+### Ba câu hỏi hay gặp khi đọc doc
+
+**“Tại sao cần Kafka, không ghi thẳng DB?”**  
+Vì API phải trả lời nhanh (`202`). Kafka giữ event khi processor tạm chậm/restart — không mất dữ liệu giữa chừng.
+
+**“Dashboard lấy số ở đâu?”**  
+**PostgreSQL** (bảng KPI phút). Chatbot cũng query SQL đó — nên câu trả lời và chart **cùng nguồn**.
+
+**“MongoDB ở đâu?”**  
+Chỉ trên **web-shop Lap2** (sản phẩm, giỏ, user shop). **Analytics** nằm hết trên Postgres Lap1.
+
+---
+
+### Đọc tiếp theo thứ tự nào?
+
+| Bạn muốn | Đọc mục |
+|----------|---------|
+| Nắm kiến trúc + sơ đồ | [§3 Kiến trúc](#3-kiến-trúc-tổng-thể) |
+| Hiểu từng bước event / field | [§4 Luồng dữ liệu](#4-luồng-dữ-liệu--schema-event) |
+| Tại sao chọn Kafka, Python, không Spark… | [§2.4 Công nghệ](#24-giải-thích-công-nghệ--tại-sao-chọn-cái-này-không-chọn-cái-khác) |
+| Cài và chạy demo | [`RUNTIME.md`](RUNTIME.md) |
+| API / Swagger | [`API.md`](API.md) |
+
+Chi tiết kỹ thuật (mục 5–9) đọc **sau** khi đã hình dung được 5 hộp ở trên.
 
 ---
 
 ## 1. Tóm tắt (Executive summary)
 
-Dự án **refactor** pipeline xử lý dữ liệu kinh doanh demo cũ thành **hệ thống tracking & analytics realtime** cho website TMĐT:
+Dự án **đổi mới** pipeline demo cũ thành hệ thống **ghi hành vi + đơn hàng TMĐT theo thời gian thực**, rồi cho analyst xem biểu đồ và hỏi chatbot bằng tiếng Việt.
 
-| Trục | Mô tả |
-|------|--------|
-| **Input** | Hành vi trình duyệt (SDK) + sự kiện thương mại (đơn hàng, giỏ, thanh toán) |
-| **Transport** | Kafka (`tracking_events_raw`); RabbitMQ cho commerce phía Lap2 |
-| **Processing** | Python streaming: validate → clean → aggregate 1 phút → Postgres + insight Qdrant |
-| **Serving** | REST API + React dashboard + chatbot tiếng Việt (RAG) |
-| **Deploy** | k3s trên WSL2 (Laptop 1); web-shop trên Windows (Laptop 2) qua Tailscale/WSL IP |
+**Luồng một câu:** web-shop phát sinh event → Kafka → Python gom KPI theo phút → Postgres → dashboard & chat.
 
-**Điểm khác biệt so với hệ thống cũ:** trọng tâm **user behavior** và KPI TMĐT (phễu, SP, banner, search), không còn business event đơn lẻ; commerce **không** đi thẳng vào Kafka từ browser mà qua adapter có xác thực.
+**Khác bản cũ ở đâu:** không còn Spark nặng laptop; KPI đúng ngữ cảnh TMĐT (phễu, SP, banner, revenue); commerce **không** nhét thẳng từ browser vào Kafka mà qua RabbitMQ + adapter + API key.
+
+**Triển khai demo:** Laptop 1 (k3s) chạy “nhà máy số liệu”; Laptop 2 (Windows) chạy web-shop + worker/adapter.
 
 ---
 
 ## 2. Bối cảnh & mục tiêu
 
-### 2.1 Bối cảnh
+### 2.1 Vì sao làm lại?
 
-- Repo gốc có generator API, Spark streaming, dashboard — phù hợp demo pipeline nhưng **schema và KPI** không phản ánh hành vi TMĐT.
-- Yêu cầu mới: mô phỏng sản phẩm thật (web-shop), bot/người dùng tạo traffic, hiển thị realtime trên dashboard, hỏi đáp bằng AI **dựa trên số liệu thật** trong DB.
+Repo ban đầu chứng minh được “có pipeline” (API → Kafka → xử lý → dashboard) nhưng **số liệu không giống TMĐT thật** — thiếu phễu xem–giỏ–mua, thiếu doanh thu theo phút, chat dễ lệch số.
 
-### 2.2 Mục tiêu chức năng
+Yêu cầu mới: có **web-shop giống cửa hàng thật**, traffic từ người/bot, dashboard nhích sau vài giây, chatbot **chỉ nói dựa trên DB** chứ không tự bịa.
 
-| ID | Mục tiêu | Tiêu chí đạt |
-|----|----------|--------------|
-| F1 | Thu thập event realtime | SDK + API nhận event &lt; 1s, trả 202 |
-| F2 | Chuẩn hóa schema | behavior + commerce cùng format tracking |
-| F3 | Lưu trữ & aggregate | Event sạch + KPI phút, idempotent khi restart |
-| F4 | Trực quan hóa | Overview, funnel, SP, revenue, banner, search |
-| F5 | Live feed | SSE event mới cho analyst |
-| F6 | Chatbot | Câu hỏi NL → SQL aggregate + RAG, chặn PII |
-| F7 | Vận hành demo | k3s, secret, 2 máy, tài liệu RUNTIME |
+### 2.2 Hệ thống phải làm được gì? (kể bằng ví dụ)
 
-### 2.3 Phạm vi
+- **F1 — Ghi event nhanh:** SDK bắn `product_view` → API trả `202` ngay, không làm web lag.
+- **F2 — Một ngôn ngữ event:** Hành vi (`page_view`) và mua hàng (`purchase_succeeded`) cùng format để một pipeline xử lý.
+- **F3 — Không mất số khi restart:** Processor tắt bật lại vẫn đọc tiếp Kafka; KPI upsert, không nhân đôi event.
+- **F4 — Dashboard đủ “bán hàng”:** Overview, phễu, SP, banner, search, revenue — không chỉ một chart chung.
+- **F5 — Thấy event sống:** Trang Events/SSE thấy click mới sau vài giây.
+- **F6 — Chat hỏi tiếng Việt:** “Doanh thu 1 giờ?” → SQL lấy số → RAG bối cảnh → trả lời; chặn hỏi email/phone/session cụ thể.
+- **F7 — Demo 2 laptop:** Lap1 k3s + Lap2 web-shop, có tài liệu chạy (`RUNTIME.md`).
 
-**Trong phạm vi:** toàn bộ luồng trên, admin monitor pipeline, quản lý user dashboard, ingest có API key, lịch sử chat, kỳ analytics `minutes` / `date`, câu hỏi kép (compound).
+### 2.3 Làm tới đâu, không làm tới đâu
 
-**Ngoài phạm vi (ghi nhận):** API Gateway nginx tập trung, bot Playwright hoàn chỉnh, TLS production, multi-tenant, data lake/offline batch.
+**Có trong đồ án:** ingest có key, admin xem pipeline, quản lý user, lịch sử chat, chọn kỳ `15p/1h/7 ngày` hoặc **một ngày** (`date`), câu hỏi ghép (compound).
+
+**Không làm (ghi nhận):** gateway nginx production, bot Playwright hoàn chỉnh, TLS/multi-tenant, data lake batch lớn.
+
+### 2.4 Giải thích công nghệ — tại sao chọn cái này, không chọn cái khác
+
+Mỗi mục gồm: **là gì** → **điểm nổi bật (so với phương án khác)** → **ví dụ trong project**.
+
+---
+
+**Node.js + Express** — runtime và framework viết API bằng JavaScript phía server.
+
+- **Điểm nổi bật:** Thay vì Java Spring hay .NET (nặng, setup lâu cho demo), Node cho phép dựng nhanh nhiều micro-service nhỏ (`tracking-api`, `dashboard-api`, `commerce-backend`) trên cùng một stack, xử lý I/O tốt khi vừa nhận HTTP vừa gọi Kafka/Postgres.
+- **Ví dụ:** `POST /track` nhận event từ SDK → validate trong vài ms → publish Kafka → trả `202` ngay, không chặn user trên web-shop.
+
+---
+
+**JWT + bcrypt** — đăng nhập không cần lưu session trên server từng request.
+
+- **Điểm nổi bật:** Thay vì session Redis (thêm một service) hoặc cookie phức tạp, JWT gắn role (`super_admin`, `analyst`) vào token; bcrypt đảm bảo mật khẩu trong DB không lộ plaintext — đủ cho demo bảo mật mà vẫn dễ triển khai trên k3s.
+- **Ví dụ:** Login `admin@gmail.com` → token → gọi `/api/overview` và `/admin/system` với quyền khác nhau.
+
+---
+
+**Kafka** — hàng đợi sự kiện dạng log, nhiều consumer đọc cùng topic, có offset.
+
+- **Điểm nổi bật:** Thay vì ghi thẳng từ API vào Postgres (API chậm khi DB nặng) hoặc Redis Pub/Sub (mất message khi restart, khó replay), Kafka **tách ingest và xử lý**: API chỉ publish, `streaming-processor` đọc sau; restart processor vẫn đọc tiếp offset — phù hợp pipeline realtime và báo cáo event-driven.
+- **Ví dụ:** Cả `page_view` (SDK) và `purchase_succeeded` (commerce) cùng topic `tracking_events_raw` → một luồng KPI thống nhất.
+
+---
+
+**RabbitMQ** — message broker kiểu hàng đợi + routing (exchange/queue).
+
+- **Điểm nổi bật:** Commerce không đẩy thẳng vào Kafka từ browser vì **không an toàn** (lộ queue, không kiểm soát). RabbitMQ + worker + adapter mô phỏng TMĐT thật: đơn hàng xử lý bất đồng bộ (`order.created` → worker → `order.completed`), adapter mới gọi ingest có **API key**. Dùng Kafka cho bước này cũng được nhưng RabbitMQ quen thuộc hơn với pattern “order queue + worker” trên web-shop Lap2.
+- **Ví dụ:** Checkout Lap2 → RabbitMQ → `npm run adapter` → `POST /api/ingest/business-events` (Bearer key) → Kafka.
+
+---
+
+**Python streaming-processor** (thay Spark cũ) — job đọc Kafka, transform, ghi DB.
+
+- **Điểm nổi bật:** Repo gốc dùng **Spark** — mạnh batch lớn nhưng **nặng RAM/CPU**, khó chạy ổn trên laptop WSL demo. Python + `kafka-python` đủ cho throughput demo, code pipeline (`parser` → `aggregator` → `sink_postgres`) **đọc được trong báo cáo**, deploy một container k3s, không cần cluster Spark.
+- **Ví dụ:** Event vào → `tracking_events_clean` + upsert `tracking_kpi_1m` mỗi `FLUSH_INTERVAL_SEC=5` giây.
+
+---
+
+**Tumbling window 1 phút** — gom KPI theo từng phút cố định (10:01–10:02), không trượt.
+
+- **Điểm nổi bật:** Thay vì chỉ đếm “tổng từ trước đến giờ” (khó so sánh theo thời gian) hoặc sliding window phức tạp, tumbling 1 phút **dễ giải thích** trên dashboard (“phút này bao nhiêu view/cart”) và khớp bảng `*_kpi_1m`.
+- **Ví dụ:** Trong phút hiện tại, mỗi lần flush cộng dồn `add_to_cart`, `revenue` — UI thấy nhích sau ~5–10 giây.
+
+---
+
+**PostgreSQL** — database quan hệ, truy vấn SQL.
+
+- **Điểm nổi bật:** MongoDB web-shop Lap2 giữ **dữ liệu shop** (sản phẩm, giỏ); analytics cần **JOIN, SUM, GROUP BY** theo phút/sản phẩm — Postgres làm tốt và **số chatbot = số dashboard** (cùng nguồn SQL). Thay vì đưa analytics vào Mongo (aggregate pipeline khó đọc) hoặc Elasticsearch (overkill cho demo).
+- **Ví dụ:** `GET /api/revenue` và chat “doanh thu 1 giờ qua” đều query `product_revenue_kpi_1m` / KPI tables.
+
+---
+
+**Qdrant** — lưu vector, tìm đoạn text “gần nghĩa”.
+
+- **Điểm nổi bật:** Postgres lưu số; không lưu tốt “insight dạng câu” để chat hỏi mơ hồ (“sản phẩm nào lạ”). Qdrant + embedding 384-d (không cần OpenAI) bổ sung **ngữ cảnh RAG** mà không nhét full text vào prompt. Thay vì chỉ keyword search (miss câu diễn đạt khác).
+- **Ví dụ:** `insight_generator` ghi “SP X view cao, mua thấp” → chat hỏi tương tự → retrieve từ `pipeline_insights`.
+
+---
+
+**RAG + Ollama** — trả lời AI nhưng bám dữ liệu thật; LLM chạy local.
+
+- **Điểm nổi bật:** Chat **thuần GPT/API** dễ bịa số. RAG: **Postgres = số chính xác**, Qdrant = bối cảnh, template/Ollama chỉ diễn đạt. **Ollama** thay ChatGPT cloud vì demo offline trên k3s, không API key, không phụ thuộc mạng; model `qwen2.5:3b` nhẹ — chậm thì fallback template, demo không “chết”.
+- **Ví dụ:** Hỏi “top sản phẩm ít mua” → SQL trả top 5 → câu trả lời không tự nghĩ ra con số.
+
+---
+
+**React + Vite** — UI component + build/dev nhanh.
+
+- **Điểm nổi bật:** Thay vì HTML tĩnh + jQuery (khó maintain nhiều trang chart/chat), React tách `/shop/*` vs `/admin/*`, state đồng bộ period/filter; Vite proxy WSL IP cho API — giảm lỗi CORS khi dev từ Windows.
+- **Ví dụ:** `EventsPage` + SSE cập nhật live; `ChatPage` gọi `/api/chat` có session.
+
+---
+
+**k3s + Kustomize** — Kubernetes nhẹ trên WSL; manifest theo layer sprint.
+
+- **Điểm nổi bật:** Thay vì docker-compose thuần (khó demo “deploy như production”) hoặc k8s full (quá nặng laptop), **k3s** chạy được trên Lap1; **Kustomize** `sprint1→2→3` thể hiện tiến độ dự án trong tài liệu. Một lệnh `apply -k sprint3` dựng đủ stack.
+- **Ví dụ:** NodePort `31000/30809` để Lap2 gọi thẳng, không port-forward thủ công mỗi lần.
+
+---
+
+**Tailscale / WSL IP** — hai máy nói chuyện được với nhau.
+
+- **Điểm nổi bật:** Lap2 Windows gọi `localhost:31000` **sai** (31000 nằm trên WSL Lap1). Tailnet hostname `lap1` hoặc `WSL_IP` trong `.env` là cách ổn định cho demo 2 laptop — thay vì sửa IP tay mỗi lần reboot WSL.
+- **Ví dụ:** `TRACKING_FORWARD_URL=http://172.x.x.x:31000/track` hoặc `http://lap1:31000/track`.
+
+---
+
+**Tóm lại điểm nổi bật của toàn stack:** tách rõ **ingest nhanh** (API + Kafka), **xử lý có thể restart** (consumer + Postgres), **commerce an toàn** (RabbitMQ + adapter + key), **AI không bịa số** (RAG), **chạy được trên laptop lab** (Python thay Spark, k3s thay cluster, Ollama thay cloud LLM).
 
 ---
 
 ## 3. Kiến trúc tổng thể
 
-### 3.1 Triển khai vật lý (2 laptop)
+*Cách đọc: hình dưới là “bản đồ”; đoạn chữ giải thích **ai nói chuyện với ai** — giống mục 0.*
+
+### 3.1 Hai laptop — nhìn hình rồi nhớ một câu
+
+**Laptop 2 phát sinh dữ liệu. Laptop 1 biến dữ liệu thành báo cáo.**
+
+### 3.1b Sơ đồ triển khai (2 laptop)
 
 ```text
 ┌──────────────────────── Laptop 2 (Windows) ────────────────────────────┐
@@ -93,7 +289,18 @@ Dự án **refactor** pipeline xử lý dữ liệu kinh doanh demo cũ thành *
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.2 Sơ đồ thành phần logic
+### 3.2 Luồng logic — đi từ web-shop đến dashboard
+
+Đọc sơ đồ từ **trên xuống dưới** như nước chảy:
+
+1. **Web-shop + SDK** gửi hành vi (`/track`).
+2. **tracking-api** kiểm tra + bỏ vào **Kafka** (`tracking_events_raw`).
+3. **streaming-processor** đọc Kafka → ghi **Postgres** (event + KPI) và **Qdrant** (insight).
+4. **dashboard-api** đọc Postgres/Qdrant/Ollama → **dashboard-ui** vẽ chart & chat.
+
+Nhánh ngang: **commerce-backend** → RabbitMQ → **adapter Lap2** → ingest (có key) → lại vào **tracking-api** → Kafka (cùng đường với behavior).
+
+### 3.2b Sơ đồ thành phần (chi tiết)
 
 ```text
                     ┌──────────────┐
@@ -133,59 +340,58 @@ Dự án **refactor** pipeline xử lý dữ liệu kinh doanh demo cũ thành *
   commerce-backend :30330 ──► RabbitMQ ──► adapter (Lap2) ──► ingest API
 ```
 
-### 3.3 Design pattern
+### 3.3 Cách thiết kế (nói đơn giản)
 
-| Pattern | Áp dụng cụ thể |
-|---------|----------------|
-| Event-Driven | Mọi tương tác user → event JSON |
-| Pub/Sub | Kafka consumer group streaming-processor |
-| Pipeline | 6+ bước xử lý trong Python (mục 6) |
-| Adapter | `business-event.mapper.js`: `order.completed` → `purchase_succeeded` |
-| Layered API | `routes/` → `lib/` service → `db.js` / Kafka / Qdrant |
-| RAG | Postgres (số) + Qdrant (ngữ cảnh) + Ollama (diễn đạt) |
-| RBAC | JWT role: `super_admin`, `analyst`, `viewer` |
+- **Event-driven:** Mỗi click/mua = một “phiếu ghi” JSON — không poll DB shop liên tục.
+- **Pub/Sub (Kafka):** API chỉ thả phiếu vào hàng; processor lấy ra xử lý — tách tải.
+- **Pipeline Python:** Phiếu đi qua từng bước (parse → sạch → KPI) — mục 6.
+- **Adapter commerce:** `order.completed` đổi thành `purchase_succeeded` trước khi vào Kafka — một thứ ngôn ngữ analytics.
+- **API 3 lớp:** Route → service → DB/Kafka — dễ sửa từng phần.
+- **RAG chat:** Số từ Postgres, chữ từ Qdrant, giọng từ Ollama — không trộn lộn vai.
+- **Phân quyền:** Admin vào `/admin`, analyst vào `/shop` — JWT gắn role.
 
-### 3.4 Pod / service k8s (sprint3)
+### 3.4 Trên k3s chạy những gì?
 
-Kustomize: `infra/k8s/sprint3` → gồm sprint2 + RabbitMQ + commerce-backend.
+Một lệnh `apply -k infra/k8s/sprint3` dựng **namespace `realtime`**:
 
-| Nhóm | Deployment (ví dụ) | Expose |
-|------|-------------------|--------|
-| Data | postgres, kafka, qdrant, rabbitmq | ClusterIP |
-| Apps | tracking-api, streaming-processor, dashboard-api, dashboard-ui, commerce-backend, ollama | NodePort (một số) |
+- **Trong cluster (không mở port ra ngoài):** postgres, kafka, qdrant, rabbitmq, ollama.
+- **Mở NodePort cho demo:** `31000` tracking, `30330` commerce, `32000` dashboard-api, `30809` dashboard-ui.
+
+Analyst trên Lap2 chỉ cần nhớ **WSL IP + các port** — không cần biết tên từng pod.
 
 ---
 
 ## 4. Luồng dữ liệu & schema event
 
-### 4.1 Luồng behavior — từng bước
+*Giống mục 0: hai câu chuyện A (xem SP) và B (mua hàng). Phần dưới là **tra cứu field** khi cần viết code/test.*
 
-| Bước | Thành phần | Hành động | HTTP / ghi chú |
-|------|------------|-----------|----------------|
-| 1 | User | Click, xem SP, search | Trên web-shop |
-| 2 | SDK | `track({ event_type, ... })` | Queue/batch gửi API |
-| 3 | tracking-api | `validateTrackingEvent` | 400 nếu lỗi schema |
-| 4 | tracking-api | `enrichEvent`: `event_id`, `timestamp`, `event_category` | Auto nếu thiếu |
-| 5 | tracking-api | Kafka `send`, key = `session_id` | Partition theo session |
-| 6 | API response | `202 { accepted, event_id }` | Không chờ streaming |
-| 7 | streaming-processor | Consume → `tracking_events_clean` | `ON CONFLICT DO NOTHING` |
-| 8 | Aggregator | Tumbling 1 phút | Flush định kỳ → bảng `*_kpi_1m` |
-| 9 | insight_generator | Text insight → embed → Qdrant | Collection `pipeline_insights` |
-| 10 | dashboard | Poll API / SSE | UI cập nhật |
+### 4.1 Câu chuyện behavior — từ click đến chart
 
-### 4.2 Luồng commerce
+1. User mở trang sản phẩm trên web-shop (Lap2).
+2. SDK gọi `track({ event_type: "product_view", ... })`.
+3. Request tới Lap1: `POST http://<WSL_IP>:31000/track`.
+4. **tracking-api** kiểm tra: thiếu `anonymous_id`/`session_id` → `400`; OK → thêm `event_id`, `timestamp` nếu thiếu.
+5. Ghi Kafka topic `tracking_events_raw`, key = `session_id` (event cùng phiên đi chung partition).
+6. API trả **`202`** — web không đợi DB.
+7. **streaming-processor** đọc message → 1 dòng `tracking_events_clean` (trùng `event_id` thì bỏ qua).
+8. Mỗi ~5 giây flush KPI phút: `page_views`, `product_views`, … lên `tracking_kpi_1m`.
+9. (Tuỳ) Sinh câu insight → Qdrant cho chat sau này.
+10. Dashboard: gọi `/api/overview` hoặc SSE `/api/events/stream` → thấy số/event mới.
 
-| Bước | Mô tả |
-|------|--------|
-| 1 | `POST /api/orders` (commerce-backend) hoặc route `/commerce/*` |
-| 2 | Publish message RabbitMQ (exchange/queue theo cấu hình web-shop) |
-| 3 | Worker Lap2: consume → map canonical business event |
-| 4 | `POST /api/ingest/business-events` + `Authorization: Bearer <TRACKING_INGEST_API_KEY>` |
-| 5 | Dedup `event_id` in-memory (tracking-api) → Kafka → giống behavior |
+**Nhớ:** bước 6 tách ingest và xử lý — lý do dùng Kafka.
 
-**Lý do:** Browser không giữ credential RabbitMQ; ingest có khóa riêng, chỉ adapter tin cậy gọi được.
+### 4.2 Câu chuyện commerce — từ checkout đến revenue
 
-### 4.3 Schema tracking event (ingest)
+1. User bấm đặt hàng → web-shop/commerce-backend tạo đơn.
+2. Message `order.created` vào **RabbitMQ** (không vào Kafka từ browser).
+3. **Worker** Lap2 (`npm run worker`) xử lý kho/thanh toán giả lập → ra `order.completed`.
+4. **Adapter** Lap2 (`npm run adapter`) gom batch → `POST /api/ingest/business-events` kèm **Bearer key**.
+5. tracking-api map `order.completed` → `purchase_succeeded` → **cùng topic Kafka** như behavior.
+6. Processor cộng `purchases`, `revenue` → trang **Revenue** dashboard tăng sau ~5–10 giây.
+
+**Vì sao vòng vèo:** browser không được cầm key ingest; RabbitMQ mô phỏng backend TMĐT thật.
+
+### 4.3 Phụ lục — schema tracking event (khi test API)
 
 | Trường | Bắt buộc | Ghi chú |
 |--------|----------|---------|
@@ -257,446 +463,276 @@ sequenceDiagram
 
 ---
 
-## 5. Thành phần phần mềm (chi tiết)
+## 5. Thành phần phần mềm — “ai làm việc gì”
 
-### 5.1 `sdk/browser-behavior-sdk/`
+*Mỗi khối = một vai trong phim. Path code chi tiết: [`REPO_MAP.md`](REPO_MAP.md).*
 
-- Export `createBehaviorSdk(config)` — `endpoint`, `anonymousId`, `sessionId`.
-- Tự gắn `event_source: browser_sdk`, `event_category: behavior`.
-- Hỗ trợ flush batch, debounce (theo implementation SDK).
+### 5.1 SDK — “người ghi chép trên trình duyệt”
 
-### 5.2 `services/tracking-api/`
+Gắn vào web-shop, mỗi lần user xem/click/search thì gửi JSON tới `TRACKING_FORWARD_URL`. Tự điền `browser_sdk` + `behavior`.  
+**Ví dụ:** `product_view` khi mở trang SP → Lap1 nhận qua `/track`.
 
-| File / module | Vai trò |
-|---------------|---------|
-| `routes/track.js` | `POST /track`, `/track/batch` — **không** auth |
-| `routes/ingest.js` | Business ingest + Bearer middleware |
-| `tracking.validator.js` | Schema behavior/commerce |
-| `lib/business-event.mapper.js` | Canonical → tracking payload |
-| `lib/business-event.dedup.js` | Tránh ingest trùng `event_id` |
-| `kafka.producer.js` | Gửi topic `tracking_events_raw` |
-| `tracking.service.js` | `enrichEvent`, `ingestOne`, `ingestBatch` |
+### 5.2 tracking-api — “cổng vào Kafka”
 
-**Giới hạn body JSON:** 512 KB (`express.json`).
+- **`/track`:** Cửa mở cho SDK — không cần login, chỉ validate schema.
+- **`/api/ingest/business-events`:** Cửa sau cho adapter — **bắt buộc API key**.
+- Bên trong: kiểm tra → bổ sung `event_id`/thời gian → publish Kafka → trả `202`.
 
-### 5.3 `services/commerce-backend/`
+**Ví dụ lỗi thường gặp:** thiếu `session_id` → `400`; key ingest sai → `401`.
 
-| Endpoint | Chức năng |
-|----------|-----------|
-| `POST /api/orders` | Tạo đơn → RabbitMQ `order.created` |
-| `POST /api/orders/:code/cancel` | Hủy đơn |
-| `POST /commerce/add-to-cart` | Shortcut publish commerce |
-| `POST /commerce/checkout-start`, `/purchase`, … | Các giai đoạn phễu commerce |
+### 5.3 commerce-backend — “backend đơn hàng giả trên k3s”
 
-**Không auth** — chỉ dùng demo nội bộ / mạng tin cậy.
+Nhận `POST /api/orders`, bắn RabbitMQ. Web-shop Lap2 có thể gọi `:30330` thay vì tự publish.  
+**Không phải** nơi tính KPI — chỉ phát sinh event nghiệp vụ.
 
-### 5.4 `services/dashboard-api/`
+### 5.4 dashboard-api — “bếp số liệu cho UI và chat”
 
-| Vùng | Path code | Mô tả |
-|------|-----------|--------|
-| Auth | `routes/auth.js` | Login JWT, bcrypt, sync admin từ env khi start |
-| Shop | `overview`, `funnel`, `products`, `revenue`, `search`, `banners`, `events` | Cần role analyst+ |
-| Chat | `routes/chat.js`, `lib/chat/*` | Planner, RAG, Ollama |
-| Admin | `routes/system.js`, `users.js` | Pipeline health, user CRUD |
-| Period | `lib/period.js` | `minutes`, `date` UTC, `kpiPeriodFilter` |
-| Zones | `lib/api-zones.js` | Tách router shop / chat / admin |
+- **Shop routes:** Đọc Postgres, trả JSON cho chart (`/api/overview`, `/api/funnel`, …).
+- **Chat:** Nhận câu hỏi → planner → SQL → RAG → Ollama polish → trả markdown.
+- **Admin:** `/api/system/pipeline` — một chỗ xem tracking/Kafka/streaming có sống không.
+- **SSE:** Event mới đẩy ra UI vì trình duyệt không gửi `Authorization` header trên EventSource.
 
-**SSE:** `GET /api/events/stream?token=<jwt>` — EventSource không gửi header Authorization.
+**Ví dụ:** Analyst chọn “1 giờ” → mọi API thêm `?minutes=60` nhờ `useManagerPeriod`.
 
-**Event poller:** đọc `tracking_events_clean` mới → `eventBus` → push SSE.
+### 5.5 dashboard-ui — “màn hình analyst & admin”
 
-### 5.5 `clients/dashboard/`
+- **`/shop/*`:** Người phân tích — chart, bảng event, chat.
+- **`/admin/*`:** Người vận hành — health pipeline, user, insight Qdrant.
+- Login một lần → JWT trong localStorage → nginx proxy `/api/` tới dashboard-api.
 
-| Route | Trang | Nội dung chính |
-|-------|-------|----------------|
-| `/login` | LoginPage | Email/password → JWT localStorage |
-| `/shop` | OverviewPage | KPI cards, trend, period pills + date picker |
-| `/shop/revenue` | RevenuePage | Doanh thu, AOV, theo danh mục |
-| `/shop/products` | ProductsPage | Top SP, anomaly (xem nhiều 0 mua) |
-| `/shop/funnel` | FunnelPage | Phễu + drop-off |
-| `/shop/events` | EventsPage | Bảng event gần đây + SSE |
-| `/shop/search` | SearchPage | Top query, filter usage |
-| `/shop/banners` | BannersPage | CTR banner |
-| `/shop/chat` | ChatPage | Chat + sidebar lịch sử session |
-| `/admin/system` | SystemPage | Health từng service, ingest trend |
-| `/admin/users` | UsersPage | CRUD user |
-| `/admin/setup` | AdminSetupPage | Port, env mẫu |
-| `/admin/insights` | AdminInsightsPage | Insight Qdrant |
+### 5.6 api-docs — “sổ tay API thử nhanh”
 
-**Hook:** `useManagerPeriod` — đồng bộ `minutes` / `date` lên query API.
-
-### 5.6 `clients/api-docs/`
-
-- Swagger UI **riêng** port **5190** — không nhúng dashboard.
-- Vite proxy `/proxy/dashboard|tracking|commerce` → WSL IP (tránh CORS).
-- OpenAPI: `public/openapi.yaml`.
+Swagger riêng `:5190`, proxy WSL IP — thử login, `/track`, ingest không cần nhúng vào dashboard.
 
 ---
 
-## 6. Streaming Processor
+## 6. Streaming Processor — “nhà máy gom số”
 
-**Entry:** `services/streaming-processor/main.py`  
-**Ngôn ngữ:** Python 3 (kafka-python, psycopg2).
+File chính: `services/streaming-processor/main.py` (Python). Nhiệm vụ: **đọc Kafka, viết Postgres, thỉnh thoảng ghi insight Qdrant**.
 
-### 6.1 Pipeline module
+### 6.1 Event đi qua từng “phòng”
 
-| Module | Chức năng |
-|--------|-----------|
-| `lib/parser.py` | Parse JSON Kafka message |
-| `lib/validator.py` | Kiểm tra field tối thiểu |
-| `lib/cleaner.py` | Chuẩn hóa timestamp, map field DB |
-| `lib/aggregator.py` | Tumbling window **1 phút** — shop KPI, product KPI, banner, revenue |
-| `lib/sink_postgres.py` | INSERT/UPSERT + `ON CONFLICT` |
-| `lib/insight_generator.py` | Sinh câu insight → Qdrant |
+Hình dung một event như hàng trên băng chuyền:
 
-### 6.2 Aggregator — logic nghiệp vụ
+1. **Parser** — bóc JSON từ Kafka.
+2. **Validator** — thiếu field quan trọng thì bỏ, log lỗi.
+3. **Cleaner** — chuẩn hóa giờ, trim text.
+4. **Aggregator** — bỏ vào “ô phút hiện tại”: +1 view, +1 cart, +revenue, …
+5. **Sink Postgres** — ghi dòng event + upsert KPI.
+6. **Insight generator** (khi có rule) — ví dụ “SP X nhiều view ít mua” → Qdrant.
 
-- **Shop (`tracking_kpi_1m`):** đếm `page_views`, `product_views`, `add_to_cart`, `remove_from_cart`, `purchases`, `revenue`, `unique_sessions` (session_id distinct trong phút), `conversion_rate`.
-- **Product:** bảng `product_kpi_1m`, `product_revenue_kpi_1m` — revenue từ `metadata.amount` / `items[]`.
-- **Banner:** `banner_kpi_1m` — impression/click, CTR.
-- **Flush:** cửa sổ đóng + snapshot phút hiện tại — **`FLUSH_INTERVAL_SEC=5`** trên k8s (UPSERT KPI mỗi chu kỳ, không chờ hết phút).
+### 6.2 KPI phút nghĩa là gì trên dashboard?
 
-### 6.3 Độ tin cậy
+- **Shop-wide:** `tracking_kpi_1m` — tổng view, cart, mua, tiền trong 1 phút.
+- **Theo SP:** `product_kpi_1m`, `product_revenue_kpi_1m`.
+- **Banner:** `banner_kpi_1m` — impression, click, CTR.
 
-- **Idempotent:** `event_id` PK trên `tracking_events_clean`; KPI upsert theo `(window_start[, product_id|banner_id])`.
-- **Restart:** consumer group tiếp tục offset; không nhân đôi event nếu đã ghi.
+Mỗi **5 giây** (`FLUSH_INTERVAL_SEC`) processor đẩy số ra DB — nên dashboard “nhích” trước khi hết phút, không phải đợi 60 giây mới thấy.
 
----
+### 6.3 Nếu pod restart thì sao?
 
-## 7. Cơ sở dữ liệu PostgreSQL
-
-**DB:** `realtime` · **User:** `app` (demo) · **Deploy:** PVC + init ConfigMap `postgres-init-sql`.
-
-### 7.1 `tracking_events_clean` (fact chi tiết)
-
-| Cột | Kiểu | Mô tả |
-|-----|------|--------|
-| `event_id` | VARCHAR PK | Duy nhất toàn hệ thống |
-| `event_time` | TIMESTAMP | Thời điểm event |
-| `event_type`, `event_source`, `event_category` | VARCHAR | Phân loại |
-| `anonymous_id`, `session_id`, `user_id` | VARCHAR | Định danh (nhạy cảm — chat chặn truy vấn) |
-| `page_url`, `product_id` | TEXT/VARCHAR | Ngữ cảnh |
-| `metadata` | JSONB | Linh hoạt (query search, amount, items) |
-| `created_at` | TIMESTAMP | Lúc ghi DB |
-
-### 7.2 `tracking_kpi_1m` (fact tổng hợp — phút)
-
-| Cột | Ý nghĩa |
-|-----|---------|
-| `window_start`, `window_end` | PK = `window_start` |
-| `page_views` … `purchases`, `remove_from_cart` | Counter phễu |
-| `revenue` | Tổng tiền phút (VND demo) |
-| `unique_sessions` | Số session phân biệt trong phút |
-| `conversion_rate` | purchases / sessions (aggregate API tính lại khi SUM nhiều phút) |
-| `processed_at` | Lần flush processor |
-
-### 7.3 Các bảng KPI khác
-
-- **`product_kpi_1m`:** PK `(window_start, product_id)` — views, cart, purchases, rates.
-- **`product_revenue_kpi_1m`:** thêm `views`, `clicks`, `revenue`, `checkout_start`.
-- **`banner_kpi_1m`:** PK `(window_start, banner_id)` — impressions, clicks, `ctr`.
-- **`products_catalog`:** dimension SP — `name`, `price`, `category` (seed P001–P006 + sync từ web-shop).
-
-### 7.4 Auth & chat
-
-**`dashboard_users`:** `id` UUID, `email` unique, `password_hash` bcrypt, `role`, `is_active`.
-
-**`chat_sessions`:** FK → `dashboard_users` ON DELETE CASCADE.  
-**`chat_messages`:** FK → `chat_sessions`; `role` = `user` \| `assistant`; `meta` JSONB (intent, model).
-
-### 7.5 Quan hệ (ER tóm tắt)
-
-```text
-dashboard_users 1───* chat_sessions 1───* chat_messages
-
-tracking_events_clean  ──(logic)──►  *_kpi_1m  ◄──(LEFT JOIN)──  products_catalog
-     (không FK)              product_id / window_start
-```
-
-**Thiết kế có chủ đích:** không FK event → catalog để streaming không fail khi SP mới chưa có trong catalog.
-
-### 7.6 Migration
-
-| File | Nội dung |
-|------|----------|
-| `001_tracking_schema.sql` | Bảng tracking + KPI |
-| `002_products_catalog.sql` | Seed catalog |
-| `003_dashboard_users.sql` | User + index |
-| `004_chat_history.sql` | Chat FK |
-| `005_remove_from_cart_kpi.sql` | Cột `remove_from_cart` trên KPI |
+- Kafka nhớ offset → đọc tiếp, không mất hàng đợi.
+- `event_id` trùng → không insert lại `tracking_events_clean`.
+- KPI upsert theo phút → cộng dồn đúng, không nhân đôi bảng phút.
 
 ---
 
-## 8. Dashboard API & UI
+## 7. Cơ sở dữ liệu — nhớ 3 nhóm bảng
 
-### 8.1 Port & URL
+Database `realtime` trên k3s (user `app`). **MongoDB chỉ ở web-shop Lap2** — đừng nhầm.
 
-| Dịch vụ | NodePort | Ghi chú |
-|---------|----------|---------|
-| tracking-api | 31000 | SDK + ingest |
-| commerce-backend | 30330 | |
-| dashboard-api | 32000 | Dev Vite proxy `/api` |
-| dashboard-ui | 30809 | Production UI nginx → API |
+### 7.1 Nhóm 1 — “Sổ ghi từng sự kiện” (`tracking_events_clean`)
 
-### 8.2 Bảng endpoint (dashboard-api)
+Mỗi dòng = một event đã làm sạch: ai (`anonymous_id`, `session_id`), làm gì (`event_type`), lúc nào (`event_time`), thêm gì (`metadata` — tiền, query search, …).
 
-| Method | Path | Role | Mô tả response |
-|--------|------|------|----------------|
-| POST | `/api/auth/login` | Public | `{ token, user }` |
-| GET | `/api/auth/me` | JWT | Profile |
-| PATCH | `/api/auth/change-password` | JWT | |
-| GET | `/api/overview` | Shop | `kpi`, `trend`, `period` |
-| GET | `/api/funnel` | Shop | `funnel[]` + drop_off_rate |
-| GET | `/api/products/top` | Shop | `limit`, sort views |
-| GET | `/api/products/anomalies` | Shop | views ≥ 5, purchases = 0 |
-| GET | `/api/revenue/summary` | Shop | AOV, completion rate |
-| GET | `/api/revenue/by-category` | Shop | |
-| GET | `/api/banners` | Shop | + `source`, `diagnostics` |
-| GET | `/api/search/top` | Shop | Từ `tracking_events_clean` |
-| GET | `/api/search/filters` | Shop | `filter_apply` events |
-| GET | `/api/events/recent` | Shop | Có `session_id` (analyst xem) |
-| GET | `/api/events/stream` | JWT query | SSE |
-| POST | `/api/chat` | Chat | `answer`, `intent`, `actions[]` |
-| GET/POST/DELETE | `/api/chat/sessions*` | Chat | Lịch sử |
-| GET | `/api/system/pipeline` | Admin | Health + metrics |
-| GET | `/api/system/setup` | Admin | Port/env hints |
-| GET | `/api/chat/insights` | Admin | Qdrant gần đây |
-| GET/POST/PATCH/DELETE | `/api/users` | Admin | |
+**Dùng cho:** trang Events, top search, debug “có event vào chưa”.  
+**Ví dụ:** Một `purchase_succeeded` có `metadata.amount` → revenue aggregator đọc số tiền từ đây.
 
-### 8.3 Tham số thời gian (`lib/period.js`)
+### 7.2 Nhóm 2 — “Bảng tổng theo phút” (`*_kpi_1m`)
 
-| Query | Hành vi |
-|-------|---------|
-| `minutes=60` | Rolling 60 phút (`NOW() - interval`) |
-| `minutes=0` hoặc `all` | Toàn bộ dữ liệu |
-| `date=2026-05-30` | Một ngày UTC `[00:00, 24:00)` — **ưu tiên** hơn `minutes` |
-| Max rolling | 43 200 phút (30 ngày) |
+Dashboard **không** SUM trực tiếp hàng triệu event mỗi lần load — nó đọc bảng đã gom sẵn:
 
-UI: period pills (15m, 30m, 1h, 24h, 7d, 30d, all) + **date picker** (`useManagerPeriod`).
+- `tracking_kpi_1m` — cả shop (view, cart, mua, revenue/phút).
+- `product_kpi_1m` / `product_revenue_kpi_1m` — theo sản phẩm.
+- `banner_kpi_1m` — banner impression/click.
+
+**Ví dụ:** Overview 1 giờ = cộng các dòng KPI trong 60 phút gần nhất.
+
+### 7.3 Nhóm 3 — “Người dùng dashboard & chat”
+
+- `dashboard_users` — ai login được, role gì.
+- `chat_sessions` + `chat_messages` — hội thoại chat lưu lại (FK user → session → message).
+
+`products_catalog` là **danh mục SP** để join tên/giá lên chart — không FK cứng từ event (SP mới vẫn ghi event được).
+
+### 7.4 Quan hệ — một câu
+
+Chat gắn user; event/KPI gắn `product_id` bằng logic app, không ép FK để pipeline không vỡ khi catalog chưa kịp seed.
+
+### 7.5 Phụ lục — file SQL khởi tạo
+
+`infra/postgres/001`…`005` + configmap k8s — xem [`RUNTIME.md` §15](RUNTIME.md#15-postgres-schema).
 
 ---
 
-## 9. Chatbot analytics (RAG)
+## 8. Dashboard — analyst nhìn gì, admin nhìn gì
 
-### 9.1 Pipeline xử lý một câu hỏi
+### 8.1 Hai “cửa” vào hệ thống
 
-```text
-message
-  → classifyScope (deny | rewrite | allow)
-  → buildPlanAsync (rule + optional LLM planner)
-  → loadDataByPlan (tool.registry whitelist → SQL)
-  → fetchRagHits (Qdrant, filter intent)
-  → composeAnalystReport (template số liệu)
-  → tryPolishAnswer (Ollama, timeout ~55s)
-  → guardOutput (redact email, phone, session_id)
-  → persistChatTurn (Postgres history)
-  → buildActionCards (gợi ý hành động UI)
-```
+- **Analyst** mở `http://<WSL_IP>:30809` → login → vào **`/shop`** (chart, event, chat).
+- **Admin** cùng URL nhưng role `super_admin` → thêm **`/admin`** (pipeline, user).
 
-### 9.2 Intent (ví dụ)
+UI gọi API qua nginx proxy `/api/`; dev có thể gọi thẳng `:32000`.
 
-Planner/rule map câu tiếng Việt → intent: `overview`, `revenue`, `funnel`, `top_products`, `product_anomaly`, `banners`, `search`, `insights`, `help`, `compound`, …
+### 8.2 Một phiên làm việc của analyst
 
-**Compound:** tách câu theo ` và `, `,`, `;` — gộp nhiều intent trong một lượt.
+1. Chọn khoảng thời gian: pill “1 giờ” hoặc chọn **một ngày** trên date picker.
+2. **Overview** — tổng view, cart, revenue (từ KPI phút).
+3. **Funnel** — rơi ở bước nào (view → cart → checkout → mua).
+4. **Products** — SP hot / SP xem nhiều không mua.
+5. **Events** — bảng + SSE: thấy click vừa xảy ra.
+6. **Chat** — hỏi “doanh thu và top SP hôm nay?” (compound).
 
-### 9.3 Tool whitelist (`tool.registry.js`)
+Mọi trang dùng chung `minutes` hoặc `date` — đổi pill một lần, cả dashboard đồng bộ.
 
-Không cho LLM chạy SQL tùy ý. Chỉ các tool: `fetchOverview`, `fetchTopProducts`, `fetchFunnel`, `fetchBanners`, `fetchRevenueTrend`, `fetchTopSearches`, `searchInsights`, … — mỗi tool có `maxMinutes`, `maxLimit`.
+### 8.3 Admin làm gì khác?
 
-### 9.4 Scope guard (bảo vệ PII)
+Vào **Pipeline Monitor** (`/admin/system`): tracking-api có sống không, Kafka lag không, lần flush KPI gần nhất, Ollama có model chưa — **một màn hình** thay vì mò từng pod.
 
-Chặn từ khóa: email, phone, session_id, dump database, danh sách khách cụ thể, …  
-**Rewrite:** câu hỏi dạng “user nào mua” → chuyển sang funnel/revenue aggregate.
+### 8.4 Phụ lục — API tham chiếu
 
-### 9.5 Qdrant & Ollama
-
-| Thành phần | Cấu hình |
-|------------|----------|
-| Collection | `pipeline_insights` (env `QDRANT_COLLECTION`) |
-| Embedding | Hash-based 384-d (không OpenAI API) |
-| Ollama | Model `qwen2.5:3b`, PVC `ollama-data` 10Gi |
-| Polish | Temperature/throttle riêng `CHAT_POLISH_*` |
+Danh sách endpoint đầy đủ: [`API.md`](API.md) · thử trực tiếp: Swagger `:5190`.
 
 ---
 
-## 10. Bảo mật
+## 9. Chatbot — một câu hỏi đi đâu?
 
-### 10.1 Ma trận
+### 9.1 Ví dụ: “Doanh thu 1 giờ qua bao nhiêu?”
 
-| Tài sản | Biện pháp | Ghi chú demo |
-|---------|-----------|--------------|
-| Dashboard API | JWT HS256, expiry `JWT_EXPIRES` | |
-| Mật khẩu user | bcrypt | Sync admin từ secret k8s |
-| Ingest | Bearer `TRACKING_INGEST_API_KEY` | 401 nếu sai |
-| `/track` | Chỉ validation | Có thể spam nếu lộ URL |
-| Postgres | ClusterIP + secret | Không NodePort |
-| Chat | Scope + output guard | Không thay thế anonymize DB |
-| CORS dashboard | `CORS_ORIGIN_DASHBOARD` | Vite dev + UI :30809 |
+1. UI gửi `POST /api/chat` + JWT + `minutes: 60`.
+2. **Scope guard** — câu hỏi có hợp lệ không? (không hỏi email/phone khách cụ thể).
+3. **Planner** — hiểu intent = `revenue` / `overview`.
+4. **Tool** chạy SQL đã viết sẵn (`fetchRevenueTrend`) — **không** để AI tự viết `SELECT *`.
+5. Lấy thêm vài insight gần nghĩa từ **Qdrant** (nếu có).
+6. **Template** ghép câu trả lời với **số thật** từ bước 4.
+7. **Ollama** (tuỳ chọn) viết lại cho mượt — timeout ~55s, lỗi thì giữ template.
+8. **Output guard** — che session_id, SĐT nếu lọt.
+9. Lưu vào `chat_messages` — mở lại sidebar vẫn thấy.
 
-### 10.2 Phân quyền
+**Điểm nổi bật:** chat không “nghĩ ra” doanh thu; nó **đọc cùng DB** với trang Revenue.
 
-| Role | `/shop` | `/admin` | Chat |
-|------|---------|----------|------|
-| `analyst` | Có | Không | Có |
-| `viewer` | Có (legacy) | Không | Có |
-| `super_admin` | Có | Có | Có |
+### 9.2 Câu ghép (compound)
 
-### 10.3 Secret k8s (`app-secrets`)
+“Doanh thu 1 giờ **và** top 3 sản phẩm?” → tách 2 intent → 2 tool → gộp một câu trả lời.
 
-`POSTGRES_*`, `JWT_SECRET`, `DASHBOARD_ADMIN_*`, `RABBITMQ_*`, `TRACKING_INGEST_API_KEY`, … — tạo một lần theo `RUNTIME.md` §4.
+### 9.3 Câu bị chặn / đổi hướng
+
+- “Cho tôi email khách mua hôm nay” → **từ chối** hoặc đổi sang thống kê tổng (funnel/revenue).
+- Mục tiêu demo: analytics tổng hợp, không CRM cá nhân.
 
 ---
 
-## 11. Triển khai k3s & môi trường 2 laptop
+## 10. Bảo mật — ai được làm gì
 
-### 11.1 Cài đặt Laptop 1 (tóm tắt)
+**Dashboard:** Phải login → JWT. Mật khẩu lưu dạng hash (bcrypt). Admin tạo từ secret k8s lúc deploy.
+
+**Ingest commerce:** Chỉ adapter có **API key** — gọi sai key → `401`. Đây là “cửa sau” khóa, khác cửa `/track` mở cho SDK.
+
+**`/track`:** Chỉ kiểm tra schema, **không** login — tiện demo nhưng ai biết URL có thể spam (ghi nhận hạn chế production).
+
+**Postgres:** Không mở ra internet — chỉ pod trong cluster đọc được.
+
+**Chat:** Không trả lại email/phone/session cụ thể; câu hỏi nhạy cảm bị chặn hoặc đổi sang số tổng.
+
+**Ba role:** `analyst` = shop + chat; `super_admin` = thêm admin; `viewer` = shop (legacy).
+
+Secret gom trong `app-secrets` — tạo một lần theo [`RUNTIME.md` §4](RUNTIME.md#4-secret--deploy).
+
+---
+
+## 11. Chạy demo 2 laptop — checklist
+
+### 11.1 Laptop 1 (WSL) — dựng “nhà máy”
+
+1. Clone repo, `cp infra/.env.example infra/.env`, sửa `WSL_IP` + mật khẩu.
+2. Cài k3s (lần đầu): `bash infra/k8s/install-k3s-wsl.sh`.
+3. Tạo secret + `apply -k infra/k8s/sprint3` — chi tiết [`RUNTIME.md`](RUNTIME.md).
+4. Build image: `bash infra/k8s/import-images.sh`.
+5. `kubectl get pods -n realtime` — nếu **0/0 Running**: `scale deploy --all --replicas=1`.
+6. Lần đầu chat: `ollama pull qwen2.5:3b`.
+
+**Xong khi:** `:30809` login được, `:31000/health` OK.
+
+### 11.2 Laptop 2 (Windows) — chạy “cửa hàng”
+
+1. `cd clients/web-shop`, copy `.env`.
+2. Trỏ `TRACKING_FORWARD_URL` → `http://<WSL_IP>:31000/track`.
+3. Trỏ `TRACKING_INGEST_API_KEY` **trùng** secret k3s.
+4. `npm run dev` (+ `npm run worker` + `npm run adapter` nếu cần doanh thu).
+
+**Xong khi:** Mua thử trên shop → Revenue dashboard tăng sau vài giây.
+
+### 11.3 Sau khi sửa code backend
+
+`bash infra/k8s/rebuild-all-dev-images.sh` rồi rollout pod đã đổi — xem [`RUNTIME.md`](RUNTIME.md).
+
+---
+
+## 12. Use case — kể như kịch bản demo
+
+### UC12 — Admin kiểm tra “ống nước còn chảy không”
+
+Admin login → `/admin/system`. Một API trả về: tracking có sống không, bao nhiêu event 5 phút qua, KPI flush lần cuối khi nào, Ollama có model chưa.  
+**Chứng minh:** screenshot + `kubectl get pods -n realtime` (tuỳ chọn Headlamp — [`RUNTIME.md` §16](RUNTIME.md#16-headlamp-k8s-ui-tuỳ-chọn)).
+
+### UC13 — Analyst thấy hành vi realtime
+
+Mở web-shop, click vài trang → vào dashboard **Events**: bảng có `page_view`/`product_view`, SSE nháy event mới.  
+**Chứng minh:** `POST /track` → 202; DB có dòng `tracking_events_clean`.
+
+### UC14 — Đơn hàng làm tăng doanh thu
+
+Checkout trên shop (worker + adapter chạy) → đợi ~10s → **Revenue** / Overview có `purchase` và tiền.  
+**Chứng minh:** event `purchase_succeeded` trong DB; KPI phút tăng.
+
+### UC20 — Chatbot trả lời bằng số thật
+
+Analyst hỏi tiếng Việt trên `/shop/chat` → câu trả lời khớp số trên chart cùng kỳ. Hỏi ghép: “Doanh thu và top SP”.  
+**Chứng minh:** so sánh chat với `/api/overview` cùng `minutes`.
+
+---
+
+## 13. Kiểm thử — làm sao biết hệ thống “đúng”
+
+**Luồng nhanh 5 bước:** (1) health API OK → (2) login dashboard → (3) `curl /track` 202 → (4) đợi vài giây Overview tăng → (5) chat “doanh thu 60 phút” khớp chart.
+
+**Swagger** `:5190` — thử login và track qua proxy WSL IP.
+
+**Tự động:** `npm test` trong `dashboard-api` (chat, period, compound); tracking-api test validator/ingest.
+
+**Soi DB khi nghi ngờ:**
 
 ```bash
-git clone <repo> && cd Business-Data-Streaming---Processing-Pipeline
-cp infra/.env.example infra/.env   # WSL_IP, mật khẩu
-bash infra/k8s/install-k3s-wsl.sh
-# secret + deploy — xem RUNTIME.md §4
-bash infra/k8s/import-images.sh
-k3s kubectl apply -k infra/k8s/sprint3
-k3s kubectl -n realtime get pods   # nếu 0/0: scale deploy --all --replicas=1 (RUNTIME.md § tắt tải)
-k3s kubectl -n realtime exec deploy/ollama -- ollama pull qwen2.5:3b
-```
-
-### 11.2 Laptop 2
-
-```bash
-cd clients/web-shop
-# .env: TRACKING_FORWARD_URL, TRACKING_INGEST_API_KEY, COMMERCE_BACKEND_URL
-npm install && npm run dev
-# optional: npm run worker  (adapter → ingest)
-```
-
-### 11.3 Biến môi trường quan trọng (`infra/.env`)
-
-| Biến | Mục đích |
-|------|----------|
-| `WSL_IP` | IP WSL cho Lap2 và Vite |
-| `VITE_DASHBOARD_API_URL` | Build/proxy dashboard |
-| `VITE_TRACKING_API_URL` | SDK config |
-| `POSTGRES_*` | Local dev dashboard-api |
-| `JWT_SECRET`, `DASHBOARD_ADMIN_*` | Auth |
-| `TRACKING_INGEST_API_KEY` | Khớp tracking-api secret |
-
-### 11.4 Sau khi đổi code
-
-```bash
-bash infra/k8s/rebuild-all-dev-images.sh
-k3s kubectl -n realtime rollout restart deployment/dashboard-api deployment/dashboard-ui deployment/tracking-api deployment/streaming-processor
+k3s kubectl -n realtime exec -it deploy/postgres -- psql -U app -d realtime -c "SELECT COUNT(*) FROM tracking_events_clean;"
 ```
 
 ---
 
-## 12. Use case (UC) — mô tả triển khai
+## 14. Kết quả mong đợi khi demo thành công
 
-### UC12 — Vận hành & giám sát pipeline (Admin)
+Bạn sẽ thấy: event tích lũy trong `tracking_events_clean`; KPI phút nhích trên Overview; mua hàng làm Revenue tăng; chat trả số **cùng** với chart; admin pipeline báo pod/service xanh.
 
-| Bước | Actor | Hệ thống |
-|------|-------|----------|
-| 1 | Admin | Login `super_admin` → `/admin/system` |
-| 2 | Hệ thống | `GET /api/system/pipeline` — probe tracking-api, commerce, streaming lag, Qdrant, Ollama |
-| 3 | Admin | Xem `events_last_5m`, `last_kpi_flush`, ingest trend |
-| 4 | Admin | (Tùy chọn) Headlamp/kubectl — script `infra/k8s/ops/kubernetes-dashboard/` |
-
-**Bằ chứng:** screenshot Pipeline Monitor + `kubectl get pods -n realtime`.
-
-### UC13 — Thu thập behavior (`/track`)
-
-| Bước | Mô tả |
-|------|--------|
-| 1 | SDK gửi JSON hợp lệ |
-| 2 | API validate → 400 hoặc 202 |
-| 3 | Kafka nhận message |
-| 4 | Processor ghi `tracking_events_clean` |
-| 5 | Dashboard Events/SSE hiển thị |
-
-### UC14 — Ingest commerce
-
-| Bước | Mô tả |
-|------|--------|
-| 1 | Đặt hàng trên web-shop |
-| 2 | Event vào RabbitMQ |
-| 3 | Adapter POST ingest + Bearer |
-| 4 | `event_category=commerce` trong DB |
-| 5 | KPI purchases/revenue tăng |
-
-### UC20 — Chatbot analytics
-
-| Bước | Mô tả |
-|------|--------|
-| 1 | Analyst hỏi tiếng Việt trên `/shop/chat` |
-| 2 | API planner + SQL + RAG |
-| 3 | Trả lời markdown + action cards |
-| 4 | Lưu session — xem lại sidebar |
-
-**Câu hỏi mẫu:** “Doanh thu 1 giờ qua?”, “Top sản phẩm?”, “Phễu chuyển đổi hôm nay?”, “Doanh thu và top SP” (compound).
+**Câu chứng minh E2E cho hội đồng:** “Tôi click trên shop → vài giây sau chart và chat cùng phản ánh, vì một pipeline Kafka → Postgres.”
 
 ---
 
-## 13. Kiểm thử & demo
+## 15. Hạn chế (thẳng thắn) & hướng sau
 
-### 13.1 Kiểm thử thủ công
-
-| # | Việc | Kỳ vọng |
-|---|------|---------|
-| 1 | `GET :32000/health` | postgres ok |
-| 2 | Login dashboard | 200 + token |
-| 3 | Swagger `:5190` login qua `/proxy/dashboard` | 200 (WSL IP trong proxy) |
-| 4 | `POST :31000/track` event mẫu | 202 |
-| 5 | Đợi ~1–2 phút | Overview KPI tăng |
-| 6 | Chat “doanh thu 60 phút” | Số khớp API overview |
-| 7 | Admin pipeline | services status |
-
-### 13.2 Kiểm thử tự động (repo)
-
-| Lệnh | Phạm vi |
-|------|---------|
-| `npm test` (dashboard-api) | chat guards, planner, period, compound |
-| `npm run test:eval` | Bộ câu hỏi chat `eval/questions.json` |
-| tracking-api tests | validator, business ingest |
-
-### 13.3 Truy vấn DB (debug)
-
-```bash
-k3s kubectl -n realtime exec -it deploy/postgres -- psql -U app -d realtime
-\dt
-SELECT COUNT(*) FROM tracking_events_clean;
-SELECT * FROM tracking_kpi_1m ORDER BY window_start DESC LIMIT 5;
-```
-
----
-
-## 14. Kết quả & số liệu mẫu
-
-Trên môi trường demo đã chạy thực tế (có thể thay đổi theo traffic):
-
-| Chỉ số | Ví dụ đã quan sát |
-|--------|-------------------|
-| `tracking_events_clean` | Hàng nghìn dòng |
-| `tracking_kpi_1m` | Hàng chục cửa sổ phút |
-| `products_catalog` | Seed + SP từ web-shop (100+ dòng) |
-| Users | `admin@gmail.com` (super_admin), analyst test |
-| Chat | Session lưu Postgres, 10+ messages |
-
-**Luồng E2E chứng minh:** web-shop → track → Kafka → KPI → biểu đồ dashboard → chatbot trích cùng số liệu.
-
----
-
-## 15. Hạn chế & hướng phát triển
-
-| # | Hạn chế | Hướng xử lý |
-|---|---------|-------------|
-| 1 | `/track` public | API key / HMAC SDK |
-| 2 | HTTP NodePort | Ingress + TLS |
-| 3 | Một DB user `app` | Role read-only cho dashboard |
-| 4 | KPI SUM nhiều phút ≠ unique user thật | Metric cardinality / HyperLogLog |
-| 5 | Ollama 3B CPU chậm | Model lớn hơn / GPU |
-| 6 | Không FK tracking-catalog | Chuẩn hóa product_id |
-| 7 | Bot simulator shell | Playwright kịch bản mua hàng |
+- `/track` chưa khóa — production cần key/HMAC SDK.
+- NodePort HTTP — cần Ingress + TLS.
+- Chatbot CPU chậm nếu Ollama 3B — có thể model lớn hơn hoặc GPU.
+- KPI cộng nhiều phút không bằng “unique user cả ngày” — cần metric cardinality nếu scale.
+- Bot Playwright chưa hoàn chỉnh — web-shop đã có behavior-bot thay thế một phần.
 
 ---
 
@@ -709,10 +745,10 @@ Trên môi trường demo đã chạy thực tế (có thể thay đổi theo tr
 | [`RUNTIME.md`](RUNTIME.md) | Deploy, lỗi thường gặp |
 | [`TECH_STACK.md`](TECH_STACK.md) | Luồng + stack diagram |
 | [`REPO_MAP.md`](REPO_MAP.md) | Map path |
-| [`API.md`](API.md) | REST reference |
+| [`API.md`](API.md) | REST reference + Swagger :5190 |
+| [`PHU_LUC.md`](PHU_LUC.md) | **Phụ lục A–E** — schema JSON, API, cây repo, checklist, ảnh/log |
 | [`RUNTIME.md`](RUNTIME.md) | Deploy, port §5, CI/CD §14, Postgres §15 |
 | [`TECH_STACK.md`](TECH_STACK.md) | Luồng + stack |
-| [`API.md`](API.md) | REST + Swagger :5190 |
 
 ---
 
@@ -728,7 +764,7 @@ Trên môi trường demo đã chạy thực tế (có thể thay đổi theo tr
 | Chương 6 — Chatbot / AI | §9 |
 | Chương 7 — Kết luận | §15 |
 
-**Hình nên chụp:** sơ đồ kiến trúc (§3.2), màn Overview, Funnel, Chat, Admin Pipeline, Swagger login 200, `\dt` Postgres.
+**Hình nên chụp:** xem **[Phụ lục E](PHU_LUC.md#phụ-lục-e--ảnh-log-và-minh-chứng-hướng-dẫn)** (danh sách E-1…E-11 + lệnh log).
 
 ---
 

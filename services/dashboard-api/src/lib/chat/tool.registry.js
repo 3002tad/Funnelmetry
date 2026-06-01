@@ -1,5 +1,5 @@
 /** Whitelist analytics tools — no raw SQL from LLM. */
-const MAX_QUERY_MINUTES = 10080; // 7 days
+const MAX_QUERY_MINUTES = 43200; // 30 days — matches extractMinutes cap in intent.js
 
 export const TOOL_REGISTRY = {
   fetchOverview: { safe: true, maxMinutes: MAX_QUERY_MINUTES },
@@ -15,6 +15,7 @@ export const TOOL_REGISTRY = {
   fetchSearchFilters: { safe: true, maxMinutes: MAX_QUERY_MINUTES, maxLimit: 30 },
   fetchCategoryPerformance: { safe: true, maxMinutes: MAX_QUERY_MINUTES, maxLimit: 20 },
   fetchCatalogStats: { safe: true, maxMinutes: MAX_QUERY_MINUTES },
+  fetchRecentPurchases: { safe: true, maxMinutes: MAX_QUERY_MINUTES, maxLimit: 20 },
   fetchBannerDetail: { safe: true, maxMinutes: MAX_QUERY_MINUTES },
   searchInsights: { safe: true, maxMinutes: MAX_QUERY_MINUTES, maxLimit: 20 },
 };

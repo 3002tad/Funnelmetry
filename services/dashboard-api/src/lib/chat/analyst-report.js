@@ -2,6 +2,8 @@
  * Compose grounded analytics brief for assistant-style replies (before Ollama polish).
  */
 
+import { formatCalendarDayLabel, formatPeriodLabel } from "../period.js";
+
 function fmt(n) {
   return Number(n || 0).toLocaleString("vi-VN");
 }
@@ -20,11 +22,16 @@ function hasTraffic(k) {
   return Number(k.total_events) > 0 || Number(k.unique_sessions) > 0;
 }
 
-function buildFindings(data, minutes) {
+function reportPeriodLabel(minutes, calendarDate = null) {
+  if (calendarDate) return formatCalendarDayLabel(calendarDate);
+  return formatPeriodLabel(minutes);
+}
+
+function buildFindings(data, minutes, calendarDate = null) {
   const findings = [];
   const k = data.kpi || {};
   const worst = data.funnel?.worst_drop || data.worst_drop;
-  const period = `${minutes} phút gần nhất`;
+  const period = reportPeriodLabel(minutes, calendarDate);
 
   if (!hasTraffic(k)) {
     findings.push({
@@ -142,6 +149,7 @@ function intentFocus(intent, data, minutes) {
 export function composeAnalystReport({
   intent,
   minutes,
+  calendar_date = null,
   userMessage,
   data,
   ragHits = [],
@@ -149,8 +157,8 @@ export function composeAnalystReport({
   sub_intents = [],
 }) {
   const k = data.kpi || {};
-  const period = `${minutes} phút gần nhất`;
-  const findings = buildFindings(data, minutes);
+  const period = reportPeriodLabel(minutes, calendar_date);
+  const findings = buildFindings(data, minutes, calendar_date);
   const lines = [];
 
   lines.push(`## BỐI CẢNH PHÂN TÍCH`);
@@ -228,6 +236,22 @@ export function composeAnalystReport({
     });
   }
 
+  if (data.recent_purchases?.length) {
+    lines.push(`\n## ĐƠN MUA (chi tiết event)`);
+    for (const o of data.recent_purchases.slice(0, 5)) {
+      const oid = o.order_id || o.event_id || "—";
+      const itemCount = o.items?.length || 0;
+      lines.push(
+        `- ${oid}: ${money(o.amount)} · ${itemCount} dòng SP${itemCount ? ` — ${o.items.map((i) => i.name || i.product_name || i.product_id).join(", ")}` : ""}`
+      );
+    }
+  } else if (intent === "recent_purchases" && Number(k.purchases) > 0) {
+    lines.push(`\n## ĐƠN MUA (chi tiết event)`);
+    lines.push(
+      `- KPI ghi ${fmt(k.purchases)} đơn nhưng không có event \`purchase_succeeded\` có items trong cửa sổ ${period}.`
+    );
+  }
+
   if (data.banners?.length) {
     lines.push(`\n## BANNER`);
     for (const b of data.banners.slice(0, 5)) {
@@ -283,6 +307,10 @@ function buildDeliveryHints(intent, data) {
     case "aov":
       lines.push("- Mở đầu: con số doanh thu/đơn/AOV trả lời trực tiếp câu hỏi.");
       lines.push("- Thêm 1 câu bối cảnh (session hoặc conversion) nếu có trong báo cáo.");
+      break;
+    case "recent_purchases":
+      lines.push("- Liệt kê đơn/order_id và dòng SP **chỉ** từ báo cáo; không bịa mã số dài.");
+      lines.push("- Nếu chỉ có KPI không có event chi tiết, nói rõ và không đặt product_id giả.");
       break;
     case "product_detail":
       lines.push("- Nêu tên SP + view/mua/doanh thu; nếu không tìm thấy thì nói rõ và gợi ý gõ ID.");

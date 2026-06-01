@@ -13,6 +13,8 @@ import { needsRagForIntent } from "./rag-filters.js";
 import { validateToolCall } from "./tool.registry.js";
 import { tryLlmPlanSlots } from "./llm-planner.js";
 import { isCompoundCandidate, splitCompoundClauses } from "./compound.js";
+import { extractCalendarDate } from "./calendar-extract.js";
+import { isHighestOrderQuery, isOrderContextQuery, isViewPurchaseGapQuery } from "./intent.js";
 
 const COMPARISON_RE = /so sánh|compare|với\s+(\d+)?\s*(giờ|phút)?\s*trước|kỳ trước|hôm qua/i;
 const TREND_RE = /xu hướng|trend|biến động|tăng|giảm/i;
@@ -29,7 +31,7 @@ export function extractEntities(message, memory) {
   let banner_id = banner?.[1] || null;
   let banner_name = extractBannerNameQuery(text);
 
-  if (!product_name && !product_id && memory && isLikelyFollowUp(text)) {
+  if (!product_name && !product_id && memory && isLikelyFollowUp(text) && !isOrderContextQuery(text)) {
     product_name = memory.last_product_name || null;
     product_id = memory.last_product_id || product_id;
   }
@@ -124,7 +126,8 @@ const NON_COMPOUND_INTENTS = new Set([
 ]);
 
 function resolveCorePlan(message, { scope, memory } = {}) {
-  const minutes = extractMinutes(message, memory?.last_minutes ?? 60);
+  const calendar_date = extractCalendarDate(message);
+  let minutes = calendar_date ? 1440 : extractMinutes(message, 60);
   const product_sort = extractProductSort(message) || memory?.last_product_sort || "views";
   let intent = detectIntent(message);
 
@@ -138,26 +141,67 @@ function resolveCorePlan(message, { scope, memory } = {}) {
   }
 
   const text = (message || "").toLowerCase();
+  if (
+    isViewPurchaseGapQuery(message) ||
+    (/tại sao|giải thích|nguyên nhân|vì sao/.test(text) &&
+      ["top_products", "product_anomaly"].includes(memory?.last_intent) &&
+      (/(xem|view|lượt xem|mua)/.test(text) || isLikelyFollowUp(message)))
+  ) {
+    intent = "product_anomaly";
+  }
   if (COMPARISON_RE.test(text)) intent = "comparison";
   else if (TREND_RE.test(text) && (intent === "general" || rawIntent === "trend")) intent = "trend";
   else if (CONVERSION_RE.test(text) && intent === "general" && !/phễu|funnel/.test(text)) {
     intent = "product_conversion";
   }
 
-  if (ANALYZE_RE.test(text) && ["general", "overview", "revenue", "sessions"].includes(intent)) {
+  // "phân tích doanh thu …" → keep revenue (grounded KPI), not optimize + action cards.
+  if (ANALYZE_RE.test(text) && ["general", "overview", "sessions"].includes(intent)) {
     intent = "optimize";
   }
 
   const entities = extractEntities(message, memory);
+  const lastMsg = (memory?.last_message || "").toLowerCase();
+  const priorOrderThread =
+    memory?.last_intent === "recent_purchases" ||
+    /đơn đó|trong đơn|sản phẩm trong đơn|đơn này|đơn hàng đó/.test(lastMsg);
+  const orderShowMore =
+    priorOrderThread && /cho mình xem|xem thông tin|thông tin đi|đâu bạn/.test(text);
+  const orderFollowUp =
+    orderShowMore ||
+    (isLikelyFollowUp(message) &&
+      (priorOrderThread ||
+        (["revenue", "orders", "overview", "conversion"].includes(memory?.last_intent) &&
+          /đơn|trong đơn|sản phẩm trong/.test(text))));
+  if (isOrderContextQuery(text) || orderFollowUp) {
+    intent = "recent_purchases";
+    entities.product_name = null;
+    entities.product_id = null;
+    if (isHighestOrderQuery(message)) {
+      entities.order_sort = "amount_desc";
+    }
+    if (memory?.last_order_id && (isOrderContextQuery(text) || orderShowMore || priorOrderThread)) {
+      entities.focus_order_id = memory.last_order_id;
+    }
+    if (memory?.last_minutes && !hasExplicitTime(message) && !calendar_date) {
+      minutes = memory.last_minutes;
+    }
+  }
+
   const hasConcreteProduct =
     (entities.product_name && isConcreteProductName(entities.product_name)) || Boolean(entities.product_id);
   if (
-    rawIntent === "product_detail" ||
-    (hasConcreteProduct && /sản phẩm|sp\b|chi tiết|thông tin/i.test(text)) ||
-    (entities.product_id && /chi tiết|thông tin|sản phẩm|sp\b/i.test(text))
+    intent !== "recent_purchases" &&
+    (rawIntent === "product_detail" ||
+      (hasConcreteProduct && /sản phẩm|sp\b|chi tiết/i.test(text) && !/\bđơn\b/.test(text)) ||
+      (entities.product_id && /chi tiết|thông tin|sản phẩm|sp\b/i.test(text)))
   ) {
     intent = "product_detail";
-  } else if (isLikelyFollowUp(message) && memory?.last_intent === "product_detail") {
+  } else if (
+    intent !== "recent_purchases" &&
+    isLikelyFollowUp(message) &&
+    memory?.last_intent === "product_detail"
+  ) {
     intent = "product_detail";
   }
 
@@ -171,9 +215,30 @@ function resolveCorePlan(message, { scope, memory } = {}) {
     intent = "banner_detail";
   }
 
+  if (
+    !calendar_date &&
+    !hasExplicitTime(message) &&
+    ["top_products", "product_anomaly", "orders", "revenue"].includes(intent) &&
+    minutes <= 60
+  ) {
+    minutes = 10080;
+  }
+
+  if (
+    !calendar_date &&
+    !hasExplicitTime(message) &&
+    memory?.last_minutes != null &&
+    (rawIntent === "general" ||
+      isLikelyFollowUp(message) ||
+      (intent === "product_anomaly" && ["top_products", "product_anomaly"].includes(memory?.last_intent)))
+  ) {
+    minutes = memory.last_minutes;
+  }
+
   return {
     intent,
     minutes,
+    calendar_date: calendar_date || null,
     product_sort,
     entities,
     from_memory: Boolean(memory?.last_intent && rawIntent === "general"),
@@ -182,7 +247,7 @@ function resolveCorePlan(message, { scope, memory } = {}) {
 }
 
 function finalizePlan(message, core) {
-  const { intent, minutes, product_sort, entities, from_memory, planner_source } = core;
+  const { intent, minutes, calendar_date, product_sort, entities, from_memory, planner_source } = core;
   const text = (message || "").toLowerCase();
   const tools = toolsForIntent(intent, message);
   const needs_rag =
@@ -200,6 +265,7 @@ function finalizePlan(message, core) {
   return {
     intent,
     minutes,
+    calendar_date: calendar_date || null,
     product_sort,
     entities,
     tools: validated,
@@ -223,15 +289,21 @@ export function applyLlmSlots(rulePlan, llmSlots, message, memory) {
   );
 
   let intent = rulePlan.intent;
-  if (!ruleIntentSpecific && llmSlots.intent !== "general") {
+  if (intent === "recent_purchases" || isOrderContextQuery(message)) {
+    intent = "recent_purchases";
+  } else if (!ruleIntentSpecific && llmSlots.intent !== "general") {
     intent = llmSlots.intent;
   } else if (llmSlots.is_followup && memory?.last_intent && rawIntent === "general") {
     intent = memory.last_intent;
   }
 
   let minutes = rulePlan.minutes;
+  let calendar_date = rulePlan.calendar_date;
   if (!explicitTime && llmSlots.minutes != null) {
     minutes = llmSlots.minutes;
+  }
+  if (!calendar_date && llmSlots.calendar_date) {
+    calendar_date = llmSlots.calendar_date;
   }
 
   let product_sort = rulePlan.product_sort;
@@ -246,6 +318,7 @@ export function applyLlmSlots(rulePlan, llmSlots, message, memory) {
   return finalizePlan(message, {
     intent,
     minutes,
+    calendar_date,
     product_sort,
     entities: rulePlan.entities,
     from_memory,
@@ -255,6 +328,7 @@ export function applyLlmSlots(rulePlan, llmSlots, message, memory) {
 
 function shouldUseLlmPlanner(message, rulePlan) {
   if (rulePlan.intent === "compound" || rulePlan.compound) return false;
+  if (rulePlan.intent === "recent_purchases" || isOrderContextQuery(message)) return false;
   if (detectStaticIntent(message, null, detectIntent(message) === "general")) return false;
   const rawIntent = detectIntent(message);
   if (STATIC_ANALYTICS_INTENTS.has(rawIntent) && rawIntent !== "general") return false;
@@ -279,6 +353,7 @@ const STATIC_ANALYTICS_INTENTS = new Set([
   "events",
   "revenue",
   "orders",
+  "recent_purchases",
   "aov",
   "banner",
   "comparison",
@@ -295,11 +370,12 @@ const STATIC_ANALYTICS_INTENTS = new Set([
 /**
  * Hybrid planner: rules first, optional Ollama slot fill for ambiguous/follow-up questions.
  */
-function applyRequestPeriod(plan, { calendarDate, minutes } = {}) {
+function applyRequestPeriod(plan, { calendarDate, minutes, message } = {}) {
   if (calendarDate) {
     return { ...plan, calendar_date: calendarDate };
   }
-  if (minutes != null) {
+  // Explicit time in the question beats dashboard period filter from the client.
+  if (minutes != null && !(message && hasExplicitTime(message))) {
     return { ...plan, minutes };
   }
   return plan;
@@ -319,7 +395,7 @@ export async function buildPlanAsync(
       console.warn("chat: LLM planner failed, using rules:", err.message);
     }
   }
-  return applyRequestPeriod(plan, { calendarDate, minutes });
+  return applyRequestPeriod(plan, { calendarDate, minutes, message });
 }
 
 const DEEP_ANALYSIS_TOOLS = [
@@ -332,7 +408,21 @@ const DEEP_ANALYSIS_TOOLS = [
 
 function toolsForIntent(intent, message = "") {
   const text = (message || "").toLowerCase();
-  const wantDeep = ANALYZE_RE.test(text) || intent === "optimize";
+  const wantDeep =
+    (ANALYZE_RE.test(text) || intent === "optimize") &&
+    ![
+      "revenue",
+      "orders",
+      "aov",
+      "comparison",
+      "trend",
+      "top_products",
+      "product_anomaly",
+      "recent_purchases",
+      "funnel",
+      "cart_abandon",
+      "conversion",
+    ].includes(intent);
 
   if (wantDeep) {
     const tools = [...DEEP_ANALYSIS_TOOLS];
@@ -354,7 +444,7 @@ function toolsForIntent(intent, message = "") {
     revenue: ["fetchOverview", "fetchRevenueTrend", "fetchFunnel"],
     general: ["fetchOverview"],
     top_products: ["fetchTopProducts"],
-    product_anomaly: ["fetchProductAnomalies"],
+    product_anomaly: ["fetchProductAnomalies", "fetchTopProducts"],
     funnel: ["fetchFunnel"],
     cart_abandon: ["fetchFunnel", "fetchOverview"],
     conversion: ["fetchOverview", "fetchFunnel"],
@@ -370,6 +460,7 @@ function toolsForIntent(intent, message = "") {
     category: ["fetchCategoryPerformance"],
     catalog: ["fetchCatalogStats"],
     orders: ["fetchOverview"],
+    recent_purchases: ["fetchRecentPurchases", "fetchOverview"],
     aov: ["fetchOverview"],
     pageviews: ["fetchOverview"],
     events: ["fetchOverview"],

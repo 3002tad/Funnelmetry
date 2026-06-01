@@ -47,7 +47,7 @@ const periodHeaderProps = (p) => ({
 });
 
 export function OverviewPage() {
-  const period = useManagerPeriod(60);
+  const period = useManagerPeriod();
   const overviewFetcher = useCallback(() => api.overview(period.periodParams), [period.periodParams]);
   const funnelFetcher = useCallback(() => api.funnel(period.periodParams), [period.periodParams]);
   const { data, loading, error, refresh, lastUpdated } = useAutoRefresh(overviewFetcher, 60000);

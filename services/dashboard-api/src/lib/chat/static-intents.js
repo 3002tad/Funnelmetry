@@ -26,7 +26,7 @@ export const OFF_TOPIC_REPLY =
   "Thử: *\"doanh thu hôm nay\"*, *\"top sản phẩm tuần qua\"*, hoặc gõ **help**.";
 
 const ANALYTICS_HINT =
-  /doanh thu|revenue|session|phiên|traffic|sản phẩm|\bsp\b|phễu|funnel|banner|conversion|insight|qdrant|shop|cửa hàng|mua|bán|view|top|so sánh|tối ưu|giỏ|cart|checkout|ctr|gmv|đơn|khách|visitor|tuần|hôm nay|hôm qua|phút|giờ|ngày|tình hình|tổng quan|chi tiết|anomaly|hot|bán chạy|rớt|drop|hero|promo|xu hướng|trend|catalog|p\d{3}|tìm kiếm|search|filter|danh mục|category|aov|pageview|event/i;
+  /doanh thu|revenue|session|phiên|traffic|sản phẩm|\bsp\b|phễu|funnel|banner|conversion|insight|qdrant|shop|cửa hàng|mua|bán|view|top|so sánh|tối ưu|giỏ|cart|checkout|ctr|gmv|đơn|khách|visitor|tuần|tháng|thang|hôm nay|hôm qua|phút|giờ|ngày|tình hình|tổng quan|chi tiết|anomaly|hot|bán chạy|rớt|drop|hero|promo|xu hướng|trend|catalog|p\d{3}|tìm kiếm|search|filter|danh mục|category|aov|pageview|event|giải thích|tại sao|vì sao|nguyên nhân/i;
 
 export function isAckMessage(message) {
   const text = (message || "").trim();
@@ -85,6 +85,30 @@ function isShortFollowUp(message) {
   return text.length <= 28 && /^(thế|còn|vậy|ok|tiếp|rồi|thì sao|ra sao)/i.test(text);
 }
 
+function messageHasExplicitTime(message) {
+  const text = (message || "").toLowerCase();
+  return /tuần|tháng|ngày|giờ|phút|hôm nay|hôm qua|hôm kia|gần đây|vừa rồi|mới đây|\d+\s*ngày\s*trước|\d+\s*tháng|\d+\s*(phút|minute|min|giờ|hour|ngày|day)\b/.test(
+    text
+  );
+}
+
+/** Short explain / why follow-up after an analytics answer in the same session. */
+function isAnalyticsExplainFollowUp(message) {
+  const text = (message || "").trim();
+  if (!text || text.length > 55) return false;
+  return /^(giải thích|tại sao|vì sao|nguyên nhân|lý do)(\s+tại sao|\s+vậy|\s+đi)?\s*$/i.test(text);
+}
+
+/** Follow-up that only shifts time window while keeping prior analytics intent. */
+function isTimeWindowFollowUp(message) {
+  const text = (message || "").trim();
+  if (!text || !messageHasExplicitTime(message)) return false;
+  if (isShortFollowUp(message)) return true;
+  if (text.length <= 24 && /^\d+\s*tháng$/i.test(text)) return true;
+  if (text.length <= 48 && /\b(thì sao|ra sao|thế nào)\s*$/i.test(text)) return true;
+  return /^trong\s+.+\s+(thì sao|ra sao|thế nào)\s*$/i.test(text);
+}
+
 export function isLikelyAnalyticsQuestion(message) {
   const text = (message || "").trim();
   if (!text) return false;
@@ -104,7 +128,13 @@ export function detectStaticIntent(message, memory = null, isGeneralIntent = fal
   if (isExplicitOffTopic(message)) return { intent: "off_topic", reply: OFF_TOPIC_REPLY };
 
   if (isGeneralIntent && !isLikelyAnalyticsQuestion(message)) {
-    if (memory?.last_intent && isShortFollowUp(message)) return null;
+    if (
+      memory?.last_intent &&
+      !STATIC_INTENT_NAMES.has(memory.last_intent) &&
+      (isShortFollowUp(message) || isTimeWindowFollowUp(message) || isAnalyticsExplainFollowUp(message))
+    ) {
+      return null;
+    }
     return { intent: "off_topic", reply: OFF_TOPIC_REPLY };
   }
   return null;

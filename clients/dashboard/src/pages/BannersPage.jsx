@@ -13,7 +13,7 @@ import { useManagerPeriod } from "../hooks/useManagerPeriod.js";
 import { useOnKpiUpdate } from "../context/LiveStreamContext.jsx";
 
 export function BannersPage() {
-  const period = useManagerPeriod(60);
+  const period = useManagerPeriod();
   const fetcher = useCallback(() => api.banners(period.periodParams), [period.periodParams]);
   const overviewFetcher = useCallback(() => api.overview(period.periodParams), [period.periodParams]);
   const { data, loading, error, refresh, lastUpdated } = useAutoRefresh(fetcher, 60000);

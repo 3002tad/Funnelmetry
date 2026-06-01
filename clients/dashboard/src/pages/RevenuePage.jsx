@@ -21,7 +21,7 @@ function pctChange(current, previous) {
 }
 
 export function RevenuePage() {
-  const period = useManagerPeriod(60);
+  const period = useManagerPeriod();
   const summaryFetcher = useCallback(() => api.revenueSummary(period.periodParams), [period.periodParams]);
   const catFetcher = useCallback(() => api.revenueByCategory(period.periodParams), [period.periodParams]);
   const summary = useAutoRefresh(summaryFetcher, 60000);

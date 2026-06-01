@@ -1,5 +1,6 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { ManagerPeriodProvider } from "../context/ManagerPeriodContext.jsx";
 import { NAV_ICONS } from "../components/icons.jsx";
 import { ROLE_LABELS } from "../lib/auth.js";
 
@@ -20,8 +21,10 @@ const NAV = [
 export function ManagerLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   return (
+    <ManagerPeriodProvider>
     <div className="mgr-root">
       <div className="mgr-shell">
         <aside className="mgr-sidebar">
@@ -49,7 +52,7 @@ export function ManagerLayout() {
               return (
                 <NavLink
                   key={item.to}
-                  to={item.to}
+                  to={{ pathname: item.to, search: location.search }}
                   end={item.end}
                   className={({ isActive }) => (isActive ? "active" : "")}
                 >
@@ -78,5 +81,6 @@ export function ManagerLayout() {
         </main>
       </div>
     </div>
+    </ManagerPeriodProvider>
   );
 }

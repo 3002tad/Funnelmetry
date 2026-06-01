@@ -21,7 +21,7 @@ const LABELS = {
 };
 
 export function FunnelPage() {
-  const period = useManagerPeriod(60);
+  const period = useManagerPeriod();
   const fetcher = useCallback(() => api.funnel(period.periodParams), [period.periodParams]);
   const { data, loading, error, refresh, lastUpdated } = useAutoRefresh(fetcher, 60000);
   useOnKpiUpdate(useCallback(() => refresh(), [refresh]));
