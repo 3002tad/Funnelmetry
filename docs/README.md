@@ -11,5 +11,6 @@ Toàn bộ markdown nằm trong **`docs/`**. README thư mục con chỉ trỏ v
 | **[SPEC.md](SPEC.md)** | Kiến trúc, event schema, pipeline |
 | **[REPO_MAP.md](REPO_MAP.md)** | Spec → path code (dev / agent) |
 | **[API.md](API.md)** | HTTP API + Swagger `:5190` |
+| **[DINH_HUONG_DE_TAI.md](DINH_HUONG_DE_TAI.md)** | Định hướng đề tài: tên gọi, phạm vi hệ thống, adapter/CDC, hướng AI, khảo sát hệ thống tương đồng |
 
 **Khác:** RabbitMQ [docx](RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx) · Agent [../AGENTS.md](../AGENTS.md)
