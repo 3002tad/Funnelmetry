@@ -6,7 +6,10 @@
 
 **Tên đã chốt:**
 
-> **"Xây dựng hệ thống theo dõi hành vi và phát hiện điểm nghẽn chuyển đổi thương mại điện tử thời gian thực bằng học máy, tích hợp cơ chế đề xuất và đánh giá hiệu quả tối ưu"**
+> **Phương án 1: "Xây dựng hệ thống theo dõi hành vi thời gian thực và phát hiện điểm nghẽn chuyển đổi thương mại điện tử bằng học máy, tích hợp cơ chế đề xuất và đánh giá hiệu quả tối ưu"**
+
+> **Phương án 2: "Xây dựng hệ thống thời gian thực theo dõi hành vi và phát hiện điểm nghẽn chuyển đổi thương mại điện tử bằng học máy, tích hợp cơ chế đề xuất và đánh giá hiệu quả tối ưu"**
+
 
 Lý do dùng **"hệ thống"** thay vì **"nền tảng"**:
 - "Nền tảng" gợi ý multi-tenant/SaaS công cộng, API mở cho bên thứ ba — hệ thống hiện tại chưa đạt mức này, dùng sẽ bị hội đồng hỏi ngược ("sao gọi là nền tảng khi chỉ 1 web-shop demo?").
