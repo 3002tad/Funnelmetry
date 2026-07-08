@@ -148,3 +148,62 @@ Effort ước tính nhỏ, không ảnh hưởng tới quỹ thời gian dành c
 5. Dashboard: biểu đồ so sánh trước/sau cho từng khuyến nghị đã áp dụng.
 
 **Effort & vị trí trong kế hoạch 5 tháng:** trung bình-nhỏ (logic so sánh KPI + 1 bảng mới + UI đánh dấu, tái dùng hạ tầng KPI đã có) — nhỏ hơn nhiều so với xây model ML từ đầu, không xung đột với ưu tiên đi sâu AI (mục 5), mà bổ sung thêm 1 chiều đánh giá khác cho luận văn.
+
+---
+
+## Nhật ký trao đổi bổ sung — 2026-07-08
+
+### A. Vị trí cụm "thời gian thực" trong tên đề tài
+
+Cụm "thời gian thực" đặt sát "thương mại điện tử" (như bản trước đó) dễ bị đọc nhầm thành "thương mại điện tử thời gian thực". Đã chốt 2 phương án thay thế (ghi ở mục 1):
+- **Phương án 1:** gắn ngay sau "theo dõi hành vi" — khớp đúng bộ phận thực sự real-time (SDK/Tracking API/Kafka).
+- **Phương án 2:** gắn ngay sau "hệ thống" — mô tả cả hệ thống ở tầng hạ tầng/pipeline.
+
+Lưu ý: không đặt "thời gian thực" gần cụm "đánh giá hiệu quả" vì Evaluation Engine (mục 10) là before-after theo chu kỳ, không phải real-time — đặt sai chỗ sẽ tạo mâu thuẫn khi đối chiếu thiết kế thật.
+
+### B. Chiến lược hạ tầng triển khai demo
+
+**Cloud-native vs VPS:** đây không phải 2 lựa chọn loại trừ nhau — hệ thống hiện tại (k3s + microservices + Kafka) đã là kiến trúc cloud-native, câu hỏi thực chất là **host ở đâu**. Quyết định: giữ nguyên kiến trúc k3s hiện có, host trên **1 VPS thuê** (không đầu tư managed cloud như AWS EKS/GCP GKE — tốn chi phí, effort học thêm không cần thiết, cạnh tranh thời gian với mục tiêu AI).
+
+**VPS trong nước vs AWS/Alibaba:** tách 2 nhu cầu khác nhau:
+- **Huấn luyện model (mục 5):** dùng Google Colab/Kaggle (miễn phí GPU) cho phần lớn thử nghiệm; chỉ thuê GPU AWS/Alibaba theo giờ (bật train, tắt ngay) nếu cần compute mạnh hơn giới hạn miễn phí — đây là kịch bản AWS/Alibaba phát huy đúng thế mạnh (pay-per-use ngắn hạn).
+- **Host demo liên tục (dashboard, chatbot):** ưu tiên **VPS trong nước** — thủ tục thanh toán đơn giản (VND), không rủi ro billing bất ngờ như AWS/Alibaba (pay-per-hour, cần thẻ quốc tế, GPU quota phải xin duyệt), độ trễ thấp khi hội đồng truy cập trực tiếp, nhất quán với định vị "thị trường TMĐT Việt Nam" (mục 7).
+
+**Quyết định thực tế:** nhóm chỉ đăng ký thuê VPS **1 tháng, đúng thời điểm phản biện**. Quá trình phát triển + train (nếu có) + kiểm thử diễn ra ở local + Colab, không dùng VPS GPU cho giai đoạn này.
+
+**Cấu hình VPS đã chọn:** gói **V100-4GB** — 8 Core E5 v4, 24GB RAM, 160GB NVMe SSD, 4GB GPU NVIDIA V100, giá 1.650.000 VNĐ/tháng.
+- GPU 4GB VRAM là ràng buộc chính cho việc chọn LLM cho chatbot; RAM 24GB/CPU 8 core dư dả, đủ để offload thêm phần model không fit VRAM sang CPU/RAM nếu cần, và đủ chạy đồng thời Kafka + Postgres + Qdrant + streaming-processor + tracking-api + dashboard-api (tổng ước tính ~9–13GB trong 24GB).
+
+### C. Lựa chọn model LLM cho chatbot (Model B) — có cần khả năng "thinking" không
+
+Làm rõ trước: khái niệm "thinking" (chain-of-thought) chỉ áp dụng cho **Model B (chatbot Ollama)**, không áp dụng cho Model A (mục 5, model dự đoán/phân loại trên dữ liệu dạng bảng — không phải LLM).
+
+Vì VPS GPU chỉ thuê **đúng 1 tháng, đúng thời điểm phản biện** (cửa sổ rủi ro cao, không có thời gian debug), và vì chatbot không phải trọng tâm học thuật chính (Model A mới là phần "bằng học máy" được chấm điểm) → **ưu tiên độ ổn định & tốc độ phản hồi hơn số lượng tham số hoặc khả năng thinking**.
+
+**Model đề xuất:** **Qwen3-4B** — fit gọn trong 4GB VRAM, có chế độ thinking bật/tắt tường minh (`/think`, `/no_think`).
+- Chạy **non-thinking làm mặc định** trong toàn bộ luồng demo (nhanh, ổn định, ít rủi ro khi demo trực tiếp).
+- Chỉ **bật thinking mode 1 lần, có chủ đích** khi muốn minh hoạ khả năng suy luận trước hội đồng (VD giải thích lý do 1 khuyến nghị cụ thể), không chạy thinking mode làm hành vi mặc định.
+- Phương án dự phòng nếu cần chất lượng cao hơn: **DeepSeek-R1-Distill-Qwen-7B** (Q4_K_M ~4.3–4.7GB, cần offload nhẹ sang CPU nhờ RAM 24GB dư dả) — chấp nhận độ trễ cao hơn.
+
+### D. Làm rõ vai trò 3 thành phần AI/phân tích — Model A, Evaluation Engine, Model B
+
+Mục 10 (feedback loop) **không do Model A hay Model B đảm nhận chính** — đây là thành phần thứ 3, **Evaluation Engine**: thuật toán thống kê tất định (so sánh KPI before-after + t-test), **không phải model học máy được huấn luyện**.
+
+| | Model A (mục 5) | Evaluation Engine (mục 10) | Model B (chatbot) |
+|---|---|---|---|
+| Bản chất | Model ML đã huấn luyện (classification/regression) | Thống kê tất định (before-after delta, t-test) | LLM có sẵn (Qwen3-4B) |
+| Có phải "học máy"? | Có — trọng tâm cụm "bằng học máy" trong tên đề tài | Không — thống kê mô tả/kiểm định giả thuyết | Có (LLM), nhưng chỉ là lớp trình bày |
+| Cần GPU/VPS? | Không — inference nhẹ, chạy tốt trên CPU | Không — chỉ là truy vấn SQL + phép tính | Có — lý do duy nhất cần VPS GPU |
+
+Luồng phối hợp:
+```
+Model A (ML) → sinh insight "điểm nghẽn X" → Admin áp dụng hành động (applied_at)
+                                                    ↓
+                                Evaluation Engine (thống kê before-after)
+                                                    ↓
+                                evaluation_result → lưu Qdrant
+                                                    ↓
+                    Model B (chatbot) → diễn giải cho người dùng bằng ngôn ngữ tự nhiên
+```
+
+Không cần ép Evaluation Engine phải "là AI" — chọn đúng công cụ cho đúng bài toán (thống kê cho đánh giá tác động 1 can thiệp đơn lẻ, không có nhóm đối chứng) là luận điểm kỹ thuật vững khi bảo vệ, không phải điểm yếu.
