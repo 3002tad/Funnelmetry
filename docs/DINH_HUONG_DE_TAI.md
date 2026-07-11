@@ -32,6 +32,10 @@ Lý do đổi `"ứng dụng đề xuất tối ưu"` → `"tích hợp cơ ch�
 | cơ chế đề xuất | Insight + Chatbot RAG (dashboard-api, Qdrant, Ollama) |
 | đánh giá hiệu quả tối ưu | Feedback loop before-after KPI cho khuyến nghị đã áp dụng (mục 10) |
 
+## Mô tả tổng quát hệ thống (theo định hướng mới)
+
+Hệ thống là giải pháp theo dõi hành vi người dùng và phân tích chuyển đổi thời gian thực cho website thương mại điện tử, triển khai theo kiến trúc self-hosted trên Kubernetes (k3s). Dữ liệu hành vi từ Browser Behavior SDK và dữ liệu commerce từ backend được chuẩn hoá qua tầng adapter, đưa vào Kafka và xử lý bởi Streaming Processor để tính KPI theo thời gian thực. Trên nền dữ liệu này, một model học máy được huấn luyện để phát hiện điểm nghẽn trong phễu chuyển đổi, thay thế cơ chế rule-based ban đầu và sinh insight lưu trong Qdrant. Một chatbot RAG dùng LLM diễn giải các insight thành khuyến nghị hành động cụ thể cho người quản trị. Khi khuyến nghị được áp dụng, một Evaluation Engine tự động so sánh KPI trước và sau để đánh giá hiệu quả thực tế, khép kín vòng lặp từ phát hiện vấn đề đến đo lường kết quả. Kiến trúc ingestion được thiết kế mở, cho phép mở rộng thêm ngôn ngữ backend và message queue khác nhau, hướng tới một hệ thống phân tích chuyển đổi phù hợp đặc thù thị trường thương mại điện tử Việt Nam.
+
 ## 2. Phạm vi: Hệ thống (self-hosted) — không đi hướng SaaS đa tenant
 
 Quyết định: **giữ mô hình hệ thống self-hosted, single-tenant**, không phát triển thành SaaS đa khách hàng.
