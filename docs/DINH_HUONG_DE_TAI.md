@@ -218,7 +218,7 @@ Sau khi so sánh 2 hướng:
 - (1) **Thiết kế cơ chế đảm bảo toàn vẹn dữ liệu cho SDK và Adapter trong ingestion thời gian thực bằng idempotency + retry có kiểm soát + batching giới hạn**
 - (2) **Online Funnel Bottleneck Detection bằng mô hình nhẹ thay rule-based**
 
-Đã **chốt chọn hướng (1)** làm bài báo chính trong 2 tháng.
+Đã **chốt chọn hướng (1)** làm bài báo chính trong 2 tháng: "Thiết kế cơ chế đảm bảo toàn vẹn dữ liệu cho hệ thống thu thập thời gian thực thông qua tính lũy đẳng (Idempotency), Batching và Retry có kiểm soát"(Tên này bỏ chữ SDK và Adapter ở tiêu đề để bao quát hơn, các term này sẽ giải thích trong phần Abstract/Tóm tắt). 
 
 Lý do chốt:
 - Phù hợp thời hạn 2 tháng hơn: không phụ thuộc nhiều vào bài toán gán nhãn dữ liệu và vòng lặp tuning model.
