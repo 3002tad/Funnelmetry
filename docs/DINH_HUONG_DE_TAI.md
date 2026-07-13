@@ -211,3 +211,31 @@ Model A (ML) → sinh insight "điểm nghẽn X" → Admin áp dụng hành đ�
 ```
 
 Không cần ép Evaluation Engine phải "là AI" — chọn đúng công cụ cho đúng bài toán (thống kê cho đánh giá tác động 1 can thiệp đơn lẻ, không có nhóm đối chứng) là luận điểm kỹ thuật vững khi bảo vệ, không phải điểm yếu.
+
+### E. Chốt hướng bài báo khoa học (khung 2 tháng)
+
+Sau khi so sánh 2 hướng:
+- (1) **Thiết kế cơ chế đảm bảo toàn vẹn dữ liệu cho SDK và Adapter trong ingestion thời gian thực bằng idempotency + retry có kiểm soát + batching giới hạn**
+- (2) **Online Funnel Bottleneck Detection bằng mô hình nhẹ thay rule-based**
+
+Đã **chốt chọn hướng (1)** làm bài báo chính trong 2 tháng.
+
+Lý do chốt:
+- Phù hợp thời hạn 2 tháng hơn: không phụ thuộc nhiều vào bài toán gán nhãn dữ liệu và vòng lặp tuning model.
+- Dễ tạo thực nghiệm tái lập: fault injection theo kịch bản (network timeout, broker chậm, restart adapter, burst traffic).
+- Dễ phản biện bằng chỉ số kỹ thuật rõ ràng, ít tranh luận chủ quan hơn hướng ML.
+
+Chỉ số đánh giá chính cho bài báo:
+- `event_loss_rate`
+- `duplicate_rate`
+- `integrity_violation_rate` (missing/duplicate/invalid)
+- `p95_end_to_end_latency`
+- `throughput_events_per_second`
+
+Phạm vi thực hiện trong bài báo:
+- SDK: event envelope + batching giới hạn + retry có kiểm soát.
+- Adapter/ingest: kiểm tra toàn vẹn + idempotency + phân loại lỗi retryable/non-retryable.
+- So sánh với baseline ingestion hiện tại để lượng hoá lợi ích.
+
+Ghi chú báo cáo/pha phản biện:
+- Hướng (2) giữ ở mức **hướng phát triển** (hoặc thử nghiệm phụ nếu còn thời gian), không là trọng tâm bài báo 2 tháng.
