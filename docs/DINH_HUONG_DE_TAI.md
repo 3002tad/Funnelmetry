@@ -239,3 +239,18 @@ Phạm vi thực hiện trong bài báo:
 
 Ghi chú báo cáo/pha phản biện:
 - Hướng (2) giữ ở mức **hướng phát triển** (hoặc thử nghiệm phụ nếu còn thời gian), không là trọng tâm bài báo 2 tháng.
+
+### F. Cập nhật thiết kế và Phản biện kiến trúc (2026-07-13)
+
+**1. Sửa đổi tên bài báo khoa học:**
+- Tên cũ (có dấu "+", thiếu tính học thuật): "Thiết kế cơ chế đảm bảo toàn vẹn dữ liệu cho SDK và Adapter trong ingestion thời gian thực bằng idempotency + retry có kiểm soát + batching giới hạn".
+- **Tên mới đề xuất (chuẩn học thuật):** *"Thiết kế cơ chế đảm bảo toàn vẹn dữ liệu cho hệ thống thu thập thời gian thực thông qua tính lũy đẳng (Idempotency), Batching và Retry có kiểm soát"*. Việc bỏ dấu "+" và dùng các từ nối chuẩn giúp tiêu đề chuyên nghiệp và mang tính hàn lâm hơn.
+
+**2. Phạm vi bảo vệ dữ liệu của bài báo:**
+Bài báo đảm bảo toàn vẹn dữ liệu cho cả **Behavior Event** (từ SDK) và đặc biệt là **Business Event** (Commerce). Việc đếm sai (mất mát hoặc nhân bản) các Business Event (`add_to_cart`, `order_completed`) sẽ làm sai lệch nghiêm trọng tính toán KPI của hệ thống. Do đó, cơ chế Idempotency ở Adapter là tấm khiên bắt buộc để chống việc nhận đúp đơn hàng từ luồng Backend (ví dụ khi thỏ trắng RabbitMQ gửi lại tin nhắn do rớt mạng).
+
+**3. Phản biện kiến trúc: "Tại sao không dùng CDC để giải quyết Dual-Write thay vì tự build Pipeline riêng?"**
+Đây là lập luận cốt lõi để bảo vệ kiến trúc trước hội đồng:
+- **CDC "mù" dữ liệu Frontend:** CDC chỉ bắt được thay đổi ở Database, hoàn toàn không bắt được hành vi trên trình duyệt (click banner, cuộn trang, add_to_cart nhưng chỉ lưu ở session local). Pipeline SDK tự build là BẮT BUỘC phải có đối với một hệ thống Phân tích hành vi (Behavior Analytics).
+- **Tính phi xâm lấn (Non-invasive):** Hệ thống Tracking được thiết kế như một công cụ độc lập (như Google Analytics). Việc yêu cầu hệ thống Client (Web-shop đối tác) cấp quyền truy cập sâu vào log Database (WAL) để chạy CDC là không khả thi và rủi ro bảo mật trong thực tế doanh nghiệp. Cung cấp HTTP API và MQ Adapter là tiêu chuẩn tích hợp ngành (Plug & Play) an toàn hơn rất nhiều.
+- **Bù trừ sức mạnh cho CDC:** Kiến trúc luồng Dual-Write + MQ/API (vốn dễ tích hợp nhưng nhiều rủi ro rớt/trùng data) đã được khắc phục điểm yếu nhờ áp dụng **Cơ chế Idempotency, Retry, Batching của Bài báo NCKH**. Độ tin cậy của Pipeline này được nâng lên tiệm cận với CDC, bảo toàn được tính Real-time mà lại không mang nhược điểm xâm lấn hạ tầng của CDC. Kiến trúc CDC (Debezium) sẽ được ghi nhận như một "hướng nâng cấp kiến trúc tối ưu tương lai" cho riêng luồng thương mại lõi.
