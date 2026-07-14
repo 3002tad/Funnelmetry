@@ -254,3 +254,27 @@ Bài báo đảm bảo toàn vẹn dữ liệu cho cả **Behavior Event** (từ
 - **CDC "mù" dữ liệu Frontend:** CDC chỉ bắt được thay đổi ở Database, hoàn toàn không bắt được hành vi trên trình duyệt (click banner, cuộn trang, add_to_cart nhưng chỉ lưu ở session local). Pipeline SDK tự build là BẮT BUỘC phải có đối với một hệ thống Phân tích hành vi (Behavior Analytics).
 - **Tính phi xâm lấn (Non-invasive):** Hệ thống Tracking được thiết kế như một công cụ độc lập (như Google Analytics). Việc yêu cầu hệ thống Client (Web-shop đối tác) cấp quyền truy cập sâu vào log Database (WAL) để chạy CDC là không khả thi và rủi ro bảo mật trong thực tế doanh nghiệp. Cung cấp HTTP API và MQ Adapter là tiêu chuẩn tích hợp ngành (Plug & Play) an toàn hơn rất nhiều.
 - **Bù trừ sức mạnh cho CDC:** Kiến trúc luồng Dual-Write + MQ/API (vốn dễ tích hợp nhưng nhiều rủi ro rớt/trùng data) đã được khắc phục điểm yếu nhờ áp dụng **Cơ chế Idempotency, Retry, Batching của Bài báo NCKH**. Độ tin cậy của Pipeline này được nâng lên tiệm cận với CDC, bảo toàn được tính Real-time mà lại không mang nhược điểm xâm lấn hạ tầng của CDC. Kiến trúc CDC (Debezium) sẽ được ghi nhận như một "hướng nâng cấp kiến trúc tối ưu tương lai" cho riêng luồng thương mại lõi.
+
+### G. Nhật ký trao đổi Cập nhật AI & Dữ liệu (2026-07-14)
+
+**1. Phương pháp gán nhãn cho Mô hình Học máy (Model A):**
+Các dataset thô (như Retailrocket) không có sẵn nhãn điểm nghẽn (bottleneck). Giải pháp là dùng **Weak Supervision (Giám sát yếu) / Heuristic Labeling**:
+- Gom nhóm raw events theo Session/Window thành các Features (lượt view, lượt add_to_cart, giá...).
+- Dùng các luật Rule-based hiện có để gán nhãn tự động trên tập dữ liệu lịch sử (VD: `views >= 10` & `add_to_cart == 0` -> Nhãn: Rớt phễu do xem).
+- Huấn luyện mô hình phân loại (Classification như XGBoost) trên tập dữ liệu đã gán nhãn để mô hình tự học các đặc trưng phi tuyến tính phức tạp thay thế cho bộ luật if/else cứng nhắc. Tùy chọn nâng cao là dùng Unsupervised Learning (Anomaly Detection).
+
+**2. Chiến lược thu thập dữ liệu ngữ nghĩa (Metadata):**
+Tuân thủ tuyệt đối nguyên tắc Phi xâm lấn: **Không kết nối Database khách hàng để lấy thông tin sản phẩm.**
+- **Thu thập qua SDK:** Khách hàng (Web-shop) nhúng dữ liệu vào giao diện (thông qua `data-* attributes` hoặc `window.dataLayer`). SDK lấy dữ liệu này đóng gói thành `metadata` gửi về Tracking API.
+- **Xử lý nội dung mô tả dài:** KHÔNG thu thập nội dung text dài (mô tả sản phẩm) qua event stream để tránh phình to payload, tốn băng thông Kafka và làm nhiễu mô hình phân tích dạng bảng. Thay vào đó, thu thập hành vi tương tác với mô tả (thời gian xem, cuộn chuột). Nếu Chatbot cần đọc mô tả, nó sẽ quét (scrape) trực tiếp URL công khai hoặc đồng bộ qua Product Feed API định kỳ.
+
+**3. Đẩy mạnh tính Agentic cho Chatbot (Model B) - Phân tích Giá:**
+Bỏ qua việc lấy dữ liệu mô tả sản phẩm để tập trung vào biến số quan trọng nhất của E-commerce: **Giá cả**.
+- **Giải pháp:** Tích hợp tính năng gọi hàm (Function Calling / Tools) cho LLM (Qwen3-4B).
+- **Kịch bản:** Khi Model A phát hiện rớt đơn cho một sản phẩm, Chatbot sẽ tự động dùng "Web Search Tool" để dò giá đối thủ cạnh tranh trên Google. Từ đó đưa ra lời khuyên "Giá đang cao hơn thị trường X%, hãy tung voucher giảm giá Y" thay vì chỉ tổng hợp data đơn thuần. Điều này biến Chatbot từ máy đọc báo cáo thành một Trợ lý phân tích cạnh tranh thực thụ (Prescriptive Analytics).
+
+**4. Phản biện về Băng thông mạng của kiến trúc Self-hosted:**
+Dữ liệu đổ dồn về hạ tầng của khách hàng không phải là nhược điểm chí mạng khi so với việc dùng SaaS:
+- Băng thông Ingress (đầu vào) của Cloud/VPS thường là miễn phí. Payload là dạng text JSON siêu nhẹ.
+- **Cơ chế Batching của SDK (từ bài báo NCKH)** giúp gộp các event lại, giảm 80-90% số lượng request mạng (TCP overhead).
+- Đánh đổi lại, khách hàng có chi phí phần cứng cố định (thay vì giá SaaS tăng theo cấp số nhân của Event volume) và quan trọng nhất là bảo vệ được **100% Data Ownership** (Sở hữu dữ liệu lõi).
