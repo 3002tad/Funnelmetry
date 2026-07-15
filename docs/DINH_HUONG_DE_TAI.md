@@ -236,11 +236,12 @@ Ghi chú báo cáo/pha phản biện:
 **2. Phạm vi bảo vệ dữ liệu của bài báo:**
 Bài báo đảm bảo toàn vẹn dữ liệu cho cả **Behavior Event** (từ SDK) và đặc biệt là **Business Event** (Commerce). Việc đếm sai (mất mát hoặc nhân bản) các Business Event (`add_to_cart`, `order_completed`) sẽ làm sai lệch nghiêm trọng tính toán KPI của hệ thống. Do đó, cơ chế Idempotency ở Adapter là tấm khiên bắt buộc để chống việc nhận đúp đơn hàng từ luồng Backend (ví dụ khi thỏ trắng RabbitMQ gửi lại tin nhắn do rớt mạng).
 
-**3. Phản biện kiến trúc: "Tại sao không dùng CDC để giải quyết Dual-Write thay vì tự build Pipeline riêng?"**
-Đây là lập luận cốt lõi để bảo vệ kiến trúc trước hội đồng:
-- **CDC "mù" dữ liệu Frontend:** CDC chỉ bắt được thay đổi ở Database, hoàn toàn không bắt được hành vi trên trình duyệt (click banner, cuộn trang, add_to_cart nhưng chỉ lưu ở session local). Pipeline SDK tự build là BẮT BUỘC phải có đối với một hệ thống Phân tích hành vi (Behavior Analytics).
-- **Tính phi xâm lấn (Non-invasive):** Hệ thống Tracking được thiết kế như một công cụ độc lập (như Google Analytics). Việc yêu cầu hệ thống Client (Web-shop đối tác) cấp quyền truy cập sâu vào log Database (WAL) để chạy CDC là không khả thi và rủi ro bảo mật trong thực tế doanh nghiệp. Cung cấp HTTP API và MQ Adapter là tiêu chuẩn tích hợp ngành (Plug & Play) an toàn hơn rất nhiều.
-- **Bù trừ sức mạnh cho CDC:** Kiến trúc luồng Dual-Write + MQ/API (vốn dễ tích hợp nhưng nhiều rủi ro rớt/trùng data) đã được khắc phục điểm yếu nhờ áp dụng **Cơ chế Idempotency, Retry, Batching của Bài báo NCKH**. Độ tin cậy của Pipeline này được nâng lên tiệm cận với CDC, bảo toàn được tính Real-time mà lại không mang nhược điểm xâm lấn hạ tầng của CDC. Kiến trúc CDC (Debezium) sẽ được ghi nhận như một "hướng nâng cấp kiến trúc tối ưu tương lai" cho riêng luồng thương mại lõi.
+**3. Phản biện kiến trúc: "Tại sao không dùng CDC cho Business Data thay vì thiết kế Message Queue?"**
+CDC (như Debezium) đọc trực tiếp từ WAL log nên không gây khóa bảng. Tuy nhiên, dưới góc độ thiết kế Phần mềm Tracking (Application-level), hệ thống kiên quyết dùng Message Queue (Event-Driven) vì các rào cản thực tế của CDC:
+- **Rào cản Cấp quyền (Replication Privileges):** CDC đòi hỏi quyền truy cập sâu (SUPERUSER/Replication) vào log CSDL của khách hàng. Việc cấp quyền này cho một Tool bên thứ 3 là rủi ro bảo mật khổng lồ (Compliance Risk). MQ an toàn hơn vì khách hàng chủ động đẩy (Push) dữ liệu ra.
+- **Bài toán Rác logic (Database State vs Business Event):** CDC theo dõi 'Trạng thái dữ liệu' (Row-level changes). Một thao tác "Thanh toán" có thể sinh ra 8 thay đổi rời rạc trên 4 bảng khác nhau (Orders, Items, Users, Inventory). Nếu dùng CDC, hệ thống Tracking phải hứng 8 mảnh vỡ này và viết thuật toán Join phức tạp để "dịch ngược" thành 1 sự kiện. Thiết kế MQ đẩy trách nhiệm gom data cho Backend Web-shop: khi giao dịch xong, Web-shop chỉ bắn ra 1 cục JSON duy nhất (`{"event": "order_completed"}`). Ranh giới hệ thống (Bounded Contexts) được bảo vệ.
+- **Khớp nối cấu trúc (Tightly Coupled):** CDC bị gãy vỡ nếu khách hàng đổi tên cột/bảng. MQ sử dụng "Hợp đồng dữ liệu" (Data Contract JSON cố định), giúp Tracking là công cụ Plug & Play độc lập hoàn toàn với Schema của khách hàng.
+- **Kết luận:** Sự đánh đổi của kiến trúc MQ là rủi ro rớt/trùng tin nhắn. Tuy nhiên, **Module Đảm bảo toàn vẹn dữ liệu (Idempotency, Batching, Retry)** được code trực tiếp vào lõi SDK và Adapter của đồ án đã khắc phục hoàn toàn nhược điểm này, giúp kiến trúc MQ đạt độ tin cậy ngang CDC mà không phải gánh chịu rào cản xâm lấn.
 
 ### G. Nhật ký trao đổi Cập nhật AI & Dữ liệu (2026-07-14)
 
@@ -277,3 +278,16 @@ Việc giải quyết trọn vẹn 2 tác vụ: **(1) Phát hiện điểm ngh�
   - **Ma trận Rule-based tĩnh:** Ánh xạ thẳng lỗi từ Model A1 sang hành động cố định thông qua file config (VD: Báo lỗi bỏ giỏ hàng -> Đề xuất mã freeship).
   - **Diễn giải bằng Model B (Chatbot RAG):** Model B đọc cấu hình đề xuất này từ Qdrant, sau đó đóng vai trò "Lớp trình bày" để thông báo cho Admin một cách tự nhiên. **Tuyệt đối không nhúng Web Search Tool hay chức năng Agentic phức tạp** để giữ an toàn cho kiến trúc ban đầu.
 - **Đánh giá:** Đây là chiến lược cực kỳ thông minh. Nó vừa đáp ứng trọn vẹn hàm lượng học thuật cốt lõi (có model XGBoost được train bài bản), vừa giữ nguyên được cấu trúc 3 thành phần hệ thống ban đầu, đảm bảo tuyệt đối tiến độ đồ án mà không bị lan man sang các mảng Agent phức tạp.
+
+### I. Nhật ký trao đổi về Cơ chế thu thập và Định dạng Dữ liệu (2026-07-15)
+
+**1. Cơ chế Ingestion (Quét/Lấy dữ liệu):**
+Hệ thống hoàn toàn tuân thủ nguyên tắc **Phi xâm lấn (Non-invasive)** — tuyệt đối không chủ động quét (crawl) hay truy cập trực tiếp vào Database của khách hàng. Thay vào đó, dữ liệu được thu thập thụ động qua 2 luồng:
+- **Client-side (Behavior Events):** Browser SDK gắn trên Web-shop bắt các tương tác (click, view, scroll) và đẩy (Push) về Tracking API qua HTTP.
+- **Server-side (Business Events):** Adapter lắng nghe (Subscribe) từ hệ thống Message Queue (như RabbitMQ) của khách hàng để bắt các sự kiện nghiệp vụ quan trọng nhằm tránh sai lệch luồng thanh toán.
+
+**2. Các định dạng dữ liệu được xử lý:**
+Hệ thống xử lý mượt mà luồng chuyển đổi dữ liệu qua các pipeline:
+- **Dữ liệu Bán cấu trúc (Semi-structured - Chủ đạo):** Định dạng **JSON** linh hoạt luân chuyển từ SDK -> Tracking API -> Kafka. JSON cho phép các event giữ nguyên cấu trúc lõi (`session_id`, `timestamp`) trong khi phần `properties` có thể co giãn tự do theo từng loại tương tác.
+- **Dữ liệu Có cấu trúc (Structured - Cho ML):** Streaming Processor (Python) tiêu thụ JSON, làm sạch và gom nhóm (Window Aggregation) thành dữ liệu dạng Bảng (Tabular/Vector số liệu). Đây là đầu vào chuẩn mực cho Model A1 (XGBoost) và để lưu trữ dài hạn trong PostgreSQL.
+- **Dữ liệu Phi cấu trúc (Unstructured - Bị hạn chế):** Hệ thống lõi Real-time **TỪ CHỐI** đọc và lưu trữ các đoạn text dài (ví dụ: mô tả sản phẩm, review) để tránh phình to băng thông Kafka. Ngoại lệ duy nhất là các câu văn bản "Insight/Đề xuất" sinh ra từ Model A1 và A2, được chuyển thành vector lưu vào **Qdrant** phục vụ riêng cho Chatbot Model B (RAG) đọc hiểu.
