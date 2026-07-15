@@ -153,31 +153,6 @@ Effort ước tính nhỏ, không ảnh hưởng tới quỹ thời gian dành c
 
 **Effort & vị trí trong kế hoạch 5 tháng:** trung bình-nhỏ (logic so sánh KPI + 1 bảng mới + UI đánh dấu, tái dùng hạ tầng KPI đã có) — nhỏ hơn nhiều so với xây model ML từ đầu, không xung đột với ưu tiên đi sâu AI (mục 5), mà bổ sung thêm 1 chiều đánh giá khác cho luận văn.
 
----
-
-## Nhật ký trao đổi bổ sung — 2026-07-08
-
-### A. Vị trí cụm "thời gian thực" trong tên đề tài
-
-Cụm "thời gian thực" đặt sát "thương mại điện tử" (như bản trước đó) dễ bị đọc nhầm thành "thương mại điện tử thời gian thực". Đã chốt 2 phương án thay thế (ghi ở mục 1):
-- **Phương án 1:** gắn ngay sau "theo dõi hành vi" — khớp đúng bộ phận thực sự real-time (SDK/Tracking API/Kafka).
-- **Phương án 2:** gắn ngay sau "hệ thống" — mô tả cả hệ thống ở tầng hạ tầng/pipeline.
-
-Lưu ý: không đặt "thời gian thực" gần cụm "đánh giá hiệu quả" vì Evaluation Engine (mục 10) là before-after theo chu kỳ, không phải real-time — đặt sai chỗ sẽ tạo mâu thuẫn khi đối chiếu thiết kế thật.
-
-### B. Chiến lược hạ tầng triển khai demo
-
-**Cloud-native vs VPS:** đây không phải 2 lựa chọn loại trừ nhau — hệ thống hiện tại (k3s + microservices + Kafka) đã là kiến trúc cloud-native, câu hỏi thực chất là **host ở đâu**. Quyết định: giữ nguyên kiến trúc k3s hiện có, host trên **1 VPS thuê** (không đầu tư managed cloud như AWS EKS/GCP GKE — tốn chi phí, effort học thêm không cần thiết, cạnh tranh thời gian với mục tiêu AI).
-
-**VPS trong nước vs AWS/Alibaba:** tách 2 nhu cầu khác nhau:
-- **Huấn luyện model (mục 5):** dùng Google Colab/Kaggle (miễn phí GPU) cho phần lớn thử nghiệm; chỉ thuê GPU AWS/Alibaba theo giờ (bật train, tắt ngay) nếu cần compute mạnh hơn giới hạn miễn phí — đây là kịch bản AWS/Alibaba phát huy đúng thế mạnh (pay-per-use ngắn hạn).
-- **Host demo liên tục (dashboard, chatbot):** ưu tiên **VPS trong nước** — thủ tục thanh toán đơn giản (VND), không rủi ro billing bất ngờ như AWS/Alibaba (pay-per-hour, cần thẻ quốc tế, GPU quota phải xin duyệt), độ trễ thấp khi hội đồng truy cập trực tiếp, nhất quán với định vị "thị trường TMĐT Việt Nam" (mục 7).
-
-**Quyết định thực tế:** nhóm chỉ đăng ký thuê VPS **1 tháng, đúng thời điểm phản biện**. Quá trình phát triển + train (nếu có) + kiểm thử diễn ra ở local + Colab, không dùng VPS GPU cho giai đoạn này.
-
-**Cấu hình VPS đã chọn:** gói **V100-4GB** — 8 Core E5 v4, 24GB RAM, 160GB NVMe SSD, 4GB GPU NVIDIA V100, giá 1.650.000 VNĐ/tháng.
-- GPU 4GB VRAM là ràng buộc chính cho việc chọn LLM cho chatbot; RAM 24GB/CPU 8 core dư dả, đủ để offload thêm phần model không fit VRAM sang CPU/RAM nếu cần, và đủ chạy đồng thời Kafka + Postgres + Qdrant + streaming-processor + tracking-api + dashboard-api (tổng ước tính ~9–13GB trong 24GB).
-
 ### C. Lựa chọn model LLM cho chatbot (Model B) — có cần khả năng "thinking" không
 
 Làm rõ trước: khái niệm "thinking" (chain-of-thought) chỉ áp dụng cho **Model B (chatbot Ollama)**, không áp dụng cho Model A (mục 5, model dự đoán/phân loại trên dữ liệu dạng bảng — không phải LLM).
@@ -189,28 +164,40 @@ Vì VPS GPU chỉ thuê **đúng 1 tháng, đúng thời điểm phản biện**
 - Chỉ **bật thinking mode 1 lần, có chủ đích** khi muốn minh hoạ khả năng suy luận trước hội đồng (VD giải thích lý do 1 khuyến nghị cụ thể), không chạy thinking mode làm hành vi mặc định.
 - Phương án dự phòng nếu cần chất lượng cao hơn: **DeepSeek-R1-Distill-Qwen-7B** (Q4_K_M ~4.3–4.7GB, cần offload nhẹ sang CPU nhờ RAM 24GB dư dả) — chấp nhận độ trễ cao hơn.
 
-### D. Làm rõ vai trò 3 thành phần AI/phân tích — Model A, Evaluation Engine, Model B
+### D. Làm rõ vai trò 4 thành phần AI/Phân tích (Cập nhật Kiến trúc Lai - Tách biệt 4 Model/Engine)
 
-Mục 10 (feedback loop) **không do Model A hay Model B đảm nhận chính** — đây là thành phần thứ 3, **Evaluation Engine**: thuật toán thống kê tất định (so sánh KPI before-after + t-test), **không phải model học máy được huấn luyện**.
+Hệ thống được chia cắt thành 4 chốt chặn (Pipeline) chuyên biệt, áp dụng triết lý "Dùng đúng công cụ cho đúng bài toán" (Separation of Concerns).
 
-| | Model A (mục 5) | Evaluation Engine (mục 10) | Model B (chatbot) |
-|---|---|---|---|
-| Bản chất | Model ML đã huấn luyện (classification/regression) | Thống kê tất định (before-after delta, t-test) | LLM có sẵn (Qwen3-4B) |
-| Có phải "học máy"? | Có — trọng tâm cụm "bằng học máy" trong tên đề tài | Không — thống kê mô tả/kiểm định giả thuyết | Có (LLM), nhưng chỉ là lớp trình bày |
-| Cần GPU/VPS? | Không — inference nhẹ, chạy tốt trên CPU | Không — chỉ là truy vấn SQL + phép tính | Có — lý do duy nhất cần VPS GPU |
+| | Model A1 (Kẻ chẩn đoán) | Model A2 (Kẻ kê đơn) | Model B (Người phát ngôn) | Evaluation Engine (Kẻ kiểm chứng) |
+|---|---|---|---|---|
+| **Nhiệm vụ** | Đọc dữ liệu Streaming (Clickstream) để phát hiện Lỗi/Điểm nghẽn rớt phễu. | Nhận Lỗi từ Model A1, đối chiếu ma trận luật để sinh ra Đề xuất hành động kinh doanh. | Đọc kết quả từ Qdrant (Lỗi + Đề xuất + Đánh giá) và diễn giải bằng ngôn ngữ tự nhiên. | Đo lường tỷ lệ chuyển đổi KPI trước-sau khi Admin áp dụng đề xuất để đánh giá độ hiệu quả. |
+| **Bản chất** | Model Học máy truyền thống (VD: Classification/XGBoost). | Ưu tiên Hệ chuyên gia (Rule-based). Có thể nâng cấp thành Model ML chuyên biệt (Recommender System) nếu đồ án còn dư thời gian. | LLM RAG thuần túy (Qwen3-4B). | Thuật toán thống kê tất định (Before-after delta, t-test). |
+| **Có phải "học máy"?**| Có — Trọng tâm học thuật (Data Science) của đề tài. | Tạm thời là Không (Dùng logic tĩnh để đảm bảo tiến độ). Có thể chuyển thành ML ở pha sau. | Có — Ứng dụng Generative AI (Lớp trình bày). | Không — Thống kê mô tả/kiểm định. |
+| **Tài nguyên** | Chạy liên tục (24/7) xử lý Real-time cực nhanh trên **CPU**. | Chạy liên tục song song cùng Model A1 trên **CPU**. | Chạy On-demand (Chỉ khi Admin hỏi), bắt buộc cần **GPU**. | Tính toán nhẹ nhàng bằng truy vấn SQL/Python trên **CPU**. |
 
-Luồng phối hợp:
+Luồng phối hợp (Pipeline):
+```text
+[Streaming Data]
+       ↓
+Model A1 (Machine Learning) → Phát hiện: "Sản phẩm X rớt phễu tại Giỏ hàng" 
+       ↓
+Model A2 (Rule-based)       → Ánh xạ lỗi thành đề xuất: "Tặng voucher Freeship"
+       ↓
+(Lưu cả 2 thông tin trên vào Qdrant)
+       ↓
+                                          Model B (Chatbot RAG) ← Đọc Qdrant
+                                                 ↓
+                                          Diễn giải: "Chào Admin, hệ thống báo Sản phẩm X đang kẹt ở giỏ hàng. Đề xuất từ hệ chuyên gia là Tặng voucher Freeship."
+                                                 ↓
+Admin duyệt và áp dụng hành động (applied_at)
+       ↓
+Evaluation Engine (Thống kê Before-After) → Đánh giá hiệu quả voucher → Lưu kết quả Qdrant
 ```
-Model A (ML) → sinh insight "điểm nghẽn X" → Admin áp dụng hành động (applied_at)
-                                                    ↓
-                                Evaluation Engine (thống kê before-after)
-                                                    ↓
-                                evaluation_result → lưu Qdrant
-                                                    ↓
-                    Model B (chatbot) → diễn giải cho người dùng bằng ngôn ngữ tự nhiên
-```
 
-Không cần ép Evaluation Engine phải "là AI" — chọn đúng công cụ cho đúng bài toán (thống kê cho đánh giá tác động 1 can thiệp đơn lẻ, không có nhóm đối chứng) là luận điểm kỹ thuật vững khi bảo vệ, không phải điểm yếu.
+Kiến trúc 4 thành phần này là minh chứng xuất sắc cho tư duy thiết kế hệ thống (System Design): 
+1. Không nhồi nhét mọi thứ vào 1 model ML (tránh làm quá tải tiến độ). 
+2. Không nhồi nhét mọi thứ vào LLM (tránh ảo giác và tốn tài nguyên). 
+3. Phân tách rõ ràng giữa thuật toán chẩn đoán (ML), logic nghiệp vụ (Rule-based), giao diện ngôn ngữ tự nhiên (LLM), và đo lường khoa học (Stats).
 
 ### E. Chốt hướng bài báo khoa học (khung 2 tháng)
 
@@ -268,13 +255,25 @@ Tuân thủ tuyệt đối nguyên tắc Phi xâm lấn: **Không kết nối Da
 - **Thu thập qua SDK:** Khách hàng (Web-shop) nhúng dữ liệu vào giao diện (thông qua `data-* attributes` hoặc `window.dataLayer`). SDK lấy dữ liệu này đóng gói thành `metadata` gửi về Tracking API.
 - **Xử lý nội dung mô tả dài:** KHÔNG thu thập nội dung text dài (mô tả sản phẩm) qua event stream để tránh phình to payload, tốn băng thông Kafka và làm nhiễu mô hình phân tích dạng bảng. Thay vào đó, thu thập hành vi tương tác với mô tả (thời gian xem, cuộn chuột). Nếu Chatbot cần đọc mô tả, nó sẽ quét (scrape) trực tiếp URL công khai hoặc đồng bộ qua Product Feed API định kỳ.
 
-**3. Đẩy mạnh tính Agentic cho Chatbot (Model B) - Phân tích Giá:**
-Bỏ qua việc lấy dữ liệu mô tả sản phẩm để tập trung vào biến số quan trọng nhất của E-commerce: **Giá cả**.
-- **Giải pháp:** Tích hợp tính năng gọi hàm (Function Calling / Tools) cho LLM (Qwen3-4B).
-- **Kịch bản:** Khi Model A phát hiện rớt đơn cho một sản phẩm, Chatbot sẽ tự động dùng "Web Search Tool" để dò giá đối thủ cạnh tranh trên Google. Từ đó đưa ra lời khuyên "Giá đang cao hơn thị trường X%, hãy tung voucher giảm giá Y" thay vì chỉ tổng hợp data đơn thuần. Điều này biến Chatbot từ máy đọc báo cáo thành một Trợ lý phân tích cạnh tranh thực thụ (Prescriptive Analytics).
-
-**4. Phản biện về Băng thông mạng của kiến trúc Self-hosted:**
+**3. Phản biện về Băng thông mạng của kiến trúc Self-hosted:**
 Dữ liệu đổ dồn về hạ tầng của khách hàng không phải là nhược điểm chí mạng khi so với việc dùng SaaS:
 - Băng thông Ingress (đầu vào) của Cloud/VPS thường là miễn phí. Payload là dạng text JSON siêu nhẹ.
 - **Cơ chế Batching của SDK (từ bài báo NCKH)** giúp gộp các event lại, giảm 80-90% số lượng request mạng (TCP overhead).
 - Đánh đổi lại, khách hàng có chi phí phần cứng cố định (thay vì giá SaaS tăng theo cấp số nhân của Event volume) và quan trọng nhất là bảo vệ được **100% Data Ownership** (Sở hữu dữ liệu lõi).
+
+### H. Nhật ký trao đổi Chiến lược Huấn luyện Mô hình AI (2026-07-15)
+
+Việc giải quyết trọn vẹn 2 tác vụ: **(1) Phát hiện điểm nghẽn** và **(2) Đề xuất hành động** cần được cân nhắc kỹ lưỡng về khối lượng công việc và kiến trúc. Dưới đây là 2 phương án đã được đưa lên bàn cân:
+
+**Phương án 1: Train 2 Model Học máy chuyên biệt (Lý tưởng nhưng khối lượng công việc khổng lồ)**
+- **Model A1 (Bottleneck Detector):** Dùng dataset `Retailrocket` (dữ liệu Clickstream) để train mô hình phân loại rớt phễu (VD: XGBoost). Đầu ra là nhãn điểm nghẽn.
+- **Model A2 (Action Recommender):** Lấy kết quả điểm nghẽn từ Model A1, kết hợp với dataset `Olist Marketing Funnel` để train một mô hình thứ hai chuyên gợi ý hành động kinh doanh (tặng voucher, freeship...).
+- **Đánh giá:** Kiến trúc rất đẹp và tách bạch rõ ràng (Separation of Concerns), giải quyết được bài toán thiếu data nếu gộp vào 1 model end-to-end. Tuy nhiên, khối lượng công việc (Data cleaning, Feature Engineering, Labeling, Training) sẽ **tăng lên gấp đôi**, tạo ra rủi ro cực lớn làm chậm tiến độ 5 tháng của đồ án.
+
+**Phương án 2: Chiến lược Lai - Train 1 Model + Rule-based (Phương án tối ưu tiến độ - KHUYÊN DÙNG)**
+Để vẫn đảm bảo yếu tố "bằng học máy" của đề tài mà không làm quá tải công việc, ta sẽ phân bổ nguồn lực theo hướng "chọn việc mà làm":
+- **Khâu Phát hiện (Chốt chặn 1 - Bắt buộc dùng ML):** Dồn toàn bộ nỗ lực Học máy (ML) để train duy nhất **Model A1** (XGBoost với Retailrocket). Việc này giúp tập trung thời gian để chăm chút kỹ phần tinh chỉnh mô hình và biểu đồ đánh giá (Precision/Recall) cho báo cáo.
+- **Khâu Đề xuất (Chốt chặn 2 - Giao quyền cho hệ thống khác):** KHÔNG train thêm model ML (A2) truyền thống. Thay vào đó, áp dụng cơ chế:
+  - **Ma trận Rule-based tĩnh:** Ánh xạ thẳng lỗi từ Model A1 sang hành động cố định thông qua file config (VD: Báo lỗi bỏ giỏ hàng -> Đề xuất mã freeship).
+  - **Diễn giải bằng Model B (Chatbot RAG):** Model B đọc cấu hình đề xuất này từ Qdrant, sau đó đóng vai trò "Lớp trình bày" để thông báo cho Admin một cách tự nhiên. **Tuyệt đối không nhúng Web Search Tool hay chức năng Agentic phức tạp** để giữ an toàn cho kiến trúc ban đầu.
+- **Đánh giá:** Đây là chiến lược cực kỳ thông minh. Nó vừa đáp ứng trọn vẹn hàm lượng học thuật cốt lõi (có model XGBoost được train bài bản), vừa giữ nguyên được cấu trúc 3 thành phần hệ thống ban đầu, đảm bảo tuyệt đối tiến độ đồ án mà không bị lan man sang các mảng Agent phức tạp.
