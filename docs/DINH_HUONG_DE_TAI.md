@@ -291,3 +291,25 @@ Hệ thống xử lý mượt mà luồng chuyển đổi dữ liệu qua các p
 - **Dữ liệu Bán cấu trúc (Semi-structured - Chủ đạo):** Định dạng **JSON** linh hoạt luân chuyển từ SDK -> Tracking API -> Kafka. JSON cho phép các event giữ nguyên cấu trúc lõi (`session_id`, `timestamp`) trong khi phần `properties` có thể co giãn tự do theo từng loại tương tác.
 - **Dữ liệu Có cấu trúc (Structured - Cho ML):** Streaming Processor (Python) tiêu thụ JSON, làm sạch và gom nhóm (Window Aggregation) thành dữ liệu dạng Bảng (Tabular/Vector số liệu). Đây là đầu vào chuẩn mực cho Model A1 (XGBoost) và để lưu trữ dài hạn trong PostgreSQL.
 - **Dữ liệu Phi cấu trúc (Unstructured - Bị hạn chế):** Hệ thống lõi Real-time **TỪ CHỐI** đọc và lưu trữ các đoạn text dài (ví dụ: mô tả sản phẩm, review) để tránh phình to băng thông Kafka. Ngoại lệ duy nhất là các câu văn bản "Insight/Đề xuất" sinh ra từ Model A1 và A2, được chuyển thành vector lưu vào **Qdrant** phục vụ riêng cho Chatbot Model B (RAG) đọc hiểu.
+
+### J. Đề xuất Hướng Bài báo Khoa học thứ 2 (Trọng tâm Trí tuệ Nhân tạo - Model A1)
+
+Nếu đồ án còn quỹ thời gian và cần tăng cường hàm lượng học thuật hàn lâm (Academic Rigor) về mảng Học máy (Machine Learning) để gây ấn tượng mạnh với hội đồng, định hướng xuất bản thêm một bài báo thứ 2 là hoàn toàn khả thi.
+
+**Tên bài báo đề xuất:**
+> *"Phát hiện Bất thường trong Phễu chuyển đổi Thương mại Điện tử thông qua Mô hình Học kết hợp (Ensemble Learning) trên Dòng dữ liệu Clickstream thời gian thực dựa trên Phương pháp Giám sát yếu"*
+
+**1. Vấn đề nghiên cứu (Pain Point):**
+Dữ liệu hành vi người dùng (Clickstream) như tập Retailrocket tuy có khối lượng khổng lồ nhưng lại ở dạng **không có nhãn (unlabeled)**. Việc gán nhãn thủ công để xác định đâu là "điểm nghẽn/bất thường" là bất khả thi, dẫn đến khó khăn trong việc huấn luyện các mô hình Học có giám sát (Supervised Learning) truyền thống.
+
+**2. Giải pháp và Hàm lượng Khoa học (Scientific Contribution):**
+Bài báo sẽ giải quyết triệt để vấn đề trên bằng 2 phương pháp tiên tiến:
+- **Học giám sát yếu (Weak Supervision):** Sử dụng các luật Heuristic (Rule-based) để tự động hóa quá trình gán nhãn (Auto-labeling) cho hàng triệu dòng sự kiện thô. (Ví dụ: Số lần xem > 10 nhưng Add to cart = 0 sẽ được gán nhãn là 'Rớt phễu do xem').
+- **Học kết hợp (Ensemble Learning):** Sử dụng tập dữ liệu vừa được gán nhãn yếu để huấn luyện mô hình **XGBoost (Model A1)**. Mô hình này sẽ học các đặc trưng phi tuyến tính phức tạp (Pattern Recognition) để vượt qua giới hạn cứng nhắc của bộ luật Heuristic ban đầu.
+
+**3. Chỉ số Đánh giá (Metrics):**
+Bài báo sẽ tập trung chứng minh tính hiệu quả qua các biểu đồ và chỉ số định lượng:
+- **Độ chính xác (Accuracy Metrics):** So sánh F1-Score, Precision, Recall giữa mô hình XGBoost và Baseline (Chỉ dùng Rule-based thuần túy).
+- **Hiệu năng hệ thống (System Performance):** Đo lường độ trễ dự đoán (Inference Latency) khi mô hình xử lý chuỗi dữ liệu (Tumbling Window) trong môi trường Real-time trên kiến trúc Streaming.
+
+Hướng nghiên cứu này bám sát tuyệt đối vào module Model A1 của kiến trúc hệ thống, biến một bài toán Kỹ thuật dữ liệu (Data Engineering) thành một công trình khoa học Trí tuệ nhân tạo (AI) bài bản.
