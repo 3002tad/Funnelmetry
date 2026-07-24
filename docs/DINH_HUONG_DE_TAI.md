@@ -379,56 +379,133 @@ Rule trả về Có/Không. XGBoost trả về xác suất (VD: 72% khả năng 
 **Kết luận để chốt với hội đồng:**
 > "Rule-based chỉ đóng vai trò Người mồi lửa (Bootstrapper) tạo nhãn thô. Mô hình Học máy (XGBoost) đóng vai trò Người tối ưu (Optimizer), học biểu diễn phi tuyến tính phức tạp từ hàng chục chiều dữ liệu mà bộ luật tĩnh không thể bao quát nổi."
 
-### O. Giải pháp xử lý Inconsistency Dữ liệu Behavior (2026-07-18)
+### O. Consistency Dữ liệu Behavior — Phân tích, Giải pháp và Phản biện (2026-07-18 → 2026-07-20)
 
-**1. Thừa nhận bản chất bài toán:**
-Không tồn tại khái niệm Consistency 100% cho dữ liệu Client-side Tracking. Ngay cả Google Analytics hay Amplitude cũng chấp nhận tỷ lệ hụt 5-15%. Hệ thống phân định rạch ròi:
-- **Business Data (Đơn hàng):** Bắt buộc 100% → Server-to-Server MQ + Idempotency.
-- **Behavior Data (Hành vi):** Bản chất là dữ liệu Thống kê (Statistical), mục tiêu là đo lường được sai số và duy trì Coverage Rate trên 90%.
+#### O.1. Bài toán gốc: Tại sao Behavior Data không thể Consistency 100%?
 
-**2. Định nghĩa lại "Phi xâm lấn" (Ranh giới thật sự):**
-- **Được phép (Phi xâm lấn CODE):** Khách hàng THÊM một thành phần mới (script tag, middleware, MQ publisher). Thành phần này chỉ đọc luồng dữ liệu đi qua, chỉ đẩy ra (push), không sửa logic nghiệp vụ, gỡ ra bất kỳ lúc nào.
-- **Không được phép (Phi xâm lấn DB):** Hệ thống Tracking thò tay vào (pull) tài nguyên nội bộ (database, file system, internal API). Đòi credentials, lộ PII, gắn chặt vào schema.
-- **Tóm gọn:** *"Phi xâm lấn = Phi xâm lấn dữ liệu (DB), không phải phi xâm lấn tích hợp (Code). Giống cài ổ cắm điện trên tường, không phải đục tường kéo dây."*
+Khác với Business Data (chạy server-to-server qua MQ, có confirm hai chiều), Behavior Data được bắt ở **phía trình duyệt (Client-side)**. Giữa SDK và server có "Mạng Internet công cộng", nơi xảy ra:
 
-**3. Xử lý SSR vs CSR/SPA:**
+| Nguyên nhân mất dữ liệu | SDK có biết không? | Khắc phục được? |
+|---|---|---|
+| User đóng tab trước khi batch event kịp gửi | Không | Beacon API |
+| Ad-blocker chặn request tới Tracking API | Không | Không thể (blind spot cố hữu) |
+| Mất mạng giữa chừng | Có (nếu có retry) | LocalStorage Buffer |
+| User tắt JavaScript | SDK không chạy → Mù hoàn toàn | Không thể |
+| Bot/Crawler giả lập hành vi (Dữ liệu thừa) | Không | Bot detection |
 
-| Tiêu chí | SSR (PHP, Django, Next.js SSR) | CSR / SPA (React, Vue, Angular) |
+**Kết luận kiến trúc:** Không tồn tại khái niệm Consistency 100% cho Client-side Tracking. Ngay cả Google Analytics hay Amplitude cũng chấp nhận tỷ lệ hụt 5-15%. Hệ thống phân định rạch ròi:
+- **Business Data (Đơn hàng):** Bắt buộc 100% → Server-to-Server MQ + Idempotency (Bài báo #1).
+- **Behavior Data (Hành vi):** Bản chất là dữ liệu Thống kê (Statistical), mục tiêu là **đo lường được sai số** và duy trì Coverage Rate trên 90%.
+
+#### O.2. Kỹ thuật giảm thiểu mất mát tại nguồn (SDK-level Mitigations)
+
+**Beacon API (Chống mất khi đóng tab):**
+Khi user đóng tab/chuyển trang, trình duyệt vẫn gửi được data nhờ `navigator.sendBeacon()` — API chuẩn W3C cam kết gửi request ngay cả khi tab đang bị đóng. Đây là vũ khí số 1 chống mất event trên SSR.
+
+**LocalStorage Buffer (Chống mất khi mất mạng):**
+Nếu `fetch()` tới Tracking API thất bại → SDK lưu event vào `localStorage` → Lần truy cập sau, SDK đọc queue và gửi lại (Retry from buffer).
+
+**SDK Heartbeat (Đo lường "Tỷ lệ sống sót"):**
+SDK gửi tín hiệu "ping" định kỳ (mỗi 30 giây). Server đếm số heartbeat nhận được so với số session đang mở → Tính ra Session Coverage Rate.
+
+#### O.3. Phân tích sâu: SSR vs CSR/SPA — Hai bài toán Consistency ngược nhau
+
+**SSR (Server-Side Rendering — PHP, Django, Rails, Next.js SSR):**
+- Mỗi lần chuyển trang = full HTTP request → **Server biết mọi pageview** (access log đầy đủ).
+- Nhưng SDK bị "chết đi sống lại" liên tục → Dễ mất event buffer khi chuyển trang.
+- Giải pháp: Beacon API + Server render `<meta name="x-request-id">` để đối chiếu.
+- Consistency: **Dễ đo** (có server log làm ground truth) nhưng **dễ mất event**.
+
+**CSR / SPA (Client-Side Rendering — React, Vue, Angular):**
+- Chỉ 1 HTTP request ban đầu, sau đó mọi chuyển trang là client-side routing.
+- **Server mù hoàn toàn** về các lần chuyển trang sau (access log chỉ ghi 1 request).
+- Nhưng SDK sống suốt session, không bị hủy → Bắt event đầy đủ hơn SSR.
+- SDK hook vào Router events (`history.pushState`, `popstate`) để phát sinh `page_view`.
+- Consistency: **Khó đo** (không có server-side ground truth) nhưng **ít mất event**.
+
+**Nghịch lý SPA — Consistency tự nhiên cao hơn SSR:**
+Nếu khách hàng cũng ghi nhận behavior data, SDK của họ cũng chạy client-side, cũng bị ảnh hưởng bởi cùng yếu tố mất mát:
+- Ad-blocker chặn → chặn CẢ SDK của hệ thống lẫn SDK của khách hàng.
+- JS tắt → CẢ HAI SDK đều không chạy.
+- Mất mạng → CẢ HAI đều mất event cùng lúc.
+
+Kết quả: Hai bộ dữ liệu tuy đều mất ~5% so với thực tế, nhưng chúng **mất cùng 5% đó** → Consistency giữa hai bên lại rất cao! Với SSR thì ngược lại: Server log ghi 100% nhưng SDK chỉ 95% → Chênh lệch rõ ràng.
+
+| Tiêu chí | SSR | CSR / SPA |
 |---|---|---|
 | SDK tồn tại | Bị hủy mỗi lần chuyển trang | Sống suốt session |
 | Rủi ro mất event | **Cao** (page unload) | **Thấp** |
 | Server biết pageview? | **Có** (access log đầy đủ) | **Không** (chỉ biết lần load đầu) |
-| Consistency giữa 2 SDK | Dễ chênh lệch (server 100% vs SDK 95%) | Tự nhiên cao (cùng blind spot — cả 2 SDK đều bị ad-blocker/JS tắt chặn đồng thời) |
+| Có source of truth server-side? | **Có** → Dễ đối chiếu | **Không** |
+| Consistency giữa 2 SDK | Dễ chênh lệch (server 100% vs SDK 95%) | Tự nhiên cao (cùng blind spot) |
 | Kỹ thuật Correlation ID | Server render `<meta name="x-request-id">` | SDK tự sinh `page_view_id` |
 
-**4. Cơ chế tích hợp Kép (Dual-Integration Strategy):**
+#### O.4. Định nghĩa lại "Phi xâm lấn" — Ranh giới thật sự (2026-07-18)
 
-| Tình huống khách hàng | Phương thức tích hợp | Xâm lấn Frontend |
+Câu hỏi cốt lõi: Giữa "phi xâm lấn code" và "phi xâm lấn DB", cái nào đánh đổi được?
+
+**Trả lời: Phi xâm lấn CODE là cái đánh đổi được.** Hệ thống đã đang đánh đổi nó rồi:
+- Gắn `<script src="sdk.js">` vào HTML → Xâm lấn code ✅ (đang làm)
+- Cài MQ publisher để bắn business events → Xâm lấn code ✅ (đang làm)
+- Truy cập DB đọc bảng khách hàng → ❌ Tuyệt đối không
+- CDC đọc WAL log → ❌ Tuyệt đối không
+
+**Ranh giới thật sự:**
+- **Được phép:** Khách hàng **THÊM** (add) thành phần mới (script, middleware, MQ publisher). Chỉ đọc luồng dữ liệu đi qua, chỉ đẩy ra (push), không sửa logic nghiệp vụ, gỡ ra bất kỳ lúc nào.
+- **Không được phép:** Hệ thống Tracking **THÒ TAY VÀO** (pull) tài nguyên nội bộ (database, file system, internal API). Đòi credentials, lộ PII, gắn chặt vào schema.
+
+**Tóm gọn:** *"Phi xâm lấn = Phi xâm lấn dữ liệu (DB), không phải phi xâm lấn tích hợp (Code). Giống cài ổ cắm điện trên tường, không phải đục tường kéo dây."*
+
+#### O.5. Cơ chế tích hợp Kép và Chuẩn hóa đầu vào (2026-07-20)
+
+**Dual-Integration Strategy — Tùy tình huống khách hàng:**
+
+| Tình huống | Phương thức | Xâm lấn Frontend |
 |---|---|---|
-| **ĐÃ CÓ tracking** (GA4, Segment, Mixpanel) | **Data Connector (Webhook Ingestion):** Khách hàng cấu hình GTM/Segment chuyển tiếp (forward) bản copy event sang `POST /api/ingest/webhook`. | **0%** — Không viết thêm 1 dòng JS nào. |
-| **CHƯA CÓ tracking** | **Drop-in SDK (Auto-tracking):** Chỉ cần 1 dòng `<script src="sdk.js">`. SDK tự bắt pageview (qua `history.pushState`) và click (qua `data-track` attributes trên HTML). | **Cực thấp** — 1 dòng script + gắn `data-track` vào các nút quan trọng. |
+| **ĐÃ CÓ tracking** (GA4, Segment, Mixpanel) | **Data Connector (Webhook Ingestion):** Cấu hình GTM/Segment forward bản copy event sang `POST /api/ingest/webhook`. | **0%** — Không viết thêm 1 dòng JS. |
+| **CHƯA CÓ tracking** | **Drop-in SDK (Auto-tracking):** 1 dòng `<script src="sdk.js">`. SDK tự bắt pageview (`history.pushState`) và click (`data-track` attributes). | **Cực thấp** — 1 dòng script. |
 
-**5. Chuẩn hóa đầu vào đa nguồn — Anti-Corruption Layer (ACL):**
-Khi nhận dữ liệu từ nhiều nền tảng (GA4, Segment, Custom), hệ thống triển khai Adapter Pattern:
+**Anti-Corruption Layer (ACL) — Chuẩn hóa đa nguồn:**
+Khi nhận dữ liệu từ nhiều nền tảng, hệ thống triển khai Adapter Pattern:
 - Mỗi nguồn có endpoint riêng: `/api/ingest/segment`, `/api/ingest/ga4`, `/api/ingest/custom`.
-- Mỗi Adapter "dịch" JSON đặc thù sang **Universal Schema** chuẩn nội bộ (chứa `event_id`, `session_id`, `event_type`, `timestamp`, `properties`).
+- Mỗi Adapter "dịch" JSON đặc thù sang **Universal Schema** chuẩn nội bộ (`event_id`, `session_id`, `event_type`, `timestamp`, `properties`).
 - Dữ liệu qua Validator trước khi vào Kafka. Dữ liệu lỗi bị ném vào **Dead Letter Queue (DLQ)**.
-- Pipeline lõi (Streaming + ML) chỉ tiêu thụ duy nhất Universal Schema → Thêm nền tảng mới chỉ cần viết thêm 1 Adapter, không đụng ML.
+- Pipeline lõi (Streaming + ML) chỉ tiêu thụ duy nhất Universal Schema → Thêm nền tảng mới chỉ cần viết 1 Adapter, không đụng ML.
 
-**6. Phản biện: "Self-hosted thì tại sao không đọc DB luôn?":**
+#### O.6. Phản biện: "Self-hosted thì tại sao không đọc DB luôn?" (2026-07-20)
+
 Dù hệ thống Tracking cài trên cùng cụm server/Kubernetes với Web-shop, vẫn PHẢI tách biệt vì:
 - **Bounded Context (DDD):** Kể cả các team cùng công ty cũng không dùng chung DB. Web-shop đổi schema → Tracking sập.
-- **Productization:** Hệ thống là sản phẩm Plug & Play, không phải code thuê (customize) cho 1 web cụ thể. Nếu chọc DB web A, mang sang web B phải viết lại.
+- **Productization:** Hệ thống là sản phẩm Plug & Play, không phải code thuê cho 1 web cụ thể. Nếu chọc DB web A, mang sang web B phải viết lại.
 - **Least Privilege:** Tracking phục vụ Marketing/Data, không cần và không được phép truy cập bảng chứa mật khẩu/thẻ tín dụng/PII.
 
-**7. Đo lường sai số khi khách hàng không có hệ thống tracking nào khác:**
-Sử dụng phương pháp **Đối chiếu chéo nội bộ (Internal Cross-Validation)** bằng luồng Business Data (MQ):
-- Rút 1.000 `session_id` có `order_completed` từ luồng MQ (tin cậy 100%).
-- Quét trong DB Behavior (SDK): Tìm thấy 930 sessions có sự kiện `page_view`, `add_to_cart`.
-- 70 sessions còn lại = khách đã mua nhưng bị ad-blocker chặn SDK.
-- **Công bố:** Loss Rate = 7%, Coverage Rate = 93%.
-- Bổ sung SDK Telemetry: `events_attempted` vs `events_acked` (HTTP 200) → tính Network Loss Rate.
-- **Hạn chế:** Telemetry không đo được ad-blocker (SDK không load → `events_attempted = 0`). Chỉ phép đối chiếu MQ mới bắt được blind spot này.
+#### O.7. Đo lường sai số — Phương pháp Đối chiếu chéo nội bộ (2026-07-20)
+
+Khi khách hàng **không có hệ thống tracking nào khác** (trường hợp khắc nghiệt nhất), hệ thống vẫn tự đo được sai số bằng cách dùng **luồng Business Data (MQ) làm mỏ neo**:
+
+**Phương pháp Cross-Validation MQ ↔ SDK:**
+1. Rút 1.000 `session_id` có `order_completed` từ luồng MQ (tin cậy 100%).
+2. Quét trong DB Behavior (SDK): Tìm thấy 930 sessions có sự kiện `page_view`, `add_to_cart`.
+3. 70 sessions còn lại = khách đã mua nhưng bị ad-blocker chặn SDK.
+4. **Công bố:** Loss Rate = 7%, Coverage Rate = 93%.
+
+**Bổ sung SDK Telemetry (Tự đo nội bộ):**
+
+| Chỉ số | Cách đo | Ý nghĩa |
+|---|---|---|
+| **Send Success Rate** | `events_acked_200 / events_attempted` | Tỷ lệ gửi thành công (mạng ổn định) |
+| **Beacon Fallback Rate** | `events_sent_via_beacon / total_events` | Tỷ lệ event phải dùng beacon (user đóng tab) |
+| **Buffer Overflow Rate** | `events_dropped_from_localstorage / total_events` | Tỷ lệ event bị mất do buffer đầy |
+
+**Hạn chế:** Telemetry không đo được ad-blocker (SDK không load → `events_attempted = 0`). Chỉ phép đối chiếu MQ mới bắt được blind spot này.
+
+**Bản đồ Consistency toàn hệ thống:**
+
+| Loại dữ liệu | Cơ chế thu thập | Consistency | Lý do |
+|---|---|---|---|
+| **Business Data** (order, payment) | MQ Adapter (server-to-server) + confirm | ~100% | Có xác nhận hai chiều |
+| **Behavior: Pageview** (nếu có middleware) | Server-side Middleware | ~100% | Không đi qua browser |
+| **Behavior: Interaction** (click, scroll) | Browser SDK (client-side) | ~93-95% | Phụ thuộc browser, đo sai số qua MQ cross-validation |
 
 **Câu chốt trước hội đồng:**
 > "Hệ thống không cố gắng giải bài toán bất khả thi là chống Ad-blocker. Thay vào đó, hệ thống giải quyết bằng Kiến trúc: dùng MQ/Idempotency bảo vệ Business Data 100%, dùng Đối chiếu chéo MQ↔SDK để đo lường và công bố minh bạch sai số Behavior Data, và giữ trọn vẹn nguyên tắc Phi xâm lấn CSDL."
