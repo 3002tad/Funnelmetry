@@ -2,7 +2,7 @@
 
 > File tổng hợp các quyết định về tên đề tài, phạm vi hệ thống, kiến trúc ingestion và hướng phát triển AI, chốt trong quá trình trao đổi trước phản biện. Dùng làm căn cứ khi viết báo cáo và trả lời hội đồng.
 
-## 1. Tên đề tài
+## 1. Tên đề tài (2026-07-10)
 
 **Tên đã chốt:**
 
@@ -36,7 +36,7 @@ Lý do đổi `"ứng dụng đề xuất tối ưu"` → `"tích hợp cơ ch�
 
 Hệ thống là giải pháp theo dõi hành vi người dùng và phân tích chuyển đổi thời gian thực cho website thương mại điện tử, triển khai theo kiến trúc self-hosted trên Kubernetes (k3s). Dữ liệu hành vi từ Browser Behavior SDK và dữ liệu commerce từ backend được chuẩn hoá qua tầng adapter, đưa vào Kafka và xử lý bởi Streaming Processor để tính KPI theo thời gian thực. Trên nền dữ liệu này, một model học máy được huấn luyện để phát hiện điểm nghẽn trong phễu chuyển đổi, thay thế cơ chế rule-based ban đầu và sinh insight lưu trong Qdrant. Một chatbot RAG dùng LLM diễn giải các insight thành khuyến nghị hành động cụ thể cho người quản trị. Khi khuyến nghị được áp dụng, một Evaluation Engine tự động so sánh KPI trước và sau để đánh giá hiệu quả thực tế, khép kín vòng lặp từ phát hiện vấn đề đến đo lường kết quả. Kiến trúc ingestion được thiết kế mở, cho phép mở rộng thêm ngôn ngữ backend và message queue khác nhau, hướng tới một hệ thống phân tích chuyển đổi phù hợp đặc thù thị trường thương mại điện tử Việt Nam.
 
-## 2. Phạm vi: Hệ thống (self-hosted) — không đi hướng SaaS đa tenant
+## 2. Phạm vi: Hệ thống (self-hosted) — không đi hướng SaaS đa tenant (2026-07-10)
 
 Quyết định: **giữ mô hình hệ thống self-hosted, single-tenant**, không phát triển thành SaaS đa khách hàng.
 
@@ -47,7 +47,7 @@ Lý do:
 
 Ghi chú cho báo cáo: có thể nhắc 1 câu ở phần "Hướng phát triển" rằng kiến trúc adapter hiện tại cho phép mở rộng thành SaaS đa tenant trong tương lai nếu bổ sung cơ chế cô lập dữ liệu — **chỉ là roadmap, không phải claim hiện tại**.
 
-## 3. Vai trò của Adapter / Ingestion layer (đã điều chỉnh)
+## 3. Vai trò của Adapter / Ingestion layer (2026-07-10)
 
 **Mục đích cũ (không còn là lý do chính khi self-hosted):** chặn truy cập trực tiếp vào DB người dùng vì lý do bảo mật/multi-tenant (tránh lộ credential).
 
@@ -65,13 +65,13 @@ Lý do CDC không thay thế hoàn toàn adapter: CDC chỉ cho biết "1 dòng 
 
 Giá trị của ingestion đa nguồn **không phụ thuộc vào việc có phải SaaS đa khách hàng hay không** — một tổ chức tự host vẫn có nhiều hệ thống nội bộ khác công nghệ (web, mobile, backend cũ/mới, MQ khác nhau) cần hợp nhất về cùng 1 schema.
 
-## 4. CDC (Change Data Capture)
+## 4. CDC (Change Data Capture) (2026-07-10)
 
 - Hiện tại **chưa dùng CDC** — commerce-backend đang publish event thủ công ở tầng ứng dụng (dual-write pattern: ghi state vào `orders.store.js` và publish event lên RabbitMQ là 2 bước tách biệt, có rủi ro mất event nếu 1 trong 2 bước lỗi).
 - CDC (Debezium trên Postgres WAL) là hướng giải quyết rủi ro dual-write này, đồng thời là một loại nguồn ingestion mới cho adapter (mục 3).
 - Đề xuất vị trí trong báo cáo: nêu như điểm so sánh kiến trúc (tại sao hiện dùng publish thủ công cho demo) hoặc như hướng phát triển.
 
-## 5. Định hướng AI (đi sâu, quỹ thời gian 5 tháng)
+## 5. Định hướng AI — đi sâu, quỹ thời gian 5 tháng (2026-07-10)
 
 Quyết định: **rút phạm vi ingestion/hạ tầng về mức tối thiểu, dồn effort cho AI/thuật toán**.
 
@@ -80,14 +80,14 @@ Quyết định: **rút phạm vi ingestion/hạ tầng về mức tối thiểu
 - Cần có: chuẩn bị dữ liệu/nhãn, huấn luyện, và đánh giá định lượng so với baseline rule-based hiện tại (precision/recall, RMSE...) — đây là phần tạo "đóng góp khoa học" cho luận văn.
 - Multi-backend simulator (mục 6) chỉ giữ ở mức tối thiểu, không đầu tư thêm effort ngoài phần đủ để demo.
 
-## 6. Demo đa nguồn (theo gợi ý giảng viên)
+## 6. Demo đa nguồn — theo gợi ý giảng viên (2026-07-10)
 
 - Không cần xây dựng full website cho từng ngôn ngữ/framework khác nhau.
 - Chỉ cần **backend simulator** (script/service giả lập gửi event) cho vài stack khác nhau (VD: Node.js, Python/Flask, PHP, Java) qua vài loại MQ khác nhau (RabbitMQ, Kafka trực tiếp...), mỗi loại có 1 adapter tương ứng chuẩn hoá về schema chung.
 - Mục đích: chứng minh bằng thực nghiệm khả năng tích hợp đa nguồn (đa ngôn ngữ backend, đa message queue) của hệ thống, tránh bị đánh giá là overclaim.
 - Giữ ở mức tối thiểu (1–2 simulator bổ sung ngoài RabbitMQ hiện có) để không cạnh tranh effort với mục tiêu AI (mục 5).
 
-## 7. Khảo sát hệ thống tương đồng (tóm tắt — chi tiết xem lịch sử trao đổi)
+## 7. Khảo sát hệ thống tương đồng (2026-07-10)
 
 | Nhóm | Đại diện | Khác biệt với hệ thống đang xây |
 |---|---|---|
@@ -100,14 +100,14 @@ Quyết định: **rút phạm vi ingestion/hạ tầng về mức tối thiểu
 
 **Định vị khác biệt của đề tài:** self-hosted + kiến trúc streaming realtime (Kafka) rõ ràng + AI insight/dự đoán + chatbot RAG tích hợp sẵn + thiết kế theo hành vi mua sắm thị trường TMĐT Việt Nam — khoảng trống mà cả nhóm SaaS đóng lẫn nhóm open-source hiện có đều chưa lấp đầy đồng thời.
 
-## 8. Việc cần nhất quán khi viết báo cáo
+## 8. Việc cần nhất quán khi viết báo cáo (2026-07-10)
 
 - Toàn bộ báo cáo dùng "hệ thống", không dùng "nền tảng" cho tên chính thức.
 - Kiến trúc mô tả: 1 tổ chức/tenant, auth JWT role-based nội bộ (shop/chat/admin) — không nhắc tenant isolation như một tính năng đã có.
 - Adapter/ingestion trình bày là hợp nhất dữ liệu đa nguồn **nội bộ** (không phải phục vụ nhiều khách hàng bên ngoài).
 - SaaS đa tenant chỉ được nhắc ở phần "Hướng phát triển" như tiềm năng mở rộng, không phải mục tiêu hiện tại.
 
-## 9. Attribution nguồn traffic mạng xã hội (UTM tagging)
+## 9. Attribution nguồn traffic mạng xã hội — UTM tagging (2026-07-11)
 
 **Ý tưởng:** phân tích được lượt truy cập web đến từ link sản phẩm đính kèm trong bài đăng Facebook/TikTok/Zalo (tương tự cách ChatGPT gắn `utm_source=chatgpt.com` vào link trả lời).
 
@@ -136,7 +136,7 @@ Quyết định: **rút phạm vi ingestion/hạ tầng về mức tối thiểu
 
 Effort ước tính nhỏ, không ảnh hưởng tới quỹ thời gian dành cho phần AI (mục 5).
 
-## 10. Tự động tracking & đánh giá lại hiệu quả khuyến nghị (feedback loop)
+## 10. Tự động tracking & đánh giá lại hiệu quả khuyến nghị — feedback loop (2026-07-11)
 
 **Ý tưởng:** ngoài phát hiện điểm nghẽn + sinh khuyến nghị (mục 5), hệ thống tự động theo dõi khuyến nghị nào đã được áp dụng và đánh giá lại hiệu quả thực tế sau khi áp dụng.
 
@@ -153,7 +153,7 @@ Effort ước tính nhỏ, không ảnh hưởng tới quỹ thời gian dành c
 
 **Effort & vị trí trong kế hoạch 5 tháng:** trung bình-nhỏ (logic so sánh KPI + 1 bảng mới + UI đánh dấu, tái dùng hạ tầng KPI đã có) — nhỏ hơn nhiều so với xây model ML từ đầu, không xung đột với ưu tiên đi sâu AI (mục 5), mà bổ sung thêm 1 chiều đánh giá khác cho luận văn.
 
-### C. Lựa chọn model LLM cho chatbot (Model B) — có cần khả năng "thinking" không
+### C. Lựa chọn model LLM cho chatbot — Model B (2026-07-12)
 
 Làm rõ trước: khái niệm "thinking" (chain-of-thought) chỉ áp dụng cho **Model B (chatbot Ollama)**, không áp dụng cho Model A (mục 5, model dự đoán/phân loại trên dữ liệu dạng bảng — không phải LLM).
 
@@ -164,7 +164,7 @@ Vì VPS GPU chỉ thuê **đúng 1 tháng, đúng thời điểm phản biện**
 - Chỉ **bật thinking mode 1 lần, có chủ đích** khi muốn minh hoạ khả năng suy luận trước hội đồng (VD giải thích lý do 1 khuyến nghị cụ thể), không chạy thinking mode làm hành vi mặc định.
 - Phương án dự phòng nếu cần chất lượng cao hơn: **DeepSeek-R1-Distill-Qwen-7B** (Q4_K_M ~4.3–4.7GB, cần offload nhẹ sang CPU nhờ RAM 24GB dư dả) — chấp nhận độ trễ cao hơn.
 
-### D. Làm rõ vai trò 4 thành phần AI/Phân tích (Cập nhật Kiến trúc Lai - Tách biệt 4 Model/Engine)
+### D. Kiến trúc Lai 4 Model/Engine — Phân tách vai trò AI (2026-07-13)
 
 Hệ thống được chia cắt thành 4 chốt chặn (Pipeline) chuyên biệt, áp dụng triết lý "Dùng đúng công cụ cho đúng bài toán" (Separation of Concerns).
 
@@ -199,7 +199,7 @@ Kiến trúc 4 thành phần này là minh chứng xuất sắc cho tư duy thi�
 2. Không nhồi nhét mọi thứ vào LLM (tránh ảo giác và tốn tài nguyên). 
 3. Phân tách rõ ràng giữa thuật toán chẩn đoán (ML), logic nghiệp vụ (Rule-based), giao diện ngôn ngữ tự nhiên (LLM), và đo lường khoa học (Stats).
 
-### E. Chốt hướng bài báo khoa học (khung 2 tháng)
+### E. Chốt hướng bài báo khoa học — khung 2 tháng (2026-07-13)
 
 Sau khi so sánh 2 hướng:
 - (1) **Thiết kế cơ chế đảm bảo toàn vẹn dữ liệu cho SDK và Adapter trong ingestion thời gian thực bằng idempotency + retry có kiểm soát + batching giới hạn**
@@ -292,7 +292,7 @@ Hệ thống xử lý mượt mà luồng chuyển đổi dữ liệu qua các p
 - **Dữ liệu Có cấu trúc (Structured - Cho ML):** Streaming Processor (Python) tiêu thụ JSON, làm sạch và gom nhóm (Window Aggregation) thành dữ liệu dạng Bảng (Tabular/Vector số liệu). Đây là đầu vào chuẩn mực cho Model A1 (XGBoost) và để lưu trữ dài hạn trong PostgreSQL.
 - **Dữ liệu Phi cấu trúc (Unstructured - Bị hạn chế):** Hệ thống lõi Real-time **TỪ CHỐI** đọc và lưu trữ các đoạn text dài (ví dụ: mô tả sản phẩm, review) để tránh phình to băng thông Kafka. Ngoại lệ duy nhất là các câu văn bản "Insight/Đề xuất" sinh ra từ Model A1 và A2, được chuyển thành vector lưu vào **Qdrant** phục vụ riêng cho Chatbot Model B (RAG) đọc hiểu.
 
-### J. Đề xuất Hướng Bài báo Khoa học thứ 2 (Trọng tâm Trí tuệ Nhân tạo - Model A1)
+### J. Đề xuất Hướng Bài báo Khoa học thứ 2 — Trọng tâm AI/Model A1 (2026-07-16)
 
 Nếu đồ án còn quỹ thời gian và cần tăng cường hàm lượng học thuật hàn lâm (Academic Rigor) về mảng Học máy (Machine Learning) để gây ấn tượng mạnh với hội đồng, định hướng xuất bản thêm một bài báo thứ 2 là hoàn toàn khả thi.
 
@@ -313,3 +313,122 @@ Bài báo sẽ tập trung chứng minh tính hiệu quả qua các biểu đồ
 - **Hiệu năng hệ thống (System Performance):** Đo lường độ trễ dự đoán (Inference Latency) khi mô hình xử lý chuỗi dữ liệu (Tumbling Window) trong môi trường Real-time trên kiến trúc Streaming.
 
 Hướng nghiên cứu này bám sát tuyệt đối vào module Model A1 của kiến trúc hệ thống, biến một bài toán Kỹ thuật dữ liệu (Data Engineering) thành một công trình khoa học Trí tuệ nhân tạo (AI) bài bản.
+
+### K. Khảo sát Dataset phục vụ Huấn luyện Model A1 (2026-07-17)
+
+Để huấn luyện mô hình XGBoost (Model A1) cho bài toán Phát hiện Bất thường Phễu, hệ thống cần các tập dữ liệu Clickstream có chứa đầy đủ các loại hành vi (view, cart, purchase). Dưới đây là bảng xếp hạng ưu tiên sau khảo sát trên Kaggle và Hugging Face:
+
+| Hạng | Dataset | Nguồn | Kích thước | Cột chính | Ưu/Nhược |
+|---|---|---|---|---|---|
+| 🥇 | **REES46 Multi-category Store** | [Kaggle](https://kaggle.com/datasets/mkechinov/ecommerce-behavior-data-from-multi-category-store) + [HuggingFace](https://huggingface.co/datasets/kevykibbz/ecommerce-behavior-data-from-multi-category-store_oct-nov_2019) | ~285M events | `event_time`, `event_type` (view/cart/remove_from_cart/purchase), `product_id`, `category_code`, `brand`, `price`, `user_session` | Có `price`, `brand`, `remove_from_cart` sẵn. Load 1 dòng trên HF. Rất lớn (~9GB), cần lọc subset. |
+| 🥈 | **Retailrocket** | [Kaggle](https://kaggle.com/datasets/retailrocket/ecommerce-dataset) | ~2.7M events | `timestamp`, `visitorid`, `event` (view/addtocart/transaction), `itemid` | Kinh điển, được trích dẫn nhiều trong bài báo. Giá trị bị hash, không có `price` trực tiếp. |
+| 🥉 | **REES46 Cosmetics Shop** | [Kaggle](https://kaggle.com/datasets/mkechinov/ecommerce-events-history-in-cosmetics-shop) | ~20M events | Giống Multi-category | Bản nhẹ để prototype nhanh. Chỉ 1 ngành. |
+| 4 | **Taobao (PI2I)** | [HuggingFace](https://huggingface.co/datasets/PI2I/PI2I) | ~130M interactions | `user_id`, `item_id`, `category_id`, `behavior_type` (click/cart/fav/buy) | Cross-validate trên domain Trung Quốc. Có event `fav`. Không có `price`. |
+| 5 | **YOOCHOOSE (RecSys 2015)** | `pip install rs_datasets` | ~33M clicks + ~1M buys | `session_id`, `timestamp`, `item_id`, `category`, `price` (buys) | Benchmark học thuật. Không có `add_to_cart`. |
+| 6 | **Online Shoppers UCI** | [UCI ML Repository](https://archive.ics.uci.edu/dataset/468) | ~12K sessions | `BounceRates`, `ExitRates`, `PageValues`, `Revenue` (Yes/No) | Có sẵn nhãn → dùng làm Baseline so sánh. Quá nhỏ cho train chính. |
+| 7 | **Bitext Retail Chatbot** | [HuggingFace](https://huggingface.co/datasets/bitext/Bitext-retail-ecommerce-llm-chatbot-training-dataset) | ~27K mẫu Q&A | `instruction`, `category`, `intent`, `response` | Cho Model B (Chatbot). Dùng làm test set đánh giá chất lượng diễn giải. |
+
+**Khuyến nghị chốt:** Dùng **REES46 Multi-category** (hoặc bản nhẹ Cosmetics) làm dataset chính thay Retailrocket vì có sẵn `price`, `brand`, `remove_from_cart`, `user_session` — giảm 80% công đoạn Feature Engineering.
+
+### L. Quy trình biến Dataset thô thành Dữ liệu Huấn luyện (2026-07-17)
+
+**Bước 1 — Sessionization (Gom nhóm theo phiên):**
+Gom raw events rời rạc thành bản ghi tổng hợp: `GROUP BY session_id, product_id`. Kết quả: mỗi dòng mô tả toàn bộ hành trình của 1 user với 1 sản phẩm trong 1 phiên.
+
+**Bước 2 — Feature Engineering (Trích xuất đặc trưng - Tạo biến X):**
+Từ bản ghi tổng hợp, tính toán các cột số liệu: `view_count`, `cart_count`, `remove_count`, `total_time_spent`, `price_category_ratio` (giá sản phẩm / giá trung bình danh mục).
+
+**Bước 3 — Weak Supervision (Tự động gán nhãn - Tạo biến Y):**
+Áp dụng bộ luật Heuristic có nguồn trích dẫn học thuật (xem Mục M) để gán nhãn cho từng bản ghi.
+
+**Bước 4 — Huấn luyện XGBoost (Model A1):**
+Xóa cột định danh (`session_id`, `product_id`). Chia Train/Test (80/20). Đưa ma trận X và vector Y vào XGBoost Classifier. Đánh giá bằng F1-Score, Precision, Recall so với Baseline Rule-based.
+
+### M. Thiết kế Luật gán nhãn có Cơ sở Học thuật (Heuristic Rules with Citations) (2026-07-17)
+
+Mọi tiêu chí gán nhãn (Weak Supervision) đều PHẢI được neo (anchor) vào các nghiên cứu uy tín trong ngành. Không được tùy tiện nhìn dataset rồi quy định.
+
+**Bảng Ma trận Gán nhãn:**
+
+| Điều kiện từ Dataset | Nhãn | Trạng thái (Class) | Nguồn tham chiếu |
+|---|---|---|---|
+| `purchase > 0` | 0 | Chuyển đổi thành công | Ngầm định |
+| `view_count <= 2` AND `cart == 0` | 0 | Không có ý định (Bounce) | Google Analytics Benchmarks — Định nghĩa Bounce Rate |
+| `cart > 0` AND `remove_from_cart > 0` AND `purchase == 0` | 1 | Nghẽn chi phí (Price Shock) | **Baymard Institute (2024):** Tỷ lệ bỏ giỏ hàng trung bình toàn cầu = 70.19%. Nguyên nhân #1 (48%): Chi phí phát sinh quá cao (phí ship, thuế). Nguyên nhân #3 (25%): Không tin tưởng trang web. |
+| `view_count > Q3(view)` AND `cart == 0` | 2 | Lưỡng lự thông tin (Consideration) | **Mô hình ZMOT (Google)** + **Mô hình AIDA**: Khách hàng lặp lại hành vi xem vượt ngưỡng trung bình (Q3 Quartile) nhưng không phát sinh Cart = tín hiệu thiếu thông tin so sánh hoặc rào cản niềm tin (Trust Barrier). |
+
+*Ghi chú: Q3(view) được tính trực tiếp từ dataset (Statistical Thresholding), không phải con số cố định.*
+
+**Hành động tương ứng của Model A2 (Rule-based):**
+- Nhãn 1 (Price Shock) → Tặng Voucher Freeship / Discount 10%.
+- Nhãn 2 (Consideration) → Popup tư vấn / Hiển thị bảng so sánh tính năng.
+
+### N. Biện luận: Tại sao cần Học máy khi đã có Rule-based (2026-07-18)
+
+Đây là câu hỏi phản biện chắc chắn hội đồng sẽ hỏi. Lập luận bảo vệ gồm 3 điểm:
+
+**1. Rule-based bị "Mù ngữ cảnh" (Context Blindness):**
+Rule chỉ dùng 2-3 chiều dữ liệu (view_count, cart_count). Trong khi dataset có hàng chục chiều khác (price, brand, category, dwell_time). XGBoost tự động phát hiện các mối liên hệ ẩn (Hidden Patterns) giữa TẤT CẢ các chiều mà con người không thể viết IF/THEN bao quát hết.
+
+**2. Khả năng Khái quát hóa (Generalization):**
+Rule quy định cứng `view >= 5` mới là Nghẽn. XGBoost nhận ra: với Điện thoại đắt tiền, chỉ cần `view = 3` + `dwell_time > 2 phút` thì xác suất rớt phễu đã lên 90%. Với Mỹ phẩm giá rẻ, phải `view = 8` mới đáng lo. XGBoost "bẻ cong" ngưỡng cứng thành ranh giới phân loại uyển chuyển cho từng ngữ cảnh.
+
+**3. Đầu ra Xác suất (Probabilistic Output) thay vì Nhị phân (Binary):**
+Rule trả về Có/Không. XGBoost trả về xác suất (VD: 72% khả năng rớt phễu). Nhờ đó hệ thống tối ưu chi phí Marketing: Xác suất > 80% → Voucher 50K (tốn kém), 60-80% → Freeship 15K. Rule-based hoàn toàn bất lực với bài toán tối ưu chi phí này.
+
+**Kết luận để chốt với hội đồng:**
+> "Rule-based chỉ đóng vai trò Người mồi lửa (Bootstrapper) tạo nhãn thô. Mô hình Học máy (XGBoost) đóng vai trò Người tối ưu (Optimizer), học biểu diễn phi tuyến tính phức tạp từ hàng chục chiều dữ liệu mà bộ luật tĩnh không thể bao quát nổi."
+
+### O. Giải pháp xử lý Inconsistency Dữ liệu Behavior (2026-07-18)
+
+**1. Thừa nhận bản chất bài toán:**
+Không tồn tại khái niệm Consistency 100% cho dữ liệu Client-side Tracking. Ngay cả Google Analytics hay Amplitude cũng chấp nhận tỷ lệ hụt 5-15%. Hệ thống phân định rạch ròi:
+- **Business Data (Đơn hàng):** Bắt buộc 100% → Server-to-Server MQ + Idempotency.
+- **Behavior Data (Hành vi):** Bản chất là dữ liệu Thống kê (Statistical), mục tiêu là đo lường được sai số và duy trì Coverage Rate trên 90%.
+
+**2. Định nghĩa lại "Phi xâm lấn" (Ranh giới thật sự):**
+- **Được phép (Phi xâm lấn CODE):** Khách hàng THÊM một thành phần mới (script tag, middleware, MQ publisher). Thành phần này chỉ đọc luồng dữ liệu đi qua, chỉ đẩy ra (push), không sửa logic nghiệp vụ, gỡ ra bất kỳ lúc nào.
+- **Không được phép (Phi xâm lấn DB):** Hệ thống Tracking thò tay vào (pull) tài nguyên nội bộ (database, file system, internal API). Đòi credentials, lộ PII, gắn chặt vào schema.
+- **Tóm gọn:** *"Phi xâm lấn = Phi xâm lấn dữ liệu (DB), không phải phi xâm lấn tích hợp (Code). Giống cài ổ cắm điện trên tường, không phải đục tường kéo dây."*
+
+**3. Xử lý SSR vs CSR/SPA:**
+
+| Tiêu chí | SSR (PHP, Django, Next.js SSR) | CSR / SPA (React, Vue, Angular) |
+|---|---|---|
+| SDK tồn tại | Bị hủy mỗi lần chuyển trang | Sống suốt session |
+| Rủi ro mất event | **Cao** (page unload) | **Thấp** |
+| Server biết pageview? | **Có** (access log đầy đủ) | **Không** (chỉ biết lần load đầu) |
+| Consistency giữa 2 SDK | Dễ chênh lệch (server 100% vs SDK 95%) | Tự nhiên cao (cùng blind spot — cả 2 SDK đều bị ad-blocker/JS tắt chặn đồng thời) |
+| Kỹ thuật Correlation ID | Server render `<meta name="x-request-id">` | SDK tự sinh `page_view_id` |
+
+**4. Cơ chế tích hợp Kép (Dual-Integration Strategy):**
+
+| Tình huống khách hàng | Phương thức tích hợp | Xâm lấn Frontend |
+|---|---|---|
+| **ĐÃ CÓ tracking** (GA4, Segment, Mixpanel) | **Data Connector (Webhook Ingestion):** Khách hàng cấu hình GTM/Segment chuyển tiếp (forward) bản copy event sang `POST /api/ingest/webhook`. | **0%** — Không viết thêm 1 dòng JS nào. |
+| **CHƯA CÓ tracking** | **Drop-in SDK (Auto-tracking):** Chỉ cần 1 dòng `<script src="sdk.js">`. SDK tự bắt pageview (qua `history.pushState`) và click (qua `data-track` attributes trên HTML). | **Cực thấp** — 1 dòng script + gắn `data-track` vào các nút quan trọng. |
+
+**5. Chuẩn hóa đầu vào đa nguồn — Anti-Corruption Layer (ACL):**
+Khi nhận dữ liệu từ nhiều nền tảng (GA4, Segment, Custom), hệ thống triển khai Adapter Pattern:
+- Mỗi nguồn có endpoint riêng: `/api/ingest/segment`, `/api/ingest/ga4`, `/api/ingest/custom`.
+- Mỗi Adapter "dịch" JSON đặc thù sang **Universal Schema** chuẩn nội bộ (chứa `event_id`, `session_id`, `event_type`, `timestamp`, `properties`).
+- Dữ liệu qua Validator trước khi vào Kafka. Dữ liệu lỗi bị ném vào **Dead Letter Queue (DLQ)**.
+- Pipeline lõi (Streaming + ML) chỉ tiêu thụ duy nhất Universal Schema → Thêm nền tảng mới chỉ cần viết thêm 1 Adapter, không đụng ML.
+
+**6. Phản biện: "Self-hosted thì tại sao không đọc DB luôn?":**
+Dù hệ thống Tracking cài trên cùng cụm server/Kubernetes với Web-shop, vẫn PHẢI tách biệt vì:
+- **Bounded Context (DDD):** Kể cả các team cùng công ty cũng không dùng chung DB. Web-shop đổi schema → Tracking sập.
+- **Productization:** Hệ thống là sản phẩm Plug & Play, không phải code thuê (customize) cho 1 web cụ thể. Nếu chọc DB web A, mang sang web B phải viết lại.
+- **Least Privilege:** Tracking phục vụ Marketing/Data, không cần và không được phép truy cập bảng chứa mật khẩu/thẻ tín dụng/PII.
+
+**7. Đo lường sai số khi khách hàng không có hệ thống tracking nào khác:**
+Sử dụng phương pháp **Đối chiếu chéo nội bộ (Internal Cross-Validation)** bằng luồng Business Data (MQ):
+- Rút 1.000 `session_id` có `order_completed` từ luồng MQ (tin cậy 100%).
+- Quét trong DB Behavior (SDK): Tìm thấy 930 sessions có sự kiện `page_view`, `add_to_cart`.
+- 70 sessions còn lại = khách đã mua nhưng bị ad-blocker chặn SDK.
+- **Công bố:** Loss Rate = 7%, Coverage Rate = 93%.
+- Bổ sung SDK Telemetry: `events_attempted` vs `events_acked` (HTTP 200) → tính Network Loss Rate.
+- **Hạn chế:** Telemetry không đo được ad-blocker (SDK không load → `events_attempted = 0`). Chỉ phép đối chiếu MQ mới bắt được blind spot này.
+
+**Câu chốt trước hội đồng:**
+> "Hệ thống không cố gắng giải bài toán bất khả thi là chống Ad-blocker. Thay vào đó, hệ thống giải quyết bằng Kiến trúc: dùng MQ/Idempotency bảo vệ Business Data 100%, dùng Đối chiếu chéo MQ↔SDK để đo lường và công bố minh bạch sai số Behavior Data, và giữ trọn vẹn nguyên tắc Phi xâm lấn CSDL."
