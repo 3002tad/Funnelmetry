@@ -2,7 +2,7 @@
 
 > File tổng hợp các quyết định về tên đề tài, phạm vi hệ thống, kiến trúc ingestion và hướng phát triển AI, chốt trong quá trình trao đổi trước phản biện. Dùng làm căn cứ khi viết báo cáo và trả lời hội đồng.
 >
-> **Quy ước đánh số:** Mục 1–10 = Các quyết định gốc (07-10 → 07-11). Mục C–P = Nhật ký trao đổi bổ sung theo trình tự thời gian (07-12 → 08-03).
+> **Quy ước đánh số:** Mục 1–10 = Các quyết định gốc (07-10 → 07-11). Mục C–Q = Nhật ký trao đổi bổ sung theo trình tự thời gian (07-12 → 08-03).
 
 ## 1. Tên đề tài (2026-07-10)
 
@@ -584,3 +584,220 @@ Mỗi feature phải có bảng đối chiếu: dataset có hay không, runtime 
 - Client-observed response là tín hiệu kiểm chứng, không thay authoritative business event.
 - `purchase_behavior_link_rate` chỉ đo nhóm order ghép được với behavior; không phải coverage của toàn bộ visitor.
 - Claim at-least-once chỉ bắt đầu sau ranh giới producer handoff/publisher-confirm nếu chưa triển khai Outbox. Không dùng các cụm “100%”, “exactly-once toàn hệ thống” hoặc “ngang CDC” khi chưa có bằng chứng thực nghiệm.
+
+### Q. Chốt lại mức xâm lấn và pipeline consistency có thể định lượng (2026-08-03)
+
+#### Q.1. Phản biện phương án Transactional Outbox
+
+Nếu yêu cầu “mọi order đã commit vào MongoDB đều phải xuất hiện trong analytics”, luồng `save order → publish RabbitMQ` không đủ vì có dual-write gap. Transactional Outbox có thể đóng khoảng trống này bằng cách ghi business state và outbox event trong cùng transaction; Outbox Relay sau đó publish message, retry và đánh dấu `published` sau publisher confirm.
+
+Tuy nhiên, Outbox buộc hệ thống nguồn phải thay đổi transaction, code persistence và thêm collection/table. Nó khác CDC ở chỗ backend chủ động tạo semantic business event và Tracking không cần quyền oplog/WAL, nhưng vẫn là một cơ chế xâm lấn code và database. Tạo Outbox ở một database độc lập không giải quyết vấn đề vì lại tạo một dual-write mới nếu không có distributed transaction.
+
+Vì vậy, Outbox không được chọn làm integration profile mặc định của đề tài. Nó chỉ là **commit-aware/strong-consistency profile tùy chọn** khi khách hàng chấp nhận thay đổi persistence. CDC là profile tùy chọn khác khi khách hàng không thể sửa backend nhưng chấp nhận cấp quyền database. Hệ thống lõi chỉ phụ thuộc Universal Event Contract, không bắt buộc nguồn dùng Outbox, CDC, RabbitMQ hay Webhook.
+
+#### Q.2. Định nghĩa vận hành về “phi xâm lấn”
+
+Trong đề tài, “phi xâm lấn” không có nghĩa là zero-code. Định nghĩa được chốt là:
+
+> **Phi xâm lấn tầng dữ liệu và xâm lấn tối thiểu tại tầng tích hợp:** Tracking không nhận DB credentials, không đọc trực tiếp OLTP, không thay đổi schema, trigger, repository hoặc transaction của hệ thống nguồn. Các thay đổi được giới hạn ở Browser SDK, message/API integration và source-owned export; chúng phải biệt lập, có thể tháo bỏ và không làm thay đổi kết quả nghiệp vụ.
+
+Các hard constraint:
+
+- Không cấp database credentials cho Tracking; không sử dụng query trực tiếp, trigger, CDC/WAL/oplog hoặc Outbox trong profile mặc định.
+- Tracking failure không làm rollback checkout/order/payment của hệ thống nguồn.
+- Tắt SDK/Adapter/Tracking thì nghiệp vụ nguồn vẫn hoạt động và không cần rollback database migration.
+- Source-specific logic dừng tại Adapter; core streaming, KPI và ML chỉ nhận Universal Schema.
+
+Không dùng một điểm “xâm lấn” tổng hợp có trọng số tùy ý. Báo cáo theo **Integration Footprint đa chiều**: layer bị chạm, số integration point/file/LOC, dependency và quyền mới, thay đổi deployment, p95 overhead, khả năng rollback và mức coupling với business code/schema.
+
+| Mức | Loại can thiệp | Ví dụ |
+|---:|---|---|
+| 0 | Không can thiệp | Consume MQ/API/export có sẵn |
+| 1 | Cấu hình | Endpoint, API key, broker binding |
+| 2 | Integration boundary | SDK bootstrap, một publisher/export module |
+| 3 | Thay đổi business flow | Instrument nhiều controller/service/component |
+| 4 | Thay đổi persistence | Transaction, repository, schema, Outbox |
+| 5 | Truy cập sâu dữ liệu | CDC, oplog/WAL, DB credentials |
+
+Mục tiêu reference profile: Database level 0; Frontend level 2; Backend level 0–2; Infrastructure level 1; Reconciliation level 1–2.
+
+#### Q.3. Mức xâm lấn theo layer
+
+| Layer | Mức cho phép | Ranh giới |
+|---|---|---|
+| Frontend | Một SDK bootstrap; auto-capture mặc định; semantic hook tùy chọn | Không sửa từng button trong base profile; client event không authoritative cho purchase/revenue |
+| Backend có MQ/API sẵn | Cấu hình/credential + external Adapter | Không đổi source code nghiệp vụ |
+| Backend chưa có event interface | Tối đa một integration publisher ở Service/Domain boundary | Không đặt Tracking trong Repository, không đổi transaction, không rải lời gọi ở nhiều controller |
+| Reconciliation | Tái dùng report/export/API; nếu thiếu thì source-owned push job | Tracking không chạy query tùy ý và không biết schema DB |
+| Infrastructure | Queue binding, secret, network policy | Least privilege; có thể thu hồi độc lập |
+| Database | Không can thiệp trong profile mặc định | Không schema/trigger/transaction/credential |
+
+Hai integration profile công bố:
+
+1. **Minimal Invasion:** Browser SDK + existing RabbitMQ/API + existing export/report. Backend level 0–1, DB level 0. Đây là reference profile ưu tiên.
+2. **Standard Integration:** Browser SDK + một Backend Publisher/Webhook + source-pushed Reconciliation Manifest. Backend level 2, DB level 0. Dùng khi nguồn chưa có MQ/export phù hợp.
+
+Nếu đồng thời yêu cầu không sửa frontend, không sửa backend, không truy cập DB/CDC và nguồn không có MQ/API/export/log, bài toán không có điểm quan sát và không khả thi về nguyên lý.
+
+#### Q.4. Pipeline được chọn: realtime fast path + reconciliation control path
+
+```text
+SYSTEM NGUỒN
+├── Browser SDK ───────────── behavior ────────────┐
+├── Existing MQ/API/Webhook ─ business event ─────┤
+└── Source-owned Export/Manifest ──────────────┐   │
+                                              │   ▼
+TRACKING                                      │ Source Adapter
+                                              │   ↓
+                                              │ Normalize → Validate
+                                              │   ↓
+                                              │ Durable Ingest → Kafka
+                                              │   ↓
+                                              │ Streaming Processor
+                                              │   ├── Canonical Event Ledger
+                                              │   ├── KPI/PostgreSQL
+                                              │   └── Insight/Qdrant
+                                              ▼
+                                         Reconciliation
+                                              ↓
+                                  Compare → Replay/Backfill
+                                              ↓
+                                   quay lại Universal Pipeline
+```
+
+Realtime path tối ưu độ trễ. Reconciliation path phát hiện phần đã commit ở nguồn nhưng không đi qua handoff. Missing event phải replay qua cùng Normalize–Validate–Kafka–Streaming pipeline, không ghi thẳng vào KPI. PostgreSQL/canonical ledger là nguồn consistency; Qdrant là derived store có thể rebuild.
+
+Tracking API chỉ trả `accepted` sau durable acceptance, không ACK tại controller/cache RAM. RabbitMQ consumer chỉ ACK source message sau receipt này. Adapter retry cùng stable `event_id`; Kafka consumer commit offset sau persistence; canonical event và KPI projection phải idempotent để physical duplicate không tăng KPI.
+
+#### Q.5. Ba contract làm rõ input
+
+1. **Business Event Contract:** `event_id`, `logical_event_key`, `event_type`, `aggregate_id`, `aggregate_version`, `committed_at`, `correlation_id`, payload và schema version.
+2. **Ingestion Receipt Contract:** `event_id`, `ingestion_id`, `accepted|duplicate|rejected`, `accepted_at`; `accepted` chỉ có nghĩa khi event đã được handoff bền vững.
+3. **Reconciliation Manifest Contract:** window, watermark, authoritative count/revenue và tối thiểu ID/hash + version/status. Count-only chỉ phát hiện sai lệch; muốn định vị và repair cần logical key/detail hoặc Source Replay API.
+
+Manifest có thể được nguồn chủ động push qua API/MQ/file. Source tự đọc dữ liệu bằng report/API thuộc quyền kiểm soát của họ; Tracking không nhận quyền DB. Nếu một order chỉ tồn tại trong DB và không để lại dấu vết qua MQ/API/export/log/CDC thì Tracking không thể phân biệt nó với order chưa từng tồn tại, nên không thể guarantee hoặc định lượng commit-to-analytics.
+
+#### Q.6. State của dữ liệu và phép đo consistency
+
+Luồng trạng thái event:
+
+```text
+source emitted → accepted → persisted → analytics_applied → reconciled
+```
+
+Cửa sổ dữ liệu:
+
+```text
+OPEN → PROVISIONAL → RECONCILING → RECONCILED | DEGRADED
+```
+
+Dashboard có thể dùng dữ liệu provisional để realtime; Model A1/training set chỉ dùng cửa sổ reconciled hoặc phải kèm quality flag. Với `S` là tập authoritative từ manifest và `A` là tập analytics trên cửa sổ đã đóng:
+
+- `missing_rate = |S − A| / |S|`
+- `phantom_rate = |A − S| / |A|`
+- `state_mismatch_rate = count(same ID but different version/status) / |S|`
+- `revenue_deviation = |revenue_source − revenue_analytics| / revenue_source`
+- `convergence_lag = analytics_correct_at − committed_at`
+
+Ngưỡng đề xuất cho reference pipeline, là target thực nghiệm chứ không phải chuẩn phổ quát:
+
+| Metric | Realtime | Sau reconciliation |
+|---|---:|---:|
+| Business completeness | ≥99,9% trong 60 giây | 100% trên cửa sổ đã đóng |
+| Revenue deviation | ≤0,1% | 0% |
+| State mismatch | ≤0,1% | 0% |
+| Duplicate ảnh hưởng KPI | 0 | 0 |
+| Silent drop | 0 | 0 |
+| Handoff-to-dashboard | p95 ≤5 giây | — |
+| Convergence với reconciliation mỗi 5 phút | — | p99 ≤7–10 phút |
+
+“100% sau reconciliation” là điều kiện đóng cửa sổ; cửa sổ còn missing phải mang trạng thái `DEGRADED`, không được âm thầm công bố hoàn chỉnh.
+
+#### Q.7. Behavior pipeline và vai trò frontend confirm
+
+Behavior được đo theo các chặng `generated → queued → accepted → persisted → analytics_applied`, dùng stable `event_id`, `session_sequence`, local queue/retry và receipt. Các metric gồm `observable_delivery_rate`, `sequence_gap_rate`, `queue_drop_rate` và `purchase_behavior_link_rate`.
+
+Target demo: `persisted/accepted = 100%` sau hội tụ; `accepted/generated ≥99%` trong browser đã load SDK; sequence gap ≤1%; queue overflow ≤0,1%; purchase–behavior link ≥95% trong môi trường kiểm soát. Session bị chặn trước khi SDK load là unknown population; muốn đo initialization coverage cần mẫu số từ CDN/gateway/access log.
+
+Frontend confirm chỉ sinh `order_created_observed`, không phải purchase authoritative. Ba nguồn được dùng để phân loại lỗi:
+
+| Manifest nguồn | Business event | Frontend observed | Diễn giải |
+|---:|---:|---:|---|
+| Có | Có | Có | Journey đầy đủ |
+| Có | Có | Không | Mất behavior/correlation |
+| Có | Không | Có | Business event thiếu trước handoff |
+| Có | Không | Không | Chỉ reconciliation phát hiện order |
+| Không | Có | Bất kỳ | Phantom/sai trạng thái/sai cửa sổ |
+
+#### Q.8. Giá trị đồ án và cách định vị đóng góp
+
+“Phi xâm lấn” tự nó chỉ là đặc tính sản phẩm, chưa đủ làm đóng góp học thuật. Cách định vị được chọn:
+
+> **Thiết kế pipeline phân tích dữ liệu thời gian thực có khả năng định lượng và phục hồi sai lệch dữ liệu dưới ràng buộc không truy cập trực tiếp OLTP database.**
+
+Ba tầng đóng góp:
+
+1. **Integration framework:** Browser SDK, Source Adapter, Universal Event/Receipt/Reconciliation Contract và một reference pipeline hoàn chỉnh.
+2. **Observable consistency:** stable ID, durable receipt, retry, idempotency, canonical ledger, reconciliation và quality state.
+3. **Downstream analytics validity:** đánh giá mất/trùng/sai correlation ảnh hưởng funnel KPI, feature và Model A1 thế nào; kiểm tra mức phục hồi sau reconciliation.
+
+Baseline thực nghiệm:
+
+- B0: fire-and-forget, không receipt/retry.
+- B1: stable ID + durable receipt + retry + idempotency.
+- B2: B1 + reconciliation.
+
+Fault injection: network timeout, ACK loss, API/broker/consumer restart, broker delay, duplicate, out-of-order, burst traffic và mất event trước handoff. Đo loss, duplicate delivery/KPI impact, latency, throughput, convergence, integration footprint và độ lệch KPI/model.
+
+Không biến “phi xâm lấn” thành mục tiêu duy nhất. Trong đồ án, nó là ràng buộc; đóng góp hệ thống là consistency quan sát/repair được; Model A1 là đóng góp phân tích. Bài báo 1 tháng có thể giới hạn ở handoff-to-analytics reliability, còn đồ án 4 tháng mở rộng reconciliation và ảnh hưởng input quality tới Model A1.
+
+#### Q.9. Câu cần xác nhận với giảng viên
+
+> “Phi xâm lấn” có được hiểu là không truy cập/thay đổi database và không sửa business transaction, nhưng cho phép một SDK bootstrap ở frontend, tối đa một integration module tại backend boundary và một source-owned reconciliation export hay không?
+
+Câu phản biện ngắn trước hội đồng:
+
+> Nhóm không claim zero-code. Nhóm bảo vệ persistence và business semantics boundary: không DB credential/schema/transaction change; integration chỉ nằm ở SDK/Adapter/publisher/export có thể tháo bỏ. Đổi lại, nhóm không claim exactly-once từ OLTP commit mà bảo đảm từ durable receipt, dùng reconciliation để đo và sửa phần sai lệch trước handoff trong một cửa sổ hữu hạn.
+
+#### Q.10. Reconciliation Manifest không bắt buộc là một service/API mới
+
+Phản biện mới: nếu hệ thống nguồn đã có Report API ổn định và cấp quyền cho pipeline đọc report, việc xây thêm một push-manifest service có thể là overengineering. **Manifest không có ưu thế tuyệt đối so với Report API; giá trị của nó nằm ở semantics và contract, không nằm ở push hay pull.**
+
+Cần phân biệt:
+
+- Nếu Tracking được cấp DB credential để đọc reporting view trực tiếp thì vẫn có database coupling, query workload và quyền truy cập cần kiểm soát.
+- Nếu Tracking chỉ gọi một business/report API có sẵn thì đây đã là integration boundary phù hợp; không cần bắt khách hàng tạo thêm service. Một Report Adapter chuẩn hóa response thành internal `ReconciliationManifest`.
+
+Thiết kế tổng quát:
+
+```text
+Reconciliation Provider
+├── Pull Report API Provider
+├── Push Manifest Provider
+├── File/CSV Export Provider
+└── MQ Control Message Provider
+                ↓
+      Internal ReconciliationManifest
+                ↓
+             Reconciler
+```
+
+Core Reconciler chỉ phụ thuộc internal contract. Report/API/export của từng nguồn được cô lập trong Provider/Adapter, giữ loose coupling và tránh bắt mọi khách hàng dùng cùng một phương thức vận chuyển.
+
+Một reconciliation source đủ chất lượng cần có:
+
+- Cửa sổ dữ liệu đóng, `snapshot_id` hoặc `as_of` để pagination không đọc các trạng thái khác nhau.
+- `watermark` và grace period để xử lý late event.
+- Schema version, terminal status, record ID/hash, aggregate version và committed/updated time.
+- Control totals như record count, gross revenue và checksum để phát hiện thiếu page/snapshot drift.
+- Data minimization và least-privilege credential; không trả PII/payment detail không cần thiết.
+- Cơ chế lấy detail hoặc replay theo logical key nếu muốn tự sửa missing event.
+- Rate limit/cache/read replica hoặc resource budget để report query không ảnh hưởng OLTP.
+
+Nếu Report API chỉ trả trạng thái mới nhất và không có snapshot/watermark, kết quả có thể thay đổi trong lúc pagination và không đủ làm ground truth tái lập. Nếu chỉ có count/revenue thì đo được discrepancy nhưng không định vị hoặc repair record thiếu.
+
+Quyết định cho reference pipeline:
+
+> Ưu tiên tái sử dụng Existing/Source-owned Report API, pull theo watermark qua Reconciliation Adapter và tạo internal manifest. Chỉ dùng push manifest khi source không muốn Tracking chủ động gọi API, cần precompute/lọc dữ liệu/ký snapshot hoặc muốn kiểm soát lịch và workload export.
+
+Vì vậy tài liệu dùng `ReconciliationManifest` như **biểu diễn chuẩn nội bộ của một snapshot đối soát**, không đồng nhất nó với một API mới. Điều cần chứng minh là snapshot đóng, control totals, khả năng audit/replay và contract thống nhất; không phải số lượng service được tạo thêm.
