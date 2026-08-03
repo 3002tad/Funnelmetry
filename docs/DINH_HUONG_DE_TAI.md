@@ -1,14 +1,14 @@
 # Định hướng đề tài (tổng hợp)
 
 > File tổng hợp các quyết định về tên đề tài, phạm vi hệ thống, kiến trúc ingestion và hướng phát triển AI, chốt trong quá trình trao đổi trước phản biện. Dùng làm căn cứ khi viết báo cáo và trả lời hội đồng.
+>
+> **Quy ước đánh số:** Mục 1–10 = Các quyết định gốc (07-10 → 07-11). Mục C–O = Nhật ký trao đổi bổ sung theo trình tự thời gian (07-12 → 08-03).
 
 ## 1. Tên đề tài (2026-07-10)
 
-**Tên đã chốt:**
+**Tên đã chốt (2026-08-03):**
 
-> **Phương án 1: "Xây dựng hệ thống theo dõi hành vi thời gian thực và phát hiện điểm nghẽn chuyển đổi thương mại điện tử bằng học máy, tích hợp cơ chế đề xuất và đánh giá hiệu quả tối ưu"**
-
-> **Phương án 2: "Xây dựng hệ thống thời gian thực theo dõi hành vi và phát hiện điểm nghẽn chuyển đổi thương mại điện tử bằng học máy, tích hợp cơ chế đề xuất và đánh giá hiệu quả tối ưu"**
+> **"Xây dựng và triển khai hệ thống thời gian thực theo dõi hành vi người dùng, phát hiện điểm nghẽn chuyển đổi thương mại điện tử bằng học máy, tích hợp cơ chế đề xuất và đánh giá hiệu quả tối ưu"**
 
 
 Lý do dùng **"hệ thống"** thay vì **"nền tảng"**:
@@ -51,33 +51,37 @@ Ghi chú cho báo cáo: có thể nhắc 1 câu ở phần "Hướng phát tri�
 
 **Mục đích cũ (không còn là lý do chính khi self-hosted):** chặn truy cập trực tiếp vào DB người dùng vì lý do bảo mật/multi-tenant (tránh lộ credential).
 
-**Mục đích mới:** Adapter là tầng **chuẩn hoá & diễn giải ngữ nghĩa (schema/protocol translation)** — chuyển đổi các biểu diễn sự kiện không đồng nhất (message MQ, raw change-event từ CDC, hoặc API call trực tiếp) thành event schema thống nhất của hệ thống, bất kể nguồn input là gì.
+**Mục đích mới:** Adapter là tầng **chuẩn hoá & diễn giải ngữ nghĩa (schema/protocol translation)** — chuyển đổi các biểu diễn sự kiện không đồng nhất (message MQ, Webhook từ nền tảng tracking có sẵn, hoặc API call trực tiếp) thành event schema thống nhất của hệ thống, bất kể nguồn input là gì.
 
 Kiến trúc ingestion đề xuất (nhiều loại nguồn, cùng 1 tầng adapter):
 
 ```
 [App-level publish]  → MQ (RabbitMQ/Kafka/...) ──┐
-[DB tự có sẵn]       → CDC (Debezium)  ──────────┼──→ Adapter (schema/semantic normalize) → Tracking API/Kafka core
+[Webhook forwarding] → GA4/Segment/Custom ────────┼──→ Adapter (schema/semantic normalize) → Tracking API/Kafka core
 [API call trực tiếp] → HTTP ─────────────────────┘
 ```
 
-Lý do CDC không thay thế hoàn toàn adapter: CDC chỉ cho biết "1 dòng DB vừa đổi giá trị" (raw row-level change), không tự biết đây là sự kiện nghiệp vụ gì (`order.completed`, `checkout_start`...). Việc diễn giải state transition → business event vẫn cần logic của adapter.
+*Ghi chú: CDC (Debezium) đã bị loại khỏi sơ đồ vì vi phạm nguyên tắc phi xâm lấn CSDL (xem Mục 4 và Mục F). Thay vào đó, dòng thứ 2 phản ánh khả năng nhận dữ liệu từ nền tảng tracking có sẵn (GA4/Segment) qua Webhook (xem Mục O.5).*
 
 Giá trị của ingestion đa nguồn **không phụ thuộc vào việc có phải SaaS đa khách hàng hay không** — một tổ chức tự host vẫn có nhiều hệ thống nội bộ khác công nghệ (web, mobile, backend cũ/mới, MQ khác nhau) cần hợp nhất về cùng 1 schema.
 
-## 4. CDC (Change Data Capture) (2026-07-10)
+## 4. CDC (Change Data Capture) — Chỉ dùng để So sánh kiến trúc, KHÔNG nằm trong scope (2026-07-10, cập nhật 2026-08-03)
 
-- Hiện tại **chưa dùng CDC** — commerce-backend đang publish event thủ công ở tầng ứng dụng (dual-write pattern: ghi state vào `orders.store.js` và publish event lên RabbitMQ là 2 bước tách biệt, có rủi ro mất event nếu 1 trong 2 bước lỗi).
-- CDC (Debezium trên Postgres WAL) là hướng giải quyết rủi ro dual-write này, đồng thời là một loại nguồn ingestion mới cho adapter (mục 3).
-- Đề xuất vị trí trong báo cáo: nêu như điểm so sánh kiến trúc (tại sao hiện dùng publish thủ công cho demo) hoặc như hướng phát triển.
+**Quyết định: CDC KHÔNG nằm trong scope hệ thống.** Hệ thống thiết kế theo nguyên tắc phi xâm lấn CSDL (xem Mục O.4), do đó CDC (đòi quyền SUPERUSER/Replication vào DB khách hàng) bị loại trừ hoàn toàn.
+
+CDC chỉ được nhắc đến trong báo cáo ở 2 vị trí:
+- **So sánh kiến trúc (Chương Cơ sở lý thuyết):** Phân tích tại sao chọn MQ thay vì CDC (xem Mục F — 4 rào cản thực tế).
+- **Hướng phát triển:** Ghi nhận CDC như một tùy chọn mở rộng nếu khách hàng tự quản lý và đồng ý cấp quyền.
+
+Ghi chú: Commerce-backend hiện tại dùng dual-write pattern (ghi state vào `orders.store.js` + publish event lên RabbitMQ là 2 bước tách biệt, có rủi ro mất event). Giải pháp trong scope là cơ chế Idempotency/Retry (Bài báo #1), không phải CDC.
 
 ## 5. Định hướng AI — đi sâu, quỹ thời gian 5 tháng (2026-07-10)
 
 Quyết định: **rút phạm vi ingestion/hạ tầng về mức tối thiểu, dồn effort cho AI/thuật toán**.
 
 - Hiện tại: `insight_generator.py` dùng rule-based threshold (VD: `add_to_cart >= 3 và purchases == 0` → sinh insight text), không phải model học máy.
-- Hướng phát triển: thay/bổ sung bằng model học máy thật cho 1 bài toán cụ thể — cần chọn 1 trong số: dự đoán khả năng rớt ở từng bước funnel theo session (classification), dự đoán xu hướng doanh thu/KPI ngắn hạn (forecasting), hoặc phát hiện bất thường funnel bằng model thay vì threshold (anomaly detection).
-- Cần có: chuẩn bị dữ liệu/nhãn, huấn luyện, và đánh giá định lượng so với baseline rule-based hiện tại (precision/recall, RMSE...) — đây là phần tạo "đóng góp khoa học" cho luận văn.
+- **Đã chốt hướng Classification (XGBoost)** trên dataset **REES46 Multi-category**. Chi tiết kiến trúc xem Mục D, chiến lược huấn luyện xem Mục H, dataset xem Mục K, quy trình xử lý dữ liệu xem Mục L.
+- Cần có: chuẩn bị dữ liệu/nhãn (Weak Supervision — Mục M), huấn luyện, và đánh giá định lượng so với baseline rule-based hiện tại (F1-Score, Precision, Recall) — đây là phần tạo "đóng góp khoa học" cho luận văn.
 - Multi-backend simulator (mục 6) chỉ giữ ở mức tối thiểu, không đầu tư thêm effort ngoài phần đủ để demo.
 
 ## 6. Demo đa nguồn — theo gợi ý giảng viên (2026-07-10)
@@ -150,6 +154,10 @@ Effort ước tính nhỏ, không ảnh hưởng tới quỹ thời gian dành c
 3. Sau khi đủ 1 khoảng thời gian tương đương (cùng độ dài với window trước đó) → job đánh giá tự động so sánh KPI cùng metric, cùng đối tượng, giữa window trước và sau `applied_at` (tái dùng `tracking_kpi_1m`/`product_kpi_1m` đã có), tính delta %, có thể thêm kiểm định thống kê đơn giản (t-test) nếu đủ dữ liệu.
 4. Kết quả đánh giá lưu thành 1 insight loại mới (`evaluation_result`) → đưa vào Qdrant để chatbot RAG trả lời được câu hỏi "khuyến nghị trước đó có hiệu quả không?".
 5. Dashboard: biểu đồ so sánh trước/sau cho từng khuyến nghị đã áp dụng.
+
+**Tham số Window — 2 chế độ:**
+- **Chế độ Dev/Demo (Bot simulator):** Window size = 30 phút–1 giờ, min samples = 30 sessions/window. Ghi chú rõ trong báo cáo rằng window rút ngắn cho mục đích demo.
+- **Khuyến nghị thực tế (Production):** Window size = 7 ngày trước/sau `applied_at`, min samples = 100 sessions/window để t-test có ý nghĩa thống kê (CLT). Nếu admin áp dụng nhiều khuyến nghị cùng lúc → hệ thống ghi nhận cùng window nhưng không claim nhân quả riêng lẻ cho từng khuyến nghị (ghi rõ hạn chế trong báo cáo).
 
 **Effort & vị trí trong kế hoạch 5 tháng:** trung bình-nhỏ (logic so sánh KPI + 1 bảng mới + UI đánh dấu, tái dùng hạ tầng KPI đã có) — nhỏ hơn nhiều so với xây model ML từ đầu, không xung đột với ưu tiên đi sâu AI (mục 5), mà bổ sung thêm 1 chiều đánh giá khác cho luận văn.
 
@@ -267,13 +275,13 @@ Dữ liệu đổ dồn về hạ tầng của khách hàng không phải là nh
 Việc giải quyết trọn vẹn 2 tác vụ: **(1) Phát hiện điểm nghẽn** và **(2) Đề xuất hành động** cần được cân nhắc kỹ lưỡng về khối lượng công việc và kiến trúc. Dưới đây là 2 phương án đã được đưa lên bàn cân:
 
 **Phương án 1: Train 2 Model Học máy chuyên biệt (Lý tưởng nhưng khối lượng công việc khổng lồ)**
-- **Model A1 (Bottleneck Detector):** Dùng dataset `Retailrocket` (dữ liệu Clickstream) để train mô hình phân loại rớt phễu (VD: XGBoost). Đầu ra là nhãn điểm nghẽn.
+- **Model A1 (Bottleneck Detector):** Dùng dataset **REES46 Multi-category** (dữ liệu Clickstream) để train mô hình phân loại rớt phễu (VD: XGBoost). Đầu ra là nhãn điểm nghẽn.
 - **Model A2 (Action Recommender):** Lấy kết quả điểm nghẽn từ Model A1, kết hợp với dataset `Olist Marketing Funnel` để train một mô hình thứ hai chuyên gợi ý hành động kinh doanh (tặng voucher, freeship...).
 - **Đánh giá:** Kiến trúc rất đẹp và tách bạch rõ ràng (Separation of Concerns), giải quyết được bài toán thiếu data nếu gộp vào 1 model end-to-end. Tuy nhiên, khối lượng công việc (Data cleaning, Feature Engineering, Labeling, Training) sẽ **tăng lên gấp đôi**, tạo ra rủi ro cực lớn làm chậm tiến độ 5 tháng của đồ án.
 
 **Phương án 2: Chiến lược Lai - Train 1 Model + Rule-based (Phương án tối ưu tiến độ - KHUYÊN DÙNG)**
 Để vẫn đảm bảo yếu tố "bằng học máy" của đề tài mà không làm quá tải công việc, ta sẽ phân bổ nguồn lực theo hướng "chọn việc mà làm":
-- **Khâu Phát hiện (Chốt chặn 1 - Bắt buộc dùng ML):** Dồn toàn bộ nỗ lực Học máy (ML) để train duy nhất **Model A1** (XGBoost với Retailrocket). Việc này giúp tập trung thời gian để chăm chút kỹ phần tinh chỉnh mô hình và biểu đồ đánh giá (Precision/Recall) cho báo cáo.
+- **Khâu Phát hiện (Chốt chặn 1 - Bắt buộc dùng ML):** Dồn toàn bộ nỗ lực Học máy (ML) để train duy nhất **Model A1** (XGBoost với REES46). Việc này giúp tập trung thời gian để chăm chút kỹ phần tinh chỉnh mô hình và biểu đồ đánh giá (Precision/Recall) cho báo cáo.
 - **Khâu Đề xuất (Chốt chặn 2 - Giao quyền cho hệ thống khác):** KHÔNG train thêm model ML (A2) truyền thống. Thay vào đó, áp dụng cơ chế:
   - **Ma trận Rule-based tĩnh:** Ánh xạ thẳng lỗi từ Model A1 sang hành động cố định thông qua file config (VD: Báo lỗi bỏ giỏ hàng -> Đề xuất mã freeship).
   - **Diễn giải bằng Model B (Chatbot RAG):** Model B đọc cấu hình đề xuất này từ Qdrant, sau đó đóng vai trò "Lớp trình bày" để thông báo cho Admin một cách tự nhiên. **Tuyệt đối không nhúng Web Search Tool hay chức năng Agentic phức tạp** để giữ an toàn cho kiến trúc ban đầu.
@@ -300,7 +308,7 @@ Nếu đồ án còn quỹ thời gian và cần tăng cường hàm lượng h�
 > *"Phát hiện Bất thường trong Phễu chuyển đổi Thương mại Điện tử thông qua Mô hình Học kết hợp (Ensemble Learning) trên Dòng dữ liệu Clickstream thời gian thực dựa trên Phương pháp Giám sát yếu"*
 
 **1. Vấn đề nghiên cứu (Pain Point):**
-Dữ liệu hành vi người dùng (Clickstream) như tập Retailrocket tuy có khối lượng khổng lồ nhưng lại ở dạng **không có nhãn (unlabeled)**. Việc gán nhãn thủ công để xác định đâu là "điểm nghẽn/bất thường" là bất khả thi, dẫn đến khó khăn trong việc huấn luyện các mô hình Học có giám sát (Supervised Learning) truyền thống.
+Dữ liệu hành vi người dùng (Clickstream) như tập REES46 tuy có khối lượng khổng lồ nhưng lại ở dạng **không có nhãn (unlabeled)**. Việc gán nhãn thủ công để xác định đâu là "điểm nghẽn/bất thường" là bất khả thi, dẫn đến khó khăn trong việc huấn luyện các mô hình Học có giám sát (Supervised Learning) truyền thống.
 
 **2. Giải pháp và Hàm lượng Khoa học (Scientific Contribution):**
 Bài báo sẽ giải quyết triệt để vấn đề trên bằng 2 phương pháp tiên tiến:
@@ -343,6 +351,15 @@ Từ bản ghi tổng hợp, tính toán các cột số liệu: `view_count`, `
 
 **Bước 4 — Huấn luyện XGBoost (Model A1):**
 Xóa cột định danh (`session_id`, `product_id`). Chia Train/Test (80/20). Đưa ma trận X và vector Y vào XGBoost Classifier. Đánh giá bằng F1-Score, Precision, Recall so với Baseline Rule-based.
+
+**Bước 5 — Model Serving (Deploy vào Pipeline):**
+Sau khi train và đánh giá hoàn tất, model được xuất thành file ổn định để chạy trong Streaming Pipeline:
+1. Train offline (Jupyter/Script) → `joblib.dump(model, 'model_a1.joblib')`.
+2. Streaming Processor load model 1 lần khi khởi động: `model = joblib.load('model_a1.joblib')`.
+3. Mỗi khi Window Aggregation hoàn tất (mỗi 1 phút), gọi `model.predict_proba(features)` → sinh insight với xác suất.
+4. Retrain: Chạy lại script với dữ liệu mới → thay file `.joblib` → restart Pod.
+
+Đây là mô hình **Batch Training + Online Inference** — đơn giản, ổn định, phù hợp quy mô đồ án. Online Learning (model tự cập nhật liên tục) đưa vào "Hướng phát triển".
 
 ### M. Thiết kế Luật gán nhãn có Cơ sở Học thuật (Heuristic Rules with Citations) (2026-07-17)
 
@@ -463,7 +480,7 @@ Câu hỏi cốt lõi: Giữa "phi xâm lấn code" và "phi xâm lấn DB", cá
 | Tình huống | Phương thức | Xâm lấn Frontend |
 |---|---|---|
 | **ĐÃ CÓ tracking** (GA4, Segment, Mixpanel) | **Data Connector (Webhook Ingestion):** Cấu hình GTM/Segment forward bản copy event sang `POST /api/ingest/webhook`. | **0%** — Không viết thêm 1 dòng JS. |
-| **CHƯA CÓ tracking** | **Drop-in SDK (Auto-tracking):** 1 dòng `<script src="sdk.js">`. SDK tự bắt pageview (`history.pushState`) và click (`data-track` attributes). | **Cực thấp** — 1 dòng script. |
+| **CHƯA CÓ tracking** | **Drop-in SDK:** 1 dòng `<script src="sdk.js">`. SDK tự bắt pageview (`history.pushState`) và click (`data-track` attributes). Tên thay thế: **"Low-code Tracking SDK"** hoặc **"Declarative Tracking SDK"** (vì interaction events cần khai báo `data-track`, không phải auto thuần túy). | **Cực thấp** — 1 dòng script. |
 
 **Anti-Corruption Layer (ACL) — Chuẩn hóa đa nguồn:**
 Khi nhận dữ liệu từ nhiều nền tảng, hệ thống triển khai Adapter Pattern:
@@ -504,7 +521,7 @@ Khi khách hàng **không có hệ thống tracking nào khác** (trường hợ
 | Loại dữ liệu | Cơ chế thu thập | Consistency | Lý do |
 |---|---|---|---|
 | **Business Data** (order, payment) | MQ Adapter (server-to-server) + confirm | ~100% | Có xác nhận hai chiều |
-| **Behavior: Pageview** (nếu có middleware) | Server-side Middleware | ~100% | Không đi qua browser |
+| **Behavior: Pageview** *(ý tưởng, chưa triển khai)* | Server-side Middleware *(Hướng phát triển)* | ~100% | Không đi qua browser — chưa nằm trong scope, chỉ là ý tưởng |
 | **Behavior: Interaction** (click, scroll) | Browser SDK (client-side) | ~93-95% | Phụ thuộc browser, đo sai số qua MQ cross-validation |
 
 **Câu chốt trước hội đồng:**
