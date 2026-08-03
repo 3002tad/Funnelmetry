@@ -2,7 +2,7 @@
 
 > File tổng hợp các quyết định về tên đề tài, phạm vi hệ thống, kiến trúc ingestion và hướng phát triển AI, chốt trong quá trình trao đổi trước phản biện. Dùng làm căn cứ khi viết báo cáo và trả lời hội đồng.
 >
-> **Quy ước đánh số:** Mục 1–10 = Các quyết định gốc (07-10 → 07-11). Mục C–O = Nhật ký trao đổi bổ sung theo trình tự thời gian (07-12 → 08-03).
+> **Quy ước đánh số:** Mục 1–10 = Các quyết định gốc (07-10 → 07-11). Mục C–P = Nhật ký trao đổi bổ sung theo trình tự thời gian (07-12 → 08-03).
 
 ## 1. Tên đề tài (2026-07-10)
 
@@ -75,21 +75,21 @@ CDC chỉ được nhắc đến trong báo cáo ở 2 vị trí:
 
 Ghi chú: Commerce-backend hiện tại dùng dual-write pattern (ghi state vào `orders.store.js` + publish event lên RabbitMQ là 2 bước tách biệt, có rủi ro mất event). Giải pháp trong scope là cơ chế Idempotency/Retry (Bài báo #1), không phải CDC.
 
-## 5. Định hướng AI — đi sâu, quỹ thời gian 5 tháng (2026-07-10)
+## 5. Định hướng AI — đi sâu, quỹ thời gian còn 4 tháng (2026-07-10, cập nhật 2026-08-03)
 
 Quyết định: **rút phạm vi ingestion/hạ tầng về mức tối thiểu, dồn effort cho AI/thuật toán**.
 
 - Hiện tại: `insight_generator.py` dùng rule-based threshold (VD: `add_to_cart >= 3 và purchases == 0` → sinh insight text), không phải model học máy.
-- **Đã chốt hướng Classification (XGBoost)** trên dataset **REES46 Multi-category**. Chi tiết kiến trúc xem Mục D, chiến lược huấn luyện xem Mục H, dataset xem Mục K, quy trình xử lý dữ liệu xem Mục L.
+- **Đã chốt hướng Classification (XGBoost)**, nhưng dataset chính chưa được giảng viên chốt. Retailrocket và REES46 là hai ứng viên; chỉ quyết định sau khi chốt Universal Input Schema và runtime feature contract để tránh training-serving skew.
 - Cần có: chuẩn bị dữ liệu/nhãn (Weak Supervision — Mục M), huấn luyện, và đánh giá định lượng so với baseline rule-based hiện tại (F1-Score, Precision, Recall) — đây là phần tạo "đóng góp khoa học" cho luận văn.
 - Multi-backend simulator (mục 6) chỉ giữ ở mức tối thiểu, không đầu tư thêm effort ngoài phần đủ để demo.
 
-## 6. Demo đa nguồn — theo gợi ý giảng viên (2026-07-10)
+## 6. Luồng tích hợp tham chiếu và khả năng mở rộng (2026-07-10, cập nhật 2026-08-03)
 
-- Không cần xây dựng full website cho từng ngôn ngữ/framework khác nhau.
-- Chỉ cần **backend simulator** (script/service giả lập gửi event) cho vài stack khác nhau (VD: Node.js, Python/Flask, PHP, Java) qua vài loại MQ khác nhau (RabbitMQ, Kafka trực tiếp...), mỗi loại có 1 adapter tương ứng chuẩn hoá về schema chung.
-- Mục đích: chứng minh bằng thực nghiệm khả năng tích hợp đa nguồn (đa ngôn ngữ backend, đa message queue) của hệ thống, tránh bị đánh giá là overclaim.
-- Giữ ở mức tối thiểu (1–2 simulator bổ sung ngoài RabbitMQ hiện có) để không cạnh tranh effort với mục tiêu AI (mục 5).
+- Chỉ triển khai **một reference pipeline hoàn chỉnh**: Web-shop Node.js + Browser SDK cho behavior; backend + RabbitMQ + Worker + Adapter cho business event; cả hai hội tụ tại Tracking API/Kafka.
+- Không xây thêm website/backend đầy đủ bằng PHP, Java hoặc Python. Khả năng mở rộng nguồn được chứng minh bằng Universal Event Contract có version, Source Adapter Interface, bảng mapping và contract/conformance test.
+- Nguồn mới chỉ bổ sung Adapter ở biên. Streaming Processor, KPI và Model A1 chỉ nhận Universal Schema, không phụ thuộc ngôn ngữ, broker hay schema nội bộ của hệ thống khách hàng.
+- Phải phân biệt rõ phần **đã triển khai** (SDK + Node.js/RabbitMQ Adapter) với extension specification (Webhook/Segment/Custom API).
 
 ## 7. Khảo sát hệ thống tương đồng (2026-07-10)
 
@@ -207,16 +207,16 @@ Kiến trúc 4 thành phần này là minh chứng xuất sắc cho tư duy thi�
 2. Không nhồi nhét mọi thứ vào LLM (tránh ảo giác và tốn tài nguyên). 
 3. Phân tách rõ ràng giữa thuật toán chẩn đoán (ML), logic nghiệp vụ (Rule-based), giao diện ngôn ngữ tự nhiên (LLM), và đo lường khoa học (Stats).
 
-### E. Chốt hướng bài báo khoa học — khung 2 tháng (2026-07-13)
+### E. Chốt hướng bài báo khoa học — khung còn 1 tháng (2026-07-13, cập nhật 2026-08-03)
 
 Sau khi so sánh 2 hướng:
 - (1) **Thiết kế cơ chế đảm bảo toàn vẹn dữ liệu cho SDK và Adapter trong ingestion thời gian thực bằng idempotency + retry có kiểm soát + batching giới hạn**
 - (2) **Online Funnel Bottleneck Detection bằng mô hình nhẹ thay rule-based**
 
-Đã **chốt chọn hướng (1)** làm bài báo chính trong 2 tháng: "Thiết kế cơ chế đảm bảo toàn vẹn dữ liệu cho hệ thống thu thập thời gian thực thông qua tính lũy đẳng (Idempotency), Batching và Retry có kiểm soát"(Tên này bỏ chữ SDK và Adapter ở tiêu đề để bao quát hơn, các term này sẽ giải thích trong phần Abstract/Tóm tắt). 
+Đã **chốt chọn hướng (1)** làm bài báo chính trong 1 tháng còn lại: "Thiết kế cơ chế đảm bảo toàn vẹn dữ liệu cho hệ thống thu thập thời gian thực thông qua tính lũy đẳng (Idempotency), Batching và Retry có kiểm soát". Phát triển song song với đồ án theo tỷ lệ effort 70/30 hoặc 80/20 nghiêng về bài báo trong tháng đầu.
 
 Lý do chốt:
-- Phù hợp thời hạn 2 tháng hơn: không phụ thuộc nhiều vào bài toán gán nhãn dữ liệu và vòng lặp tuning model.
+- Phù hợp thời hạn 1 tháng hơn hướng ML: không phụ thuộc nhiều vào bài toán gán nhãn dữ liệu và vòng lặp tuning model.
 - Dễ tạo thực nghiệm tái lập: fault injection theo kịch bản (network timeout, broker chậm, restart adapter, burst traffic).
 - Dễ phản biện bằng chỉ số kỹ thuật rõ ràng, ít tranh luận chủ quan hơn hướng ML.
 
@@ -233,7 +233,7 @@ Phạm vi thực hiện trong bài báo:
 - So sánh với baseline ingestion hiện tại để lượng hoá lợi ích.
 
 Ghi chú báo cáo/pha phản biện:
-- Hướng (2) giữ ở mức **hướng phát triển** (hoặc thử nghiệm phụ nếu còn thời gian), không là trọng tâm bài báo 2 tháng.
+- Hướng (2) được phát triển song song cho đồ án nhưng không là trọng tâm bài báo 1 tháng.
 
 ### F. Cập nhật thiết kế và Phản biện kiến trúc (2026-07-13)
 
@@ -249,7 +249,7 @@ CDC (như Debezium) đọc trực tiếp từ WAL log nên không gây khóa b�
 - **Rào cản Cấp quyền (Replication Privileges):** CDC đòi hỏi quyền truy cập sâu (SUPERUSER/Replication) vào log CSDL của khách hàng. Việc cấp quyền này cho một Tool bên thứ 3 là rủi ro bảo mật khổng lồ (Compliance Risk). MQ an toàn hơn vì khách hàng chủ động đẩy (Push) dữ liệu ra.
 - **Bài toán Rác logic (Database State vs Business Event):** CDC theo dõi 'Trạng thái dữ liệu' (Row-level changes). Một thao tác "Thanh toán" có thể sinh ra 8 thay đổi rời rạc trên 4 bảng khác nhau (Orders, Items, Users, Inventory). Nếu dùng CDC, hệ thống Tracking phải hứng 8 mảnh vỡ này và viết thuật toán Join phức tạp để "dịch ngược" thành 1 sự kiện. Thiết kế MQ đẩy trách nhiệm gom data cho Backend Web-shop: khi giao dịch xong, Web-shop chỉ bắn ra 1 cục JSON duy nhất (`{"event": "order_completed"}`). Ranh giới hệ thống (Bounded Contexts) được bảo vệ.
 - **Khớp nối cấu trúc (Tightly Coupled):** CDC bị gãy vỡ nếu khách hàng đổi tên cột/bảng. MQ sử dụng "Hợp đồng dữ liệu" (Data Contract JSON cố định), giúp Tracking là công cụ Plug & Play độc lập hoàn toàn với Schema của khách hàng.
-- **Kết luận:** Sự đánh đổi của kiến trúc MQ là rủi ro rớt/trùng tin nhắn. Tuy nhiên, **Module Đảm bảo toàn vẹn dữ liệu (Idempotency, Batching, Retry)** được code trực tiếp vào lõi SDK và Adapter của đồ án đã khắc phục hoàn toàn nhược điểm này, giúp kiến trúc MQ đạt độ tin cậy ngang CDC mà không phải gánh chịu rào cản xâm lấn.
+- **Kết luận:** Sự đánh đổi của kiến trúc MQ là rủi ro rớt/trùng tin nhắn. Module Idempotency, Batching và Retry có mục tiêu giảm và đo lường các rủi ro đó trong ranh giới ingestion. Không claim “khắc phục hoàn toàn” hoặc “ngang CDC” trước khi có thực nghiệm; dual-write gap từ OLTP commit đến publish vẫn là giới hạn nếu chưa có Transactional Outbox.
 
 ### G. Nhật ký trao đổi Cập nhật AI & Dữ liệu (2026-07-14)
 
@@ -336,7 +336,7 @@ Hướng nghiên cứu này bám sát tuyệt đối vào module Model A1 của 
 | 6 | **Online Shoppers UCI** | [UCI ML Repository](https://archive.ics.uci.edu/dataset/468) | ~12K sessions | `BounceRates`, `ExitRates`, `PageValues`, `Revenue` (Yes/No) | Có sẵn nhãn → dùng làm Baseline so sánh. Quá nhỏ cho train chính. |
 | 7 | **Bitext Retail Chatbot** | [HuggingFace](https://huggingface.co/datasets/bitext/Bitext-retail-ecommerce-llm-chatbot-training-dataset) | ~27K mẫu Q&A | `instruction`, `category`, `intent`, `response` | Cho Model B (Chatbot). Dùng làm test set đánh giá chất lượng diễn giải. |
 
-**Khuyến nghị chốt:** Dùng **REES46 Multi-category** (hoặc bản nhẹ Cosmetics) làm dataset chính thay Retailrocket vì có sẵn `price`, `brand`, `remove_from_cart`, `user_session` — giảm 80% công đoạn Feature Engineering.
+**Đề xuất nội bộ, chưa được giảng viên chốt:** REES46 có lợi thế `price`, `brand`, `remove_from_cart`, `user_session`; Retailrocket nhẹ hơn và phù hợp prototype. Quyết định cuối dựa trên mức độ khớp với Universal Input Schema, feature có thể thu được ở runtime và chi phí xử lý trong quỹ thời gian còn lại.
 
 ### L. Quy trình biến Dataset thô thành Dữ liệu Huấn luyện (2026-07-17)
 
@@ -411,19 +411,19 @@ Khác với Business Data (chạy server-to-server qua MQ, có confirm hai chi�
 | Bot/Crawler giả lập hành vi (Dữ liệu thừa) | Không | Bot detection |
 
 **Kết luận kiến trúc:** Không tồn tại khái niệm Consistency 100% cho Client-side Tracking. Ngay cả Google Analytics hay Amplitude cũng chấp nhận tỷ lệ hụt 5-15%. Hệ thống phân định rạch ròi:
-- **Business Data (Đơn hàng):** Bắt buộc 100% → Server-to-Server MQ + Idempotency (Bài báo #1).
+- **Business Data (Đơn hàng):** yêu cầu độ tin cậy cao; MQ + publisher confirm + idempotency bảo vệ từ ranh giới publish. Không mặc định 100% từ OLTP commit nếu chưa có Transactional Outbox.
 - **Behavior Data (Hành vi):** Bản chất là dữ liệu Thống kê (Statistical), mục tiêu là **đo lường được sai số** và duy trì Coverage Rate trên 90%.
 
 #### O.2. Kỹ thuật giảm thiểu mất mát tại nguồn (SDK-level Mitigations)
 
 **Beacon API (Chống mất khi đóng tab):**
-Khi user đóng tab/chuyển trang, trình duyệt vẫn gửi được data nhờ `navigator.sendBeacon()` — API chuẩn W3C cam kết gửi request ngay cả khi tab đang bị đóng. Đây là vũ khí số 1 chống mất event trên SSR.
+Khi user đóng tab/chuyển trang, `navigator.sendBeacon()` cho phép trình duyệt xếp request gửi nền ở chế độ best-effort, giúp giảm mất event trên SSR. Beacon không phải cam kết server đã nhận; vẫn cần telemetry và đối soát.
 
 **LocalStorage Buffer (Chống mất khi mất mạng):**
 Nếu `fetch()` tới Tracking API thất bại → SDK lưu event vào `localStorage` → Lần truy cập sau, SDK đọc queue và gửi lại (Retry from buffer).
 
-**SDK Heartbeat (Đo lường "Tỷ lệ sống sót"):**
-SDK gửi tín hiệu "ping" định kỳ (mỗi 30 giây). Server đếm số heartbeat nhận được so với số session đang mở → Tính ra Session Coverage Rate.
+**SDK Heartbeat (Đo hoạt động sau khi SDK đã load):**
+SDK gửi tín hiệu "ping" định kỳ để đo session đã khởi tạo SDK còn hoạt động. Heartbeat không đo được session bị ad-blocker chặn ngay từ đầu vì server không biết mẫu số đó tồn tại; không dùng riêng heartbeat để tuyên bố coverage toàn bộ traffic.
 
 #### O.3. Phân tích sâu: SSR vs CSR/SPA — Hai bài toán Consistency ngược nhau
 
@@ -440,13 +440,13 @@ SDK gửi tín hiệu "ping" định kỳ (mỗi 30 giây). Server đếm số h
 - SDK hook vào Router events (`history.pushState`, `popstate`) để phát sinh `page_view`.
 - Consistency: **Khó đo** (không có server-side ground truth) nhưng **ít mất event**.
 
-**Nghịch lý SPA — Consistency tự nhiên cao hơn SSR:**
+**SPA có thể giảm mất event khi navigation, nhưng agreement không đồng nghĩa accuracy:**
 Nếu khách hàng cũng ghi nhận behavior data, SDK của họ cũng chạy client-side, cũng bị ảnh hưởng bởi cùng yếu tố mất mát:
 - Ad-blocker chặn → chặn CẢ SDK của hệ thống lẫn SDK của khách hàng.
 - JS tắt → CẢ HAI SDK đều không chạy.
 - Mất mạng → CẢ HAI đều mất event cùng lúc.
 
-Kết quả: Hai bộ dữ liệu tuy đều mất ~5% so với thực tế, nhưng chúng **mất cùng 5% đó** → Consistency giữa hai bên lại rất cao! Với SSR thì ngược lại: Server log ghi 100% nhưng SDK chỉ 95% → Chênh lệch rõ ràng.
+Hai SDK client-side có thể cùng chịu một số blind spot, nhưng không được suy ra chúng luôn mất cùng một tập event: filter list, first/third-party endpoint, consent, thời điểm init và retry strategy có thể khác nhau. Agreement cao giữa hai SDK không chứng minh coverage cao so với hành vi thực tế.
 
 | Tiêu chí | SSR | CSR / SPA |
 |---|---|---|
@@ -454,7 +454,7 @@ Kết quả: Hai bộ dữ liệu tuy đều mất ~5% so với thực tế, nh�
 | Rủi ro mất event | **Cao** (page unload) | **Thấp** |
 | Server biết pageview? | **Có** (access log đầy đủ) | **Không** (chỉ biết lần load đầu) |
 | Có source of truth server-side? | **Có** → Dễ đối chiếu | **Không** |
-| Consistency giữa 2 SDK | Dễ chênh lệch (server 100% vs SDK 95%) | Tự nhiên cao (cùng blind spot) |
+| Đối chiếu hai SDK | Có access log làm mốc page request | Chỉ đo agreement; cần ground truth bổ sung |
 | Kỹ thuật Correlation ID | Server render `<meta name="x-request-id">` | SDK tự sinh `page_view_id` |
 
 #### O.4. Định nghĩa lại "Phi xâm lấn" — Ranh giới thật sự (2026-07-18)
@@ -503,8 +503,8 @@ Khi khách hàng **không có hệ thống tracking nào khác** (trường hợ
 **Phương pháp Cross-Validation MQ ↔ SDK:**
 1. Rút 1.000 `session_id` có `order_completed` từ luồng MQ (tin cậy 100%).
 2. Quét trong DB Behavior (SDK): Tìm thấy 930 sessions có sự kiện `page_view`, `add_to_cart`.
-3. 70 sessions còn lại = khách đã mua nhưng bị ad-blocker chặn SDK.
-4. **Công bố:** Loss Rate = 7%, Coverage Rate = 93%.
+3. 70 sessions còn lại phải phân loại tiếp: thiếu correlation, session hết hạn, non-browser order, event đến trễ hoặc probable capture loss; không mặc định tất cả do ad-blocker.
+4. **Công bố:** `purchase_behavior_link_rate = 93%`. Đây là coverage của nhóm đã mua hàng, không đại diện toàn bộ behavior traffic.
 
 **Bổ sung SDK Telemetry (Tự đo nội bộ):**
 
@@ -520,9 +520,67 @@ Khi khách hàng **không có hệ thống tracking nào khác** (trường hợ
 
 | Loại dữ liệu | Cơ chế thu thập | Consistency | Lý do |
 |---|---|---|---|
-| **Business Data** (order, payment) | MQ Adapter (server-to-server) + confirm | ~100% | Có xác nhận hai chiều |
+| **Business Data sau publisher confirm** | MQ Adapter (server-to-server) + confirm | At-least-once trong ranh giới ingestion | Không bao gồm dual-write gap từ OLTP commit đến publish |
 | **Behavior: Pageview** *(ý tưởng, chưa triển khai)* | Server-side Middleware *(Hướng phát triển)* | ~100% | Không đi qua browser — chưa nằm trong scope, chỉ là ý tưởng |
 | **Behavior: Interaction** (click, scroll) | Browser SDK (client-side) | ~93-95% | Phụ thuộc browser, đo sai số qua MQ cross-validation |
 
 **Câu chốt trước hội đồng:**
-> "Hệ thống không cố gắng giải bài toán bất khả thi là chống Ad-blocker. Thay vào đó, hệ thống giải quyết bằng Kiến trúc: dùng MQ/Idempotency bảo vệ Business Data 100%, dùng Đối chiếu chéo MQ↔SDK để đo lường và công bố minh bạch sai số Behavior Data, và giữ trọn vẹn nguyên tắc Phi xâm lấn CSDL."
+> "Hệ thống không cố gắng giải bài toán bất khả thi là chống Ad-blocker. Hệ thống dùng MQ/Idempotency để bảo vệ business event sau ranh giới publisher-confirm, dùng đối chiếu MQ↔SDK để đo coverage của các journey liên kết được, công bố riêng các blind spot behavior và giữ nguyên tắc phi xâm lấn CSDL."
+
+### P. Chốt trọng tâm Input và kế hoạch điều chỉnh theo code hiện tại (2026-08-03)
+
+#### P.1. Phạm vi sản phẩm và tiến độ
+
+- Bài báo NCKH và đồ án là hai sản phẩm riêng nhưng dùng chung ingestion/event contract.
+- Bài báo còn **1 tháng**, tập trung toàn vẹn ingestion; đồ án còn **4 tháng**, tập trung Model A1 và vòng đề xuất–đánh giá.
+- Trong tháng đầu phát triển song song theo tỷ lệ **70/30 hoặc 80/20** nghiêng về bài báo. Nhánh ML phải hoàn thành input/feature contract, dataset profiling và baseline để không khởi động lại từ đầu sau khi nộp bài.
+- Phần mềm chính là hệ thống phân tích điểm nghẽn chuyển đổi TMĐT self-hosted. SDK và Adapter là integration kit; Kafka/Postgres/Qdrant/Ollama là hạ tầng hỗ trợ.
+
+#### P.2. Reference pipeline và hợp đồng mở rộng
+
+```text
+Web-shop Node.js
+├── Browser SDK (behavior) ───────────────────┐
+└── Backend → RabbitMQ → Worker → Adapter ────┤
+                                              ↓
+                                    Tracking API → Kafka
+                                              ↓
+                               Streaming → KPI/ML → Dashboard
+```
+
+Khả năng mở rộng nguồn khác được chứng minh bằng: JSON Schema `universal-event.v1`, bảng required field theo event type, Source Adapter Interface, mapping specification, compatibility policy và conformance fixtures/tests. Không cần triển khai thêm backend đầy đủ bằng ngôn ngữ khác.
+
+#### P.3. Phân loại input theo ngữ nghĩa và thẩm quyền
+
+| Tín hiệu | Nguồn | Vai trò |
+|---|---|---|
+| `checkout_start` | Browser SDK | Ý định bắt đầu checkout |
+| `order_created_observed` | SDK sau HTTP 201 | Frontend đã quan sát kết quả tạo đơn; dùng đối chiếu coverage |
+| `order.created` → `order_created` | Backend/RabbitMQ | Backend đã tạo đơn pending; không cộng lại checkout intent |
+| `order.completed` → `purchase_succeeded` | Worker/RabbitMQ | Nguồn authoritative cho purchase và revenue |
+| `checkout_request_failed` | Browser SDK | Request checkout thất bại theo quan sát client; không đồng nghĩa `payment.failed` |
+| `payment.failed` | Worker/backend | Kết quả payment authoritative |
+
+Response tạo đơn nên trả `business_event_id` và `correlation_id`. Client-observed event có `event_id` riêng nhưng liên kết bằng `logical_business_event_id`. Không cộng observed event và authoritative event vào cùng KPI.
+
+#### P.4. Feature contract trước khi chốt dataset
+
+Mỗi feature phải có bảng đối chiếu: dataset có hay không, runtime lấy từ SDK/backend/product context nào, required hay optional, thời điểm feature sẵn có. Chỉ feature tồn tại ở cả training và serving mới vào model chính. Sau bước này mới chốt Retailrocket hay REES46.
+
+#### P.5. Hành động kỹ thuật theo mô hình code hiện tại (chưa triển khai)
+
+1. **Event semantics:** bỏ `purchase_succeeded` phát ngay khi API mới trả `pending`; phân biệt `checkout_request_failed` với `payment.failed`; tránh map cả browser `checkout_start` và backend `order.created` vào một KPI.
+2. **SDK:** sinh stable `event_id` trước khi enqueue; thêm bounded batching, retry backoff/jitter, per-event ACK, `sequence_number`, Beacon/pagehide và queue-overflow telemetry.
+3. **Commerce boundary:** code hiện ghi MongoDB rồi publish RabbitMQ nên còn dual-write gap. Nếu nghiên cứu cam kết từ OLTP commit thì cần Transactional Outbox; trong phạm vi 1 tháng nên giới hạn phép đo từ producer handoff/publisher-confirm và ghi Outbox là hướng phát triển.
+4. **Worker:** kiểm tra idempotency của reserve inventory và từng state transition; tránh trường hợp cập nhật trạng thái thành công nhưng publish event thất bại.
+5. **Adapter/Tracking API:** durable idempotency thay cache RAM; ACK RabbitMQ chỉ sau durable acceptance; không trả `accepted` cho event bị mapper bỏ qua mà không ghi raw/Kafka.
+6. **Streaming:** manual Kafka offset commit sau persistence; lỗi Postgres không được xóa buffer; chỉ aggregate event thực sự mới để duplicate không làm tăng KPI.
+7. **Cohesion:** chọn một Browser SDK canonical thay vì duy trì hai bản lệch nhau; web-shop MongoDB + worker là reference commerce implementation, `services/commerce-backend` chỉ là stand-in/test fixture.
+8. **Kiểm thử bài báo:** baseline và proposed mechanism trên network timeout, ACK loss, API restart, broker delay và burst traffic; đo loss, duplicate, integrity violation, p95 latency và throughput.
+
+#### P.6. Ranh giới consistency dùng trong báo cáo
+
+- Behavior consistency tách thành completeness, uniqueness, correctness, ordering và timeliness.
+- Client-observed response là tín hiệu kiểm chứng, không thay authoritative business event.
+- `purchase_behavior_link_rate` chỉ đo nhóm order ghép được với behavior; không phải coverage của toàn bộ visitor.
+- Claim at-least-once chỉ bắt đầu sau ranh giới producer handoff/publisher-confirm nếu chưa triển khai Outbox. Không dùng các cụm “100%”, “exactly-once toàn hệ thống” hoặc “ngang CDC” khi chưa có bằng chứng thực nghiệm.
