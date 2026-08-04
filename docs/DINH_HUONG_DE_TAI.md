@@ -2,13 +2,13 @@
 
 > File tổng hợp các quyết định về tên đề tài, phạm vi hệ thống, kiến trúc ingestion và hướng phát triển AI, chốt trong quá trình trao đổi trước phản biện. Dùng làm căn cứ khi viết báo cáo và trả lời hội đồng.
 >
-> **Quy ước đánh số:** Mục 1–10 = Các quyết định gốc (07-10 → 07-11). Mục C–Q = Nhật ký trao đổi bổ sung theo trình tự thời gian (07-12 → 08-03).
+> **Quy ước đánh số:** Mục 1–10 = Các quyết định gốc (07-10 → 07-11). Mục C–R = Nhật ký trao đổi bổ sung theo trình tự thời gian (07-12 → 08-04).
 
-## 1. Tên đề tài (2026-07-10)
+## 1. Tên đề tài (2026-07-10, cập nhật 2026-08-04)
 
-**Tên đã chốt (2026-08-03):**
+**Tên nhóm chốt nội bộ (2026-08-04), chờ giảng viên xác nhận trước giữa tháng 8:**
 
-> **"Xây dựng và triển khai hệ thống thời gian thực theo dõi hành vi người dùng, phát hiện điểm nghẽn chuyển đổi thương mại điện tử bằng học máy, tích hợp cơ chế đề xuất và đánh giá hiệu quả tối ưu"**
+> **"Xây dựng Funnelmetry – hệ thống theo dõi hành vi người dùng và phân tích chuyển đổi thương mại điện tử theo thời gian thực, hỗ trợ phát hiện điểm nghẽn và đề xuất tối ưu bằng học máy"**
 
 
 Lý do dùng **"hệ thống"** thay vì **"nền tảng"**:
@@ -16,25 +16,32 @@ Lý do dùng **"hệ thống"** thay vì **"nền tảng"**:
 - "Hệ thống" khẳng định đúng những gì đã build: nhiều thành phần phối hợp end-to-end (SDK → Tracking API → Kafka → Streaming → Postgres/Qdrant → Dashboard/Chatbot), không overclaim.
 - Nhất quán với quyết định self-hosted / single-tenant (mục 3) và mục tiêu dồn effort cho AI thay vì cho hạ tầng multi-tenant.
 
-Lý do đổi `"ứng dụng đề xuất tối ưu"` → `"tích hợp cơ chế đề xuất và đánh giá hiệu quả tối ưu"`:
-- Phản ánh đúng vòng lặp khép kín đã bổ sung ở mục 10 (khuyến nghị → áp dụng → đo lại hiệu quả bằng KPI before-after), không chỉ dừng ở sinh khuyến nghị một chiều.
-- Khôi phục lại đúng ý "đánh giá hiệu quả tối ưu kinh doanh" của tên đề tài gốc ban đầu, nhưng giờ đã có thiết kế cụ thể/đo lường được nên không còn bị đánh giá là mơ hồ.
-- Không đưa UTM/đa kênh mạng xã hội (mục 9) vào tên vì đây là chiều dữ liệu bổ sung làm giàu input, không phải năng lực cốt lõi khác biệt — nên trình bày ở tagline/mục tiêu chi tiết, tránh làm tên dài loãng trọng tâm.
+Lý do bổ sung tên **Funnelmetry** và cấu trúc lại tên đề tài:
+- **Funnelmetry** ghép từ *funnel* và *measurement/telemetry*, thể hiện đúng vai trò đo lường liên tục hành trình chuyển đổi thay vì gắn thương hiệu với riêng một công nghệ như Kafka, chatbot hay XGBoost. Tên riêng cũng tạo định danh thống nhất cho toàn bộ hệ thống và các thành phần liên quan.
+- Phần mô tả sau dấu gạch ngang vẫn xác định rõ đối tượng, miền nghiệp vụ và năng lực chính; vì vậy tên thương hiệu không làm giảm tính học thuật hoặc khiến người đọc phải tự đoán hệ thống làm gì.
+- Cụm **"theo dõi hành vi người dùng"** được giữ ở vị trí đầu để làm rõ nguồn input cốt lõi. Cụm **"phân tích chuyển đổi thương mại điện tử"** nêu đích sử dụng của dữ liệu, tránh cách hiểu đây chỉ là một công cụ thu thập clickstream tổng quát.
+- Cơ chế đánh giá before-after không còn được liệt kê trong tên để tránh tiêu đề quá dài, nhưng vẫn là một năng lực trong phạm vi hệ thống nhằm kiểm chứng khuyến nghị bằng KPI thực tế (mục 10).
+- Không đưa UTM/đa kênh mạng xã hội (mục 9) vào tên vì đây là chiều dữ liệu bổ sung làm giàu input, không phải năng lực cốt lõi khác biệt.
 
 Ánh xạ từng cụm trong tên vào thành phần thật:
 
 | Cụm từ | Thành phần tương ứng |
 |---|---|
-| theo dõi hành vi | Browser Behavior SDK + Tracking API |
-| thời gian thực | Kafka + Streaming Processor (flush 5–10s) |
-| phát hiện điểm nghẽn chuyển đổi | Funnel KPI (`tracking_kpi_1m`) + model ML thay rule-based hiện tại (`insight_generator.py`) |
-| học máy | Model dự đoán/phân loại thay threshold cứng |
-| cơ chế đề xuất | Insight + Chatbot RAG (dashboard-api, Qdrant, Ollama) |
-| đánh giá hiệu quả tối ưu | Feedback loop before-after KPI cho khuyến nghị đã áp dụng (mục 10) |
+| Funnelmetry | Tên chung của hệ thống và các thành phần thu thập, xử lý, phân tích dữ liệu |
+| theo dõi hành vi người dùng | Browser Behavior SDK + Tracking API |
+| phân tích chuyển đổi thương mại điện tử | Behavior event + commerce event → KPI theo sản phẩm/danh mục và time window |
+| theo thời gian thực | Kafka + Streaming Processor (flush 5–10s) |
+| phát hiện điểm nghẽn | Funnel KPI (`tracking_kpi_1m`) + model ML thay rule-based hiện tại (`insight_generator.py`) |
+| đề xuất tối ưu | Insight + Chatbot RAG (dashboard-api, Qdrant, Ollama) |
+| học máy | Model dự đoán/phân loại thay threshold cứng; kết quả model làm căn cứ sinh insight và khuyến nghị |
 
 ## Mô tả tổng quát hệ thống (theo định hướng mới)
 
-Hệ thống là giải pháp theo dõi hành vi người dùng và phân tích chuyển đổi thời gian thực cho website thương mại điện tử, triển khai theo kiến trúc self-hosted trên Kubernetes (k3s). Dữ liệu hành vi từ Browser Behavior SDK và dữ liệu commerce từ backend được chuẩn hoá qua tầng adapter, đưa vào Kafka và xử lý bởi Streaming Processor để tính KPI theo thời gian thực. Trên nền dữ liệu này, một model học máy được huấn luyện để phát hiện điểm nghẽn trong phễu chuyển đổi, thay thế cơ chế rule-based ban đầu và sinh insight lưu trong Qdrant. Một chatbot RAG dùng LLM diễn giải các insight thành khuyến nghị hành động cụ thể cho người quản trị. Khi khuyến nghị được áp dụng, một Evaluation Engine tự động so sánh KPI trước và sau để đánh giá hiệu quả thực tế, khép kín vòng lặp từ phát hiện vấn đề đến đo lường kết quả. Kiến trúc ingestion được thiết kế mở, cho phép mở rộng thêm ngôn ngữ backend và message queue khác nhau, hướng tới một hệ thống phân tích chuyển đổi phù hợp đặc thù thị trường thương mại điện tử Việt Nam.
+**Funnelmetry** là hệ thống self-hosted hỗ trợ đơn vị thương mại điện tử theo dõi hành vi người dùng và phân tích chuyển đổi theo thời gian thực. Hệ thống kết hợp kiến trúc Event-Driven, Pub/Sub và Streaming Data Pipeline; các thành phần trao đổi qua hợp đồng sự kiện thay vì phụ thuộc trực tiếp vào nhau.
+
+Browser Behavior SDK thu thập tương tác trên website; dữ liệu đơn hàng, thanh toán và doanh thu được nhận từ backend qua message queue hoặc API. Adapter chuẩn hoá các nguồn theo Universal Event Contract trước khi Kafka chuyển sự kiện đến Streaming Processor để làm sạch, liên kết và tổng hợp KPI theo sản phẩm, ngành hàng và cửa sổ thời gian. Reconciliation định lượng sai lệch, giúp trạng thái Order, Payment và Revenue hiện tại hội tụ về dữ liệu nguồn mà không cần truy cập trực tiếp cơ sở dữ liệu nghiệp vụ.
+
+Điểm nhấn của Funnelmetry là luồng phân tích từ KPI Matrix, Feature Matrix đến phát hiện điểm nghẽn, tạo insight, đề xuất hành động và đo lại hiệu quả sau khi áp dụng. Việc tách các giai đoạn bằng contract cho phép thay thế mô hình, cơ chế giải thích hoặc nguồn tri thức mà không phải thiết kế lại toàn bộ pipeline. Kết quả được trình bày trên dashboard để người quản trị theo dõi nguyên nhân, khuyến nghị và sự thay đổi của các chỉ số chuyển đổi. Hệ thống định hướng sử dụng Prometheus/Grafana để theo dõi pipeline và Kubernetes (k3s) để hỗ trợ mở rộng khi lưu lượng tăng. Cấu hình phân tích có thể điều chỉnh theo nhóm sản phẩm hoặc ngành hàng.
 
 ## 2. Phạm vi: Hệ thống (self-hosted) — không đi hướng SaaS đa tenant (2026-07-10)
 
@@ -96,13 +103,13 @@ Quyết định: **rút phạm vi ingestion/hạ tầng về mức tối thiểu
 | Nhóm | Đại diện | Khác biệt với hệ thống đang xây |
 |---|---|---|
 | Web/Product Analytics (SaaS) | GA4, Mixpanel, Amplitude, Heap | Đóng (black-box), không self-hosted, AI insight hạn chế hoặc chi phí cao |
-| Web/Product Analytics (open-source) | PostHog, Matomo, Snowplow | Self-hosted nhưng thiếu kiến trúc streaming Kafka realtime + AI insight/chatbot tích hợp sẵn |
+| Web/Product Analytics (self-hosted) | PostHog, Matomo, Snowplow | Có thể tự triển khai nhưng chưa đồng thời tập trung vào streaming Kafka realtime + AI insight/chatbot tích hợp sẵn |
 | Session Replay/Heatmap | Hotjar, FullStory, Contentsquare, Glassbox | Thiên về UX friction, không phải KPI funnel, chi phí enterprise cao |
 | CDP | Segment, Antsomi CDP 365, Insider, CleverTap | Mạnh về routing/marketing personalization, không tập trung phân tích funnel kỹ thuật + AI dự đoán |
 | CRO | VWO, Optimizely | Dựa trên A/B testing thực nghiệm, không phải phân tích hành vi realtime bằng AI |
 | TMĐT Việt Nam tích hợp sẵn | Haravan Insight, Sapo Analytics | Báo cáo doanh thu/đơn hàng cơ bản, ít AI insight hành vi sâu |
 
-**Định vị khác biệt của đề tài:** self-hosted + kiến trúc streaming realtime (Kafka) rõ ràng + AI insight/dự đoán + chatbot RAG tích hợp sẵn + thiết kế theo hành vi mua sắm thị trường TMĐT Việt Nam — khoảng trống mà cả nhóm SaaS đóng lẫn nhóm open-source hiện có đều chưa lấp đầy đồng thời.
+**Định vị khác biệt của đề tài:** self-hosted + kiến trúc streaming realtime (Kafka) rõ ràng + AI insight/dự đoán + chatbot RAG tích hợp sẵn + thiết kế theo hành vi mua sắm thị trường TMĐT Việt Nam — tổ hợp năng lực mà các nhóm giải pháp được khảo sát chưa đồng thời tập trung đầy đủ.
 
 ## 8. Việc cần nhất quán khi viết báo cáo (2026-07-10)
 
@@ -411,7 +418,7 @@ Khác với Business Data (chạy server-to-server qua MQ, có confirm hai chi�
 | Bot/Crawler giả lập hành vi (Dữ liệu thừa) | Không | Bot detection |
 
 **Kết luận kiến trúc:** Không tồn tại khái niệm Consistency 100% cho Client-side Tracking. Ngay cả Google Analytics hay Amplitude cũng chấp nhận tỷ lệ hụt 5-15%. Hệ thống phân định rạch ròi:
-- **Business Data (Đơn hàng):** yêu cầu độ tin cậy cao; MQ + publisher confirm + idempotency bảo vệ từ ranh giới publish. Không mặc định 100% từ OLTP commit nếu chưa có Transactional Outbox.
+- **Business Data (Đơn hàng):** yêu cầu độ tin cậy cao; source publisher confirm bảo vệ bước giao vào MQ, còn durable ingestion receipt/Kafka ACK là điểm bắt đầu claim của Tracking. Không mặc định 100% từ OLTP commit nếu chưa có Transactional Outbox.
 - **Behavior Data (Hành vi):** Bản chất là dữ liệu Thống kê (Statistical), mục tiêu là **đo lường được sai số** và duy trì Coverage Rate trên 90%.
 
 #### O.2. Kỹ thuật giảm thiểu mất mát tại nguồn (SDK-level Mitigations)
@@ -520,12 +527,12 @@ Khi khách hàng **không có hệ thống tracking nào khác** (trường hợ
 
 | Loại dữ liệu | Cơ chế thu thập | Consistency | Lý do |
 |---|---|---|---|
-| **Business Data sau publisher confirm** | MQ Adapter (server-to-server) + confirm | At-least-once trong ranh giới ingestion | Không bao gồm dual-write gap từ OLTP commit đến publish |
+| **Business Data sau durable ingestion receipt** | MQ Adapter + Tracking receipt/Kafka ACK | At-least-once từ durable handoff | Không bao gồm dual-write gap từ OLTP commit đến source handoff |
 | **Behavior: Pageview** *(ý tưởng, chưa triển khai)* | Server-side Middleware *(Hướng phát triển)* | ~100% | Không đi qua browser — chưa nằm trong scope, chỉ là ý tưởng |
 | **Behavior: Interaction** (click, scroll) | Browser SDK (client-side) | ~93-95% | Phụ thuộc browser, đo sai số qua MQ cross-validation |
 
 **Câu chốt trước hội đồng:**
-> "Hệ thống không cố gắng giải bài toán bất khả thi là chống Ad-blocker. Hệ thống dùng MQ/Idempotency để bảo vệ business event sau ranh giới publisher-confirm, dùng đối chiếu MQ↔SDK để đo coverage của các journey liên kết được, công bố riêng các blind spot behavior và giữ nguyên tắc phi xâm lấn CSDL."
+> "Hệ thống không cố gắng giải bài toán bất khả thi là chống Ad-blocker. Hệ thống bảo vệ business event bằng stable ID, retry và idempotency sau durable ingestion receipt; dùng reconciliation để đo phần sai lệch trước handoff, đối chiếu business↔SDK để đo coverage của journey liên kết được và công bố riêng các blind spot behavior."
 
 ### P. Chốt trọng tâm Input và kế hoạch điều chỉnh theo code hiện tại (2026-08-03)
 
@@ -557,7 +564,10 @@ Khả năng mở rộng nguồn khác được chứng minh bằng: JSON Schema 
 | `checkout_start` | Browser SDK | Ý định bắt đầu checkout |
 | `order_created_observed` | SDK sau HTTP 201 | Frontend đã quan sát kết quả tạo đơn; dùng đối chiếu coverage |
 | `order.created` → `order_created` | Backend/RabbitMQ | Backend đã tạo đơn pending; không cộng lại checkout intent |
-| `order.completed` → `purchase_succeeded` | Worker/RabbitMQ | Nguồn authoritative cho purchase và revenue |
+| `order.confirmed` | Backend/Worker/RabbitMQ | Order được chấp nhận xử lý; nguồn authoritative cho order conversion |
+| `payment.captured` | Payment/Worker/RabbitMQ | Thanh toán thành công; nguồn authoritative cho payment conversion và gross revenue |
+| `refund.completed` | Payment/Refund service | Hiệu chỉnh refunded amount và net revenue |
+| `order.cancelled` | Backend/Worker | Order không tiếp tục xử lý; không đồng nhất với payment failure |
 | `checkout_request_failed` | Browser SDK | Request checkout thất bại theo quan sát client; không đồng nghĩa `payment.failed` |
 | `payment.failed` | Worker/backend | Kết quả payment authoritative |
 
@@ -571,7 +581,7 @@ Mỗi feature phải có bảng đối chiếu: dataset có hay không, runtime 
 
 1. **Event semantics:** bỏ `purchase_succeeded` phát ngay khi API mới trả `pending`; phân biệt `checkout_request_failed` với `payment.failed`; tránh map cả browser `checkout_start` và backend `order.created` vào một KPI.
 2. **SDK:** sinh stable `event_id` trước khi enqueue; thêm bounded batching, retry backoff/jitter, per-event ACK, `sequence_number`, Beacon/pagehide và queue-overflow telemetry.
-3. **Commerce boundary:** code hiện ghi MongoDB rồi publish RabbitMQ nên còn dual-write gap. Nếu nghiên cứu cam kết từ OLTP commit thì cần Transactional Outbox; trong phạm vi 1 tháng nên giới hạn phép đo từ producer handoff/publisher-confirm và ghi Outbox là hướng phát triển.
+3. **Commerce boundary:** code hiện ghi MongoDB rồi publish RabbitMQ nên còn dual-write gap. Nếu nghiên cứu cam kết từ OLTP commit thì cần Transactional Outbox; trong phạm vi 1 tháng giới hạn cam kết từ durable ingestion receipt/Kafka ACK, dùng reconciliation đo phần trước handoff và ghi Outbox là integration profile tùy chọn.
 4. **Worker:** kiểm tra idempotency của reserve inventory và từng state transition; tránh trường hợp cập nhật trạng thái thành công nhưng publish event thất bại.
 5. **Adapter/Tracking API:** durable idempotency thay cache RAM; ACK RabbitMQ chỉ sau durable acceptance; không trả `accepted` cho event bị mapper bỏ qua mà không ghi raw/Kafka.
 6. **Streaming:** manual Kafka offset commit sau persistence; lỗi Postgres không được xóa buffer; chỉ aggregate event thực sự mới để duplicate không làm tăng KPI.
@@ -583,7 +593,7 @@ Mỗi feature phải có bảng đối chiếu: dataset có hay không, runtime 
 - Behavior consistency tách thành completeness, uniqueness, correctness, ordering và timeliness.
 - Client-observed response là tín hiệu kiểm chứng, không thay authoritative business event.
 - `purchase_behavior_link_rate` chỉ đo nhóm order ghép được với behavior; không phải coverage của toàn bộ visitor.
-- Claim at-least-once chỉ bắt đầu sau ranh giới producer handoff/publisher-confirm nếu chưa triển khai Outbox. Không dùng các cụm “100%”, “exactly-once toàn hệ thống” hoặc “ngang CDC” khi chưa có bằng chứng thực nghiệm.
+- Claim at-least-once chỉ bắt đầu sau durable ingestion receipt/Kafka broker ACK nếu chưa triển khai Outbox. Không dùng các cụm “100%”, “exactly-once toàn hệ thống” hoặc “ngang CDC” khi chưa có bằng chứng thực nghiệm.
 
 ### Q. Chốt lại mức xâm lấn và pipeline consistency có thể định lượng (2026-08-03)
 
@@ -801,3 +811,171 @@ Quyết định cho reference pipeline:
 > Ưu tiên tái sử dụng Existing/Source-owned Report API, pull theo watermark qua Reconciliation Adapter và tạo internal manifest. Chỉ dùng push manifest khi source không muốn Tracking chủ động gọi API, cần precompute/lọc dữ liệu/ký snapshot hoặc muốn kiểm soát lịch và workload export.
 
 Vì vậy tài liệu dùng `ReconciliationManifest` như **biểu diễn chuẩn nội bộ của một snapshot đối soát**, không đồng nhất nó với một API mới. Điều cần chứng minh là snapshot đóng, control totals, khả năng audit/replay và contract thống nhất; không phải số lượng service được tạo thêm.
+
+### R. Chốt business projection, pipeline hoàn chỉnh và customization theo ngành hàng TMĐT (2026-08-04)
+
+#### R.1. Refactor business state theo ngữ nghĩa thực tế
+
+Hiện tại web-shop dùng một Order aggregate với chuỗi `pending → processing → inventory_reserved → paid → completed`; `completed` đang đồng thời đại diện tạo đơn, thanh toán, purchase và revenue. Hướng refactor không tiếp tục mở rộng một trường status chung mà tách tối thiểu Order và Payment:
+
+```text
+Order:
+PENDING_PAYMENT → CONFIRMED | CANCELLED
+
+Payment:
+PENDING → CAPTURED | FAILED
+CAPTURED → REFUNDED
+```
+
+- `order.confirmed`: order conversion.
+- `payment.captured`: payment conversion và gross revenue.
+- `refund.completed`: refunded amount; `net_revenue = captured_amount − refunded_amount`.
+- `order_created_observed`: frontend đã quan sát HTTP response, không phải business outcome authoritative.
+- Không dùng một `purchase_succeeded` duy nhất cho order, payment và revenue.
+- Fulfillment, partial refund, return và chargeback được mô tả bằng contract/hướng mở rộng; không biến đồ án analytics thành dự án xây full e-commerce.
+
+Universal Contract chuẩn hóa semantic event nhưng không ép hệ thống người dùng đổi status/schema. Source Adapter mapping các trạng thái như `PAID`, `PAYMENT_SUCCESS`, `PROCESSING + paid_at` về canonical event tương ứng.
+
+#### R.2. Phạm vi Reconciliation đã chốt
+
+Reconciliation có hai nhiệm vụ:
+
+1. Định lượng agreement/sai lệch giữa source snapshot và analytics.
+2. Nếu source cung cấp đủ dữ liệu, làm current Order/Payment projection và revenue hội tụ đúng.
+
+Reconciliation **không khôi phục hoặc bịa lại business event history**. Nếu source chỉ cho biết Payment hiện là `REFUNDED`, hệ thống không tự tạo một `refund.completed` quá khứ với timestamp giả. Thay vào đó ghi correction record có `source_snapshot_id`, trạng thái/amount authoritative, `applied_at` và reason; raw/canonical event cũ không bị xóa hoặc sửa.
+
+```text
+Raw event history        → những gì realtime pipeline đã nhận
+Current projection       → trạng thái Order/Payment/revenue hiện tại
+Reconciliation evidence  → mức agreement và correction đã áp dụng
+```
+
+Các metric trước repair: missing, phantom, state mismatch, revenue deviation. Sau repair: residual mismatch, repair success rate và convergence lag. `phantom` không tự động bị xóa vì có thể do filter, pagination, time window, late update hoặc archive. Snapshot không đủ tin cậy hoặc correction không hoàn tất làm window mang trạng thái `DEGRADED`.
+
+Claim chính xác: analytics hội tụ về trạng thái source snapshot công bố; không chứng minh source phản ánh thực tế tuyệt đối.
+
+#### R.3. Identity, Version và Watermark Contract
+
+Bốn định danh không được dùng lẫn nhau:
+
+| Trường | Vai trò |
+|---|---|
+| `event_id` | Định danh một lần delivery/message; tracing và physical dedup |
+| `entity_key` (`source_id + aggregate_type + aggregate_id`) | Ghép Order/Payment giữa realtime và report |
+| `aggregate_version` | Xác định state nào mới hơn; chống áp dụng một transition hai lần |
+| `correlation_id` | Nối behavior journey–order–payment; không dùng dedup |
+
+`logical_event_key = tenant/source + aggregate_type + aggregate_id + aggregate_version`. Source phát lại cùng logical transition với `event_id` mới vẫn không được tăng KPI lần hai.
+
+Quy tắc correction:
+
+- Source version cao hơn analytics: áp correction.
+- Cùng version nhưng khác status/amount: integrity mismatch, source snapshot thắng theo contract.
+- Source version thấp hơn analytics: snapshot stale, không rollback projection mới.
+- Chỉ có `updated_at`: được correction với confidence thấp hơn.
+- Không có cả version và timestamp tin cậy: chỉ đo aggregate, không auto-correct.
+
+Capability level:
+
+- Có `aggregate_version`: đủ điều kiện đạt `RECONCILED`.
+- Chỉ có `updated_at`: `VERIFIED_WITH_LIMITATIONS`.
+- Thiếu cả hai: chỉ count/revenue discrepancy.
+
+Reference web-shop phải có version đầy đủ để chứng minh pipeline chuẩn; integration bên ngoài không bị ép sửa DB mà Adapter khai báo capability. Snapshot phải có `snapshot_id/as_of`, watermark và grace period để dữ liệu cũ không ghi đè state mới.
+
+#### R.4. Durable Receipt Contract
+
+Kafka broker ACK được chọn làm durable handoff boundary:
+
+```text
+Adapter → Tracking validate → Kafka durable ACK → Tracking receipt → Adapter ACK RabbitMQ
+```
+
+Receipt status:
+
+| Status | Ý nghĩa |
+|---|---|
+| `accepted` | Kafka đã nhận bền vững; chưa đồng nghĩa KPI đã cập nhật |
+| `duplicate` | Logical event đã tồn tại; không áp KPI lại |
+| `rejected` | Contract/data sai, không retry mù |
+| `retryable_failure` | Chưa durable; phải gửi lại cùng stable ID |
+
+State sau receipt: `accepted → persisted → analytics_applied → reconciled`. Browser SDK chỉ xóa event khỏi local queue khi nhận per-event receipt phù hợp; batch có lỗi phải trả kết quả từng event, không ACK cả batch một cách mơ hồ.
+
+#### R.5. Làm rõ các ghi chú của giảng viên về phạm vi pipeline
+
+Các cụm trong nhật ký được xác nhận lại:
+
+- **“Tập trung hết vào tất cả”**: hoàn thiện một vertical pipeline end-to-end, không chỉ tập trung module cốt lõi. Mỗi stage phải có implementation thật và input/output contract; độ sâu học thuật vẫn có thể tập trung input consistency, feature engineering và Model A1.
+- **“Chia measure cho từng mặt hàng; measure lấy từ matrix”**: matrix là KPI theo `product × time window`; measure được dùng tạo input feature, không chỉ hiển thị dashboard.
+- **“ShellCheck”** là ghi nhầm; thuật ngữ đúng là **self-check**. Ý nghĩa cụ thể của self-check vẫn cần xác nhận: module tự kiểm tra integration/data health hay lời nhắc nhóm tự rà soát thiết kế.
+- Ba buổi trao đổi đầu mới tập trung làm rõ input và hệ thống thực sự là gì; processing, feature/model, insight và evaluation phía sau chưa được trao đổi với giảng viên.
+
+Pipeline phải hoàn thiện:
+
+```text
+Source Integration → Input Contract → Durable Ingestion
+→ Validate/Clean/Dedup → Session/Window Processing
+→ Product KPI Matrix → Feature Matrix → Model A1
+→ Insight/Recommendation → Dashboard/Chatbot → Evaluation
+```
+
+#### R.6. Product KPI Matrix và Feature Matrix
+
+Grain cơ sở: **một dòng = một sản phẩm trong một time window**.
+
+Core measures đề xuất:
+
+- Behavior: views, clicks, add-to-carts, remove-from-carts, checkout starts, unique sessions.
+- Business: confirmed orders, captured payments, failed payments, refunded amount, gross/net revenue.
+- Data quality: missing/duplicate/sequence-gap rate, behavior–business link rate và reconciliation status.
+
+Derived features: view-to-cart, cart-to-checkout, checkout-to-order, order-to-payment, abandonment, revenue/session, AOV, delta so với window trước và category/product historical baseline.
+
+Tách rõ:
+
+```text
+KPI Matrix
+= product × window measures/rates phục vụ dashboard, reconciliation, evaluation
+
+Feature Matrix
+= KPI Matrix + rolling statistics + baseline + trend/delta
+ + quality flags + product/category context dùng cho Model A1
+```
+
+Gợi ý ban đầu để thảo luận downstream: KPI storage base window 1 phút; feature observation window 15–60 phút; historical baseline 24 giờ/7 ngày. Không chốt chính thức trước khi làm rõ traffic density, event-time/processing-time, tumbling/sliding window, late-event recompute và target của Model A1.
+
+Điểm rủi ro cần phản biện: nếu label được tạo trực tiếp từ cùng KPI threshold trong feature row thì model chỉ học lại rule. Weak supervision phải được công bố và cần test set/ground truth độc lập; có thể dùng Bot Simulator hoặc thiết kế features ở window W để dự đoán outcome/bottleneck ở W+1.
+
+#### R.7. Customization chỉ trong phạm vi mặt hàng/ngành hàng TMĐT
+
+Không claim hỗ trợ domain ngân hàng, giáo dục, y tế hoặc logistics. Hệ thống chỉ customize logic phân tích giữa các product/category trong TMĐT thông qua versioned `AnalysisProfile`.
+
+Profile có thể cấu hình: category taxonomy, funnel, time window, minimum sample, measure/feature được bật, historical baseline, alert threshold, recommendation rule và dashboard priority. Core Event Contract, ingestion, reconciliation và Model A1 interface không đổi.
+
+Phân cấp:
+
+```text
+E-commerce Default Profile
+        ↓
+Category Profile
+        ↓
+Product Override giới hạn
+```
+
+Product override chỉ thay threshold, minimum sample, baseline, ưu tiên/loại trừ measure; không tạo model riêng cho từng sản phẩm. Chiến lược mặc định là một Model A1 dùng feature schema chuẩn, có `category/profile_id`, price band và category baseline; chỉ train category-specific model khi đủ dữ liệu, coi là hướng mở rộng.
+
+Mỗi feature row/prediction phải mang `analysis_profile_id`, `feature_schema_version` và model version. Nếu profile đổi feature/window/label làm schema không tương thích, model phải báo `INCOMPATIBLE_PROFILE`, yêu cầu retrain hoặc fallback rule-based; không dự đoán âm thầm bằng artifact cũ.
+
+Reference demo đề xuất dùng hai profile trên cùng pipeline, ví dụ Electronics và Cosmetics/Fast-moving. Chúng có thể khác observation window, minimum sample, baseline, optional features và recommendation, nhưng cùng Universal Event Pipeline. Đây là bằng chứng customization và loose coupling mà không xây thêm website/backend.
+
+#### R.8. Các nội dung thật sự còn cần làm rõ với giảng viên
+
+1. Giảng viên xác nhận tên đề tài nhóm đã chốt nội bộ trước giữa tháng 8.
+2. `self-check` là một system capability kiểm tra SDK/MQ/schema/correlation/data quality/profile readiness hay là yêu cầu nhóm tự kiểm tra thiết kế.
+3. Model A1 nhận một `product × time-window` row và phải dự đoán đầu ra nào: target/label, prediction horizon, một hay nhiều bottleneck, minimum traffic để kết luận.
+4. Chiến lược windowing/sessionization/late event và cách tạo ground truth/weak label chưa được trao đổi.
+5. Contract đầu ra Model A1, cách sinh recommendation, vai trò Model B và Evaluation Engine phía sau chưa được giảng viên phản biện.
+6. Mức customization cần chứng minh: đề xuất hai Analysis Profile trong TMĐT; cần xác nhận như vậy đã đủ hay giảng viên muốn category-specific model thật.
+7. Cách chứng minh “pipeline hoàn chỉnh”: acceptance criteria cho từng stage, benchmark integration/performance/bandwidth và baseline B0–B2.
