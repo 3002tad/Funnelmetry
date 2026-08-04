@@ -37,11 +37,11 @@ Lý do bổ sung tên **Funnelmetry** và cấu trúc lại tên đề tài:
 
 ## Mô tả tổng quát hệ thống (theo định hướng mới)
 
-**Funnelmetry** là hệ thống self-hosted hỗ trợ đơn vị thương mại điện tử theo dõi hành vi người dùng và phân tích chuyển đổi theo thời gian thực. Hệ thống kết hợp kiến trúc Event-Driven, Pub/Sub và Streaming Data Pipeline; các thành phần trao đổi qua hợp đồng sự kiện thay vì phụ thuộc trực tiếp vào nhau.
+**Funnelmetry** là hệ thống self-hosted giúp đơn vị thương mại điện tử theo dõi hành vi người dùng và phân tích chuyển đổi theo thời gian thực. Kiến trúc kết hợp Event-Driven, Streaming Data Pipeline và hợp đồng sự kiện giữa các thành phần.
 
-Browser Behavior SDK thu thập tương tác trên website; dữ liệu đơn hàng, thanh toán và doanh thu được nhận từ backend qua message queue hoặc API. Adapter chuẩn hoá các nguồn theo Universal Event Contract trước khi Kafka chuyển sự kiện đến Streaming Processor để làm sạch, liên kết và tổng hợp KPI theo sản phẩm, ngành hàng và cửa sổ thời gian. Reconciliation định lượng sai lệch, giúp trạng thái Order, Payment và Revenue hiện tại hội tụ về dữ liệu nguồn mà không cần truy cập trực tiếp cơ sở dữ liệu nghiệp vụ.
+Browser Behavior SDK thu thập tương tác; sự kiện đơn hàng, thanh toán và doanh thu đi từ backend qua message queue hoặc API. Adapter chuẩn hoá dữ liệu theo Universal Event Contract trước khi Kafka phân phối đến Streaming Processor để làm sạch, liên kết và tính KPI theo sản phẩm, ngành hàng và cửa sổ thời gian. Reconciliation đo sai lệch, giúp dữ liệu phân tích về Order, Payment và Revenue hội tụ với trạng thái nguồn mà không truy cập trực tiếp cơ sở dữ liệu nghiệp vụ.
 
-Điểm nhấn của Funnelmetry là luồng phân tích từ KPI Matrix, Feature Matrix đến phát hiện điểm nghẽn, tạo insight, đề xuất hành động và đo lại hiệu quả sau khi áp dụng. Việc tách các giai đoạn bằng contract cho phép thay thế mô hình, cơ chế giải thích hoặc nguồn tri thức mà không phải thiết kế lại toàn bộ pipeline. Kết quả được trình bày trên dashboard để người quản trị theo dõi nguyên nhân, khuyến nghị và sự thay đổi của các chỉ số chuyển đổi. Hệ thống định hướng sử dụng Prometheus/Grafana để theo dõi pipeline và Kubernetes (k3s) để hỗ trợ mở rộng khi lưu lượng tăng. Cấu hình phân tích có thể điều chỉnh theo nhóm sản phẩm hoặc ngành hàng.
+Điểm nhấn chính của Funnelmetry là luồng KPI Matrix → Feature Matrix → mô hình học máy phát hiện điểm nghẽn → insight và đề xuất hành động → đánh giá KPI sau áp dụng. Các giai đoạn cho phép thay đổi mô hình, cơ chế giải thích hoặc nguồn tri thức mà không thiết kế lại pipeline. Kết quả được trực quan hoá để người quản trị hiểu nguyên nhân, xem khuyến nghị và theo dõi chỉ số chuyển đổi. Prometheus/Grafana được định hướng để theo dõi pipeline và Kubernetes (k3s) hỗ trợ mở rộng khi lưu lượng tăng. Cấu hình phân tích có thể điều chỉnh theo nhóm sản phẩm hoặc ngành hàng.
 
 ## 2. Phạm vi: Hệ thống (self-hosted) — không đi hướng SaaS đa tenant (2026-07-10)
 
