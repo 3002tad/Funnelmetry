@@ -422,7 +422,7 @@ curl -X POST "http://<WSL_IP>:30330/api/orders" -H "Content-Type: application/js
 | [SPEC.md](SPEC.md) | Event schema, kiến trúc gốc |
 | [API.md](API.md) | REST + Swagger |
 | [BAO_CAO_DU_AN.md](BAO_CAO_DU_AN.md) | Báo cáo / luận văn |
-| [RabbitMQ docx](RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx) | Adapter standard |
+| [LAP2 Integration Guide](https://github.com/3002tad/Web-Demo-For-Pipline/blob/docker/md/LAP2_INTEGRATION_GUIDE.md) | Tích hợp adapter ở nguồn mô phỏng |
 | [clients/web-shop/README.md](../clients/web-shop/README.md) | Shop Lap2 (submodule) |
 
 **Swagger localhost:** `cd clients/api-docs && npm run dev` → `:5190` — proxy `/proxy/dashboard|tracking|commerce`, xem [API.md](API.md).

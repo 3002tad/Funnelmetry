@@ -175,7 +175,7 @@ Web-shop + tracking.js → tracking-api → Kafka → streaming-processor → Po
 - **Tracking API không consume RabbitMQ** — chỉ Adapter gọi HTTPS ingest.
 - Doanh thu / đơn: `order.completed` → Kafka `purchase_succeeded` (metadata `total_amount` / `amount`).
 - Hủy: `order.cancelled` (server-side).
-- Chi tiết: `docs/RabbitMQ_Adapter_Integration_Standard_Windows_K8s_Tailscale.docx`
+- Chi tiết phía nguồn mô phỏng: [LAP2 Integration Guide](https://github.com/3002tad/Web-Demo-For-Pipline/blob/docker/md/LAP2_INTEGRATION_GUIDE.md)
 
 **Doanh thu dashboard “chậm ~30s” sau khi mua hàng?**
 
