@@ -1,6 +1,6 @@
-# Business Data Streaming — Processing Pipeline
+# Funnelmetry
 
-Realtime e-commerce **behavior tracking** demo: SDK → Tracking API → Kafka → (streaming) → PostgreSQL.
+Repository hệ thống chính cho realtime e-commerce **behavior tracking**: SDK → Tracking API → Kafka → streaming processing → PostgreSQL.
 
 ## Stack
 

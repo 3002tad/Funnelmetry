@@ -53,36 +53,22 @@ Về mô hình code, project không nên được mô tả đơn thuần là MVC
 
 Cấu trúc thư mục gợi ý:
 
-services/
-  api/
-    tracking/
-      tracking.controller.js
-      tracking.service.js
-      tracking.validator.js
-      tracking.producer.js
-    dashboard/
-      overview.controller.js
-      product.service.js
-      funnel.repository.js
-    chatbot/
-      chat.controller.js
-      chat.service.js
-      intent.service.js
-      rag.service.js
-  streaming-processor/
-    consumer.py
-    parser.py
-    validator.py
-    cleaner.py
-    aggregator.py
-    sink_postgres.py
-    insight_generator.py
-clients/
-  ../Simulate_Demo/
-  dashboard/
-sdk/
-  browser-behavior-sdk/
-bot-simulator/
+```text
+Funnelmetry/
+├── Streaming_Pipeline/              # Thư mục local; GitHub repository: Funnelmetry
+│   ├── services/
+│   │   ├── api/
+│   │   │   ├── tracking/          # controller, service, validator, producer
+│   │   │   ├── dashboard/         # controller, service, repository
+│   │   │   └── chatbot/           # controller, intent, RAG services
+│   │   └── streaming-processor/   # consumer → parser → validator → sink
+│   ├── clients/
+│   │   └── dashboard/
+│   ├── sdk/
+│   │   └── browser-behavior-sdk/
+│   └── bot-simulator/
+└── Simulate_Demo/                  # Repository web mô phỏng cùng cấp
+```
 
 Tóm lại, khi trình bày mô hình code nên dùng: Modular Layered Architecture cho toàn project, Controller–Service–Repository/Producer cho backend API, Component-Based Architecture cho React frontend, Pipeline Pattern cho streaming processor và Service Layer + RAG cho chatbot.
 

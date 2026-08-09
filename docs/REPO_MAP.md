@@ -159,24 +159,23 @@
 ## 10. Cây thư mục mục tiêu
 
 ```text
-.
-├── AGENTS.md
-├── bot-simulator/              # Playwright bot (Laptop 2)
-├── clients/
-../Simulate_Demo/               # Web TMĐT demo (repo riêng); npm run adapter|worker
-│   ├── dashboard/              # Analytics + chatbot UI
-│   └── api-docs/               # Swagger localhost :5190
-├── docs/                       # **7 file markdown**
-│   ├── README.md, BAO_CAO_DU_AN.md, RUNTIME.md, TECH_STACK.md
-│   ├── SPEC.md, API.md, REPO_MAP.md
-├── infra/
-│   ├── postgres/
-│   └── k8s/
-├── sdk/
-│   └── browser-behavior-sdk/
-└── services/
-    ├── tracking-api/
-    ├── commerce-backend/
-    ├── streaming-processor/
-    └── dashboard-api/
+Funnelmetry/
+├── Streaming_Pipeline/              # Thư mục local; GitHub repository: Funnelmetry
+│   ├── AGENTS.md
+│   ├── bot-simulator/              # Playwright bot (Laptop 2)
+│   ├── clients/
+│   │   ├── dashboard/              # Analytics + chatbot UI
+│   │   └── api-docs/               # Swagger localhost :5190
+│   ├── docs/                       # Tài liệu runtime/spec của pipeline
+│   ├── infra/
+│   │   ├── postgres/
+│   │   └── k8s/
+│   ├── sdk/
+│   │   └── browser-behavior-sdk/
+│   └── services/
+│       ├── tracking-api/
+│       ├── commerce-backend/
+│       ├── streaming-processor/
+│       └── dashboard-api/
+└── Simulate_Demo/                  # Repo web mô phỏng; npm run dev|worker|adapter
 ```

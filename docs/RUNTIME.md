@@ -11,8 +11,8 @@ Nguồn chân lý deploy. Spec kỹ thuật: [SPEC.md](SPEC.md) · Map repo: [RE
 ## 2. Clone & cấu hình
 
 ```bash
-git clone https://github.com/3002tad/Business-Data-Streaming---Processing-Pipeline.git
-cd Business-Data-Streaming---Processing-Pipeline
+git clone https://github.com/3002tad/Funnelmetry.git
+cd Funnelmetry
 
 cp infra/.env.example infra/.env
 cd infra && npm install
@@ -174,7 +174,7 @@ Web-shop + tracking.js → tracking-api → Kafka → streaming-processor → Po
 - **Tracking API không consume RabbitMQ** — chỉ Adapter gọi HTTPS ingest.
 - Doanh thu / đơn: `order.completed` → Kafka `purchase_succeeded` (metadata `total_amount` / `amount`).
 - Hủy: `order.cancelled` (server-side).
-- Chi tiết phía nguồn mô phỏng: [LAP2 Integration Guide](../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md)
+- Chi tiết phía nguồn mô phỏng: LAP2 Integration Guide ([local](../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md) · [GitHub](https://github.com/3002tad/Simulate_Demo/blob/docker/md/LAP2_INTEGRATION_GUIDE.md))
 
 **Doanh thu dashboard “chậm ~30s” sau khi mua hàng?**
 
@@ -452,7 +452,7 @@ Deploy lại khi cần: làm lại mục **§4** (`import-images.sh` + `apply -k
 Một lệnh trong WSL (giữ PVC mặc định; thêm `DELETE_PVC=1` nếu muốn DB trống):
 
 ```bash
-cd /mnt/d/Detai/Business-Data-Streaming---Processing-Pipeline
+cd /path/to/Funnelmetry
 NO_CACHE=1 bash infra/k8s/fresh-deploy.sh
 ```
 

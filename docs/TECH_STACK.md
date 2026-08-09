@@ -422,7 +422,7 @@ curl -X POST "http://<WSL_IP>:30330/api/orders" -H "Content-Type: application/js
 | [SPEC.md](SPEC.md) | Event schema, kiến trúc gốc |
 | [API.md](API.md) | REST + Swagger |
 | [BAO_CAO_DU_AN.md](BAO_CAO_DU_AN.md) | Báo cáo / luận văn |
-| [LAP2 Integration Guide](../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md) | Tích hợp adapter ở nguồn mô phỏng |
-| [Simulate_Demo/README.md](../../Simulate_Demo/README.md) | Shop Lap2 (repository riêng) |
+| LAP2 Integration Guide ([local](../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md) · [GitHub](https://github.com/3002tad/Simulate_Demo/blob/docker/md/LAP2_INTEGRATION_GUIDE.md)) | Tích hợp adapter ở nguồn mô phỏng |
+| Simulate_Demo README ([local](../../Simulate_Demo/README.md) · [GitHub](https://github.com/3002tad/Simulate_Demo/blob/docker/README.md)) | Shop Lap2 (repository riêng) |
 
 **Swagger localhost:** `cd clients/api-docs && npm run dev` → `:5190` — proxy `/proxy/dashboard|tracking|commerce`, xem [API.md](API.md).

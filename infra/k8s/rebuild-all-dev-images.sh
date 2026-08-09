@@ -2,7 +2,7 @@
 # Rebuild all app :dev images, re-import into k3s, restart pods.
 # Use when code changed but cluster still runs old layers.
 #
-#   cd /mnt/d/Detai/Business-Data-Streaming---Processing-Pipeline
+#   cd /path/to/Funnelmetry
 #   bash infra/k8s/rebuild-all-dev-images.sh
 #
 # Force clean Docker build (slower):

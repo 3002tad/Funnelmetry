@@ -406,27 +406,25 @@ Query chung: `minutes` (0 = tất cả, max 43200), `date=YYYY-MM-DD` (ưu tiên
 ### C.1. Cây thư mục chính
 
 ```text
-Business-Data-Streaming---Processing-Pipeline/
-├── docs/                          # Tài liệu (BAO_CAO, RUNTIME, API, PHU_LUC, …)
-├── infra/
-│   ├── .env                       # WSL_IP, mật khẩu, VITE_*, ingest key
-│   ├── postgres/                  # SQL init + migration (001–005)
-│   └── k8s/
-│       ├── sprint3/               # Runtime: apply -k infra/k8s/sprint3
-│       ├── import-images.sh
-│       └── ops/kubernetes-dashboard/   # Headlamp (tuỳ chọn)
-├── sdk/
-│   └── browser-behavior-sdk/      # SDK tracking trình duyệt
-├── clients/
-../Simulate_Demo/                  # Web TMĐT demo + worker + adapter (Lap2)
-│   ├── dashboard/                 # UI analytics + chat + admin
-│   └── api-docs/                  # Swagger localhost :5190
-├── services/
-│   ├── tracking-api/              # Ingest /track + business ingest → Kafka
-│   ├── commerce-backend/          # API đơn hàng → RabbitMQ (k3s)
-│   ├── streaming-processor/       # Kafka → Postgres + Qdrant
-│   └── dashboard-api/             # REST analytics + chat RAG
-└── bot-simulator/                 # Playwright (shell / phase sau)
+Funnelmetry/
+├── Streaming_Pipeline/             # Thư mục local; GitHub repository: Funnelmetry
+│   ├── docs/                      # BAO_CAO, RUNTIME, API, PHU_LUC, …
+│   ├── infra/
+│   │   ├── .env                   # WSL_IP, mật khẩu, VITE_*, ingest key
+│   │   ├── postgres/              # SQL init + migration (001–005)
+│   │   └── k8s/                   # Manifest runtime và công cụ vận hành
+│   ├── sdk/
+│   │   └── browser-behavior-sdk/  # SDK tracking trình duyệt
+│   ├── clients/
+│   │   ├── dashboard/             # UI analytics + chat + admin
+│   │   └── api-docs/              # Swagger localhost :5190
+│   ├── services/
+│   │   ├── tracking-api/          # Ingest /track + business ingest → Kafka
+│   │   ├── commerce-backend/      # API đơn hàng → RabbitMQ (k3s)
+│   │   ├── streaming-processor/   # Kafka → Postgres + Qdrant
+│   │   └── dashboard-api/         # REST analytics + chat RAG
+│   └── bot-simulator/             # Playwright (shell / phase sau)
+└── Simulate_Demo/                 # Web TMĐT demo + worker + adapter (Lap2)
 ```
 
 ### C.2. Mô tả service

@@ -13,4 +13,4 @@ Toàn bộ markdown nằm trong **`docs/`**. README thư mục con chỉ trỏ v
 | **[API.md](API.md)** | HTTP API + Swagger `:5190` |
 | **[Định hướng đề tài](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/DINH_HUONG_DE_TAI.md)** | Decision Record và định hướng kiến trúc V2, được quản lý trong `System_Backbone` |
 
-**Liên repository:** [Hướng dẫn tích hợp nguồn mô phỏng](../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md) · [Quy tắc agent](../AGENTS.md) · [Master Specification](../../System_Backbone/MASTER_SPECIFICATION.md)
+**Liên repository:** Hướng dẫn tích hợp nguồn mô phỏng ([local](../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md) · [GitHub](https://github.com/3002tad/Simulate_Demo/blob/docker/md/LAP2_INTEGRATION_GUIDE.md)) · [Quy tắc agent](../AGENTS.md) · Master Specification ([local](../../System_Backbone/MASTER_SPECIFICATION.md) · [GitHub](https://github.com/3002tad/System_Backbone/blob/main/MASTER_SPECIFICATION.md))

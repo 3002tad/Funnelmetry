@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Dừng stack, xóa deploy (tuỳ chọn xóa PVC), build/import image sạch, deploy lại sprint3.
 #
-#   cd /mnt/d/Detai/Business-Data-Streaming---Processing-Pipeline
+#   cd /path/to/Funnelmetry
 #   bash infra/k8s/fresh-deploy.sh
 #
 # Xóa luôn data (Postgres/Kafka/Qdrant/Ollama PVC) — DB trống như máy mới:
