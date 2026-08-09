@@ -43,7 +43,7 @@ Không phải “web bán hàng” — web-shop chỉ là nơi phát sinh dữ l
 
 | Máy | Vai trò dễ nhớ | Chạy gì |
 |-----|------------------|---------|
-| **Laptop 2 (Windows)** | Cửa hàng + khách | Web TMĐT (`clients/web-shop`), SDK gửi hành vi, worker/adapter xử lý đơn hàng |
+| **Laptop 2 (Windows)** | Cửa hàng + khách | Web TMĐT (`../Simulate_Demo`), SDK gửi hành vi, worker/adapter xử lý đơn hàng |
 | **Laptop 1 (WSL + k3s)** | Nhà máy số liệu | Nhận event, Kafka, xử lý, Postgres, dashboard, chatbot |
 
 Laptop 2 **không** tính KPI phức tạp. Laptop 1 **không** hiển thị giao diện shop cho khách. Hai máy nối nhau qua **WSL IP** hoặc **Tailscale** (`lap1`).
@@ -271,7 +271,7 @@ Mỗi mục gồm: **là gì** → **điểm nổi bật (so với phương án 
 
 ```text
 ┌──────────────────────── Laptop 2 (Windows) ────────────────────────────┐
-│  clients/web-shop/          npm run dev → :3000                          │
+│  ../Simulate_Demo/          npm run dev → :3000                          │
 │  sdk/browser-behavior-sdk/  gắn vào trang HTML                           │
 │  tracking-adapter / worker  (tùy cấu hình) → RabbitMQ local hoặc Lap1   │
 │                                                                          │
@@ -665,7 +665,7 @@ Secret gom trong `app-secrets` — tạo một lần theo [`RUNTIME.md` §4](RUN
 
 ### 11.2 Laptop 2 (Windows) — chạy “cửa hàng”
 
-1. `cd clients/web-shop`, copy `.env`.
+1. `cd ../Simulate_Demo`, copy `.env`.
 2. Trỏ `TRACKING_FORWARD_URL` → `http://<WSL_IP>:31000/track`.
 3. Trỏ `TRACKING_INGEST_API_KEY` **trùng** secret k3s.
 4. `npm run dev` (+ `npm run worker` + `npm run adapter` nếu cần doanh thu).

@@ -418,7 +418,7 @@ Business-Data-Streaming---Processing-Pipeline/
 ├── sdk/
 │   └── browser-behavior-sdk/      # SDK tracking trình duyệt
 ├── clients/
-│   ├── web-shop/                  # Web TMĐT demo + worker + adapter (Lap2)
+../Simulate_Demo/                  # Web TMĐT demo + worker + adapter (Lap2)
 │   ├── dashboard/                 # UI analytics + chat + admin
 │   └── api-docs/                  # Swagger localhost :5190
 ├── services/
@@ -438,7 +438,7 @@ Business-Data-Streaming---Processing-Pipeline/
 | **streaming-processor** | `services/streaming-processor/` | Python | Consumer Kafka: parse → validate → clean → aggregate KPI 1 phút → **PostgreSQL**; **insight** → **Qdrant** |
 | **dashboard-api** | `services/dashboard-api/` | Node.js | JWT auth; `GET /api/overview`, funnel, revenue, …; **chat RAG** (Postgres + Qdrant + Ollama) |
 | **dashboard-ui** | `clients/dashboard/` | React, Vite | `/shop/*` analytics; `/shop/chat`; `/admin/*` pipeline |
-| **web-shop** | `clients/web-shop/` | Express + static | Lap2: web demo, SDK forward, **worker** xử lý đơn, **adapter** ingest business |
+| **web-shop** | `../Simulate_Demo/` | Express + static | Lap2: web demo, SDK forward, **worker** xử lý đơn, **adapter** ingest business |
 | **browser-behavior-sdk** | `sdk/browser-behavior-sdk/` | JS | `page_view`, `product_view`, search, banner, … → Tracking API |
 | **Kafka** | `infra/k8s/data/kafka/` | KRaft | Topic `tracking_events_raw` |
 | **PostgreSQL** | `infra/postgres/` | 16 | `tracking_events_clean`, `tracking_kpi_1m`, `dashboard_users`, chat, … |
@@ -467,7 +467,7 @@ Map spec ↔ path: [`REPO_MAP.md`](REPO_MAP.md).
 **Lần đầu**
 
 - [ ] Cài WSL2 Ubuntu, Docker Desktop (WSL integration)
-- [ ] Clone repo + `git submodule update --init --recursive`
+- [ ] Clone repository pipeline và đặt `Simulate_Demo` cùng cấp nếu chạy nguồn mô phỏng
 - [ ] `cp infra/.env.example infra/.env` — sửa `POSTGRES_PASSWORD`, `WSL_IP`, `JWT_SECRET`, `TRACKING_INGEST_API_KEY`
 - [ ] `bash infra/k8s/install-k3s-wsl.sh`
 - [ ] Tạo namespace `realtime` + secret `app-secrets` (xem [`RUNTIME.md` §4](RUNTIME.md))
@@ -492,7 +492,7 @@ Map spec ↔ path: [`REPO_MAP.md`](REPO_MAP.md).
 
 ### D.2. Laptop 2 (Windows) — Web-shop + adapter
 
-- [ ] `cd clients\web-shop` → `copy .env.example .env`
+- [ ] `cd ..\Simulate_Demo` → `copy .env.example .env`
 - [ ] `TRACKING_FORWARD_URL=http://<WSL_IP>:31000/track`
 - [ ] `COMMERCE_BACKEND_URL=http://<WSL_IP>:30330`
 - [ ] `TRACKING_INGEST_URL=http://<WSL_IP>:31000`
@@ -581,7 +581,7 @@ k3s kubectl -n realtime logs deploy/streaming-processor --tail=50
 k3s kubectl -n realtime logs deploy/dashboard-api --tail=50
 ```
 
-**Lap2 — adapter & worker (PowerShell, thư mục `clients\web-shop`):**
+**Lap2 — adapter & worker (PowerShell, thư mục `..\Simulate_Demo`):**
 
 ```powershell
 # Chạy foreground để thấy log trực tiếp:

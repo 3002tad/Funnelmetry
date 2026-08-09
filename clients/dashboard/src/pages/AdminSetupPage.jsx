@@ -119,7 +119,7 @@ export function AdminSetupPage() {
           <code>VITE_DASHBOARD_API_URL</code> hoặc cập nhật <code>WSL_IP</code> trong infra/.env
         </p>
         <div className="admin-panel-body" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          <EnvBlock title="clients/web-shop/.env" vars={view.env_examples?.web_shop} />
+          <EnvBlock title="Simulate_Demo/.env" vars={view.env_examples?.web_shop} />
           <EnvBlock title="clients/dashboard (Vite)" vars={view.env_examples?.dashboard_dev} />
         </div>
       </div>

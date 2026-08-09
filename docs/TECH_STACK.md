@@ -1,6 +1,6 @@
 # Tech stack & luồng chạy
 
-Tổng hợp **công nghệ**, **vai trò**, và **luồng runtime** của toàn project (repo gốc + submodule `clients/web-shop`).
+Tổng hợp **công nghệ**, **vai trò**, và **luồng runtime** của toàn project (pipeline + repository `../Simulate_Demo`).
 
 **Liên quan:** [RUNTIME.md](RUNTIME.md) (deploy, port, CI/CD) · [REPO_MAP.md](REPO_MAP.md) (path) · [SPEC.md](SPEC.md) (spec) · [API.md](API.md) (REST)
 
@@ -23,7 +23,7 @@ Refactor pipeline demo → **tracking realtime** cho website TMĐT:
 
 ```text
 ┌────────────────────────────── Laptop 2 (Windows) ──────────────────────────────┐
-│  clients/web-shop                                                             │
+│  ../Simulate_Demo                                                             │
 │    • Frontend HTML/CSS/JS + tracking-sdk                                      │
 │    • Express API + MongoDB (shop: SP, giỏ, đơn, user)                         │
 │    • RabbitMQ local + worker + tracking-adapter                               │
@@ -41,7 +41,7 @@ Refactor pipeline demo → **tracking realtime** cho website TMĐT:
 | Máy | Lệnh deploy / chạy |
 |-----|-------------------|
 | **Lap1** | `k3s kubectl apply -k infra/k8s/sprint3` |
-| **Lap2** | `cd clients/web-shop` → `npm run dev` + `worker` + `adapter` |
+| **Lap2** | `cd ../Simulate_Demo` → `npm run dev` + `worker` + `adapter` |
 
 ---
 
@@ -182,7 +182,7 @@ Embedding: hash-based 384-d (`embed.py` / `embed.js`) — không dùng OpenAI AP
 ### 3.5. Luồng deploy & vận hành (Lap1)
 
 ```text
-git clone + git submodule update --init
+git clone repository pipeline
       ↓
 cp infra/.env.example infra/.env
       ↓
@@ -196,7 +196,7 @@ k3s kubectl apply -k infra/k8s/sprint3
       ↓
 ollama pull qwen2.5:3b                            (lần đầu)
       ↓
-Lap2: clients/web-shop/.env → WSL_IP / lap1
+Lap2: ../Simulate_Demo/.env → WSL_IP / lap1
 npm install && npm run seed
 npm run dev | worker | adapter
 ```
@@ -215,7 +215,7 @@ Sau đổi code: `bash infra/k8s/rebuild-all-dev-images.sh` + restart pod liên 
 | **Kustomize** | `sprint1` → `sprint2` → **sprint3** | Manifest deploy theo phase |
 | **Docker** | `*/Dockerfile` | Build image dev |
 | **WSL2 Ubuntu** | Lap1 | Host k3s |
-| **Git submodule** | `clients/web-shop` | Web demo repo riêng |
+| **Repository cùng workspace** | `../Simulate_Demo` | Web demo repo riêng |
 | **Tailscale / Headscale** | tuỳ chọn | Lap1 ↔ Lap2 qua hostname `lap1` |
 | **Node.js 20** | Docker base | Runtime API services |
 | **Python 3** | streaming-processor | Consumer pipeline |
@@ -291,7 +291,7 @@ Sau đổi code: `bash infra/k8s/rebuild-all-dev-images.sh` + restart pod liên 
 
 **Env quan trọng:** `KAFKA_TOPIC_RAW=tracking_events_raw`, `FLUSH_INTERVAL_SEC=5`
 
-### 5.2. Laptop 2 — web-shop (`clients/web-shop`)
+### 5.2. Laptop 2 — web-shop (`../Simulate_Demo`)
 
 | Khối | Stack | Script | Vai trò |
 |------|-------|--------|---------|
@@ -422,7 +422,7 @@ curl -X POST "http://<WSL_IP>:30330/api/orders" -H "Content-Type: application/js
 | [SPEC.md](SPEC.md) | Event schema, kiến trúc gốc |
 | [API.md](API.md) | REST + Swagger |
 | [BAO_CAO_DU_AN.md](BAO_CAO_DU_AN.md) | Báo cáo / luận văn |
-| [LAP2 Integration Guide](https://github.com/3002tad/Web-Demo-For-Pipline/blob/docker/md/LAP2_INTEGRATION_GUIDE.md) | Tích hợp adapter ở nguồn mô phỏng |
-| [clients/web-shop/README.md](../clients/web-shop/README.md) | Shop Lap2 (submodule) |
+| [LAP2 Integration Guide](../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md) | Tích hợp adapter ở nguồn mô phỏng |
+| [Simulate_Demo/README.md](../../Simulate_Demo/README.md) | Shop Lap2 (repository riêng) |
 
 **Swagger localhost:** `cd clients/api-docs && npm run dev` → `:5190` — proxy `/proxy/dashboard|tracking|commerce`, xem [API.md](API.md).

@@ -78,7 +78,7 @@ services/
     sink_postgres.py
     insight_generator.py
 clients/
-  web-shop/
+  ../Simulate_Demo/
   dashboard/
 sdk/
   browser-behavior-sdk/
@@ -324,7 +324,7 @@ Các câu hỏi MVP nên hỗ trợ:
 | Module cũ | Module sau refactor | Cách tận dụng |
 | --- | --- | --- |
 | generator-api | tracking-api | Tận dụng phần nhận request và publish Kafka; đổi endpoint, schema và topic. |
-| clients/generator | web-shop | Tận dụng web demo TMĐT, gắn Behavior SDK. |
+| clients/generator | ../Simulate_Demo | Tận dụng web demo TMĐT, gắn Behavior SDK. |
 | spark-streaming | streaming-processor | Đổi tên; **runtime Python** (kafka-python), không Spark; Kafka/PostgreSQL + KPI + Qdrant insight. |
 | dashboard-api | dashboard-api + chatbot-api | Giữ service cũ, thêm endpoint overview/funnel/products/chat. |
 | clients/dashboard | tracking dashboard + chatbot UI | Đổi card/chart từ business KPI sang behavior analytics. |

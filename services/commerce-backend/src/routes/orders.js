@@ -7,7 +7,7 @@ export const ordersRouter = Router();
 
 /**
  * Web Demo checkout — Integration Guide §5.1–5.2.
- * Stand-in for clients/web-shop POST /api/orders until submodule is wired.
+ * Stand-in for Simulate_Demo POST /api/orders when the separate demo repo is not running.
  */
 ordersRouter.post("/api/orders", async (req, res) => {
   const body = req.body || {};

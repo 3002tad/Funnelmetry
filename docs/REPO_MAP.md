@@ -13,7 +13,7 @@
 | Thành phần (spec) | Path trong repo | Status | Ghi chú |
 |-------------------|-----------------|--------|---------|
 | Browser Behavior SDK | `sdk/browser-behavior-sdk/` | có | `createBehaviorSdk()` → Tracking API |
-| Demo Web TMĐT | `clients/web-shop/` | có | Static + Express backend + SDK; dev `:3000` |
+| Demo Web TMĐT | `../Simulate_Demo/` | có | Static + Express backend + SDK; dev `:3000` |
 | Demo Commerce Backend | `services/commerce-backend/` | có | Deploy, publish commerce events vào RabbitMQ |
 | Tracking API | `services/tracking-api/` | có | `POST /track` + `POST /api/ingest/business-events` → Kafka |
 | Kafka | `infra/k8s/data/kafka/` | có | Topic: `tracking_events_raw` |
@@ -35,7 +35,7 @@
 | Module cũ | Path mới (repo) | Tận dụng |
 |-----------|-----------------|----------|
 | `generator-api` | `services/tracking-api/` | Nhận request, publish Kafka; đổi schema + topic |
-| `clients/generator` | `clients/web-shop/` | Web TMĐT + SDK |
+| `clients/generator` | `../Simulate_Demo/` | Web TMĐT + SDK |
 | `spark-streaming` | `services/streaming-processor/` | Đổi tên; **runtime Python** (không Spark); Kafka/Postgres + KPI |
 | `dashboard-api` | `services/dashboard-api/` | Thêm overview, funnel, products, chat |
 | `clients/dashboard` | `clients/dashboard/` | Đổi KPI sang behavior analytics |
@@ -47,7 +47,7 @@
 ## 3. Luồng dữ liệu → service
 
 ```text
-[Laptop 2] clients/web-shop/ + sdk/  →  POST /track (behavior)
+[Laptop 2] ../Simulate_Demo/ + sdk/  →  POST /track (behavior)
        ▼
 [Laptop 2] web-shop → RabbitMQ → adapter → POST ingest (Lap1 tracking-api)
 [Laptop 1 k3s] tracking-api → Kafka (tracking_events_raw)
@@ -138,7 +138,7 @@
 | Port map | `docs/RUNTIME.md` §5 | NodePort, CORS, tailnet |
 | Headscale / Tailscale | — | `docs/RUNTIME.md` §8 |
 | Laptop 1 backend | WSL2 + k3s | |
-| Laptop 2 demo + bot | `clients/web-shop`, `bot-simulator/` | `TRACKING_FORWARD_URL` → `http://lap1:31000/track` |
+| Laptop 2 demo + bot | `../Simulate_Demo`, `bot-simulator/` | `TRACKING_FORWARD_URL` → `http://lap1:31000/track` |
 
 ---
 
@@ -147,11 +147,11 @@
 | Phase | Việc | Path chính |
 |-------|------|------------|
 | 0 | Infra Kafka + Postgres + streaming | `infra/`, `services/streaming-processor/` | **Done** |
-| 1 | Schema Postgres + Tracking API + SDK + web-shop | `infra/postgres/`, `tracking-api/`, `sdk/`, `clients/web-shop/` | **Done** |
+| 1 | Schema Postgres + Tracking API + SDK + web-shop | `infra/postgres/`, `tracking-api/`, `sdk/`, `../Simulate_Demo/` | **Done** |
 | 2 | Streaming: consume `tracking_events_raw`, sink clean + KPI | `services/streaming-processor/lib/` | **Done** |
 | 3 | Dashboard API + UI overview/funnel/events/products | `dashboard-api/`, `clients/dashboard/` | **Done** |
 | 4 | Bot simulator | `bot-simulator/` |
-| 5 | Commerce backend + RabbitMQ; adapter/worker trên Lap2 (web-shop) | `services/commerce-backend/`, `infra/k8s/data/rabbitmq/`, `clients/web-shop/` | **Done** |
+| 5 | Commerce backend + RabbitMQ; adapter/worker trên Lap2 (web-shop) | `services/commerce-backend/`, `infra/k8s/data/rabbitmq/`, `../Simulate_Demo/` | **Done** |
 | 6 | Chatbot + Qdrant | `dashboard-api/`, `infra/` | **Done** |
 
 ---
@@ -163,7 +163,7 @@
 ├── AGENTS.md
 ├── bot-simulator/              # Playwright bot (Laptop 2)
 ├── clients/
-│   ├── web-shop/               # Web TMĐT demo (submodule); npm run adapter|worker
+../Simulate_Demo/               # Web TMĐT demo (repo riêng); npm run adapter|worker
 │   ├── dashboard/              # Analytics + chatbot UI
 │   └── api-docs/               # Swagger localhost :5190
 ├── docs/                       # **7 file markdown**

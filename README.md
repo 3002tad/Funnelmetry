@@ -7,7 +7,7 @@ Realtime e-commerce **behavior tracking** demo: SDK → Tracking API → Kafka �
 - Postgres schema: `infra/postgres/`
 - **Tracking API:** `services/tracking-api` — `POST /track`, `POST /track/batch`
 - **Browser SDK:** `sdk/browser-behavior-sdk`
-- **Web shop:** `clients/web-shop` (submodule)
+- **Web shop:** sibling repository `../Simulate_Demo`
 - **Streaming Processor:** `services/streaming-processor` → Postgres + Qdrant insights
 - **Dashboard:** `services/dashboard-api` + `clients/dashboard`
 - **API docs (Swagger):** `clients/api-docs` — localhost `:5190`
@@ -42,10 +42,10 @@ k3s kubectl -n realtime get pods
 3. **Web shop** (Windows):
 
 ```bash
-cd clients/web-shop
+cd ../Simulate_Demo
 copy .env.example .env
 npm install && npm run seed && npm run dev
-# TRACKING_FORWARD_URL trong clients/web-shop/.env → http://<WSL_IP>:31000/track
+# TRACKING_FORWARD_URL trong ../Simulate_Demo/.env → http://<WSL_IP>:31000/track
 # → http://localhost:3000
 ```
 

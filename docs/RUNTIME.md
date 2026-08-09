@@ -13,12 +13,11 @@ Nguồn chân lý deploy. Spec kỹ thuật: [SPEC.md](SPEC.md) · Map repo: [RE
 ```bash
 git clone https://github.com/3002tad/Business-Data-Streaming---Processing-Pipeline.git
 cd Business-Data-Streaming---Processing-Pipeline
-git submodule update --init --recursive
 
 cp infra/.env.example infra/.env
 cd infra && npm install
 # Sửa POSTGRES_PASSWORD, WSL_IP, VITE_*, TRACKING_INGEST_API_KEY (WSL_IP = hostname -I trong WSL)
-# Một file infra/.env cho pipeline (k3s + services local). Web-shop Lap2: clients/web-shop/.env riêng.
+# Một file infra/.env cho pipeline (k3s + services local). Web-shop Lap2: ../Simulate_Demo/.env riêng.
 ```
 
 ## 3. Cài k3s (lần đầu, trong WSL)
@@ -175,7 +174,7 @@ Web-shop + tracking.js → tracking-api → Kafka → streaming-processor → Po
 - **Tracking API không consume RabbitMQ** — chỉ Adapter gọi HTTPS ingest.
 - Doanh thu / đơn: `order.completed` → Kafka `purchase_succeeded` (metadata `total_amount` / `amount`).
 - Hủy: `order.cancelled` (server-side).
-- Chi tiết phía nguồn mô phỏng: [LAP2 Integration Guide](https://github.com/3002tad/Web-Demo-For-Pipline/blob/docker/md/LAP2_INTEGRATION_GUIDE.md)
+- Chi tiết phía nguồn mô phỏng: [LAP2 Integration Guide](../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md)
 
 **Doanh thu dashboard “chậm ~30s” sau khi mua hàng?**
 
@@ -206,10 +205,10 @@ Nếu Ollama down, API vẫn trả lời bằng **template** (vài giây). Rebui
 
 ## 7. Laptop 2 — web-shop gửi event
 
-Trên **Windows** (submodule `clients/web-shop`):
+Trên **Windows** (repository cùng workspace `../Simulate_Demo`):
 
 ```powershell
-cd clients\web-shop
+cd ..\Simulate_Demo
 copy .env.example .env
 npm install
 npm run seed
@@ -218,7 +217,7 @@ npm run dev
 
 Một file `.env` ở thư mục gốc web-shop cho cả `dev`, `worker`, `adapter` (không cần `tracking-adapter\.env`).
 
-`clients/web-shop/.env` (tóm tắt):
+`../Simulate_Demo/.env` (tóm tắt):
 
 ```env
 TRACKING_FORWARD_URL=http://<WSL_IP>:31000/track
@@ -265,14 +264,14 @@ TRACKING_INGEST_API_KEY=   # trùng secret k3s TRACKING_INGEST_API_KEY
 ```
 
 ```powershell
-cd clients\web-shop
+cd ..\Simulate_Demo
 npm run adapter
 ```
 
 Worker (bắt buộc trên Lap2, cùng RabbitMQ web-shop):
 
 ```powershell
-cd clients\web-shop
+cd ..\Simulate_Demo
 npm run worker
 ```
 
@@ -380,7 +379,7 @@ Cluster Postgres **mới** (PVC trống): bảng có trong `infra/k8s/data/postg
 | postgres, kafka, tracking-api, dashboard-api, qdrant | streaming-processor, dashboard-ui |
 | | ollama (chat), rabbitmq + commerce-backend (đơn hàng) |
 
-**Không deploy trong k3s:** `commerce-connector` — business events qua **adapter** trên Laptop 2 (`clients/web-shop`).
+**Không deploy trong k3s:** `commerce-connector` — business events qua **adapter** trên Laptop 2 (`../Simulate_Demo`).
 
 **Ngoại lệ thường gặp:**
 
@@ -500,7 +499,7 @@ GitHub Actions trong [`.github/workflows/`](../.github/workflows/).
 
 **Self-hosted runner (WSL):** Settings → Actions → Runners → New → `./config.sh` với label `k3s`. Deploy tay: `bash infra/k8s/rebuild-all-dev-images.sh`.
 
-CI/CD **không** build `clients/web-shop` submodule.
+CI/CD pipeline **không** build repository `../Simulate_Demo`.
 
 ---
 
