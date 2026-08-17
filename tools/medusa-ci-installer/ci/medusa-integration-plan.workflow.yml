@@ -1,0 +1,36 @@
+name: Funnelmetry integration plan
+
+on:
+  pull_request:
+    paths:
+      - funnelmetry.integration.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout Funnelmetry planner source
+        uses: actions/checkout@v4
+        with:
+          repository: 3002tad/Funnelmetry
+          ref: main # pin a release tag/SHA in production
+          path: funnelmetry
+
+      - name: Generate read-only integration plan
+        run: |
+          mkdir -p "$RUNNER_TEMP/funnelmetry-plan"
+          node funnelmetry/tools/medusa-ci-installer/src/cli.mjs plan \
+            --config "$GITHUB_WORKSPACE/funnelmetry.integration.yaml" \
+            --project "$GITHUB_WORKSPACE" \
+            --out "$RUNNER_TEMP/funnelmetry-plan"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: funnelmetry-integration-plan
+          path: ${{ runner.temp }}/funnelmetry-plan

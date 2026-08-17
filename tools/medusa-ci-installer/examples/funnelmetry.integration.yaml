@@ -1,0 +1,28 @@
+apiVersion: funnelmetry.io/v1
+kind: InputIntegration
+
+host:
+  type: medusa-v2-dtc-starter
+  medusa_version: 2.19.0
+
+source:
+  id: medusa-reference
+
+ingest:
+  url: https://funnelmetry.example.com/v1/ingress/events
+
+auth:
+  source_key_id: medusa-reference-dev
+  browser_write_key_ref: FUNNELMETRY_BROWSER_WRITE_KEY
+  backend_signing_key_ref: FUNNELMETRY_BACKEND_SIGNING_KEY
+
+frontend:
+  enabled: true
+  events:
+    - commerce.product.viewed
+    - commerce.cart.item_added
+    - commerce.checkout.started
+
+backend:
+  enabled: true
+  binding: medusa.order_placed

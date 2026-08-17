@@ -1,0 +1,16 @@
+{
+  "name": "@funnelmetry/medusa-ci-installer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "funnelmetry-medusa-ci": "src/cli.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "test:reference": "node test/reference-check.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
