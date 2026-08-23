@@ -1,0 +1,10 @@
+import { Bell, Database, KeyRound, Palette, SlidersHorizontal, Users } from "lucide-react"
+import { Badge } from "../../components/ui/badge"
+import { Button } from "../../components/ui/button"
+import { PageHeader } from "../../components/ui/page"
+
+const sections = [{ icon: SlidersHorizontal, title: "Workspace", text: "Name, locale and default reporting timezone" },{ icon: Database, title: "Data sources", text: "Browser SDK, commerce subscriber and reconciliation" },{ icon: Users, title: "Team access", text: "Members, roles and workspace permissions" },{ icon: Bell, title: "Alerts", text: "Quality, latency and conversion notifications" },{ icon: Palette, title: "Appearance", text: "Theme, density and chart preferences" },{ icon: KeyRound, title: "API access", text: "Public keys, service credentials and audit history" }]
+
+export function SettingsPage() {
+  return <><PageHeader title="Settings" description="Configure the preview workspace and analytics experience." badge={<Badge tone="neutral">Preview</Badge>} /><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{sections.map(({ icon: Icon, title, text }) => <button key={title} className="panel panel-hover flex items-start gap-4 p-5 text-left"><div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary"><Icon size={18} /></div><div className="flex-1"><strong className="text-sm">{title}</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p></div></button>)}</div><section className="panel mt-4 p-5"><h2 className="text-sm font-semibold">Workspace profile</h2><div className="mt-5 grid max-w-2xl gap-4 sm:grid-cols-2"><label className="text-xs"><span className="mb-2 block text-muted-foreground">Workspace name</span><input defaultValue="Nord Commerce" className="h-9 w-full rounded-lg border bg-background px-3" /></label><label className="text-xs"><span className="mb-2 block text-muted-foreground">Reporting timezone</span><select className="h-9 w-full rounded-lg border bg-background px-3"><option>Asia/Ho_Chi_Minh (GMT+7)</option><option>UTC</option></select></label></div><Button className="mt-5">Save changes</Button></section></>
+}

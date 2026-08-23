@@ -1,0 +1,53 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 20% 98%;
+    --foreground: 240 14% 9%;
+    --card: 0 0% 100%;
+    --muted: 240 8% 94%;
+    --muted-foreground: 240 5% 43%;
+    --border: 240 9% 88%;
+    --primary: 221 83% 53%;
+    --success: 152 69% 40%;
+    --warning: 38 92% 50%;
+    --destructive: 0 72% 54%;
+  }
+
+  .dark {
+    --background: 240 14% 6%;
+    --foreground: 240 12% 94%;
+    --card: 240 12% 8.5%;
+    --muted: 240 8% 13%;
+    --muted-foreground: 240 6% 61%;
+    --border: 240 8% 17%;
+    --primary: 213 94% 68%;
+    --success: 151 67% 52%;
+    --warning: 39 95% 57%;
+    --destructive: 0 82% 64%;
+  }
+
+  * { @apply border-border; }
+  html { @apply bg-background; }
+  body { @apply min-h-screen bg-background font-sans text-foreground antialiased; }
+  button, input, select { @apply outline-none; }
+  ::selection { @apply bg-primary/30; }
+}
+
+@layer components {
+  .panel { @apply rounded-xl border border-border/90 bg-card; }
+  .panel-hover { @apply transition-colors hover:border-primary/40 hover:bg-muted/30; }
+  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground; }
+  .mono { @apply font-mono text-[12px]; }
+  .scrollbar-thin { scrollbar-color: hsl(var(--border)) transparent; scrollbar-width: thin; }
+}
+
+.echarts-for-react { min-height: 240px; }
+
+@keyframes pulse-soft {
+  50% { opacity: .55; }
+}
+.skeleton { animation: pulse-soft 1.4s ease-in-out infinite; @apply rounded-lg bg-muted; }
