@@ -1,3 +1,3 @@
 # dashboard-api
 
-**[docs/API.md](../../docs/API.md)** · **[docs/TECH_STACK.md](../../docs/TECH_STACK.md)**
+Tài liệu V1 tham khảo: **[API](../../legacy/docs-v1/API.md)** · **[Tech stack](../../legacy/docs-v1/TECH_STACK.md)**

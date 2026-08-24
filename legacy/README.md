@@ -9,6 +9,7 @@ soát. Nó không được build/deploy mặc định và không phải căn c�
 - `services/commerce-backend`: source commerce stand-in V1.
 - `sdk/browser-behavior-sdk`: Browser SDK V1.
 - `bot-simulator`: shell simulator lịch sử.
+- `docs-v1`: tài liệu runtime, API và báo cáo của kiến trúc V1.
 
 Không thêm capability V2 mới vào đây. Chỉ sửa khi cần tạo fixture hoặc chứng minh
 hành vi migration cụ thể.

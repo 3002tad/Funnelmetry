@@ -1,6 +1,6 @@
 # Runtime — cách chạy project (k3s)
 
-> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các lệnh bên dưới không còn là runtime hiện hành; xem `REPOSITORY_LAYOUT.md`.
+> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các lệnh bên dưới không còn là runtime hiện hành; xem [`REPOSITORY_LAYOUT.md`](../../docs/REPOSITORY_LAYOUT.md).
 
 Nguồn chân lý deploy. Spec kỹ thuật: [SPEC.md](SPEC.md) · Map repo: [REPO_MAP.md](REPO_MAP.md).
 
@@ -176,7 +176,7 @@ Web-shop + tracking.js → tracking-api → Kafka → streaming-processor → Po
 - **Tracking API không consume RabbitMQ** — chỉ Adapter gọi HTTPS ingest.
 - Doanh thu / đơn: `order.completed` → Kafka `purchase_succeeded` (metadata `total_amount` / `amount`).
 - Hủy: `order.cancelled` (server-side).
-- Chi tiết phía nguồn mô phỏng: LAP2 Integration Guide ([local](../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md) · [GitHub](https://github.com/3002tad/Simulate_Demo/blob/docker/md/LAP2_INTEGRATION_GUIDE.md))
+- Chi tiết phía nguồn mô phỏng: LAP2 Integration Guide ([local](../../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md) · [GitHub](https://github.com/3002tad/Simulate_Demo/blob/docker/md/LAP2_INTEGRATION_GUIDE.md))
 
 **Doanh thu dashboard “chậm ~30s” sau khi mua hàng?**
 
@@ -489,15 +489,15 @@ Cài lại: `bash infra/k8s/install-k3s-wsl.sh` rồi deploy từ đầu (§4).
 
 ## 14. CI/CD
 
-GitHub Actions trong [`.github/workflows/`](../.github/workflows/).
+Các GitHub Actions V1 từng nằm trong `.github/workflows/`; chúng đã bị loại bỏ cùng runtime k3s.
 
 | File | Khi chạy | Việc làm |
 |------|----------|----------|
-| [`ci.yml`](../.github/workflows/ci.yml) | PR + push `main` | Validate kustomize, `dashboard-api` tests, build UI, build **5** Docker image (không push) |
-| [`cd.yml`](../.github/workflows/cd.yml) | Push `main` | Build + push image lên **GHCR** |
-| [`cd-k3s-self-hosted.yml`](../.github/workflows/cd-k3s-self-hosted.yml) | Push `main` (runner WSL label `k3s`) | `import-images.sh` + `apply sprint3` + rollout |
+| `ci.yml` (đã xóa) | PR + push `main` | Validate kustomize, `dashboard-api` tests, build UI, build **5** Docker image (không push) |
+| `cd.yml` (đã xóa) | Push `main` | Build + push image lên **GHCR** |
+| `cd-k3s-self-hosted.yml` (đã xóa) | Push `main` (runner WSL label `k3s`) | `import-images.sh` + `apply sprint3` + rollout |
 
-**CD GHCR:** Repo → Settings → Actions → **Read and write**. Kéo image: `docker pull ghcr.io/OWNER/REPO/tracking-api:TAG` → tag `:dev` → `k3s ctr images import`. Overlay: [`infra/k8s/overlays/ghcr/`](../infra/k8s/overlays/ghcr/).
+**CD GHCR:** Repo → Settings → Actions → **Read and write**. Kéo image: `docker pull ghcr.io/OWNER/REPO/tracking-api:TAG` → tag `:dev` → `k3s ctr images import`. Overlay `infra/k8s/overlays/ghcr/` đã bị xóa.
 
 **Self-hosted runner (WSL):** Settings → Actions → Runners → New → `./config.sh` với label `k3s`. Deploy tay: `bash infra/k8s/rebuild-all-dev-images.sh`.
 
@@ -507,7 +507,7 @@ CI/CD pipeline **không** build repository `../Simulate_Demo`.
 
 ## 15. Postgres schema
 
-Nguồn SQL: [`infra/postgres/`](../infra/postgres/) — mount qua ConfigMap `postgres-init-sql` ([`configmap-init-sql.yaml`](../infra/k8s/data/postgres/configmap-init-sql.yaml)). Sửa schema → cập nhật **cả hai** hoặc PVC mới.
+Nguồn SQL còn được giữ tại [`infra/postgres/`](../../infra/postgres/). ConfigMap k3s V1 đã bị loại bỏ cùng runtime cũ.
 
 | File | Nội dung |
 |------|----------|

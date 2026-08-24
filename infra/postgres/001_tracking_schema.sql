@@ -1,4 +1,4 @@
--- Tracking pipeline schema (from docs/SPEC.md §6, §13)
+-- Tracking pipeline schema (from legacy/docs-v1/SPEC.md §6, §13)
 -- Applied after init.sql bootstrap. Wire into compose when ready.
 
 CREATE TABLE IF NOT EXISTS tracking_events_clean (

@@ -1,6 +1,6 @@
 # Refactor tracking pipeline
 
-> **LEGACY V1:** Tài liệu này mô tả implementation cũ. Kiến trúc đích thuộc `System_Backbone`; xem `REPOSITORY_LAYOUT.md` cho cấu trúc hiện hành.
+> **LEGACY V1:** Tài liệu này mô tả implementation cũ. Kiến trúc đích thuộc `System_Backbone`; xem [`REPOSITORY_LAYOUT.md`](../../docs/REPOSITORY_LAYOUT.md) cho cấu trúc hiện hành.
 
 > **Runtime deploy:** [`RUNTIME.md`](RUNTIME.md) — k3s, commerce qua RabbitMQ + connector. Tài liệu dưới là spec gốc đã align runtime.
 

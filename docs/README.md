@@ -11,12 +11,12 @@
 Các file dưới đây mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Chúng
 không phải hướng dẫn chạy V2:
 
-- [`BAO_CAO_DU_AN.md`](BAO_CAO_DU_AN.md)
-- [`PHU_LUC.md`](PHU_LUC.md)
-- [`RUNTIME.md`](RUNTIME.md)
-- [`TECH_STACK.md`](TECH_STACK.md)
-- [`SPEC.md`](SPEC.md)
-- [`REPO_MAP.md`](REPO_MAP.md)
-- [`API.md`](API.md)
+- [`BAO_CAO_DU_AN.md`](../legacy/docs-v1/BAO_CAO_DU_AN.md)
+- [`PHU_LUC.md`](../legacy/docs-v1/PHU_LUC.md)
+- [`RUNTIME.md`](../legacy/docs-v1/RUNTIME.md)
+- [`TECH_STACK.md`](../legacy/docs-v1/TECH_STACK.md)
+- [`SPEC.md`](../legacy/docs-v1/SPEC.md)
+- [`REPO_MAP.md`](../legacy/docs-v1/REPO_MAP.md)
+- [`API.md`](../legacy/docs-v1/API.md)
 
-Code tương ứng được giữ trong `../legacy/` để đối chiếu migration.
+Code và tài liệu tương ứng được giữ trong `../legacy/` để đối chiếu migration.

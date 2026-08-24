@@ -1,4 +1,4 @@
-/** Static demo/ports — works without /api/system/setup (see docs/RUNTIME.md §5). */
+/** Static V1 demo/ports — see legacy/docs-v1/RUNTIME.md §5. */
 function hostFromDashboardApiUrl() {
   const raw = import.meta.env.VITE_DASHBOARD_API_URL;
   if (!raw) return null;
@@ -39,7 +39,7 @@ export function buildAdminSetupData() {
       },
     },
     deploy: "k3s kubectl apply -k infra/k8s/sprint3",
-    docs: ["docs/RUNTIME.md", "docs/README.md"],
+    docs: ["legacy/docs-v1/RUNTIME.md", "docs/README.md"],
     k8s_dashboard: {
       title: "Headlamp (Kubernetes UI)",
       description:

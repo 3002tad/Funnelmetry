@@ -1,6 +1,6 @@
 # Tech stack & luồng chạy
 
-> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các đường dẫn cũ chỉ dùng tham khảo; xem `REPOSITORY_LAYOUT.md` cho cấu trúc hiện hành.
+> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các đường dẫn cũ chỉ dùng tham khảo; xem [`REPOSITORY_LAYOUT.md`](../../docs/REPOSITORY_LAYOUT.md) cho cấu trúc hiện hành.
 
 Tổng hợp **công nghệ**, **vai trò**, và **luồng runtime** của toàn project (pipeline + repository `../Simulate_Demo`).
 
@@ -424,7 +424,7 @@ curl -X POST "http://<WSL_IP>:30330/api/orders" -H "Content-Type: application/js
 | [SPEC.md](SPEC.md) | Event schema, kiến trúc gốc |
 | [API.md](API.md) | REST + Swagger |
 | [BAO_CAO_DU_AN.md](BAO_CAO_DU_AN.md) | Báo cáo / luận văn |
-| LAP2 Integration Guide ([local](../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md) · [GitHub](https://github.com/3002tad/Simulate_Demo/blob/docker/md/LAP2_INTEGRATION_GUIDE.md)) | Tích hợp adapter ở nguồn mô phỏng |
-| Simulate_Demo README ([local](../../Simulate_Demo/README.md) · [GitHub](https://github.com/3002tad/Simulate_Demo/blob/docker/README.md)) | Shop Lap2 (repository riêng) |
+| LAP2 Integration Guide ([local](../../../Simulate_Demo/md/LAP2_INTEGRATION_GUIDE.md) · [GitHub](https://github.com/3002tad/Simulate_Demo/blob/docker/md/LAP2_INTEGRATION_GUIDE.md)) | Tích hợp adapter ở nguồn mô phỏng |
+| Simulate_Demo README ([local](../../../Simulate_Demo/README.md) · [GitHub](https://github.com/3002tad/Simulate_Demo/blob/docker/README.md)) | Shop Lap2 (repository riêng) |
 
 **Swagger localhost:** `cd clients/api-docs && npm run dev` → `:5190` — proxy `/proxy/dashboard|tracking|commerce`, xem [API.md](API.md).

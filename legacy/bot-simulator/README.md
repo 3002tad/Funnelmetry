@@ -1,3 +1,3 @@
 # bot-simulator
 
-Shell — xem **[docs/REPO_MAP.md](../docs/REPO_MAP.md)** · web-shop `behavior-bot/`
+Shell — xem **[REPO_MAP V1](../docs-v1/REPO_MAP.md)** · web-shop `behavior-bot/`
