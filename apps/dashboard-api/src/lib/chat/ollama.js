@@ -32,36 +32,6 @@ export async function generateChatWithOllama(messages, { model, baseUrl, timeout
   return (data.message?.content || data.response || "").trim();
 }
 
-/** Fallback: single prompt string (/api/generate) for older Ollama builds. */
-export async function generateWithOllama(prompt, opts = {}) {
-  const url = `${opts.baseUrl}/api/generate`;
-  const body = JSON.stringify({
-    model: opts.model,
-    prompt,
-    stream: false,
-    options: {
-      temperature: opts.temperature ?? 0.65,
-      top_p: 0.9,
-      num_predict: opts.numPredict ?? 768,
-    },
-  });
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-    signal: AbortSignal.timeout(opts.timeout ?? 60000),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Ollama ${res.status}: ${text.slice(0, 120)}`);
-  }
-
-  const data = await res.json();
-  return (data.response || "").trim();
-}
-
 export async function checkOllamaHealth(baseUrl) {
   try {
     const res = await fetch(`${baseUrl}/api/tags`, { signal: AbortSignal.timeout(3000) });

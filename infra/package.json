@@ -1,8 +1,0 @@
-{
-  "name": "pipeline-infra",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "dotenv": "^16.4.7"
-  }
-}
