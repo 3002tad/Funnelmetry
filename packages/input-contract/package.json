@@ -1,0 +1,13 @@
+{
+  "name": "@funnelmetry/input-contract",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "types": "./src/index.d.ts",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

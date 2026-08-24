@@ -1,0 +1,12 @@
+{
+  "name": "@funnelmetry/integration-kit-workspace",
+  "private": true,
+  "workspaces": [
+    "input-contract",
+    "browser-sdk",
+    "backend-integration-kit"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present"
+  }
+}

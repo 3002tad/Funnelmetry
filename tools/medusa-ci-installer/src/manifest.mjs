@@ -18,6 +18,12 @@ function optionalBoolean(value, name) {
   return value
 }
 
+function optionalPositiveInteger(value, name, fallback) {
+  if (value === undefined) return fallback
+  if (!Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer`)
+  return value
+}
+
 function secretReference(value, name) {
   const reference = requiredString(value, name)
   if (!/^[A-Z][A-Z0-9_]*$/.test(reference)) {
@@ -49,6 +55,8 @@ export function validateManifest(raw) {
   const sourceKeyId = requiredString(auth.source_key_id, "auth.source_key_id")
   const frontend = raw.frontend ?? {}
   const backend = raw.backend ?? {}
+  const reliability = raw.reliability ?? {}
+  const retry = reliability.retry ?? {}
   const frontendEnabled = optionalBoolean(frontend.enabled, "frontend.enabled")
   const backendEnabled = optionalBoolean(backend.enabled, "backend.enabled")
   if (!frontendEnabled && !backendEnabled) throw new Error("Enable frontend, backend, or both")
@@ -62,6 +70,17 @@ export function validateManifest(raw) {
     auth: { sourceKeyId },
     frontend: { enabled: frontendEnabled, events: [] },
     backend: { enabled: backendEnabled, binding: null },
+    reliability: {
+      failureMode: reliability.failure_mode ?? "fail_open",
+      timeoutMs: optionalPositiveInteger(reliability.timeout_ms, "reliability.timeout_ms", 800),
+      maxQueueSize: optionalPositiveInteger(reliability.max_queue_size, "reliability.max_queue_size", 200),
+      retry: {
+        maxAttempts: optionalPositiveInteger(retry.max_attempts, "reliability.retry.max_attempts", 3),
+      },
+    },
+  }
+  if (normalized.reliability.failureMode !== "fail_open") {
+    throw new Error("reliability.failure_mode must be fail_open")
   }
 
   if (frontendEnabled) {

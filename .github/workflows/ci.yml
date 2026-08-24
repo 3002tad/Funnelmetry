@@ -15,6 +15,22 @@ permissions:
   contents: read
 
 jobs:
+  integration-kits:
+    name: Input integration kits
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: packages/package-lock.json
+      - run: npm ci
+      - run: npm test
+
   medusa-ci-installer:
     name: Medusa CI installer (plan-only)
     runs-on: ubuntu-latest

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://funnelmetry.io/schemas/ingress-receipt.v1.schema.json",
+  "title": "Funnelmetry Ingress Receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "source_id", "event_id", "received_at"],
+  "properties": {
+    "status": { "enum": ["accepted", "duplicate", "rejected", "retryable_failure"] },
+    "source_id": { "type": "string" },
+    "event_id": { "type": "string" },
+    "ingestion_id": { "type": "string" },
+    "ingestion_attempt_id": { "type": "string" },
+    "received_at": { "type": "string", "format": "date-time" },
+    "reason_code": { "type": "string" }
+  },
+  "allOf": [{
+    "if": { "properties": { "status": { "enum": ["accepted", "duplicate"] } } },
+    "then": { "required": ["ingestion_id"] }
+  }]
+}

@@ -7,7 +7,10 @@ the source checkout:
 
 - `integration-plan.json`: host/capability report and ownership list.
 - `integration.patch`: a PR-ready patch for the generated Browser SDK hooks and
-  Medusa `order.placed` subscriber.
+  Medusa `order.placed` subscriber. Patch chỉ thêm host binding mỏng và hai
+  dependency đã pin: `@funnelmetry/browser-sdk` và
+  `@funnelmetry/backend-integration-kit`; nó không chép runtime SDK/forwarder vào
+  source Medusa.
 
 There is deliberately no `apply` command. Applying the patch, committing it and
 building a production host image remain explicit customer CI/CD decisions.
@@ -39,6 +42,10 @@ the invariant is enforced both by Docker and by the CLI.
 4. The normal host CI builds/deploys the resulting Medusa image. Runtime secrets
    are injected by the customer's secret manager; they never appear in the
    manifest or plan artifact.
+
+Trước khi áp patch, source owner phải cấu hình package registry hoặc artifact
+source nội bộ chứa đúng hai package version được pin. Nếu package không resolve
+được, host CI phải fail thay vì thay bằng một SDK/version khác.
 
 The workflow template is intentionally not enabled in this repository: it must
 be copied/adapted in the customer Medusa repository with a real installer image
