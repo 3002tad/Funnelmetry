@@ -1,0 +1,55 @@
+# Repository layout V2
+
+## Nguyên tắc
+
+- `apps/` chứa process có HTTP/UI entrypoint.
+- `workers/` chứa background processing theo capability.
+- `packages/` chứa contract và library dùng chung, không sở hữu business lifecycle.
+- `integrations/` chỉ chứa host binding/config theo source platform.
+- `infra/` không mang semantics nghiệp vụ và không giữ runtime V1 đã bỏ.
+- Code V1 được giữ tạm để tham chiếu; không đổi tên cơ học thành component V2.
+
+## Mapping migration
+
+| Cũ | Mới | Trạng thái |
+| --- | --- | --- |
+| `clients/dashboard-ui-preview` | `apps/dashboard-web` | Đã chuyển |
+| `services/dashboard-api` | `apps/dashboard-api` | Đã chuyển |
+| `services/tracking-api` | `legacy/services/tracking-api` | Đã gom V1; `apps/input-gateway` sẽ được xây mới |
+| `services/streaming-processor` | `legacy/services/streaming-processor` | Đã gom V1; worker V2 sẽ tách theo capability |
+| `clients/api-docs` | `tools/api-docs` | Đã chuyển |
+| `clients/dashboard` | `legacy/clients/dashboard` | Đã gom UI V1 để đối chiếu |
+| `sdk/browser-behavior-sdk` | `legacy/sdk/browser-behavior-sdk` | Đã gom V1; package V2 nằm tại `packages/browser-sdk` |
+| `services/commerce-backend` | `legacy/services/commerce-backend` | Đã gom làm fixture lịch sử |
+
+## Target tree
+
+```text
+apps/
+  dashboard-api/
+  dashboard-web/
+  input-gateway/             # future
+workers/
+  canonical-normalizer/      # future
+  journey-processor/         # future
+  funnel-processor/          # future
+  reconciliation-worker/     # future
+packages/
+  input-contract/
+  canonical-contract/        # future
+  analytics-contract/        # future
+  shared-config/             # future
+  browser-sdk/
+  backend-integration-kit/
+integrations/
+  medusa/
+tools/
+infra/
+tests/
+legacy/                      # reference-only V1 code
+```
+
+## Migration gates
+
+Mỗi capability chỉ thay V1 khi có test tương ứng và consumer mới chạy được. Không
+xóa code V1 dùng làm đối chiếu trước khi vertical slice V2 đã đạt acceptance gate.

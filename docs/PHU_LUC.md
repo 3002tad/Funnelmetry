@@ -1,5 +1,7 @@
 # Phụ lục — Báo cáo / Luận văn
 
+> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các đường dẫn cũ chỉ dùng tham khảo; xem `REPOSITORY_LAYOUT.md` cho cấu trúc hiện hành.
+
 Tài liệu bổ sung cho [`BAO_CAO_DU_AN.md`](BAO_CAO_DU_AN.md). Chi tiết triển khai: [`RUNTIME.md`](RUNTIME.md). API đầy đủ: [`API.md`](API.md).
 
 | Phụ lục | Nội dung |

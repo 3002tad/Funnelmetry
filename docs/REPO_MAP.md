@@ -1,5 +1,7 @@
 # Spec → Repo mapping
 
+> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các đường dẫn cũ chỉ dùng tham khảo; xem `REPOSITORY_LAYOUT.md` cho cấu trúc hiện hành.
+
 > **Runtime thật (k3s):** [`RUNTIME.md`](RUNTIME.md) — ingest qua `tracking-api` only; commerce từ Lap2 adapter.
 
 Ánh xạ [`SPEC.md`](SPEC.md) vào cấu trúc repo. Cách chạy: [`RUNTIME.md`](RUNTIME.md).

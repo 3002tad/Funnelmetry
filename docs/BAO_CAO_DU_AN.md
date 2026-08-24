@@ -1,5 +1,7 @@
 # Báo cáo chi tiết dự án — Business Data Streaming & Processing Pipeline
 
+> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các đường dẫn cũ chỉ dùng tham khảo; xem `REPOSITORY_LAYOUT.md` cho cấu trúc hiện hành.
+
 > Tài liệu **đầy đủ** cho báo cáo / luận văn / demo.  
 > **Chưa nắm hệ thống?** Đọc **[mục 0](#0-hiểu-hệ-thống-trước-đọc-phần-này-trước)** trước. Các mục §1–§15 viết theo cùng phong cách: **kể chuyện + ví dụ**; bảng/schema chi tiết nằm ở **[Phụ lục A–E](PHU_LUC.md)** hoặc [`API.md`](API.md).
 

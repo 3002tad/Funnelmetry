@@ -1,6 +1,5 @@
 /**
- * Load infra/.env for pipeline services run locally (not in-cluster).
- * k3s pods still use deployment env + app-secrets.
+ * Load infra/.env for Funnelmetry applications running locally.
  */
 import { createRequire } from "node:module";
 import path from "node:path";

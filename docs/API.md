@@ -1,5 +1,7 @@
 # API Reference
 
+> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các đường dẫn cũ chỉ dùng tham khảo; xem `REPOSITORY_LAYOUT.md` cho cấu trúc hiện hành.
+
 Tài liệu HTTP API của pipeline demo (k3s). Chi tiết schema event: [`SPEC.md`](SPEC.md). Port & deploy: [`RUNTIME.md`](RUNTIME.md).
 
 ## Trang web (Swagger UI — localhost riêng)

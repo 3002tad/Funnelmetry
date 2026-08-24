@@ -1,0 +1,619 @@
+openapi: 3.0.3
+info:
+  title: Business Data Streaming Pipeline — HTTP APIs
+  description: |
+    Tài liệu tương tác cho demo k3s. **Chọn đúng Server** (góc trên) trước Try it out.
+
+    Request đi qua **Vite proxy** (cùng origin `:5190`, tránh CORS). Chọn Server:
+
+    | Server | Backend thật |
+    |--------|----------------|
+    | `/proxy/dashboard` | dashboard-api :32000 |
+    | `/proxy/tracking` | tracking-api :31000 |
+    | `/proxy/commerce` | commerce-backend :30330 |
+
+    Backend trên WSL IP: tạo `tools/api-docs/.env` với `VITE_PROXY_DASHBOARD=http://<WSL_IP>:32000` (và tương tự tracking/commerce), restart `npm run dev`.
+
+    Tham số kỳ: `minutes` (rolling) hoặc `date=YYYY-MM-DD` (UTC, ưu tiên hơn minutes).
+  version: 1.0.0
+
+servers:
+  - url: /proxy/dashboard
+    description: dashboard-api — qua Vite proxy → :32000
+  - url: /proxy/tracking
+    description: tracking-api — qua Vite proxy → :31000
+  - url: /proxy/commerce
+    description: commerce-backend — qua Vite proxy → :30330
+
+tags:
+  - name: dashboard-health
+  - name: dashboard-auth
+  - name: dashboard-analytics
+  - name: dashboard-chat
+  - name: dashboard-admin
+  - name: tracking
+  - name: commerce
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Dashboard login — POST /api/auth/login
+    ingestKey:
+      type: http
+      scheme: bearer
+      description: TRACKING_INGEST_API_KEY (Lap2 adapter)
+
+  parameters:
+    minutes:
+      name: minutes
+      in: query
+      schema:
+        type: string
+        example: "60"
+      description: Cửa sổ trượt (phút). `0` hoặc `all` = toàn bộ. Max 43200.
+    date:
+      name: date
+      in: query
+      schema:
+        type: string
+        format: date
+        example: "2026-05-30"
+      description: Một ngày UTC (ưu tiên hơn minutes)
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        example: 20
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    TrackingEvent:
+      type: object
+      required:
+        - event_id
+        - event_time
+        - event_type
+        - event_source
+        - event_category
+        - session_id
+      properties:
+        event_id: { type: string }
+        event_time: { type: string, format: date-time }
+        event_type: { type: string }
+        event_source: { type: string }
+        event_category:
+          type: string
+          enum: [behavior, commerce]
+        session_id: { type: string }
+        anonymous_id: { type: string }
+        user_id: { type: string }
+        page_url: { type: string }
+        product_id: { type: string }
+        metadata: { type: object, additionalProperties: true }
+    TrackBatch:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/TrackingEvent" }
+    ChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+        minutes: { type: integer }
+        date: { type: string, format: date }
+        session_id: { type: string }
+
+paths:
+  /health:
+    get:
+      tags: [dashboard-health, tracking, commerce]
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+
+  /api/auth/login:
+    post:
+      tags: [dashboard-auth]
+      servers:
+        - url: /proxy/dashboard
+      summary: Đăng nhập dashboard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200": { description: JWT + user }
+        "401": { description: invalid_credentials }
+
+  /api/auth/me:
+    get:
+      tags: [dashboard-auth]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Thông tin user hiện tại
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: user profile }
+        "401": { description: unauthorized }
+
+  /api/auth/change-password:
+    patch:
+      tags: [dashboard-auth]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Đổi mật khẩu
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: { type: string }
+                new_password: { type: string, minLength: 6 }
+      responses:
+        "200": { description: ok }
+
+  /api/overview:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: KPI tổng quan + trend
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/minutes"
+        - $ref: "#/components/parameters/date"
+      responses:
+        "200": { description: kpi + trend + period }
+
+  /api/funnel:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Phễu chuyển đổi
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/minutes"
+        - $ref: "#/components/parameters/date"
+      responses:
+        "200": { description: funnel steps }
+
+  /api/products/top:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Top sản phẩm
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/minutes"
+        - $ref: "#/components/parameters/date"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200": { description: products list }
+
+  /api/products/anomalies:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: SP xem nhiều, không mua
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/minutes"
+        - $ref: "#/components/parameters/date"
+      responses:
+        "200": { description: anomalies }
+
+  /api/revenue/summary:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Doanh thu tổng + trend
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/minutes"
+        - $ref: "#/components/parameters/date"
+      responses:
+        "200": { description: revenue summary }
+
+  /api/revenue/by-category:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Doanh thu theo danh mục
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/minutes"
+        - $ref: "#/components/parameters/date"
+      responses:
+        "200": { description: categories }
+
+  /api/banners:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Hiệu quả banner
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/minutes"
+        - $ref: "#/components/parameters/date"
+      responses:
+        "200": { description: banners }
+
+  /api/search/top:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Top từ khóa tìm kiếm
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/minutes"
+        - $ref: "#/components/parameters/date"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200": { description: searches }
+
+  /api/search/filters:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Thống kê bộ lọc
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/minutes"
+        - $ref: "#/components/parameters/date"
+      responses:
+        "200": { description: filters }
+
+  /api/events/recent:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Event gần đây (có session_id)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200": { description: events array }
+
+  /api/events/stream:
+    get:
+      tags: [dashboard-analytics]
+      servers: [{ url: /proxy/dashboard }]
+      summary: SSE live events (query token, không Bearer header)
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: text/event-stream
+
+  /api/chat:
+    post:
+      tags: [dashboard-chat]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Chatbot analytics (NLU + Postgres + Qdrant)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChatRequest" }
+      responses:
+        "200": { description: answer + intent + actions }
+
+  /api/chat/sessions:
+    get:
+      tags: [dashboard-chat]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Danh sách hội thoại
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: sessions }
+    post:
+      tags: [dashboard-chat]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Tạo hội thoại mới
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201": { description: session created }
+
+  /api/chat/sessions/{sessionId}/messages:
+    get:
+      tags: [dashboard-chat]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Tin nhắn trong session
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: messages }
+        "404": { description: session_not_found }
+
+  /api/chat/sessions/{sessionId}:
+    delete:
+      tags: [dashboard-chat]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Xóa session
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: deleted }
+
+  /api/system/pipeline:
+    get:
+      tags: [dashboard-admin]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Admin — trạng thái pipeline
+      security: [{ bearerAuth: [] }]
+      description: Role super_admin
+      responses:
+        "200": { description: health + metrics }
+
+  /api/system/setup:
+    get:
+      tags: [dashboard-admin]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Admin — gợi ý port/env demo
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: setup hints }
+
+  /api/chat/insights:
+    get:
+      tags: [dashboard-admin]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Admin — insight Qdrant gần đây
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200": { description: insights }
+
+  /api/users:
+    get:
+      tags: [dashboard-admin]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Admin — danh sách user
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: users }
+    post:
+      tags: [dashboard-admin]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Admin — tạo user
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+                display_name: { type: string }
+                role: { type: string, enum: [super_admin, analyst] }
+      responses:
+        "201": { description: created }
+
+  /api/users/{id}:
+    patch:
+      tags: [dashboard-admin]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Admin — cập nhật user
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: updated }
+    delete:
+      tags: [dashboard-admin]
+      servers: [{ url: /proxy/dashboard }]
+      summary: Admin — vô hiệu hóa user
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: disabled }
+
+  /track:
+    post:
+      tags: [tracking]
+      servers: [{ url: /proxy/tracking }]
+      summary: Ingest một tracking event (SDK)
+      description: Không API key — chỉ validate schema
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrackingEvent" }
+      responses:
+        "202": { description: accepted }
+        "400": { description: validation_failed }
+
+  /track/batch:
+    post:
+      tags: [tracking]
+      servers: [{ url: /proxy/tracking }]
+      summary: Ingest batch events
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TrackBatch" }
+      responses:
+        "202": { description: accepted }
+
+  /api/ingest/business-events:
+    post:
+      tags: [tracking]
+      servers: [{ url: /proxy/tracking }]
+      summary: Business event ingest (adapter Lap2)
+      security: [{ ingestKey: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Canonical business event hoặc batch object events[]"
+      responses:
+        "202": { description: accepted }
+        "401": { description: unauthorized }
+        "503": { description: business_ingest_disabled }
+
+  /api/ingest/business-events/batch:
+    post:
+      tags: [tracking]
+      servers: [{ url: /proxy/tracking }]
+      summary: Business events batch
+      security: [{ ingestKey: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                events:
+                  type: array
+                  items: { type: object }
+      responses:
+        "202": { description: accepted }
+
+  /api/orders:
+    post:
+      tags: [commerce]
+      servers: [{ url: /proxy/commerce }]
+      summary: Tạo đơn (web-demo) → RabbitMQ
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [anonymousId, sessionId, items]
+              properties:
+                anonymousId: { type: string }
+                sessionId: { type: string }
+                items:
+                  type: array
+                  items: { type: object }
+      responses:
+        "201": { description: orderCode }
+
+  /api/orders/{orderCode}/cancel:
+    post:
+      tags: [commerce]
+      servers: [{ url: /proxy/commerce }]
+      summary: Hủy đơn
+      parameters:
+        - name: orderCode
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: cancelled }
+
+  /commerce/add-to-cart:
+    post:
+      tags: [commerce]
+      servers: [{ url: /proxy/commerce }]
+      summary: Commerce event — add to cart
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [anonymous_id, session_id, product_id]
+              properties:
+                anonymous_id: { type: string }
+                session_id: { type: string }
+                product_id: { type: string }
+      responses:
+        "202": { description: accepted }
+
+  /commerce/checkout-start:
+    post:
+      tags: [commerce]
+      servers: [{ url: /proxy/commerce }]
+      summary: Commerce event — checkout start
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [anonymous_id, session_id]
+      responses:
+        "202": { description: accepted }
+
+  /commerce/purchase:
+    post:
+      tags: [commerce]
+      servers: [{ url: /proxy/commerce }]
+      summary: Commerce event — purchase succeeded
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [anonymous_id, session_id]
+      responses:
+        "202": { description: accepted }
+
+  /commerce/payment-failed:
+    post:
+      tags: [commerce]
+      servers: [{ url: /proxy/commerce }]
+      summary: Commerce event — payment failed
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [anonymous_id, session_id]
+      responses:
+        "202": { description: accepted }
+
+  /commerce/cart-abandoned:
+    post:
+      tags: [commerce]
+      servers: [{ url: /proxy/commerce }]
+      summary: Commerce event — cart abandoned
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [anonymous_id, session_id]
+      responses:
+        "202": { description: accepted }

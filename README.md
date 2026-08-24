@@ -1,73 +1,50 @@
 # Funnelmetry
 
-Repository hệ thống chính cho realtime e-commerce **behavior tracking**: SDK → Tracking API → Kafka → streaming processing → PostgreSQL.
+Repository chính cho backend analytics và giao diện Funnelmetry V2.
 
-## Stack
+## Cấu trúc đang chuyển đổi
 
-- Postgres schema: `infra/postgres/`
-- **Tracking API:** `services/tracking-api` — `POST /track`, `POST /track/batch`
-- **Browser SDK:** `sdk/browser-behavior-sdk`
-- **Web shop:** sibling repository `../Simulate_Demo`
-- **Streaming Processor:** `services/streaming-processor` → Postgres + Qdrant insights
-- **Dashboard:** `services/dashboard-api` + `clients/dashboard`
-- **API docs (Swagger):** `clients/api-docs` — localhost `:5190`
-- **Runtime:** **k3s** on WSL2 — `infra/k8s/sprint3`
-
-**Docs:** [`docs/README.md`](docs/README.md) · **Chạy project:** [`docs/RUNTIME.md`](docs/RUNTIME.md)
-
-## Quick start (k3s on WSL2)
-
-1. **Ubuntu WSL** — từ root repo:
-
-```bash
-cp infra/.env.example infra/.env
-# Sửa POSTGRES_PASSWORD, WSL_IP, VITE_* trong infra/.env
-
-bash infra/k8s/install-k3s-wsl.sh          # once
-bash infra/k8s/import-images.sh
-# Tạo secret app-secrets — xem docs/RUNTIME.md §4
-
-k3s kubectl apply -k infra/k8s/sprint3
-k3s kubectl -n realtime get pods
+```text
+apps/
+  dashboard-web/       UI analytics mới, hiện dùng mock data
+  dashboard-api/       API analytics hiện có, đang được chuyển dần sang V2
+workers/                Các worker V2 sẽ được triển khai theo từng capability
+packages/               Input contract, Browser SDK và Backend Integration Kit
+integrations/medusa/    Ranh giới tích hợp Medusa; không chứa core pipeline
+tools/                   Công cụ CI planner và API docs
+infra/                   Schema/config hạ tầng không phụ thuộc runtime V1
+tests/                   Contract, integration, E2E và fault fixtures dùng chung
 ```
 
-2. **URLs** (thay `<WSL_IP>` = `hostname -I`):
+Code V1 đã được gom vào `legacy/` để đối chiếu trong lúc phát triển. Nội dung
+trong đó không quyết định kiến trúc V2 và không còn được build/deploy mặc định.
 
-| Service | URL |
-|---------|-----|
-| Dashboard UI | http://`<WSL_IP>`:30809 |
-| Tracking API | http://`<WSL_IP>`:31000/health |
-| Dashboard API | http://`<WSL_IP>`:32000/health |
+CI/CD và manifest k3s V1 đã được loại bỏ ngày 2026-08-24 vì không còn là runtime
+được duy trì. Hạ tầng triển khai mới sẽ chỉ được thêm sau khi backend V2 có
+vertical slice chạy được.
 
-3. **Web shop** (Windows):
+## Chạy UI mới
 
-```bash
-cd ../Simulate_Demo
-copy .env.example .env
-npm install && npm run seed && npm run dev
-# TRACKING_FORWARD_URL trong ../Simulate_Demo/.env → http://<WSL_IP>:31000/track
-# → http://localhost:3000
+```powershell
+cd apps/dashboard-web
+npm install
+npm run dev
 ```
 
-Chi tiết: [`docs/RUNTIME.md`](docs/RUNTIME.md)
+Mở `http://localhost:5180`.
 
-## Test ingest
+## Kiểm tra Dashboard API
 
-```bash
-curl -s -X POST "http://<WSL_IP>:31000/track" \
-  -H "Content-Type: application/json" \
-  -d '{"event_type":"page_view","anonymous_id":"anon_test","session_id":"sess_test","page_url":"/"}'
+```powershell
+cd apps/dashboard-api
+npm install
+npm test
 ```
 
-## Local dev (API hot reload)
+## Tài liệu
 
-Backend vẫn trên k3s; chỉ chạy service riêng lẻ khi debug:
-
-```bash
-cd services/tracking-api && npm install && npm run dev
-# Trỏ web-shop tạm tới http://localhost:31000/track qua TRACKING_FORWARD_URL
-```
-
-## Build image
-
-Dùng `infra/k8s/import-images.sh`, `rebuild-all-dev-images.sh` — xem [`docs/RUNTIME.md`](docs/RUNTIME.md).
+- Kiến trúc đích: repository `../System_Backbone`
+- Quy tắc workspace: repository `../System_Cookbook`
+- Layout và migration: [`docs/REPOSITORY_LAYOUT.md`](docs/REPOSITORY_LAYOUT.md)
+- Tài liệu trong `docs/` mô tả runtime V1 phải được xem là tài liệu migration cho
+  đến khi được viết lại theo V2.
