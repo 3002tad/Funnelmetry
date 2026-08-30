@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://funnelmetry.io/schemas/canonical-event.v1.schema.json",
+  "title": "Funnelmetry CanonicalEvent v1",
+  "type": "object",
+  "required": ["canonical_event_id", "source_event_id", "event_type", "event_class", "canonical_schema_version", "mapping_version", "occurred_at", "ingested_at", "normalized_at", "source_id", "data", "quality", "source_reference"],
+  "properties": {
+    "canonical_event_id": { "type": "string", "minLength": 1 },
+    "source_event_id": { "type": "string", "minLength": 3, "maxLength": 192 },
+    "event_type": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)+$" },
+    "event_class": { "enum": ["BEHAVIOR_INTENT", "CLIENT_OBSERVATION", "BUSINESS_FACT"] },
+    "canonical_schema_version": { "const": "canonical-event.v1" },
+    "mapping_version": { "type": "string", "minLength": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "produced_at": { "type": "string", "format": "date-time" },
+    "ingested_at": { "type": "string", "format": "date-time" },
+    "normalized_at": { "type": "string", "format": "date-time" },
+    "source_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,62}$" },
+    "aggregate": { "type": "object" },
+    "relations": { "type": "object" },
+    "identity": { "type": "object" },
+    "data": { "type": "object" },
+    "quality": {
+      "type": "object",
+      "required": ["time_basis", "authoritative_event_time"],
+      "properties": {
+        "time_basis": { "enum": ["source_occurred", "source_produced", "ingress_fallback"] },
+        "authoritative_event_time": { "type": "boolean" }
+      }
+    },
+    "source_reference": {
+      "type": "object",
+      "required": ["raw_record_id", "content_hash", "byte_size"],
+      "properties": {
+        "raw_record_id": { "type": "string", "minLength": 1 },
+        "content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "byte_size": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

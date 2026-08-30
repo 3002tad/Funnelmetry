@@ -1,0 +1,18 @@
+export function canonicalEvent(overrides = {}) {
+  return {
+    canonical_event_id: "can_1",
+    source_event_id: "source:evt-1",
+    event_type: "behavior.product_viewed",
+    event_class: "BEHAVIOR_INTENT",
+    canonical_schema_version: "canonical-event.v1",
+    mapping_version: "passthrough-v1",
+    occurred_at: "2026-08-29T01:00:00.000Z",
+    ingested_at: "2026-08-29T01:00:01.000Z",
+    normalized_at: "2026-08-29T01:00:02.000Z",
+    source_id: "reference-shop",
+    data: { product_id: "prod_1" },
+    quality: { time_basis: "source_occurred", authoritative_event_time: true },
+    source_reference: { raw_record_id: "ing_1", content_hash: "a".repeat(64), byte_size: 100 },
+    ...overrides,
+  }
+}

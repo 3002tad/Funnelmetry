@@ -8,8 +8,9 @@ Repository chính cho backend analytics và giao diện Funnelmetry V2.
 apps/
   dashboard-web/       UI analytics mới, hiện dùng mock data
   dashboard-api/       API analytics hiện có, đang được chuyển dần sang V2
-workers/                Các worker V2 sẽ được triển khai theo từng capability
-packages/               Input contract, Browser SDK và Backend Integration Kit
+  input-gateway/       HTTP/security + KafkaJS durable-ingress runtime
+workers/                Canonical normalizer/ledger, journey và capability tiếp theo
+packages/               Input/canonical contract, Browser SDK và Backend Integration Kit
 integrations/medusa/    Ranh giới tích hợp Medusa; không chứa core pipeline
 tools/                   Công cụ CI planner và API docs
 infra/                   Schema/config hạ tầng không phụ thuộc runtime V1
@@ -40,6 +41,89 @@ cd apps/dashboard-api
 npm install
 npm test
 ```
+
+## Chạy Input Gateway
+
+Gateway yêu cầu Kafka và các topic đã được provision. Sao chép `infra/.env.example`
+thành `infra/.env`, điền credential development rồi chạy:
+
+```powershell
+cd apps/input-gateway
+npm install
+npm start
+```
+
+Chi tiết topic, readiness và giới hạn single-replica nằm trong
+[`apps/input-gateway/README.md`](apps/input-gateway/README.md).
+
+## Chạy Canonical Normalizer
+
+Sau khi Kafka và các output topic đã sẵn sàng:
+
+```powershell
+cd workers/canonical-normalizer
+npm install
+npm start
+```
+
+Worker chỉ commit raw offset cùng transaction đã ghi canonical/quarantine và terminal
+outcome. Mapping native theo source chưa nằm trong core này.
+
+## Chạy Canonical Ledger Writer
+
+Sau khi áp dụng `infra/postgres/v2/001_canonical_ledger.sql`:
+
+```powershell
+cd workers/canonical-ledger-writer
+npm install
+npm start
+```
+
+Writer commit canonical Kafka offset sau PostgreSQL transaction; redelivery được xử lý
+idempotent theo canonical identity.
+
+## Chạy Journey Processor
+
+Sau khi áp dụng các migration PostgreSQL V2 và provision journey topics:
+
+```powershell
+cd workers/journey-processor
+npm install
+npm start
+```
+
+Processor nối event theo strong business/correlation evidence trước, sau đó mới tới
+authenticated/session context; evidence xung đột không được tự merge.
+
+## Chạy Funnel Processor
+
+Sau khi áp dụng `infra/postgres/v2/003_funnel_projection.sql`, publish profile và provision
+funnel-updated topic:
+
+```powershell
+cd workers/funnel-processor
+npm install
+npm run profiles:publish-reference
+npm start
+```
+
+Processor tạo Funnel Instance từ entry event, rebuild ordered steps theo event-time và chỉ
+đánh dấu `CONVERTED` khi đủ sequence đúng authority. Timeout/horizon không được hard-code
+trong worker.
+
+## Chạy KPI Projector
+
+Sau khi áp dụng `infra/postgres/v2/004_kpi_projection.sql` và provision kpi-updated topic:
+
+```powershell
+cd workers/kpi-projector
+npm install
+npm start
+```
+
+Projector lưu KPI base fact theo Funnel Instance bằng snapshot hash/revision để redelivery không
+double count. Aggregate hiện được công bố dưới dạng observed totals; time-window và matured
+denominator chưa bị hard-code khi contract tương ứng còn experimental.
 
 ## Tài liệu
 

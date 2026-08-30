@@ -15,8 +15,8 @@
 | --- | --- | --- |
 | `clients/dashboard-ui-preview` | `apps/dashboard-web` | Đã chuyển |
 | `services/dashboard-api` | `apps/dashboard-api` | Đã chuyển |
-| `services/tracking-api` | `legacy/services/tracking-api` | Đã gom V1; `apps/input-gateway` sẽ được xây mới |
-| `services/streaming-processor` | `legacy/services/streaming-processor` | Đã gom V1; worker V2 sẽ tách theo capability |
+| `services/tracking-api` | `legacy/services/tracking-api` | Đã gom V1; `apps/input-gateway` đã có HTTP/security boundary, Kafka transaction và receipt replay runtime |
+| `services/streaming-processor` | `legacy/services/streaming-processor` | Đã gom V1; canonical normalizer V2 đã tách riêng, các capability khác triển khai sau |
 | `clients/api-docs` | `tools/api-docs` | Đã chuyển |
 | `clients/dashboard` | `legacy/clients/dashboard` | Đã gom UI V1 để đối chiếu |
 | `sdk/browser-behavior-sdk` | `legacy/sdk/browser-behavior-sdk` | Đã gom V1; package V2 nằm tại `packages/browser-sdk` |
@@ -28,15 +28,17 @@
 apps/
   dashboard-api/
   dashboard-web/
-  input-gateway/             # future
+  input-gateway/             # runnable HTTP + Kafka durable-ingress boundary
 workers/
-  canonical-normalizer/      # future
-  journey-processor/         # future
-  funnel-processor/          # future
+  canonical-normalizer/      # runnable raw → canonical/quarantine worker
+  canonical-ledger-writer/   # canonical Kafka → PostgreSQL source of truth
+  journey-processor/         # persisted canonical → progressive journey projection
+  funnel-processor/          # journey-resolved -> versioned Funnel Instance projection
+  kpi-projector/             # funnel-updated -> idempotent KPI base facts/observed views
   reconciliation-worker/     # future
 packages/
   input-contract/
-  canonical-contract/        # future
+  canonical-contract/        # CanonicalEvent v1 + terminal outcome
   analytics-contract/        # future
   shared-config/             # future
   browser-sdk/

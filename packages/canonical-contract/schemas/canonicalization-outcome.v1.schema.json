@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://funnelmetry.io/schemas/canonicalization-outcome.v1.schema.json",
+  "title": "Funnelmetry CanonicalizationOutcome v1",
+  "type": "object",
+  "required": ["source_id", "source_event_id", "status", "mapping_version", "processed_at", "raw_record_id"],
+  "properties": {
+    "source_id": { "type": "string" },
+    "source_event_id": { "type": "string" },
+    "status": { "enum": ["normalized", "unsupported", "quarantined"] },
+    "mapping_version": { "type": "string" },
+    "processed_at": { "type": "string", "format": "date-time" },
+    "raw_record_id": { "type": "string" },
+    "canonical_event_id": { "type": "string" },
+    "reason_code": { "type": "string" }
+  },
+  "additionalProperties": false
+}

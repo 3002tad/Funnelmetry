@@ -6,6 +6,11 @@ phát triển local.
 - Sao chép `.env.example` thành `.env` và điền giá trị phù hợp trên máy cá nhân.
 - Các ứng dụng Node nạp trực tiếp file này bằng tùy chọn `--env-file`.
 - `postgres/` chứa schema và dữ liệu khởi tạo còn được dùng để tham khảo khi xây V2.
+- Input Gateway và Canonical Normalizer cần Kafka. Raw/canonical/quarantine topic dùng
+  delete retention; receipt/canonicalization-outcome topic dùng compaction. Các topic
+  canonical-persisted, journey-resolved, funnel-updated và kpi-updated là durable stage handoff
+  dùng delete retention.
+  Repository hiện chưa tự provision Kafka.
 
 Manifest k3s và workflow CI/CD V1 đã được loại bỏ. Không có lệnh deploy cluster
 được hỗ trợ trong cấu trúc hiện tại.

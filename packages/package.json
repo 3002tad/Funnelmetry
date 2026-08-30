@@ -3,6 +3,7 @@
   "private": true,
   "workspaces": [
     "input-contract",
+    "canonical-contract",
     "browser-sdk",
     "backend-integration-kit"
   ],
