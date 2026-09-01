@@ -1,0 +1,439 @@
+openapi: 3.0.3
+info:
+  title: Funnelmetry Analytics API V2
+  version: 2.0.0-observed
+  description: |
+    Read-only API for Journey, Funnel KPI, canonical event metadata and Data Health V2.
+    Every request is scoped by `source_id` and protected by Dashboard JWT shop roles.
+
+    Funnel rates are `OBSERVED` entry cohorts, not matured/final conversion KPIs. Journey and event
+    responses intentionally exclude raw payloads, normalized data, identity values and entity keys.
+servers:
+  - url: /proxy/dashboard
+    description: Dashboard API through the local Swagger proxy
+security:
+  - bearerAuth: []
+tags:
+  - name: Analytics V2
+  - name: Canonical Events V2
+  - name: Data Health V2
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token returned by POST /api/auth/login
+  parameters:
+    SourceId:
+      name: source_id
+      in: query
+      required: true
+      schema: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,62}$", example: medusa-reference }
+    From:
+      name: from
+      in: query
+      required: false
+      schema: { type: string, format: date-time }
+    To:
+      name: to
+      in: query
+      required: false
+      schema: { type: string, format: date-time }
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    ProfileVersion:
+      name: profile_version
+      in: query
+      required: false
+      schema: { type: string, example: 1.0.0 }
+    EventClass:
+      name: event_class
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [BEHAVIOR_INTENT, CLIENT_OBSERVATION, BUSINESS_FACT]
+    EventType:
+      name: event_type
+      in: query
+      required: false
+      schema: { type: string, example: order.accepted }
+  responses:
+    BadRequest:
+      description: Invalid query or path parameter
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: JWT role cannot access shop analytics
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Requested V2 projection does not exist
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        hint: { type: string }
+    Cohort:
+      type: object
+      required: [basis, from, to]
+      properties:
+        basis: { type: string, enum: [entry_at] }
+        from: { type: string, format: date-time, nullable: true }
+        to: { type: string, format: date-time, nullable: true }
+    ProfileTotal:
+      type: object
+      required: [funnel_profile_id, profile_version, display_name, entrants, observed_converted, pending]
+      properties:
+        funnel_profile_id: { type: string }
+        profile_version: { type: string }
+        display_name: { type: string }
+        entrants: { type: integer }
+        observed_converted: { type: integer }
+        pending: { type: integer }
+        dropped: { type: integer }
+        terminated: { type: integer }
+        invalid: { type: integer }
+        provisional: { type: integer }
+        reconciling: { type: integer }
+        reconciled: { type: integer }
+        degraded: { type: integer }
+        observed_end_to_end_rate: { type: number, format: double, nullable: true }
+        first_entry_at: { type: string, format: date-time, nullable: true }
+        last_entry_at: { type: string, format: date-time, nullable: true }
+    Overview:
+      type: object
+      required: [source_id, cohort, metric_state, profiles]
+      properties:
+        source_id: { type: string }
+        cohort: { $ref: "#/components/schemas/Cohort" }
+        metric_state: { type: string, enum: [OBSERVED] }
+        profiles:
+          type: array
+          items: { $ref: "#/components/schemas/ProfileTotal" }
+    Funnel:
+      type: object
+      required: [source_id, cohort, metric_state, profile, totals, steps]
+      properties:
+        source_id: { type: string }
+        cohort: { $ref: "#/components/schemas/Cohort" }
+        metric_state: { type: string, enum: [OBSERVED] }
+        profile:
+          type: object
+          properties:
+            funnel_profile_id: { type: string }
+            profile_version: { type: string }
+            display_name: { type: string }
+            subject_scope: { type: string }
+            entry_event_type: { type: string }
+            conversion_horizon_seconds: { type: integer, nullable: true }
+            late_arrival_grace_seconds: { type: integer, nullable: true }
+            published_at: { type: string, format: date-time }
+        totals: { $ref: "#/components/schemas/ProfileTotal" }
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              step_index: { type: integer }
+              step_id: { type: string }
+              event_type: { type: string }
+              event_class: { type: string }
+              entrants: { type: integer }
+              reached: { type: integer }
+              observed_reach_rate: { type: number, nullable: true }
+    FunnelInstanceSummary:
+      type: object
+      properties:
+        funnel_instance_id: { type: string }
+        funnel_profile_id: { type: string }
+        profile_version: { type: string }
+        outcome_status: { type: string, enum: [IN_PROGRESS, CONVERTED, DROPPED, TERMINATED, INVALID] }
+        quality_status: { type: string, enum: [PROVISIONAL, RECONCILING, RECONCILED, DEGRADED] }
+        entry_at: { type: string, format: date-time }
+        converted_at: { type: string, format: date-time, nullable: true }
+    JourneyList:
+      type: object
+      required: [source_id, limit, journeys]
+      properties:
+        source_id: { type: string }
+        limit: { type: integer }
+        journeys:
+          type: array
+          items:
+            type: object
+            properties:
+              journey_id: { type: string }
+              status: { type: string }
+              first_event_at: { type: string, format: date-time }
+              last_event_at: { type: string, format: date-time }
+              event_count: { type: integer }
+              entity_type_count: { type: integer }
+              funnel_instances:
+                type: array
+                items: { $ref: "#/components/schemas/FunnelInstanceSummary" }
+    JourneyDetail:
+      type: object
+      properties:
+        journey_id: { type: string }
+        source_id: { type: string }
+        status: { type: string }
+        first_event_at: { type: string, format: date-time }
+        last_event_at: { type: string, format: date-time }
+        event_count: { type: integer }
+        events:
+          type: array
+          description: Privacy-safe canonical metadata only
+          items:
+            type: object
+            properties:
+              canonical_event_id: { type: string }
+              event_type: { type: string }
+              event_class: { type: string }
+              occurred_at: { type: string, format: date-time }
+              quality: { type: object, additionalProperties: true }
+              link_method: { type: string }
+              link_confidence: { type: string }
+        evidence_summary:
+          type: array
+          items:
+            type: object
+            properties:
+              entity_type: { type: string }
+              link_method: { type: string }
+              link_confidence: { type: string }
+              evidence_count: { type: integer }
+        funnel_instances:
+          type: array
+          items:
+            allOf:
+              - { $ref: "#/components/schemas/FunnelInstanceSummary" }
+              - type: object
+                properties:
+                  steps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        step_index: { type: integer }
+                        step_id: { type: string }
+                        event_type: { type: string }
+                        sequence_status: { type: string, enum: [IN_ORDER, OUT_OF_ORDER] }
+    EventList:
+      type: object
+      required: [source_id, window, limit, events]
+      properties:
+        source_id: { type: string }
+        window:
+          type: object
+          properties:
+            basis: { type: string, enum: [occurred_at] }
+            from: { type: string, format: date-time, nullable: true }
+            to: { type: string, format: date-time, nullable: true }
+        limit: { type: integer }
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              canonical_event_id: { type: string }
+              event_type: { type: string }
+              event_class: { type: string, enum: [BEHAVIOR_INTENT, CLIENT_OBSERVATION, BUSINESS_FACT] }
+              occurred_at: { type: string, format: date-time }
+              produced_at: { type: string, format: date-time, nullable: true }
+              ingested_at: { type: string, format: date-time }
+              normalized_at: { type: string, format: date-time }
+              persisted_at: { type: string, format: date-time }
+              canonical_schema_version: { type: string }
+              mapping_version: { type: string }
+              aggregate_type: { type: string, nullable: true }
+              time_basis: { type: string, enum: [source_occurred, source_produced, ingress_fallback] }
+              authoritative_event_time: { type: boolean }
+              journey_id: { type: string, nullable: true }
+              link_method: { type: string, nullable: true }
+              link_confidence: { type: string, nullable: true }
+    DataHealth:
+      type: object
+      required: [source_id, observation_window, projection_window, canonical, hourly, projection_quality, unavailable_metrics]
+      properties:
+        source_id: { type: string }
+        observation_window:
+          type: object
+          properties:
+            basis: { type: string, enum: [persisted_at] }
+            from: { type: string, format: date-time, nullable: true }
+            to: { type: string, format: date-time, nullable: true }
+        projection_window:
+          type: object
+          properties:
+            basis: { type: string, enum: [entry_at] }
+            from: { type: string, format: date-time, nullable: true }
+            to: { type: string, format: date-time, nullable: true }
+        canonical:
+          type: object
+          properties:
+            events: { type: integer }
+            behavior_intent: { type: integer }
+            client_observation: { type: integer }
+            business_fact: { type: integer }
+            authoritative_event_time: { type: integer }
+            authoritative_event_time_rate: { type: number, nullable: true }
+            source_produced_time: { type: integer }
+            ingress_fallback_time: { type: integer }
+            normalization_latency_p50_ms: { type: number, nullable: true }
+            normalization_latency_p95_ms: { type: number, nullable: true }
+            canonical_persistence_latency_p95_ms: { type: number, nullable: true }
+            first_persisted_at: { type: string, format: date-time, nullable: true }
+            last_persisted_at: { type: string, format: date-time, nullable: true }
+        hourly:
+          type: array
+          items:
+            type: object
+            properties:
+              bucket_start: { type: string, format: date-time }
+              canonical_events: { type: integer }
+              non_authoritative_time: { type: integer }
+        projection_quality:
+          type: object
+          properties:
+            funnel_instances: { type: integer }
+            provisional: { type: integer }
+            reconciling: { type: integer }
+            reconciled: { type: integer }
+            degraded: { type: integer }
+        unavailable_metrics:
+          type: array
+          items: { type: string }
+
+paths:
+  /api/v2/analytics/overview:
+    get:
+      tags: [Analytics V2]
+      summary: Observed Funnel Profile entry cohorts
+      parameters:
+        - { $ref: "#/components/parameters/SourceId" }
+        - { $ref: "#/components/parameters/From" }
+        - { $ref: "#/components/parameters/To" }
+      responses:
+        "200":
+          description: Observed profile totals
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Overview" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/v2/analytics/funnels/{profileId}:
+    get:
+      tags: [Analytics V2]
+      summary: Observed Funnel Profile steps
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: "#/components/parameters/SourceId" }
+        - { $ref: "#/components/parameters/ProfileVersion" }
+        - { $ref: "#/components/parameters/From" }
+        - { $ref: "#/components/parameters/To" }
+      responses:
+        "200":
+          description: Funnel profile and step reach
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Funnel" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v2/analytics/journeys:
+    get:
+      tags: [Analytics V2]
+      summary: Recent source-scoped journeys
+      parameters:
+        - { $ref: "#/components/parameters/SourceId" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Journey summaries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JourneyList" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/v2/analytics/journeys/{journeyId}:
+    get:
+      tags: [Analytics V2]
+      summary: Privacy-safe journey detail
+      parameters:
+        - name: journeyId
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: "#/components/parameters/SourceId" }
+      responses:
+        "200":
+          description: Journey timeline, evidence summary and Funnel Instances
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JourneyDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v2/analytics/events:
+    get:
+      tags: [Canonical Events V2]
+      summary: Privacy-safe canonical event metadata
+      parameters:
+        - { $ref: "#/components/parameters/SourceId" }
+        - { $ref: "#/components/parameters/From" }
+        - { $ref: "#/components/parameters/To" }
+        - { $ref: "#/components/parameters/EventClass" }
+        - { $ref: "#/components/parameters/EventType" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Canonical event metadata ordered by occurred_at descending
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventList" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/v2/analytics/data-health:
+    get:
+      tags: [Data Health V2]
+      summary: Canonical and Funnel projection quality with explicit unavailable metrics
+      parameters:
+        - { $ref: "#/components/parameters/SourceId" }
+        - { $ref: "#/components/parameters/From" }
+        - { $ref: "#/components/parameters/To" }
+      responses:
+        "200":
+          description: Observed Data Health metrics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataHealth" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }

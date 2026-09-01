@@ -6,7 +6,7 @@ Repository chính cho backend analytics và giao diện Funnelmetry V2.
 
 ```text
 apps/
-  dashboard-web/       UI analytics mới, hiện dùng mock data
+  dashboard-web/       UI analytics V2; một số màn hình chưa có contract vẫn dùng mock data
   dashboard-api/       API analytics hiện có, đang được chuyển dần sang V2
   input-gateway/       HTTP/security + KafkaJS durable-ingress runtime
 workers/                Canonical normalizer/ledger, journey và capability tiếp theo
@@ -41,6 +41,22 @@ cd apps/dashboard-api
 npm install
 npm test
 ```
+
+Dashboard API có namespace read-only `/api/v2/analytics/*` cho KPI overview, funnel profile,
+journey projection, canonical event browser và data health. Mọi request V2 phải có `source_id`; xem contract tại
+[`apps/dashboard-api/README.md`](apps/dashboard-api/README.md).
+
+## Chạy API docs V2
+
+```powershell
+cd tools/api-docs
+npm install
+npm test
+npm run dev
+```
+
+Mở `http://localhost:5190`. Swagger mặc định chọn Analytics API V2 và vẫn cho phép chuyển sang
+contract V1 để đối chiếu.
 
 ## Chạy Input Gateway
 

@@ -7,7 +7,8 @@ export function isChatApiPath(path) {
 export function isShopApiPath(path) {
   if (isChatApiPath(path)) return false;
   return (
-    path.startsWith("/api/overview")
+    path.startsWith("/api/v2/analytics")
+    || path.startsWith("/api/overview")
     || path.startsWith("/api/events")
     || path.startsWith("/api/funnel")
     || path.startsWith("/api/products")

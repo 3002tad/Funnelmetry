@@ -1,28 +1,68 @@
-import { useState } from "react"
-import { Clock3, Filter, MousePointerClick, TimerReset, Users } from "lucide-react"
-import { DeviceBars } from "../../components/charts/AnalyticsChart"
+import { useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { CircleOff, MousePointerClick, RefreshCw, TimerReset, Users } from "lucide-react"
+import { useOutletContext } from "react-router-dom"
+import type { ShellContext } from "../../app/AppShell"
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
-import { ChartCard } from "../../components/ui/chart-card"
-import { MetricCard } from "../../components/ui/metric-card"
-import { PageHeader } from "../../components/ui/page"
+import { EmptyState, PageHeader } from "../../components/ui/page"
+import { fetchV2Funnel, fetchV2Overview } from "../../lib/analytics-api"
 import { compact } from "../../lib/utils"
-import { funnelStages } from "../../mock/data"
+
+function percent(value: number | null) {
+  return value === null ? "—" : `${(value * 100).toFixed(1)}%`
+}
 
 export function FunnelsPage() {
-  const [active, setActive] = useState(1)
-  const stage = funnelStages[active]
+  const { range, sourceId } = useOutletContext<ShellContext>()
+  const [selectedKey, setSelectedKey] = useState("")
+  const [activeStep, setActiveStep] = useState(0)
+  const profiles = useQuery({ queryKey: ["v2-overview", sourceId, range], queryFn: () => fetchV2Overview(range) })
+  const selected = profiles.data?.profiles.find((profile) => `${profile.funnel_profile_id}:${profile.profile_version}` === selectedKey) ?? profiles.data?.profiles[0]
+  useEffect(() => {
+    if (selected && !selectedKey) setSelectedKey(`${selected.funnel_profile_id}:${selected.profile_version}`)
+  }, [selected, selectedKey])
+  const funnel = useQuery({
+    queryKey: ["v2-funnel", sourceId, range, selected?.funnel_profile_id, selected?.profile_version],
+    queryFn: () => fetchV2Funnel(selected!.funnel_profile_id, selected!.profile_version, range),
+    enabled: Boolean(selected),
+  })
+  useEffect(() => setActiveStep(0), [selectedKey])
+
+  if (profiles.isLoading) return <div className="space-y-4"><div className="skeleton h-16 w-80" /><div className="skeleton h-32" /><div className="skeleton h-96" /></div>
+  if (profiles.isError) return <EmptyState icon={<CircleOff size={20} />} title="Không tải được danh sách funnel" detail="Kiểm tra Dashboard API V2 và phiên đăng nhập." />
+  if (!selected) return <EmptyState icon={<CircleOff size={20} />} title="Chưa có Funnel Profile data" detail="Publish reference profile và chạy pipeline trước khi mở Funnel analysis." />
+  if (funnel.isLoading || !funnel.data) return <div className="space-y-4"><div className="skeleton h-16 w-80" /><div className="skeleton h-32" /><div className="skeleton h-96" /></div>
+  if (funnel.isError) return <EmptyState icon={<CircleOff size={20} />} title="Không tải được funnel projection" detail="Profile có thể chưa active hoặc migration KPI chưa được áp dụng." />
+
+  const data = funnel.data
+  const active = data.steps[Math.min(activeStep, Math.max(data.steps.length - 1, 0))]
   return <>
-    <PageHeader title="Funnel analysis" description="Follow sessions from product intent to an authoritative accepted order." badge={<Badge tone="primary">Live / Provisional</Badge>} actions={<><Button variant="outline"><Filter size={15} /> Filters</Button><Button>Save view</Button></>} />
-    <div className="mb-5 flex flex-wrap gap-2">{["All devices", "All customers", "All traffic sources"].map((filter) => <button key={filter} className="rounded-lg border bg-card px-3 py-2 text-xs text-muted-foreground hover:text-foreground">{filter}⌄</button>)}</div>
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4"><MetricCard label="Funnel entrants" value="12,480" change={9.2} icon={Users} data={[9,11,13,12,16,17]} /><MetricCard label="Converted" value="3,748" change={12.1} icon={MousePointerClick} data={[7,9,8,12,14,16]} /><MetricCard label="Conversion rate" value="30.0%" change={2.6} icon={TimerReset} data={[10,9,11,13,12,15]} /><MetricCard label="Median conversion time" value="18m 42s" change={-8.4} inverse icon={Clock3} data={[18,17,16,17,14,13]} /></div>
-    <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_380px]">
-      <section className="panel overflow-hidden p-5"><div className="mb-6 flex items-center justify-between"><div><h2 className="text-sm font-semibold">Order conversion funnel</h2><p className="mt-1 text-xs text-muted-foreground">Click a stage to inspect its sessions and breakdown</p></div><div className="flex gap-2"><Badge tone="success">Matured 81%</Badge><Badge tone="warning">Pending 19%</Badge></div></div>
-        <div className="space-y-2">{funnelStages.map((item, index) => <button key={item.name} onClick={() => setActive(index)} className={`group relative w-full overflow-hidden rounded-lg border p-4 text-left transition ${active === index ? "border-primary/60 bg-primary/10" : "bg-muted/20 hover:border-primary/30"}`} style={{ width: `${100 - index * 10}%` }}><div className="relative z-10 flex items-center justify-between gap-4"><div><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Step {index + 1}</span><strong className="text-sm">{item.name}</strong></div><div className="flex items-center gap-6 text-right"><div className="hidden sm:block"><span className="block text-[10px] text-muted-foreground">Transition</span><strong className="text-xs">{index === 0 ? "—" : `${item.transition}%`}</strong></div><div><strong className="block text-lg">{compact.format(item.sessions)}</strong><span className="text-[10px] text-muted-foreground">{item.reached}% reached</span></div></div></div>{index < funnelStages.length - 1 && <div className="absolute bottom-0 left-0 h-[2px] bg-destructive/60" style={{ width: `${item.dropoff / item.sessions * 100}%` }} />}</button>)}</div>
-        <div className="mt-5 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4"><div className="rounded-lg bg-muted/50 p-3"><span className="text-muted-foreground">Pending</span><strong className="mt-1 block">545</strong></div><div className="rounded-lg bg-muted/50 p-3"><span className="text-muted-foreground">Suspected drop-off</span><strong className="mt-1 block">812</strong></div><div className="rounded-lg bg-muted/50 p-3"><span className="text-muted-foreground">Matured drop-off</span><strong className="mt-1 block">7,920</strong></div><div className="rounded-lg bg-muted/50 p-3"><span className="text-muted-foreground">Invalid</span><strong className="mt-1 block">28</strong></div></div>
-      </section>
-      <aside className="panel p-5"><p className="eyebrow">Selected stage</p><h2 className="mt-2 text-lg font-semibold">{stage.name}</h2><p className="mt-1 text-xs text-muted-foreground">{compact.format(stage.sessions)} sessions reached this stage</p><div className="mt-5 grid grid-cols-2 gap-2"><div className="rounded-lg border p-3"><span className="text-[10px] text-muted-foreground">Drop-off</span><strong className="mt-1 block text-lg">{compact.format(stage.dropoff)}</strong></div><div className="rounded-lg border p-3"><span className="text-[10px] text-muted-foreground">Pending</span><strong className="mt-1 block text-lg">{stage.pending}</strong></div></div><div className="mt-6"><h3 className="text-xs font-medium">Conversion by device</h3><DeviceBars /></div><div className="border-t pt-4"><h3 className="mb-3 text-xs font-medium">Top traffic sources</h3>{[["Organic",68],["Paid social",52],["Direct",61]].map(([name,value]) => <div key={String(name)} className="mb-2 flex items-center gap-3 text-xs"><span className="w-20 text-muted-foreground">{name}</span><div className="h-1.5 flex-1 rounded bg-muted"><div className="h-full rounded bg-primary" style={{ width: `${value}%` }} /></div><span>{value}%</span></div>)}</div></aside>
+    <PageHeader title="Funnel analysis" description="Observed step reach from immutable, versioned Funnel Profiles." badge={<Badge tone="primary">Observed / {data.totals.provisional ? "Provisional" : "Reconciled"}</Badge>} actions={<Button variant="outline" onClick={() => funnel.refetch()}><RefreshCw size={14} /> Refresh</Button>} />
+    <div className="mb-5 flex flex-wrap gap-2">
+      {profiles.data?.profiles.map((profile) => <button key={`${profile.funnel_profile_id}:${profile.profile_version}`} onClick={() => setSelectedKey(`${profile.funnel_profile_id}:${profile.profile_version}`)} className={`rounded-lg border px-3 py-2 text-xs ${profile.funnel_profile_id === selected.funnel_profile_id && profile.profile_version === selected.profile_version ? "border-primary/50 bg-primary/10 text-primary" : "bg-card text-muted-foreground"}`}>{profile.display_name} · {profile.profile_version}</button>)}
+      <Badge>{range}</Badge><Badge>{sourceId}</Badge>
     </div>
-    <ChartCard className="mt-4" title="Session drill-down" detail={`Sessions that reached ${stage.name}`}><div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-xs"><thead className="text-muted-foreground"><tr className="border-b">{["Session", "Journey", "Device", "Source", "State", "Duration"].map((h) => <th key={h} className="pb-3 font-medium">{h}</th>)}</tr></thead><tbody>{[1,2,3,4].map((n) => <tr key={n} className="border-b last:border-0"><td className="py-3 font-mono">ses_{n}A2{n}</td><td className="font-mono">journey_10{n}21</td><td>{n%2 ? "Mobile" : "Desktop"}</td><td>{n%2 ? "Paid social" : "Organic"}</td><td><Badge tone={n===3 ? "warning" : "success"}>{n===3 ? "Pending" : "Matured"}</Badge></td><td>{n+2}m {n*11}s</td></tr>)}</tbody></table></div></ChartCard>
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {[
+        ["Funnel entrants", compact.format(data.totals.entrants), Users],
+        ["Observed converted", compact.format(data.totals.observed_converted), MousePointerClick],
+        ["Observed rate", percent(data.totals.observed_end_to_end_rate), TimerReset],
+        ["Pending", compact.format(data.totals.pending), TimerReset],
+      ].map(([label, value, Icon]) => <article key={String(label)} className="panel p-4"><div className="flex items-center justify-between text-muted-foreground"><span className="text-xs">{String(label)}</span><Icon size={16} /></div><strong className="mt-5 block text-2xl">{String(value)}</strong><span className="mt-2 block text-[10px] text-muted-foreground">Entry-at cohort · not final maturity</span></article>)}
+    </div>
+
+    <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="panel p-5"><div className="mb-6"><h2 className="text-sm font-semibold">{data.profile.display_name}</h2><p className="mt-1 font-mono text-[10px] text-muted-foreground">{data.profile.funnel_profile_id}@{data.profile.profile_version}</p></div>
+        <div className="space-y-2">{data.steps.map((step, index) => {
+          const prior = index === 0 ? step.entrants : data.steps[index - 1].reached
+          const transition = prior === 0 ? null : step.reached / prior
+          return <button key={step.step_id} onClick={() => setActiveStep(index)} className={`w-full rounded-lg border p-4 text-left transition ${activeStep === index ? "border-primary/60 bg-primary/10" : "bg-muted/20 hover:border-primary/30"}`} style={{ width: `${Math.max(68, 100 - index * 8)}%` }}><div className="flex items-center justify-between gap-4"><div><span className="text-[10px] uppercase tracking-wider text-muted-foreground">Step {index + 1} · {step.event_class}</span><strong className="mt-1 block font-mono text-xs">{step.event_type}</strong></div><div className="flex gap-6 text-right"><div><span className="block text-[10px] text-muted-foreground">Transition</span><strong>{index === 0 ? "—" : percent(transition)}</strong></div><div><strong className="block text-lg">{compact.format(step.reached)}</strong><span className="text-[10px] text-muted-foreground">{percent(step.observed_reach_rate)} reached</span></div></div></div></button>
+        })}</div>
+      </section>
+      <aside className="panel p-5"><p className="eyebrow">Selected step</p>{active ? <><h2 className="mt-2 font-mono text-sm font-semibold">{active.event_type}</h2><div className="mt-5 grid grid-cols-2 gap-2"><div className="rounded-lg border p-3"><span className="text-[10px] text-muted-foreground">Reached</span><strong className="mt-1 block text-lg">{compact.format(active.reached)}</strong></div><div className="rounded-lg border p-3"><span className="text-[10px] text-muted-foreground">Observed rate</span><strong className="mt-1 block text-lg">{percent(active.observed_reach_rate)}</strong></div></div><div className="mt-5 space-y-3 text-xs"><div className="flex justify-between"><span className="text-muted-foreground">Authority class</span><Badge tone={active.event_class === "BUSINESS_FACT" ? "commerce" : "behavior"}>{active.event_class}</Badge></div><div className="flex justify-between"><span className="text-muted-foreground">Step ID</span><span className="font-mono">{active.step_id}</span></div></div></> : <p className="mt-3 text-xs text-muted-foreground">Profile chưa có step.</p>}
+        <div className="mt-6 border-t pt-4"><h3 className="text-xs font-medium">Quality context</h3><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-muted/40 p-3"><span className="text-muted-foreground">Provisional</span><strong className="mt-1 block">{data.totals.provisional}</strong></div><div className="rounded-lg bg-muted/40 p-3"><span className="text-muted-foreground">Degraded</span><strong className="mt-1 block">{data.totals.degraded}</strong></div><div className="rounded-lg bg-muted/40 p-3"><span className="text-muted-foreground">Dropped</span><strong className="mt-1 block">{data.totals.dropped}</strong></div><div className="rounded-lg bg-muted/40 p-3"><span className="text-muted-foreground">Reconciled</span><strong className="mt-1 block">{data.totals.reconciled}</strong></div></div></div>
+      </aside>
+    </div>
   </>
 }

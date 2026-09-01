@@ -9,7 +9,8 @@
     "test": "node --test test/*.test.js",
     "test:eval": "node scripts/eval-chat.js",
     "test:all": "npm test && npm run test:eval",
-    "sync-admin": "node scripts/sync-admin.mjs"
+    "sync-admin": "node scripts/sync-admin.mjs",
+    "demo:seed-v2": "node scripts/seed-v2-demo.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

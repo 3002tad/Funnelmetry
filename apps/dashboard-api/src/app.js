@@ -15,6 +15,7 @@ import { searchRouter } from "./routes/search.js";
 import { systemRouter } from "./routes/system.js";
 import { usersRouter } from "./routes/users.js";
 import { chatRouter } from "./routes/chat.js";
+import { analyticsV2Router } from "./routes/analytics-v2.js";
 
 export function createApp() {
   const app = express();
@@ -32,6 +33,7 @@ export function createApp() {
   const shop = express.Router();
   shop.use(skipUnlessZone(isShopApiPath));
   shop.use(requireAuth, requireShopRole);
+  shop.use(analyticsV2Router);
   shop.use(overviewRouter);
   shop.use(eventsRouter);
   shop.use(funnelRouter);

@@ -45,7 +45,6 @@
   .scrollbar-thin { scrollbar-color: hsl(var(--border)) transparent; scrollbar-width: thin; }
 }
 
-.echarts-for-react { min-height: 240px; }
 
 @keyframes pulse-soft {
   50% { opacity: .55; }

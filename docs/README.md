@@ -3,6 +3,8 @@
 ## Hiện hành
 
 - [`REPOSITORY_LAYOUT.md`](REPOSITORY_LAYOUT.md): cấu trúc repository V2 và trạng thái migration.
+- [`../tools/api-docs/public/openapi-v2.yaml`](../tools/api-docs/public/openapi-v2.yaml): OpenAPI
+  machine-readable cho Analytics API V2.
 - Kiến trúc đích và decision record: repository `../../System_Backbone`.
 - Quy tắc phát triển: repository `../../System_Cookbook`.
 

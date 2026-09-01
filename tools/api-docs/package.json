@@ -2,13 +2,19 @@
   "name": "pipeline-api-docs",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Standalone Swagger UI — localhost only, not part of dashboard UI",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "vite --port 5190 --open",
     "build": "vite build",
-    "preview": "vite preview --port 5190 --open"
+    "preview": "vite preview --port 5190 --open",
+    "test": "node scripts/validate-v2-openapi.mjs"
   },
   "devDependencies": {
-    "vite": "^5.4.11"
+    "vite": "^8.2.2",
+    "yaml": "^2.9.0"
   }
 }

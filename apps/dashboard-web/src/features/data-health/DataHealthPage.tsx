@@ -1,18 +1,79 @@
-import { Activity, AlertTriangle, CheckCircle2, Clock3, Gauge, Radio, ShieldCheck, XCircle } from "lucide-react"
-import { HealthChart, AnalyticsChart } from "../../components/charts/AnalyticsChart"
+import { useQuery } from "@tanstack/react-query"
+import { Activity, AlertTriangle, CheckCircle2, CircleOff, Clock3, DatabaseZap, RefreshCw, ShieldAlert } from "lucide-react"
+import { useOutletContext } from "react-router-dom"
+import type { ShellContext } from "../../app/AppShell"
 import { Badge } from "../../components/ui/badge"
+import { Button } from "../../components/ui/button"
 import { ChartCard } from "../../components/ui/chart-card"
-import { MetricCard } from "../../components/ui/metric-card"
-import { PageHeader } from "../../components/ui/page"
+import { EmptyState, PageHeader } from "../../components/ui/page"
+import { fetchV2DataHealth, type DataHealthResponse } from "../../lib/analytics-api"
+import { compact } from "../../lib/utils"
 
-const latencyOption = { xAxis: { type: "category" as const, data: ["p50","p75","p90","p95","p99"], axisLabel: { color: "#7f8494" }, axisLine: { lineStyle: { color: "rgba(148,163,184,.15)" } } }, yAxis: { type: "value" as const, axisLabel: { color: "#7f8494", formatter: "{value}ms" }, splitLine: { lineStyle: { color: "rgba(148,163,184,.08)" } } }, series: [{ type: "bar" as const, data: [82,124,241,388,912], itemStyle: { color: "#3b82f6", borderRadius: [5,5,0,0] }, barWidth: 28 }] }
+function percent(value: number | null) {
+  return value === null ? "—" : `${(value * 100).toFixed(1)}%`
+}
+
+function duration(value: number | null) {
+  if (value === null) return "—"
+  if (value < 1000) return `${Math.round(value)} ms`
+  return `${(value / 1000).toFixed(2)} s`
+}
+
+function HealthTimelineChart({ buckets }: { buckets: DataHealthResponse["hourly"] }) {
+  if (!buckets.length) return <div className="grid h-[300px] place-items-center text-xs text-muted-foreground">No populated hourly buckets in this window.</div>
+  const width = 800
+  const height = 260
+  const left = 42
+  const right = 18
+  const top = 18
+  const bottom = 38
+  const plotWidth = width - left - right
+  const plotHeight = height - top - bottom
+  const maximum = Math.max(1, ...buckets.flatMap((bucket) => [bucket.canonical_events, bucket.non_authoritative_time]))
+  const point = (value: number, index: number) => {
+    const x = left + (buckets.length === 1 ? plotWidth / 2 : index / (buckets.length - 1) * plotWidth)
+    const y = top + plotHeight - value / maximum * plotHeight
+    return { x, y }
+  }
+  const canonical = buckets.map((bucket, index) => point(bucket.canonical_events, index))
+  const fallback = buckets.map((bucket, index) => point(bucket.non_authoritative_time, index))
+  const points = (values: Array<{ x: number; y: number }>) => values.map(({ x, y }) => `${x},${y}`).join(" ")
+  const labels = buckets.map((bucket, index) => ({ bucket, index })).filter(({ index }) => index === 0 || index === buckets.length - 1 || index % Math.max(1, Math.ceil(buckets.length / 5)) === 0)
+  return <div><div className="mb-2 flex justify-end gap-4 text-[10px] text-muted-foreground"><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-primary" />Canonical persisted</span><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-warning" />Non-authoritative time</span></div><svg viewBox={`0 0 ${width} ${height}`} className="h-[270px] w-full" role="img" aria-label="Canonical persistence by hour"><line x1={left} y1={top + plotHeight} x2={width - right} y2={top + plotHeight} stroke="currentColor" className="text-border" /><line x1={left} y1={top} x2={left} y2={top + plotHeight} stroke="currentColor" className="text-border" />{[0, .25, .5, .75, 1].map((ratio) => { const y = top + plotHeight - ratio * plotHeight; return <g key={ratio}><line x1={left} y1={y} x2={width-right} y2={y} stroke="currentColor" className="text-border" opacity=".45" /><text x={left-8} y={y+4} textAnchor="end" className="fill-muted-foreground text-[9px]">{Math.round(maximum * ratio)}</text></g> })}<polyline fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinejoin="round" points={points(canonical)} /><polyline fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinejoin="round" points={points(fallback)} />{canonical.map(({ x, y }, index) => <circle key={`canonical-${index}`} cx={x} cy={y} r="3" fill="#3b82f6"><title>{`${buckets[index].bucket_start}: ${buckets[index].canonical_events} canonical events`}</title></circle>)}{labels.map(({ bucket, index }) => <text key={bucket.bucket_start} x={point(0, index).x} y={height-12} textAnchor="middle" className="fill-muted-foreground text-[9px]">{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit" }).format(new Date(bucket.bucket_start))}</text>)}</svg></div>
+}
 
 export function DataHealthPage() {
+  const { range, sourceId } = useOutletContext<ShellContext>()
+  const health = useQuery({ queryKey: ["v2-data-health", sourceId, range], queryFn: () => fetchV2DataHealth(range) })
+  if (health.isLoading) return <div className="space-y-4"><div className="skeleton h-16 w-96" /><div className="grid grid-cols-2 gap-3 xl:grid-cols-5">{[1,2,3,4,5].map((item) => <div key={item} className="skeleton h-28" />)}</div><div className="skeleton h-80" /></div>
+  if (health.isError || !health.data) return <EmptyState icon={<CircleOff size={20} />} title="Cannot load Data Health V2" detail="Check Dashboard API, canonical ledger migration, source ID and your login session." />
+
+  const data = health.data
+  const attention = data.canonical.ingress_fallback_time > 0 || data.projection_quality.degraded > 0
+  const cards = [
+    { label: "Canonical events", value: compact.format(data.canonical.events), detail: "Persisted in selected window", icon: DatabaseZap },
+    { label: "Authoritative time", value: percent(data.canonical.authoritative_event_time_rate), detail: `${compact.format(data.canonical.authoritative_event_time)} source_occurred`, icon: CheckCircle2 },
+    { label: "Ingress fallback", value: compact.format(data.canonical.ingress_fallback_time), detail: "Non-authoritative event time", icon: AlertTriangle },
+    { label: "Normalization p95", value: duration(data.canonical.normalization_latency_p95_ms), detail: "ingested_at → normalized_at", icon: Clock3 },
+    { label: "Provisional instances", value: compact.format(data.projection_quality.provisional), detail: `${compact.format(data.projection_quality.funnel_instances)} total instances`, icon: Activity },
+  ]
+
   return <>
-    <PageHeader title="Data health" description="Operational visibility into ingestion, validation, processing latency and reconciliation." badge={<Badge tone="success" dot>Healthy</Badge>} />
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-5"><MetricCard label="Ingestion rate" value="1.8k/s" change={5.2} icon={Radio} data={[8,10,11,13,12,15]} /><MetricCard label="Accepted events" value="99.72%" change={0.4} icon={CheckCircle2} data={[13,14,14,15,15,16]} /><MetricCard label="Rejected events" value="0.21%" change={-12.2} inverse icon={XCircle} data={[16,14,15,12,10,9]} /><MetricCard label="Late events" value="0.07%" change={-4.8} inverse icon={Clock3} data={[12,13,11,10,9,8]} /><MetricCard label="p95 latency" value="388ms" change={-8.1} inverse icon={Gauge} data={[17,16,14,15,12,10]} /></div>
-    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(300px,.7fr)]"><ChartCard title="Events over time" detail="Accepted and rejected events"><HealthChart /></ChartCard><ChartCard title="Processing latency" detail="End-to-end pipeline latency percentiles"><AnalyticsChart option={latencyOption} /></ChartCard></div>
-    <div className="mt-4 grid gap-4 xl:grid-cols-3"><ChartCard title="Source health" detail="Current source delivery state" className="xl:col-span-1"><div className="space-y-3">{[["Browser SDK","Healthy","1.2k/s","success"],["Medusa subscriber","Healthy","412/s","success"],["Catalog REST","Warning","48/s","warning"],["Reconciliation","Healthy","6/min","success"]].map(([name,state,rate,tone]) => <div key={name} className="flex items-center gap-3 rounded-lg border p-3"><span className={`h-2 w-2 rounded-full ${tone === "success" ? "bg-success" : "bg-warning"}`} /><div className="flex-1"><strong className="block text-xs">{name}</strong><span className="text-[10px] text-muted-foreground">{rate}</span></div><Badge tone={tone as "success" | "warning"}>{state}</Badge></div>)}</div></ChartCard><ChartCard title="Recent issues" detail="Quality and processing exceptions" className="xl:col-span-2"><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-xs"><thead className="text-muted-foreground"><tr className="border-b"><th className="pb-3 font-medium">Issue</th><th className="pb-3 font-medium">Source</th><th className="pb-3 font-medium">Affected</th><th className="pb-3 font-medium">Status</th><th className="pb-3 text-right font-medium">Detected</th></tr></thead><tbody>{[["Catalog snapshot exceeded latency budget","Catalog REST","142 records","Investigating","4m ago"],["Missing source sequence on behavior event","Browser SDK","28 events","Degraded","11m ago"],["Late order event recomputed window","Medusa subscriber","1 journey","Resolved","24m ago"]].map(([issue,source,affected,status,time]) => <tr key={issue} className="border-b last:border-0"><td className="py-3 font-medium">{issue}</td><td>{source}</td><td>{affected}</td><td><Badge tone={status === "Resolved" ? "success" : status === "Degraded" ? "danger" : "warning"}>{status}</Badge></td><td className="text-right text-muted-foreground">{time}</td></tr>)}</tbody></table></div></ChartCard></div>
-    <div className="mt-4 panel flex flex-col gap-4 p-4 sm:flex-row sm:items-center"><div className="grid h-10 w-10 place-items-center rounded-lg bg-success/10 text-success"><ShieldCheck size={19} /></div><div className="flex-1"><strong className="text-sm">Reconciliation is converging</strong><p className="mt-1 text-xs text-muted-foreground">99.94% of authoritative order records match current Funnelmetry projections.</p></div><Badge tone="success">Reconciled</Badge></div>
+    <PageHeader title="Data health" description="Observed canonical-ledger and Funnel KPI projection quality. Unsupported reliability metrics remain explicitly unavailable." badge={<Badge tone={attention ? "warning" : "primary"} dot>{attention ? "Needs attention" : "Observed"}</Badge>} actions={<Button variant="outline" onClick={() => health.refetch()}><RefreshCw size={14} /> Refresh</Button>} />
+    <div className="mb-4 flex flex-wrap gap-2 text-xs"><Badge>{sourceId}</Badge><Badge>{range}</Badge><Badge tone="primary">Canonical: persisted_at</Badge><Badge tone="primary">Projection: entry_at</Badge></div>
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">{cards.map(({ label, value, detail, icon: Icon }) => <article key={label} className="panel p-4"><div className="flex items-center justify-between text-muted-foreground"><span className="text-xs font-medium">{label}</span><Icon size={16} /></div><strong className="mt-5 block text-2xl font-semibold">{value}</strong><p className="mt-2 text-[10px] text-muted-foreground">{detail}</p></article>)}</div>
+
+    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.75fr)]"><ChartCard title="Canonical persistence" detail="Latest 48 populated hourly buckets in the selected window"><HealthTimelineChart buckets={data.hourly} /></ChartCard><ChartCard title="Canonical classes" detail="Persisted event class distribution"><div className="space-y-4 pt-3">{[
+      ["Behavior intent", data.canonical.behavior_intent, "bg-sky-500"],
+      ["Client observation", data.canonical.client_observation, "bg-slate-500"],
+      ["Business fact", data.canonical.business_fact, "bg-emerald-500"],
+    ].map(([label, count, color]) => { const share = data.canonical.events ? Number(count) / data.canonical.events * 100 : 0; return <div key={String(label)}><div className="mb-2 flex justify-between text-xs"><span>{label}</span><strong>{compact.format(Number(count))} · {share.toFixed(1)}%</strong></div><div className="h-2 rounded bg-muted"><div className={`h-full rounded ${color}`} style={{ width: `${share}%` }} /></div></div> })}</div><div className="mt-6 border-t pt-4 text-xs text-muted-foreground"><p>Persistence p95: <strong className="text-foreground">{duration(data.canonical.canonical_persistence_latency_p95_ms)}</strong></p><p className="mt-2">Source-produced fallback: <strong className="text-foreground">{compact.format(data.canonical.source_produced_time)}</strong></p></div></ChartCard></div>
+
+    <div className="mt-4 grid gap-4 xl:grid-cols-2"><ChartCard title="Funnel projection quality" detail="Outcome and quality are independent dimensions"><div className="grid grid-cols-2 gap-3">{[
+      ["Provisional", data.projection_quality.provisional, "warning"],
+      ["Reconciling", data.projection_quality.reconciling, "primary"],
+      ["Reconciled", data.projection_quality.reconciled, "success"],
+      ["Degraded", data.projection_quality.degraded, "danger"],
+    ].map(([label, count, tone]) => <div key={String(label)} className="rounded-lg border p-3"><span className="text-[10px] text-muted-foreground">{label}</span><div className="mt-2 flex items-center justify-between"><strong className="text-xl">{compact.format(Number(count))}</strong><Badge tone={tone as "warning" | "primary" | "success" | "danger"}>{label}</Badge></div></div>)}</div></ChartCard><ChartCard title="Unavailable metrics" detail="Not fabricated until ingress, quarantine and reconciliation telemetry are persisted"><div className="flex flex-wrap gap-2">{data.unavailable_metrics.map((metric) => <Badge key={metric}>{metric}</Badge>)}</div><div className="mt-5 flex gap-3 rounded-lg border border-warning/25 bg-warning/5 p-4"><ShieldAlert size={18} className="shrink-0 text-warning" /><p className="text-xs leading-5 text-muted-foreground">Canonical rows alone cannot prove pre-handoff event loss, rejected-event rate, queue drops or source-to-analytics reconciliation. These metrics require dedicated durable evidence.</p></div></ChartCard></div>
   </>
 }
