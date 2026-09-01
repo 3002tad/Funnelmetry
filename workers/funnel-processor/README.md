@@ -17,7 +17,8 @@ Các nguyên tắc hiện tại:
 - Negative event được giữ ở nhánh riêng và không đảo ngược một conversion đã hoàn tất.
 - `conversion_horizon_seconds` và `late_arrival_grace_seconds` thuộc từng profile; worker không
   tự gán một con số kiến trúc mặc định.
-- Worker chưa tự kết luận `DROPPED` theo thời gian. Việc đóng cửa sổ sẽ thuộc reconciliation.
+- Worker chưa tự kết luận `DROPPED` theo thời gian. `time-semantics.v1` hiện chỉ cung cấp phép tính
+  thuần; runtime maturity persistence/scheduler phải có contract và migration riêng trước khi bật.
 
 ## Chạy
 

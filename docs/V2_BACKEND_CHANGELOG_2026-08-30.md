@@ -308,3 +308,22 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   unavailable vì chưa có durable evidence tương ứng; hệ thống không dựng số thay thế.
 - PostgreSQL giữ các mapping version mà writer đã quan sát. Topic compacted chỉ có thể rebuild bản
   mới nhất theo key nếu database bị mất hoàn toàn, nên đây chưa phải full historical replay guarantee.
+
+## 20. Time Semantics Contract v1
+
+- Thêm package `@funnelmetry/time-semantics-contract` và tài liệu runtime contract candidate; không
+  thay đổi `System_Backbone` hoặc tự nâng numeric policy experimental thành approved default.
+- Chuẩn hóa `occurred_at` cho business ordering, `ingested_at` cho arrival, `observed_at` cho clock
+  đánh giá tường minh và `entry_at` làm gốc của Funnel Instance window.
+- Horizon và grace phải được cấu hình cùng nhau. Cả hai `null` trả `UNCONFIGURED`, không được suy ra
+  final drop-off hoặc final KPI denominator.
+- Funnel Processor dùng validator chung khi publish/load profile, nên time policy cấu hình nửa vời
+  bị reject; hai reference profile `null/null` vẫn tương thích và không đổi projection hiện tại.
+- Phân biệt `PENDING`, `SUSPECTED_DROPOFF`, `MATURED` độc lập với outcome và quality state.
+- Phân loại event thành on-time, late within grace, too late, after horizon, non-authoritative hoặc
+  unresolved clock skew; không tự đặt skew tolerance.
+- Mười unit test khóa policy validation, inclusive event-admission boundary và chỉ cho maturity bắt
+  đầu sau cuối grace,
+  tránh race với event đến đúng tại finalization timestamp.
+- Chưa thêm scheduler/migration lifecycle. Gate tiếp theo là chốt persistence cho maturity evidence,
+  transition timeout, eligibility, late conversion và idempotent scheduler handoff.

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@funnelmetry/canonical-contract": "file:../../packages/canonical-contract",
+    "@funnelmetry/time-semantics-contract": "file:../../packages/time-semantics-contract",
     "kafkajs": "^2.2.4",
     "pg": "^8.13.3"
   },

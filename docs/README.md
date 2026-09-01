@@ -3,6 +3,8 @@
 ## Hiện hành
 
 - [`REPOSITORY_LAYOUT.md`](REPOSITORY_LAYOUT.md): cấu trúc repository V2 và trạng thái migration.
+- [`TIME_SEMANTICS_CONTRACT_V1.md`](TIME_SEMANTICS_CONTRACT_V1.md): clock, horizon/grace,
+  maturity và late-arrival boundary dùng chung; không chứa numeric default.
 - [`../tools/api-docs/public/openapi-v2.yaml`](../tools/api-docs/public/openapi-v2.yaml): OpenAPI
   machine-readable cho Analytics API V2.
 - Kiến trúc đích và decision record: repository `../../System_Backbone`.

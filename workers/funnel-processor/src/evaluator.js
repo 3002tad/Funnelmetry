@@ -1,3 +1,5 @@
+import { validateFunnelTimePolicy } from "@funnelmetry/time-semantics-contract"
+
 const EVENT_CLASSES = new Set(["BEHAVIOR_INTENT", "CLIENT_OBSERVATION", "BUSINESS_FACT"])
 
 export function validateProfile(profile) {
@@ -20,12 +22,7 @@ export function validateProfile(profile) {
   if (profile.ordered_steps[0].event_type !== profile.entry_event_type) {
     throw new Error("entry_event_type must match the first ordered step")
   }
-  for (const field of ["conversion_horizon_seconds", "late_arrival_grace_seconds"]) {
-    const value = profile[field]
-    if (value !== undefined && value !== null && (!Number.isSafeInteger(value) || value < (field === "conversion_horizon_seconds" ? 1 : 0))) {
-      throw new Error(`${field} is invalid`)
-    }
-  }
+  validateFunnelTimePolicy(profile)
   const negativeEvents = profile.negative_events ?? []
   if (!Array.isArray(negativeEvents) || negativeEvents.some((value) => typeof value !== "string" || !value)) {
     throw new Error("negative_events must be an array of event types")

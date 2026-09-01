@@ -54,6 +54,13 @@ test("requires the entry event to be the first profile step", () => {
   assert.throws(() => validateProfile({ ...commerceProfile, entry_event_type: "checkout.started" }), /first ordered step/)
 })
 
+test("rejects a partially configured time policy", () => {
+  assert.throws(
+    () => validateProfile({ ...commerceProfile, conversion_horizon_seconds: 3600 }),
+    /must be configured together/,
+  )
+})
+
 test("ships only the two approved reference semantics without invented timeout values", () => {
   assert.deepEqual(REFERENCE_FUNNEL_PROFILES.map((profile) => profile.ordered_steps.map((step) => step.event_type)), [
     ["behavior.product_viewed", "cart.item_added", "checkout.started", "order.accepted"],

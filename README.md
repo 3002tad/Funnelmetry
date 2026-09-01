@@ -155,10 +155,19 @@ Projector lưu KPI base fact theo Funnel Instance bằng snapshot hash/revision 
 double count. Aggregate hiện được công bố dưới dạng observed totals; time-window và matured
 denominator chưa bị hard-code khi contract tương ứng còn experimental.
 
+## Time Semantics Contract v1
+
+Package `packages/time-semantics-contract` chuẩn hóa clock, horizon/grace, maturity và late-arrival
+boundary bằng các hàm thuần. Contract không có timeout mặc định và chưa kích hoạt scheduler; hai
+reference profile còn `null` time policy nên không bị tự kết luận `DROPPED`.
+
+Xem [`docs/TIME_SEMANTICS_CONTRACT_V1.md`](docs/TIME_SEMANTICS_CONTRACT_V1.md).
+
 ## Tài liệu
 
 - Kiến trúc đích: repository `../System_Backbone`
 - Quy tắc workspace: repository `../System_Cookbook`
 - Layout và migration: [`docs/REPOSITORY_LAYOUT.md`](docs/REPOSITORY_LAYOUT.md)
+- Time semantics: [`docs/TIME_SEMANTICS_CONTRACT_V1.md`](docs/TIME_SEMANTICS_CONTRACT_V1.md)
 - Tài liệu trong `docs/` mô tả runtime V1 phải được xem là tài liệu migration cho
   đến khi được viết lại theo V2.

@@ -40,6 +40,7 @@ workers/
 packages/
   input-contract/
   canonical-contract/        # CanonicalEvent v1 + terminal outcome
+  time-semantics-contract/   # pure horizon/grace/maturity and late-arrival rules
   analytics-contract/        # future
   shared-config/             # future
   browser-sdk/

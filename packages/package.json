@@ -4,6 +4,7 @@
   "workspaces": [
     "input-contract",
     "canonical-contract",
+    "time-semantics-contract",
     "browser-sdk",
     "backend-integration-kit"
   ],
