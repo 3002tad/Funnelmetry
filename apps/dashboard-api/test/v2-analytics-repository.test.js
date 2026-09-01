@@ -93,7 +93,7 @@ test("event browser returns canonical metadata but not payload, identity or aggr
   assert.deepEqual(calls[0].params, ["medusa-reference", "BUSINESS_FACT", 25])
 })
 
-test("data health reports only metrics supported by canonical and projection facts", async () => {
+test("data health reports durable canonicalization, canonical and projection evidence", async () => {
   const responses = [
     [{
       canonical_events: "10", behavior_intent: "6", client_observation: "1", business_fact: "3",
@@ -103,12 +103,21 @@ test("data health reports only metrics supported by canonical and projection fac
     }],
     [{ bucket_start: "2026-08-01Z", canonical_events: "10", non_authoritative_time: "2" }],
     [{ funnel_instances: "4", provisional: "2", reconciling: "1", reconciled: "1", degraded: "0" }],
+    [{
+      accepted_events: "12", terminal_outcomes: "10", normalized: "8", unsupported: "1", quarantined: "1",
+      canonicalization_latency_p50_ms: "18", canonicalization_latency_p95_ms: "55",
+      first_received_at: "2026-08-01Z", last_received_at: "2026-08-02Z", last_processed_at: "2026-08-02Z",
+    }],
   ]
   const repository = createV2AnalyticsRepository({ query: async () => responses.shift() })
   const result = await repository.getDataHealth({ sourceId: "medusa-reference", from: null, to: null })
   assert.equal(result.canonical.authoritative_event_time_rate, 0.8)
   assert.equal(result.canonical.normalization_latency_p95_ms, 30)
+  assert.equal(result.canonicalization.terminal_outcome_rate, 10 / 12)
+  assert.equal(result.canonicalization.unsupported, 1)
+  assert.equal(result.ingress_window.basis, "received_at")
   assert.equal(result.projection_quality.provisional, 2)
   assert.ok(result.unavailable_metrics.includes("event_loss_rate"))
+  assert.equal(result.unavailable_metrics.includes("convergence_lag"), false)
   assert.equal("accepted_event_rate" in result.canonical, false)
 })

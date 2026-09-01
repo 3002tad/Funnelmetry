@@ -98,6 +98,20 @@ npm start
 Writer commit canonical Kafka offset sau PostgreSQL transaction; redelivery được xử lý
 idempotent theo canonical identity.
 
+## Chạy Ingress Telemetry Writer
+
+Sau khi áp dụng `infra/postgres/v2/005_ingress_telemetry.sql` và provision receipt/outcome topics:
+
+```powershell
+cd workers/ingress-telemetry-writer
+npm install
+npm start
+```
+
+Writer lưu accepted receipt và canonicalization outcome vào PostgreSQL trước khi commit Kafka
+offset. Dữ liệu này hỗ trợ terminal outcome rate và canonicalization latency trong Data Health;
+pre-handoff loss, duplicate/rejected attempt và queue drop vẫn chưa được suy diễn.
+
 ## Chạy Journey Processor
 
 Sau khi áp dụng các migration PostgreSQL V2 và provision journey topics:

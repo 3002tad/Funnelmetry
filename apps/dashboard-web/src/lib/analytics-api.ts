@@ -129,7 +129,21 @@ export type CanonicalEventItem = {
 export type DataHealthResponse = {
   source_id: string
   observation_window: { basis: "persisted_at"; from: string | null; to: string | null }
+  ingress_window: { basis: "received_at"; from: string | null; to: string | null }
   projection_window: { basis: "entry_at"; from: string | null; to: string | null }
+  canonicalization: {
+    accepted_events: number
+    terminal_outcomes: number
+    terminal_outcome_rate: number | null
+    normalized: number
+    unsupported: number
+    quarantined: number
+    canonicalization_latency_p50_ms: number | null
+    canonicalization_latency_p95_ms: number | null
+    first_received_at: string | null
+    last_received_at: string | null
+    last_processed_at: string | null
+  }
   canonical: {
     events: number
     behavior_intent: number

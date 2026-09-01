@@ -11,3 +11,5 @@ Schema V2 mới nằm trong `v2/`:
   ordered-step projection và negative-event branch.
 - `v2/004_kpi_projection.sql`: idempotent Funnel Instance KPI facts và observed aggregate views;
   chưa áp đặt time-window policy còn experimental.
+- `v2/005_ingress_telemetry.sql`: accepted ingress receipt và versioned canonicalization outcome
+  dùng làm durable evidence cho terminal outcome rate và canonicalization latency.

@@ -17,6 +17,10 @@ function hash(value) {
   return createHash("sha256").update(value).digest("hex")
 }
 
+function addMilliseconds(value, milliseconds) {
+  return new Date(Date.parse(value) + milliseconds).toISOString()
+}
+
 const journeys = [
   {
     id: "journey-demo-converted-reconciled", daysAgo: 12, outcome: "CONVERTED", quality: "RECONCILED",
@@ -47,7 +51,8 @@ async function seed() {
   const client = await pool.connect()
   try {
     for (const migration of [
-      "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql", "004_kpi_projection.sql",
+      "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
+      "004_kpi_projection.sql", "005_ingress_telemetry.sql",
     ]) {
       await client.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }
@@ -114,6 +119,32 @@ async function seed() {
           [eventId, sourceId, `demo:${eventId}`, eventType, eventClass, occurred[eventIndex], JSON.stringify(quality),
             `raw-${eventId}`, hash(eventId), JSON.stringify(document)],
         )
+        const sourceEventId = `demo:${eventId}`
+        const ingestionId = `ingestion-${eventId}`
+        const receipt = {
+          status: "accepted", source_id: sourceId, event_id: sourceEventId,
+          ingestion_id: ingestionId, ingestion_attempt_id: `attempt-${eventId}`,
+          received_at: occurred[eventIndex],
+        }
+        await client.query(
+          `INSERT INTO ingress_accepted_receipts (
+             source_id, event_id, ingestion_id, ingestion_attempt_id, received_at, receipt_document
+           ) VALUES ($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT DO NOTHING`,
+          [sourceId, sourceEventId, ingestionId, `attempt-${eventId}`, occurred[eventIndex], JSON.stringify(receipt)],
+        )
+        const processedAt = addMilliseconds(occurred[eventIndex], 25 + eventIndex * 7)
+        const outcome = {
+          source_id: sourceId, source_event_id: sourceEventId, status: "normalized",
+          canonical_event_id: eventId, mapping_version: "demo-v1", processed_at: processedAt,
+          raw_record_id: `raw-${eventId}`,
+        }
+        await client.query(
+          `INSERT INTO canonicalization_outcomes (
+             source_id, source_event_id, mapping_version, status, canonical_event_id,
+             reason_code, processed_at, raw_record_id, outcome_document
+           ) VALUES ($1,$2,'demo-v1','normalized',$3,NULL,$4,$5,$6::jsonb) ON CONFLICT DO NOTHING`,
+          [sourceId, sourceEventId, eventId, processedAt, `raw-${eventId}`, JSON.stringify(outcome)],
+        )
       }
       await client.query(
         `INSERT INTO journeys (journey_id, source_id, status, first_event_at, last_event_at, event_count, created_at, updated_at)
@@ -175,7 +206,7 @@ async function seed() {
       }
     }
     await client.query("COMMIT")
-    console.log(`[demo-seed] ${journeys.length} journeys and ${journeys.reduce((sum, item) => sum + item.events.length, 0)} canonical events ready`)
+    console.log(`[demo-seed] ${journeys.length} journeys and ${journeys.reduce((sum, item) => sum + item.events.length, 0)} canonical events with telemetry ready`)
     console.log(`[demo-seed] login ${analystEmail} / ${analystPassword}`)
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {})

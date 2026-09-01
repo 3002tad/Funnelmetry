@@ -292,3 +292,19 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   `mapping_not_found` và không tạo Canonical Ledger row; event hợp lệ kế tiếp vẫn được xử lý.
 - Bổ sung PostgreSQL integration test cho journey evidence conflict. Transaction rollback đúng và
   không merge mù; terminal conflict/DLQ handoff vẫn là giới hạn chưa có contract được duyệt.
+
+## 19. Durable ingress và canonicalization telemetry
+
+- Thêm migration `005_ingress_telemetry.sql` cho unique accepted receipt, versioned
+  canonicalization outcome và view latest outcome theo source event.
+- Thêm `ingress-telemetry-writer`: chỉ commit Kafka offset sau khi PostgreSQL persist thành công,
+  hỗ trợ redelivery idempotent và chặn immutable conflict.
+- Compose V2 chạy thêm telemetry writer; E2E xác nhận 10 accepted receipt có đủ 10 terminal outcome,
+  gồm 9 normalized và 1 unsupported.
+- Data Health API/UI/OpenAPI công bố accepted count, terminal outcome rate, outcome distribution và
+  canonicalization p50/p95 latency theo cửa sổ `received_at`.
+- Demo seeder áp dụng đủ năm migration và tạo receipt/outcome tương ứng với 13 canonical event.
+- Event loss trước gateway, duplicate/rejected attempt, queue drop và reconciliation vẫn là metric
+  unavailable vì chưa có durable evidence tương ứng; hệ thống không dựng số thay thế.
+- PostgreSQL giữ các mapping version mà writer đã quan sát. Topic compacted chỉ có thể rebuild bản
+  mới nhất theo key nếu database bị mất hoàn toàn, nên đây chưa phải full historical replay guarantee.

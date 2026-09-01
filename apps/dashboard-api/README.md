@@ -2,7 +2,7 @@
 
 ## Local V2 demo data
 
-The demo seeder applies PostgreSQL migrations `001` through `004`, creates an
+The demo seeder applies PostgreSQL migrations `001` through `005`, creates an
 `analyst` account, and inserts a small source-scoped dataset for the dashboard:
 
 ```powershell
@@ -38,9 +38,10 @@ Journey detail chỉ trả canonical event metadata và evidence summary; không
 payload, identity value hoặc `journey_entities.entity_key`. Event browser cũng loại bỏ normalized data,
 relations, source event identity và aggregate ID.
 
-Data Health chỉ công bố metric suy ra được từ canonical ledger và Funnel KPI facts: time-basis quality,
-normalization/persistence latency và projection quality. Các metric loss, rejected events, queue drop và
-reconciliation được trả trong `unavailable_metrics` thay vì dựng số khi chưa có durable evidence.
+Data Health công bố metric từ accepted ingress receipt, terminal canonicalization outcome, canonical
+ledger và Funnel KPI facts: terminal outcome rate, canonicalization/normalization/persistence latency,
+time-basis quality và projection quality. Các metric pre-handoff loss, duplicate/rejected attempt,
+queue drop và reconciliation vẫn được trả trong `unavailable_metrics` thay vì dựng số.
 
 Dashboard UI hiện dùng API V2 cho Overview, Funnels, Journeys, Events và Data Health.
 

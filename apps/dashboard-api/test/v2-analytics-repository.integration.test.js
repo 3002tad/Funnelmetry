@@ -17,7 +17,8 @@ test("reads V2 overview, funnel and privacy-safe journey projections from Postgr
   const funnelInstanceId = `funnel-${runId}`
   try {
     for (const migration of [
-      "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql", "004_kpi_projection.sql",
+      "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
+      "004_kpi_projection.sql", "005_ingress_telemetry.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }
@@ -67,6 +68,31 @@ test("reads V2 overview, funnel and privacy-safe journey projections from Postgr
         "a".repeat(64),
         JSON.stringify(canonicalDocument),
       ],
+    )
+    const receiptDocument = {
+      status: "accepted", source_id: sourceId, event_id: `source:${runId}`,
+      ingestion_id: `ing-${runId}`, ingestion_attempt_id: `attempt-${runId}`,
+      received_at: "2026-08-29T00:59:59.000Z",
+    }
+    const outcomeDocument = {
+      source_id: sourceId, source_event_id: `source:${runId}`, status: "normalized",
+      canonical_event_id: canonicalEventId, mapping_version: "test-v1",
+      processed_at: "2026-08-29T01:00:00.000Z", raw_record_id: `raw-${runId}`,
+    }
+    await pool.query(
+      `INSERT INTO ingress_accepted_receipts (
+         source_id, event_id, ingestion_id, ingestion_attempt_id, received_at, receipt_document
+       ) VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
+      [sourceId, `source:${runId}`, `ing-${runId}`, `attempt-${runId}`,
+        receiptDocument.received_at, JSON.stringify(receiptDocument)],
+    )
+    await pool.query(
+      `INSERT INTO canonicalization_outcomes (
+         source_id, source_event_id, mapping_version, status, canonical_event_id,
+         processed_at, raw_record_id, outcome_document
+       ) VALUES ($1,$2,'test-v1','normalized',$3,$4,$5,$6::jsonb)`,
+      [sourceId, `source:${runId}`, canonicalEventId, outcomeDocument.processed_at,
+        `raw-${runId}`, JSON.stringify(outcomeDocument)],
     )
     await pool.query(
       `INSERT INTO journeys (journey_id, source_id, first_event_at, last_event_at, event_count)
@@ -136,6 +162,9 @@ test("reads V2 overview, funnel and privacy-safe journey projections from Postgr
     const health = await repository.getDataHealth(scope)
     assert.equal(health.canonical.events, 1)
     assert.equal(health.canonical.authoritative_event_time_rate, 1)
+    assert.equal(health.canonicalization.accepted_events, 1)
+    assert.equal(health.canonicalization.terminal_outcome_rate, 1)
+    assert.equal(health.canonicalization.normalized, 1)
     assert.equal(health.projection_quality.provisional, 1)
     assert.ok(health.unavailable_metrics.includes("event_loss_rate"))
   } finally {

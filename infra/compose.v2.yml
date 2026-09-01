@@ -123,6 +123,23 @@ services:
       kafka-topics:
         condition: service_completed_successfully
 
+  ingress-telemetry-writer:
+    image: funnelmetry/ingress-telemetry-writer:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: workers/ingress-telemetry-writer
+    environment:
+      <<: [*kafka-environment, *postgres-environment]
+      INGRESS_TELEMETRY_INSTANCE_ID: telemetry-local-1
+      INGRESS_TELEMETRY_CONSUMER_GROUP_ID: funnelmetry-ingress-telemetry-local-v1
+    depends_on:
+      kafka-topics:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
   canonical-ledger-writer:
     image: funnelmetry/canonical-ledger-writer:local
     build:

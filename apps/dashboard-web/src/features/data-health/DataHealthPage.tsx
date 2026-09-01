@@ -46,21 +46,25 @@ export function DataHealthPage() {
   const { range, sourceId } = useOutletContext<ShellContext>()
   const health = useQuery({ queryKey: ["v2-data-health", sourceId, range], queryFn: () => fetchV2DataHealth(range) })
   if (health.isLoading) return <div className="space-y-4"><div className="skeleton h-16 w-96" /><div className="grid grid-cols-2 gap-3 xl:grid-cols-5">{[1,2,3,4,5].map((item) => <div key={item} className="skeleton h-28" />)}</div><div className="skeleton h-80" /></div>
-  if (health.isError || !health.data) return <EmptyState icon={<CircleOff size={20} />} title="Cannot load Data Health V2" detail="Check Dashboard API, canonical ledger migration, source ID and your login session." />
+  if (health.isError || !health.data) return <EmptyState icon={<CircleOff size={20} />} title="Cannot load Data Health V2" detail="Check Dashboard API, migrations 001–005, source ID and your login session." />
 
   const data = health.data
-  const attention = data.canonical.ingress_fallback_time > 0 || data.projection_quality.degraded > 0
+  const attention = data.canonical.ingress_fallback_time > 0
+    || data.projection_quality.degraded > 0
+    || data.canonicalization.unsupported > 0
+    || data.canonicalization.quarantined > 0
+    || (data.canonicalization.terminal_outcome_rate !== null && data.canonicalization.terminal_outcome_rate < 1)
   const cards = [
-    { label: "Canonical events", value: compact.format(data.canonical.events), detail: "Persisted in selected window", icon: DatabaseZap },
+    { label: "Accepted raw", value: compact.format(data.canonicalization.accepted_events), detail: "Unique durable ingress receipts", icon: DatabaseZap },
+    { label: "Terminal outcomes", value: percent(data.canonicalization.terminal_outcome_rate), detail: `${compact.format(data.canonicalization.terminal_outcomes)} accepted events resolved`, icon: Clock3 },
+    { label: "Non-normalized", value: compact.format(data.canonicalization.unsupported + data.canonicalization.quarantined), detail: `${compact.format(data.canonicalization.quarantined)} quarantined`, icon: AlertTriangle },
     { label: "Authoritative time", value: percent(data.canonical.authoritative_event_time_rate), detail: `${compact.format(data.canonical.authoritative_event_time)} source_occurred`, icon: CheckCircle2 },
-    { label: "Ingress fallback", value: compact.format(data.canonical.ingress_fallback_time), detail: "Non-authoritative event time", icon: AlertTriangle },
-    { label: "Normalization p95", value: duration(data.canonical.normalization_latency_p95_ms), detail: "ingested_at → normalized_at", icon: Clock3 },
     { label: "Provisional instances", value: compact.format(data.projection_quality.provisional), detail: `${compact.format(data.projection_quality.funnel_instances)} total instances`, icon: Activity },
   ]
 
   return <>
-    <PageHeader title="Data health" description="Observed canonical-ledger and Funnel KPI projection quality. Unsupported reliability metrics remain explicitly unavailable." badge={<Badge tone={attention ? "warning" : "primary"} dot>{attention ? "Needs attention" : "Observed"}</Badge>} actions={<Button variant="outline" onClick={() => health.refetch()}><RefreshCw size={14} /> Refresh</Button>} />
-    <div className="mb-4 flex flex-wrap gap-2 text-xs"><Badge>{sourceId}</Badge><Badge>{range}</Badge><Badge tone="primary">Canonical: persisted_at</Badge><Badge tone="primary">Projection: entry_at</Badge></div>
+    <PageHeader title="Data health" description="Durable ingress, canonicalization, canonical-ledger and Funnel KPI projection evidence. Metrics without evidence remain explicitly unavailable." badge={<Badge tone={attention ? "warning" : "primary"} dot>{attention ? "Needs attention" : "Observed"}</Badge>} actions={<Button variant="outline" onClick={() => health.refetch()}><RefreshCw size={14} /> Refresh</Button>} />
+    <div className="mb-4 flex flex-wrap gap-2 text-xs"><Badge>{sourceId}</Badge><Badge>{range}</Badge><Badge tone="primary">Ingress: received_at</Badge><Badge tone="primary">Canonical: persisted_at</Badge><Badge tone="primary">Projection: entry_at</Badge></div>
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">{cards.map(({ label, value, detail, icon: Icon }) => <article key={label} className="panel p-4"><div className="flex items-center justify-between text-muted-foreground"><span className="text-xs font-medium">{label}</span><Icon size={16} /></div><strong className="mt-5 block text-2xl font-semibold">{value}</strong><p className="mt-2 text-[10px] text-muted-foreground">{detail}</p></article>)}</div>
 
     <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.75fr)]"><ChartCard title="Canonical persistence" detail="Latest 48 populated hourly buckets in the selected window"><HealthTimelineChart buckets={data.hourly} /></ChartCard><ChartCard title="Canonical classes" detail="Persisted event class distribution"><div className="space-y-4 pt-3">{[
@@ -69,11 +73,15 @@ export function DataHealthPage() {
       ["Business fact", data.canonical.business_fact, "bg-emerald-500"],
     ].map(([label, count, color]) => { const share = data.canonical.events ? Number(count) / data.canonical.events * 100 : 0; return <div key={String(label)}><div className="mb-2 flex justify-between text-xs"><span>{label}</span><strong>{compact.format(Number(count))} · {share.toFixed(1)}%</strong></div><div className="h-2 rounded bg-muted"><div className={`h-full rounded ${color}`} style={{ width: `${share}%` }} /></div></div> })}</div><div className="mt-6 border-t pt-4 text-xs text-muted-foreground"><p>Persistence p95: <strong className="text-foreground">{duration(data.canonical.canonical_persistence_latency_p95_ms)}</strong></p><p className="mt-2">Source-produced fallback: <strong className="text-foreground">{compact.format(data.canonical.source_produced_time)}</strong></p></div></ChartCard></div>
 
-    <div className="mt-4 grid gap-4 xl:grid-cols-2"><ChartCard title="Funnel projection quality" detail="Outcome and quality are independent dimensions"><div className="grid grid-cols-2 gap-3">{[
+    <div className="mt-4 grid gap-4 xl:grid-cols-3"><ChartCard title="Canonicalization outcomes" detail="Latest terminal outcome per accepted source event"><div className="grid grid-cols-3 gap-3">{[
+      ["Normalized", data.canonicalization.normalized, "success"],
+      ["Unsupported", data.canonicalization.unsupported, "warning"],
+      ["Quarantined", data.canonicalization.quarantined, "danger"],
+    ].map(([label, count, tone]) => <div key={String(label)} className="rounded-lg border p-3"><span className="text-[10px] text-muted-foreground">{label}</span><div className="mt-2 flex items-center justify-between gap-2"><strong className="text-xl">{compact.format(Number(count))}</strong><Badge tone={tone as "warning" | "success" | "danger"}>{label}</Badge></div></div>)}</div><div className="mt-5 border-t pt-4 text-xs text-muted-foreground"><p>Canonicalization p95: <strong className="text-foreground">{duration(data.canonicalization.canonicalization_latency_p95_ms)}</strong></p><p className="mt-2">Canonical normalization p95: <strong className="text-foreground">{duration(data.canonical.normalization_latency_p95_ms)}</strong></p><p className="mt-2">Ingress fallback time: <strong className="text-foreground">{compact.format(data.canonical.ingress_fallback_time)}</strong></p></div></ChartCard><ChartCard title="Funnel projection quality" detail="Outcome and quality are independent dimensions"><div className="grid grid-cols-2 gap-3">{[
       ["Provisional", data.projection_quality.provisional, "warning"],
       ["Reconciling", data.projection_quality.reconciling, "primary"],
       ["Reconciled", data.projection_quality.reconciled, "success"],
       ["Degraded", data.projection_quality.degraded, "danger"],
-    ].map(([label, count, tone]) => <div key={String(label)} className="rounded-lg border p-3"><span className="text-[10px] text-muted-foreground">{label}</span><div className="mt-2 flex items-center justify-between"><strong className="text-xl">{compact.format(Number(count))}</strong><Badge tone={tone as "warning" | "primary" | "success" | "danger"}>{label}</Badge></div></div>)}</div></ChartCard><ChartCard title="Unavailable metrics" detail="Not fabricated until ingress, quarantine and reconciliation telemetry are persisted"><div className="flex flex-wrap gap-2">{data.unavailable_metrics.map((metric) => <Badge key={metric}>{metric}</Badge>)}</div><div className="mt-5 flex gap-3 rounded-lg border border-warning/25 bg-warning/5 p-4"><ShieldAlert size={18} className="shrink-0 text-warning" /><p className="text-xs leading-5 text-muted-foreground">Canonical rows alone cannot prove pre-handoff event loss, rejected-event rate, queue drops or source-to-analytics reconciliation. These metrics require dedicated durable evidence.</p></div></ChartCard></div>
+    ].map(([label, count, tone]) => <div key={String(label)} className="rounded-lg border p-3"><span className="text-[10px] text-muted-foreground">{label}</span><div className="mt-2 flex items-center justify-between"><strong className="text-xl">{compact.format(Number(count))}</strong><Badge tone={tone as "warning" | "primary" | "success" | "danger"}>{label}</Badge></div></div>)}</div></ChartCard><ChartCard title="Unavailable metrics" detail="Not fabricated without dedicated durable evidence"><div className="flex flex-wrap gap-2">{data.unavailable_metrics.map((metric) => <Badge key={metric}>{metric}</Badge>)}</div><div className="mt-5 flex gap-3 rounded-lg border border-warning/25 bg-warning/5 p-4"><ShieldAlert size={18} className="shrink-0 text-warning" /><p className="text-xs leading-5 text-muted-foreground">Accepted receipts and terminal outcomes now prove canonicalization convergence. Pre-handoff loss, duplicate attempts, rejected ingress, queue drops and source-to-analytics reconciliation still require separate durable evidence.</p></div></ChartCard></div>
   </>
 }

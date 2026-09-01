@@ -42,5 +42,7 @@ function inspectSchema(value, location = "components.schemas") {
 for (const [name, schema] of Object.entries(document.components?.schemas || {})) inspectSchema(schema, `components.schemas.${name}`)
 assert.deepEqual(document.components.schemas.Overview.properties.metric_state.enum, ["OBSERVED"])
 assert.ok(document.components.schemas.DataHealth.properties.unavailable_metrics)
+assert.ok(document.components.schemas.DataHealth.properties.canonicalization.properties.terminal_outcome_rate)
+assert.deepEqual(document.components.schemas.DataHealth.properties.ingress_window.properties.basis.enum, ["received_at"])
 
 console.log(`[api-docs] validated ${documentedPaths.length} Analytics API V2 paths`)

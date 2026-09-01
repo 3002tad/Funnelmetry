@@ -301,8 +301,9 @@ export function createV2AnalyticsRepository({ query } = {}) {
 
     async getDataHealth(scope) {
       const persistedWindow = timestampFilter(scope, "persisted_at")
+      const acceptedWindow = timestampFilter(scope, "received_at", "r")
       const entryWindow = cohortFilter(scope)
-      const [canonicalRows, bucketRows, projectionRows] = await Promise.all([
+      const [canonicalRows, bucketRows, projectionRows, telemetryRows] = await Promise.all([
         query(
           `SELECT COUNT(*)::bigint AS canonical_events,
                   COUNT(*) FILTER (WHERE c.event_class = 'BEHAVIOR_INTENT')::bigint AS behavior_intent,
@@ -347,15 +348,53 @@ export function createV2AnalyticsRepository({ query } = {}) {
             WHERE ${entryWindow.sql}`,
           entryWindow.params,
         ),
+        query(
+          `SELECT COUNT(*)::bigint AS accepted_events,
+                  COUNT(o.source_event_id)::bigint AS terminal_outcomes,
+                  COUNT(*) FILTER (WHERE o.status = 'normalized')::bigint AS normalized,
+                  COUNT(*) FILTER (WHERE o.status = 'unsupported')::bigint AS unsupported,
+                  COUNT(*) FILTER (WHERE o.status = 'quarantined')::bigint AS quarantined,
+                  PERCENTILE_CONT(0.5) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (o.processed_at - r.received_at)) * 1000
+                  ) AS canonicalization_latency_p50_ms,
+                  PERCENTILE_CONT(0.95) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (o.processed_at - r.received_at)) * 1000
+                  ) AS canonicalization_latency_p95_ms,
+                  MIN(r.received_at) AS first_received_at,
+                  MAX(r.received_at) AS last_received_at,
+                  MAX(o.processed_at) AS last_processed_at
+             FROM ingress_accepted_receipts r
+             LEFT JOIN canonicalization_latest_outcomes o
+               ON o.source_id = r.source_id AND o.source_event_id = r.event_id
+            WHERE ${acceptedWindow.sql}`,
+          acceptedWindow.params,
+        ),
       ])
       const canonical = canonicalRows[0] ?? {}
       const projections = projectionRows[0] ?? {}
+      const telemetry = telemetryRows[0] ?? {}
       const canonicalEvents = number(canonical.canonical_events)
       const authoritative = number(canonical.authoritative_event_time)
+      const acceptedEvents = number(telemetry.accepted_events)
+      const terminalOutcomes = number(telemetry.terminal_outcomes)
       return Object.freeze({
         source_id: scope.sourceId,
         observation_window: Object.freeze({ basis: "persisted_at", from: scope.from, to: scope.to }),
+        ingress_window: Object.freeze({ basis: "received_at", from: scope.from, to: scope.to }),
         projection_window: Object.freeze({ basis: "entry_at", from: scope.from, to: scope.to }),
+        canonicalization: Object.freeze({
+          accepted_events: acceptedEvents,
+          terminal_outcomes: terminalOutcomes,
+          terminal_outcome_rate: rate(terminalOutcomes, acceptedEvents),
+          normalized: number(telemetry.normalized),
+          unsupported: number(telemetry.unsupported),
+          quarantined: number(telemetry.quarantined),
+          canonicalization_latency_p50_ms: telemetry.canonicalization_latency_p50_ms === null ? null : number(telemetry.canonicalization_latency_p50_ms),
+          canonicalization_latency_p95_ms: telemetry.canonicalization_latency_p95_ms === null ? null : number(telemetry.canonicalization_latency_p95_ms),
+          first_received_at: telemetry.first_received_at ?? null,
+          last_received_at: telemetry.last_received_at ?? null,
+          last_processed_at: telemetry.last_processed_at ?? null,
+        }),
         canonical: Object.freeze({
           events: canonicalEvents,
           behavior_intent: number(canonical.behavior_intent),
@@ -385,7 +424,7 @@ export function createV2AnalyticsRepository({ query } = {}) {
         }),
         unavailable_metrics: Object.freeze([
           "event_loss_rate", "duplicate_rate", "queue_drop_rate", "rejected_event_rate",
-          "convergence_lag", "missing_rate", "phantom_rate", "state_mismatch_rate", "revenue_deviation",
+          "missing_rate", "phantom_rate", "state_mismatch_rate", "revenue_deviation",
         ]),
       })
     },

@@ -31,6 +31,7 @@ apps/
   input-gateway/             # runnable HTTP + Kafka durable-ingress boundary
 workers/
   canonical-normalizer/      # runnable raw → canonical/quarantine worker
+  ingress-telemetry-writer/  # accepted/outcome Kafka → durable Data Health evidence
   canonical-ledger-writer/   # canonical Kafka → PostgreSQL source of truth
   journey-processor/         # persisted canonical → progressive journey projection
   funnel-processor/          # journey-resolved -> versioned Funnel Instance projection

@@ -164,6 +164,29 @@ async function waitForCanonicalQuality(pool, sourceEventId, timeoutMs = 60_000) 
   throw new Error("timed out waiting for canonical time quality")
 }
 
+async function waitForTelemetry(pool, sourceEventIds, timeoutMs = 90_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const result = await pool.query(
+      `SELECT
+         (SELECT COUNT(*)::int
+            FROM ingress_accepted_receipts
+           WHERE source_id = $1 AND event_id = ANY($2::text[])) AS accepted,
+         COUNT(*)::int AS terminal,
+         COUNT(*) FILTER (WHERE status = 'normalized')::int AS normalized,
+         COUNT(*) FILTER (WHERE status = 'unsupported')::int AS unsupported,
+         COUNT(*) FILTER (WHERE status = 'quarantined')::int AS quarantined
+       FROM canonicalization_latest_outcomes
+      WHERE source_id = $1 AND source_event_id = ANY($2::text[])`,
+      [sourceId, sourceEventIds],
+    )
+    const telemetry = result.rows[0]
+    if (telemetry.accepted === sourceEventIds.length && telemetry.terminal === sourceEventIds.length) return telemetry
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  throw new Error("timed out waiting for durable ingress telemetry")
+}
+
 function commerceEvents(context, baseTime) {
   return [
     ingressEvent(context, {
@@ -263,7 +286,19 @@ try {
     throw new Error(`unexpected fallback time quality: ${JSON.stringify(quality)}`)
   }
 
+  const allSourceEventIds = [
+    ...ordered.sourceEventIds,
+    ...outOfOrder.sourceEventIds,
+    ...unsupported.sourceEventIds,
+    ...fallback.sourceEventIds,
+  ]
+  const telemetry = await waitForTelemetry(pool, allSourceEventIds)
+  if (telemetry.normalized !== 9 || telemetry.unsupported !== 1 || telemetry.quarantined !== 0) {
+    throw new Error(`unexpected durable telemetry totals: ${JSON.stringify(telemetry)}`)
+  }
+
   console.log(`[v2-e2e] fallback-time basis=${quality.time_basis} authoritative=${quality.authoritative_event_time}`)
+  console.log(`[v2-e2e] telemetry accepted=${telemetry.accepted} terminal=${telemetry.terminal} normalized=${telemetry.normalized} unsupported=${telemetry.unsupported}`)
   console.log(
     `[v2-e2e] PASS ordered=${ordered.runId} out-of-order=${outOfOrder.runId} unsupported=${unsupported.runId} fallback=${fallback.runId}`,
   )

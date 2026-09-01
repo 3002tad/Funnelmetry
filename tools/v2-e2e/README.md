@@ -9,7 +9,9 @@ This runner verifies three paths through the public Input Gateway:
 - an event without source timestamps that must persist as `ingress_fallback` and non-authoritative.
 
 Both commerce scenarios wait until the KPI Projector materializes a converted 4/4 snapshot in
-PostgreSQL. The runner also resends an event to verify the durable duplicate receipt path.
+PostgreSQL. The runner also resends an event to verify the durable duplicate receipt path, then waits
+for the telemetry writer to persist ten unique accepted receipts and ten terminal outcomes (nine
+normalized and one unsupported).
 
 Run it with the local V2 Compose stack documented in [`../../infra/README.md`](../../infra/README.md).
 The credentials and generated commerce identifiers are local test values only; the runner does not

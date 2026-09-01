@@ -10,14 +10,15 @@ docker compose -f infra/compose.v2.yml run --rm e2e-smoke
 ```
 
 The smoke runner sends the approved four-step Commerce Conversion sequence through Input Gateway,
-Kafka, Canonical Normalizer, Canonical Ledger Writer, Journey Processor, Funnel Processor and KPI
-Projector. A successful run ends with:
+Kafka, Canonical Normalizer, Canonical Ledger Writer, Ingress Telemetry Writer, Journey Processor,
+Funnel Processor and KPI Projector. A successful run ends with:
 
 ```text
 [v2-e2e] ordered canonical=4 journeys=1 outcome=CONVERTED steps=4/4
 [v2-e2e] out-of-order canonical=4 journeys=1 outcome=CONVERTED steps=4/4
 [v2-e2e] unsupported outcome=unsupported quarantine=mapping_not_found canonical=0
 [v2-e2e] fallback-time basis=ingress_fallback authoritative=false
+[v2-e2e] telemetry accepted=10 terminal=10 normalized=9 unsupported=1
 ```
 
 Inspect service state and logs with:
