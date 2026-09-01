@@ -288,3 +288,7 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
 - Smoke test mở rộng đã xác nhận cả arrival order đảo ngược vẫn rebuild thành `CONVERTED 4/4` theo
   canonical event-time, còn event thiếu source timestamp được persist với
   `time_basis=ingress_fallback` và `authoritative_event_time=false`.
+- Error-path E2E xác nhận unsupported semantic có terminal outcome `unsupported`, quarantine
+  `mapping_not_found` và không tạo Canonical Ledger row; event hợp lệ kế tiếp vẫn được xử lý.
+- Bổ sung PostgreSQL integration test cho journey evidence conflict. Transaction rollback đúng và
+  không merge mù; terminal conflict/DLQ handoff vẫn là giới hạn chưa có contract được duyệt.

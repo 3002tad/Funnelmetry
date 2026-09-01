@@ -16,6 +16,7 @@ Projector. A successful run ends with:
 ```text
 [v2-e2e] ordered canonical=4 journeys=1 outcome=CONVERTED steps=4/4
 [v2-e2e] out-of-order canonical=4 journeys=1 outcome=CONVERTED steps=4/4
+[v2-e2e] unsupported outcome=unsupported quarantine=mapping_not_found canonical=0
 [v2-e2e] fallback-time basis=ingress_fallback authoritative=false
 ```
 

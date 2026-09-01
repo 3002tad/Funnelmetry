@@ -7,6 +7,7 @@
     "start": "node src/run.mjs"
   },
   "dependencies": {
+    "kafkajs": "^2.2.4",
     "pg": "^8.13.3"
   },
   "engines": {

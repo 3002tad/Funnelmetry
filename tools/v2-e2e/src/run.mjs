@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto"
+import { Kafka, logLevel } from "kafkajs"
 import pg from "pg"
 
 function required(name) {
@@ -14,6 +15,9 @@ const browserKeyId = required("E2E_BROWSER_KEY_ID")
 const browserSecret = required("E2E_BROWSER_SECRET")
 const backendKeyId = required("E2E_BACKEND_KEY_ID")
 const backendSecret = required("E2E_BACKEND_SECRET")
+const kafkaBrokers = required("KAFKA_BOOTSTRAP_SERVERS").split(",").map((value) => value.trim()).filter(Boolean)
+const outcomeTopic = required("KAFKA_TOPIC_CANONICALIZATION_OUTCOMES")
+const quarantineTopic = required("KAFKA_TOPIC_QUARANTINE")
 
 function scenario(label) {
   const runId = randomUUID()
@@ -64,6 +68,61 @@ async function post(event) {
   const result = await response.json()
   if (!response.ok) throw new Error(`ingress ${event.event_id} failed (${response.status}): ${JSON.stringify(result)}`)
   return result
+}
+
+async function verifyUnsupportedMapping(pool, event, timeoutMs = 60_000) {
+  const kafka = new Kafka({ brokers: kafkaBrokers, clientId: `funnelmetry-v2-e2e-${randomUUID()}`, logLevel: logLevel.NOTHING })
+  const consumer = kafka.consumer({ groupId: `funnelmetry-v2-e2e-unsupported-${randomUUID()}`, readUncommitted: false })
+  let timeout
+  try {
+    await consumer.connect()
+    await consumer.subscribe({ topics: [outcomeTopic, quarantineTopic], fromBeginning: true })
+    const records = new Map()
+    let resolveRecords
+    let rejectRecords
+    const recordsReady = new Promise((resolve, reject) => {
+      resolveRecords = resolve
+      rejectRecords = reject
+    })
+    timeout = setTimeout(() => rejectRecords(new Error("timed out waiting for unsupported outcome and quarantine")), timeoutMs)
+    timeout.unref()
+
+    await consumer.run({
+      eachMessage: async ({ topic, message }) => {
+        let key
+        try {
+          key = JSON.parse(message.key?.toString("utf8") ?? "null")
+        } catch {
+          return
+        }
+        if (!Array.isArray(key) || key[0] !== sourceId || key[1] !== event.event_id || message.value === null) return
+        records.set(topic, JSON.parse(message.value.toString("utf8")))
+        if (records.has(outcomeTopic) && records.has(quarantineTopic)) resolveRecords(records)
+      },
+    })
+
+    const receipt = await post(event)
+    if (receipt.status !== "accepted") throw new Error("unsupported semantic was not durably accepted as raw input")
+    const terminal = await recordsReady
+    const outcome = terminal.get(outcomeTopic)
+    const quarantine = terminal.get(quarantineTopic)
+    if (outcome.status !== "unsupported" || outcome.reason_code !== "mapping_not_found") {
+      throw new Error(`unexpected canonicalization outcome: ${JSON.stringify(outcome)}`)
+    }
+    if (quarantine.reason_code !== "mapping_not_found" || !quarantine.source_reference?.raw_record_id) {
+      throw new Error(`unexpected quarantine record: ${JSON.stringify(quarantine)}`)
+    }
+    const canonical = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM canonical_events WHERE source_id = $1 AND source_event_id = $2`,
+      [sourceId, event.event_id],
+    )
+    if (canonical.rows[0].count !== 0) throw new Error("unsupported event unexpectedly created a canonical row")
+    console.log("[v2-e2e] unsupported outcome=unsupported quarantine=mapping_not_found canonical=0")
+  } finally {
+    clearTimeout(timeout)
+    await consumer.stop().catch(() => {})
+    await consumer.disconnect().catch(() => {})
+  }
 }
 
 async function waitForProjection(pool, entrySourceEventId, timeoutMs = 90_000) {
@@ -179,6 +238,16 @@ try {
   const outOfOrderEvents = commerceEvents(outOfOrder, Date.now() - 10_000)
   await verifyCommerceScenario(pool, outOfOrder, [...outOfOrderEvents].reverse())
 
+  const unsupported = scenario("unsupported")
+  const unsupportedEvent = ingressEvent(unsupported, {
+    suffix: "unknown",
+    eventType: "catalog.product_highlighted",
+    producer: "browser_sdk",
+    occurredAt: new Date().toISOString(),
+    sourcePayload: { product_id: `product-${unsupported.runId}` },
+  })
+  await verifyUnsupportedMapping(pool, unsupportedEvent)
+
   const fallback = scenario("fallback-time")
   const fallbackEvent = ingressEvent(fallback, {
     suffix: "view",
@@ -196,7 +265,7 @@ try {
 
   console.log(`[v2-e2e] fallback-time basis=${quality.time_basis} authoritative=${quality.authoritative_event_time}`)
   console.log(
-    `[v2-e2e] PASS ordered=${ordered.runId} out-of-order=${outOfOrder.runId} fallback=${fallback.runId}`,
+    `[v2-e2e] PASS ordered=${ordered.runId} out-of-order=${outOfOrder.runId} unsupported=${unsupported.runId} fallback=${fallback.runId}`,
   )
 } finally {
   await pool.end()

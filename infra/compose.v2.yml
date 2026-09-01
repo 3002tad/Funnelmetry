@@ -225,6 +225,9 @@ services:
       E2E_BROWSER_SECRET: local-browser-secret
       E2E_BACKEND_KEY_ID: e2e-backend
       E2E_BACKEND_SECRET: local-backend-secret
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_CANONICALIZATION_OUTCOMES: funnelmetry.canonicalization.outcomes.v1
+      KAFKA_TOPIC_QUARANTINE: funnelmetry.quarantine.v1
     depends_on:
       input-gateway:
         condition: service_healthy

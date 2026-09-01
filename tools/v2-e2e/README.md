@@ -4,6 +4,8 @@ This runner verifies three paths through the public Input Gateway:
 
 - a four-step Commerce Conversion journey delivered in order;
 - the same journey delivered in reverse arrival order but rebuilt by canonical event time;
+- an unsupported semantic that must produce both a terminal `unsupported` outcome and quarantine
+  record without creating a canonical ledger row;
 - an event without source timestamps that must persist as `ingress_fallback` and non-authoritative.
 
 Both commerce scenarios wait until the KPI Projector materializes a converted 4/4 snapshot in

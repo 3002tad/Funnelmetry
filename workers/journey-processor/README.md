@@ -22,6 +22,12 @@ nhiều journey, processor rollback và không tự merge mù.
 Confidence hiện là categorical (`STRONG | MEDIUM | WEAK | ISOLATED`), không hard-code
 numeric threshold đang còn experimental.
 
+Evidence trỏ tới nhiều journey làm PostgreSQL transaction rollback và không tự merge. Integration
+test xác nhận event xung đột không tạo `journey_events` row và không thay đổi event count của hai
+journey hiện hữu. Runtime hiện chưa có terminal conflict/DLQ contract; vì vậy conflict trên Kafka sẽ
+được retry và có thể giữ partition tại offset đó. Không claim tự phục hồi cho tới khi handoff contract
+được duyệt và triển khai.
+
 ## Chạy
 
 Áp dụng hai migration trong `infra/postgres/v2/`, provision persisted/resolved topic rồi:
