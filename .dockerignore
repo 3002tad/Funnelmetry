@@ -1,0 +1,11 @@
+.git
+.github
+.idea
+.vscode
+**/.env
+**/.env.local
+**/node_modules
+**/dist
+legacy
+docs
+Medusa_Reference

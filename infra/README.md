@@ -1,5 +1,38 @@
 # Local infrastructure
 
+## V2 end-to-end stack
+
+The supported local vertical slice uses Docker Compose and is isolated from `infra/.env`:
+
+```powershell
+docker compose -f infra/compose.v2.yml up -d --build
+docker compose -f infra/compose.v2.yml run --rm e2e-smoke
+```
+
+The smoke runner sends the approved four-step Commerce Conversion sequence through Input Gateway,
+Kafka, Canonical Normalizer, Canonical Ledger Writer, Journey Processor, Funnel Processor and KPI
+Projector. A successful run ends with:
+
+```text
+[v2-e2e] canonical=4 journeys=1 outcome=CONVERTED steps=4/4
+```
+
+Inspect service state and logs with:
+
+```powershell
+docker compose -f infra/compose.v2.yml ps
+docker compose -f infra/compose.v2.yml logs --tail 100
+```
+
+Stop the stack while retaining local Kafka/PostgreSQL data:
+
+```powershell
+docker compose -f infra/compose.v2.yml stop
+```
+
+Only use `docker compose -f infra/compose.v2.yml down --volumes` when the local V2 data may be
+deleted. The stack deliberately excludes Dashboard, Medusa adapter, k3s and CI/CD.
+
 Thư mục này giữ cấu hình môi trường dùng chung và schema PostgreSQL cho quá trình
 phát triển local.
 

@@ -1,0 +1,237 @@
+name: funnelmetry-v2
+
+x-kafka-environment: &kafka-environment
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  KAFKA_TOPIC_RAW: funnelmetry.raw.v1
+  KAFKA_TOPIC_INGRESS_RECEIPTS: funnelmetry.ingress.receipts.v1
+  KAFKA_TOPIC_CANONICAL: funnelmetry.canonical.v1
+  KAFKA_TOPIC_CANONICALIZATION_OUTCOMES: funnelmetry.canonicalization.outcomes.v1
+  KAFKA_TOPIC_QUARANTINE: funnelmetry.quarantine.v1
+  KAFKA_TOPIC_CANONICAL_PERSISTED: funnelmetry.canonical.persisted.v1
+  KAFKA_TOPIC_JOURNEY_RESOLVED: funnelmetry.journey.resolved.v1
+  KAFKA_TOPIC_FUNNEL_UPDATED: funnelmetry.funnel.updated.v1
+  KAFKA_TOPIC_KPI_UPDATED: funnelmetry.kpi.updated.v1
+
+x-postgres-environment: &postgres-environment
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: funnelmetry
+  POSTGRES_USER: funnelmetry
+  POSTGRES_PASSWORD: funnelmetry-local
+
+services:
+  kafka:
+    image: apache/kafka:3.9.1
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+  kafka-topics:
+    image: apache/kafka:3.9.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        create_topic() {
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
+            --create --if-not-exists --partitions 1 --replication-factor 1 \
+            --topic "$$1" --config "cleanup.policy=$$2"
+        }
+        create_topic funnelmetry.raw.v1 delete
+        create_topic funnelmetry.ingress.receipts.v1 compact
+        create_topic funnelmetry.canonical.v1 delete
+        create_topic funnelmetry.canonicalization.outcomes.v1 compact
+        create_topic funnelmetry.quarantine.v1 delete
+        create_topic funnelmetry.canonical.persisted.v1 delete
+        create_topic funnelmetry.journey.resolved.v1 delete
+        create_topic funnelmetry.funnel.updated.v1 delete
+        create_topic funnelmetry.kpi.updated.v1 delete
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: funnelmetry
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD: funnelmetry-local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U funnelmetry -d funnelmetry"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "55433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/v2:/docker-entrypoint-initdb.d:ro
+
+  input-gateway:
+    image: funnelmetry/input-gateway:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: apps/input-gateway
+    environment:
+      <<: *kafka-environment
+      INPUT_GATEWAY_HOST: 0.0.0.0
+      INPUT_GATEWAY_PORT: "31000"
+      INPUT_GATEWAY_INSTANCE_ID: gateway-local-1
+      INPUT_GATEWAY_CORS_ORIGINS: http://localhost:8000
+      INPUT_GATEWAY_BROWSER_KEYS_JSON: '{"e2e-browser":{"source_id":"medusa-reference","secret":"local-browser-secret"}}'
+      INPUT_GATEWAY_BACKEND_KEYS_JSON: '{"e2e-backend":{"source_id":"medusa-reference","secret":"local-backend-secret"}}'
+    depends_on:
+      kafka-topics:
+        condition: service_completed_successfully
+    ports:
+      - "31000:31000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:31000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  canonical-normalizer:
+    image: funnelmetry/canonical-normalizer:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: workers/canonical-normalizer
+    environment:
+      <<: *kafka-environment
+      CANONICAL_NORMALIZER_INSTANCE_ID: normalizer-local-1
+      CANONICAL_NORMALIZER_CONSUMER_GROUP_ID: funnelmetry-canonical-normalizer-local-v1
+    depends_on:
+      kafka-topics:
+        condition: service_completed_successfully
+
+  canonical-ledger-writer:
+    image: funnelmetry/canonical-ledger-writer:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: workers/canonical-ledger-writer
+    environment:
+      <<: [*kafka-environment, *postgres-environment]
+      CANONICAL_LEDGER_INSTANCE_ID: ledger-local-1
+      CANONICAL_LEDGER_CONSUMER_GROUP_ID: funnelmetry-canonical-ledger-local-v1
+    depends_on:
+      kafka-topics:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  journey-processor:
+    image: funnelmetry/journey-processor:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: workers/journey-processor
+    environment:
+      <<: [*kafka-environment, *postgres-environment]
+      JOURNEY_PROCESSOR_INSTANCE_ID: journey-local-1
+      JOURNEY_PROCESSOR_CONSUMER_GROUP_ID: funnelmetry-journey-processor-local-v1
+    depends_on:
+      kafka-topics:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  profile-publisher:
+    image: funnelmetry/funnel-processor:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: workers/funnel-processor
+    command: ["node", "src/publish-reference-profiles.js"]
+    environment:
+      <<: [*kafka-environment, *postgres-environment]
+      FUNNEL_PROCESSOR_INSTANCE_ID: funnel-profile-publisher-local-1
+      FUNNEL_PROFILE_SOURCE_ID: medusa-reference
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  funnel-processor:
+    image: funnelmetry/funnel-processor:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: workers/funnel-processor
+    environment:
+      <<: [*kafka-environment, *postgres-environment]
+      FUNNEL_PROCESSOR_INSTANCE_ID: funnel-local-1
+      FUNNEL_PROCESSOR_CONSUMER_GROUP_ID: funnelmetry-funnel-processor-local-v1
+    depends_on:
+      kafka-topics:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      profile-publisher:
+        condition: service_completed_successfully
+
+  kpi-projector:
+    image: funnelmetry/kpi-projector:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: workers/kpi-projector
+    environment:
+      <<: [*kafka-environment, *postgres-environment]
+      KPI_PROJECTOR_INSTANCE_ID: kpi-local-1
+      KPI_PROJECTOR_CONSUMER_GROUP_ID: funnelmetry-kpi-projector-local-v1
+    depends_on:
+      kafka-topics:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  e2e-smoke:
+    profiles: ["smoke"]
+    image: funnelmetry/v2-e2e:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: tools/v2-e2e
+    environment:
+      INPUT_GATEWAY_URL: http://input-gateway:31000
+      DATABASE_URL: postgresql://funnelmetry:funnelmetry-local@postgres:5432/funnelmetry
+      E2E_SOURCE_ID: medusa-reference
+      E2E_BROWSER_KEY_ID: e2e-browser
+      E2E_BROWSER_SECRET: local-browser-secret
+      E2E_BACKEND_KEY_ID: e2e-backend
+      E2E_BACKEND_SECRET: local-backend-secret
+    depends_on:
+      input-gateway:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    command: ["node", "src/run.mjs"]
+
+volumes:
+  kafka-data:
+  postgres-data:

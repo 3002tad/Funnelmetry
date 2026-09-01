@@ -272,3 +272,16 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
 - Thêm validator parse YAML và so sánh chính xác OpenAPI paths với manifest Express; validator còn
   kiểm tra Bearer JWT, `source_id`, response `200`, marker `OBSERVED` và privacy-forbidden fields.
 - API docs đã nâng lên Vite 8, khai báo Node engine, `npm test` và production build đều thành công.
+
+## 18. Local V2 end-to-end runtime
+
+- Thêm `infra/compose.v2.yml` cho Kafka KRaft một broker, PostgreSQL 15, Input Gateway và năm worker
+  đang được duy trì; không đưa Dashboard, Medusa adapter, k3s hoặc CI/CD cũ vào stack này.
+- Kafka topic được provision rõ cleanup policy; bốn migration PostgreSQL V2 được áp dụng khi tạo
+  volume mới và hai Funnel Profile tham chiếu được publish idempotent trước Funnel Processor.
+- Thêm Dockerfile Node dùng chung để build từng service từ lockfile và local contract packages.
+- Thêm `tools/v2-e2e` phát chuỗi Commerce Conversion bốn bước qua HTTP auth thật, kiểm tra duplicate
+  receipt, rồi poll PostgreSQL cho tới khi canonical ledger có 4 event, Journey Processor liên kết
+  đúng 1 journey và KPI Projector materialize `CONVERTED` với `4/4` step.
+- Smoke test đã chạy thành công trên Docker Compose thật. Stack dùng credential local cố định, dữ liệu
+  sinh ngẫu nhiên theo từng run và không phụ thuộc hoặc thay đổi `Medusa_Reference`.
