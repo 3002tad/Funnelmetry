@@ -14,26 +14,32 @@ const browserKeyId = required("E2E_BROWSER_KEY_ID")
 const browserSecret = required("E2E_BROWSER_SECRET")
 const backendKeyId = required("E2E_BACKEND_KEY_ID")
 const backendSecret = required("E2E_BACKEND_SECRET")
-const runId = randomUUID()
-const correlationId = `e2e-correlation-${runId}`
-const sessionId = `e2e-session-${runId}`
-const sourceEventIds = []
 
-function ingressEvent({ suffix, eventType, producer, occurredAt, aggregate, sourcePayload }) {
-  const eventId = `e2e:${runId}:${suffix}`
-  sourceEventIds.push(eventId)
+function scenario(label) {
+  const runId = randomUUID()
+  return {
+    label,
+    runId,
+    correlationId: `e2e-correlation-${runId}`,
+    sessionId: `e2e-session-${runId}`,
+    sourceEventIds: [],
+  }
+}
+
+function ingressEvent(context, { suffix, eventType, producer, occurredAt, aggregate, sourcePayload }) {
+  const eventId = `e2e:${context.runId}:${suffix}`
+  context.sourceEventIds.push(eventId)
   return {
     specversion: "ingress-event.v1",
     source_id: sourceId,
     event_id: eventId,
     source_event_type: eventType,
     source_schema_version: "1.0",
-    occurred_at: occurredAt,
-    produced_at: occurredAt,
+    ...(occurredAt ? { occurred_at: occurredAt, produced_at: occurredAt } : {}),
     producer,
-    anonymous_id: `e2e-anonymous-${runId}`,
-    session_id: sessionId,
-    correlation_id: correlationId,
+    anonymous_id: `e2e-anonymous-${context.runId}`,
+    session_id: context.sessionId,
+    correlation_id: context.correlationId,
     ...(aggregate ? { aggregate } : {}),
     source_payload: sourcePayload,
   }
@@ -60,7 +66,7 @@ async function post(event) {
   return result
 }
 
-async function waitForProjection(pool, timeoutMs = 90_000) {
+async function waitForProjection(pool, entrySourceEventId, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const result = await pool.query(
@@ -72,7 +78,7 @@ async function waitForProjection(pool, timeoutMs = 90_000) {
         WHERE fact.source_id = $1 AND entry.source_event_id = $2
         ORDER BY fact.projected_at DESC
         LIMIT 1`,
-      [sourceId, sourceEventIds[0]],
+      [sourceId, entrySourceEventId],
     )
     const projection = result.rows[0]
     if (projection?.outcome_status === "CONVERTED" && Number(projection.reached_step_count) === 4) {
@@ -83,70 +89,115 @@ async function waitForProjection(pool, timeoutMs = 90_000) {
   throw new Error("timed out waiting for the converted KPI projection")
 }
 
-const baseTime = Date.now() - 10_000
-const events = [
-  ingressEvent({
-    suffix: "view",
-    eventType: "behavior.product_viewed",
-    producer: "browser_sdk",
-    occurredAt: new Date(baseTime).toISOString(),
-    sourcePayload: { product_id: `product-${runId}` },
-  }),
-  ingressEvent({
-    suffix: "cart",
-    eventType: "cart.item_added",
-    producer: "source_bridge",
-    occurredAt: new Date(baseTime + 1_000).toISOString(),
-    aggregate: { type: "cart", id: `cart-${runId}`, version: "1" },
-    sourcePayload: { product_id: `product-${runId}`, quantity: 1 },
-  }),
-  ingressEvent({
-    suffix: "checkout",
-    eventType: "checkout.started",
-    producer: "browser_sdk",
-    occurredAt: new Date(baseTime + 2_000).toISOString(),
-    aggregate: { type: "checkout", id: `checkout-${runId}`, version: "1" },
-    sourcePayload: { cart_id: `cart-${runId}` },
-  }),
-  ingressEvent({
-    suffix: "order",
-    eventType: "order.accepted",
-    producer: "source_bridge",
-    occurredAt: new Date(baseTime + 3_000).toISOString(),
-    aggregate: { type: "order", id: `order-${runId}`, version: "1" },
-    sourcePayload: { order_id: `order-${runId}` },
-  }),
-]
+async function waitForCanonicalQuality(pool, sourceEventId, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const result = await pool.query(
+      `SELECT quality->>'time_basis' AS time_basis,
+              (quality->>'authoritative_event_time')::boolean AS authoritative_event_time
+         FROM canonical_events
+        WHERE source_id = $1 AND source_event_id = $2`,
+      [sourceId, sourceEventId],
+    )
+    if (result.rows[0]) return result.rows[0]
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  throw new Error("timed out waiting for canonical time quality")
+}
 
-const pool = new pg.Pool({ connectionString: databaseUrl, max: 2 })
-try {
-  for (const event of events) {
+function commerceEvents(context, baseTime) {
+  return [
+    ingressEvent(context, {
+      suffix: "view",
+      eventType: "behavior.product_viewed",
+      producer: "browser_sdk",
+      occurredAt: new Date(baseTime).toISOString(),
+      sourcePayload: { product_id: `product-${context.runId}` },
+    }),
+    ingressEvent(context, {
+      suffix: "cart",
+      eventType: "cart.item_added",
+      producer: "source_bridge",
+      occurredAt: new Date(baseTime + 1_000).toISOString(),
+      aggregate: { type: "cart", id: `cart-${context.runId}`, version: "1" },
+      sourcePayload: { product_id: `product-${context.runId}`, quantity: 1 },
+    }),
+    ingressEvent(context, {
+      suffix: "checkout",
+      eventType: "checkout.started",
+      producer: "browser_sdk",
+      occurredAt: new Date(baseTime + 2_000).toISOString(),
+      aggregate: { type: "checkout", id: `checkout-${context.runId}`, version: "1" },
+      sourcePayload: { cart_id: `cart-${context.runId}` },
+    }),
+    ingressEvent(context, {
+      suffix: "order",
+      eventType: "order.accepted",
+      producer: "source_bridge",
+      occurredAt: new Date(baseTime + 3_000).toISOString(),
+      aggregate: { type: "order", id: `order-${context.runId}`, version: "1" },
+      sourcePayload: { order_id: `order-${context.runId}` },
+    }),
+  ]
+}
+
+async function verifyCommerceScenario(pool, context, deliveryOrder) {
+  for (const event of deliveryOrder) {
     const receipt = await post(event)
     if (receipt.status !== "accepted") throw new Error(`expected accepted receipt for ${event.event_id}`)
   }
-  const duplicate = await post(events[0])
+  const duplicate = await post(deliveryOrder[0])
   if (duplicate.status !== "duplicate") throw new Error("gateway did not return a duplicate receipt")
 
-  const projection = await waitForProjection(pool)
+  const projection = await waitForProjection(pool, context.sourceEventIds[0])
   const canonical = await pool.query(
     `SELECT COUNT(*)::int AS count
        FROM canonical_events
       WHERE source_id = $1 AND source_event_id = ANY($2::text[])`,
-    [sourceId, sourceEventIds],
+    [sourceId, context.sourceEventIds],
   )
   const journeys = await pool.query(
     `SELECT COUNT(DISTINCT journey_event.journey_id)::int AS count
        FROM journey_events journey_event
        JOIN canonical_events event USING (canonical_event_id)
       WHERE event.source_id = $1 AND event.source_event_id = ANY($2::text[])`,
-    [sourceId, sourceEventIds],
+    [sourceId, context.sourceEventIds],
   )
 
   if (canonical.rows[0].count !== 4) throw new Error(`expected 4 canonical events, got ${canonical.rows[0].count}`)
   if (journeys.rows[0].count !== 1) throw new Error(`expected 1 linked journey, got ${journeys.rows[0].count}`)
+  console.log(`[v2-e2e] ${context.label} canonical=4 journeys=1 outcome=${projection.outcome_status} steps=${projection.reached_step_count}/${projection.total_step_count}`)
+}
 
-  console.log(`[v2-e2e] PASS run=${runId}`)
-  console.log(`[v2-e2e] canonical=4 journeys=1 outcome=${projection.outcome_status} steps=${projection.reached_step_count}/${projection.total_step_count}`)
+const pool = new pg.Pool({ connectionString: databaseUrl, max: 2 })
+try {
+  const ordered = scenario("ordered")
+  const orderedEvents = commerceEvents(ordered, Date.now() - 20_000)
+  await verifyCommerceScenario(pool, ordered, orderedEvents)
+
+  const outOfOrder = scenario("out-of-order")
+  const outOfOrderEvents = commerceEvents(outOfOrder, Date.now() - 10_000)
+  await verifyCommerceScenario(pool, outOfOrder, [...outOfOrderEvents].reverse())
+
+  const fallback = scenario("fallback-time")
+  const fallbackEvent = ingressEvent(fallback, {
+    suffix: "view",
+    eventType: "behavior.product_viewed",
+    producer: "browser_sdk",
+    occurredAt: null,
+    sourcePayload: { product_id: `product-${fallback.runId}` },
+  })
+  const fallbackReceipt = await post(fallbackEvent)
+  if (fallbackReceipt.status !== "accepted") throw new Error("expected accepted fallback-time receipt")
+  const quality = await waitForCanonicalQuality(pool, fallbackEvent.event_id)
+  if (quality.time_basis !== "ingress_fallback" || quality.authoritative_event_time !== false) {
+    throw new Error(`unexpected fallback time quality: ${JSON.stringify(quality)}`)
+  }
+
+  console.log(`[v2-e2e] fallback-time basis=${quality.time_basis} authoritative=${quality.authoritative_event_time}`)
+  console.log(
+    `[v2-e2e] PASS ordered=${ordered.runId} out-of-order=${outOfOrder.runId} fallback=${fallback.runId}`,
+  )
 } finally {
   await pool.end()
 }

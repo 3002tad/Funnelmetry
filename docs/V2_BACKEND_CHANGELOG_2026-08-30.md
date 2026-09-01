@@ -285,3 +285,6 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   đúng 1 journey và KPI Projector materialize `CONVERTED` với `4/4` step.
 - Smoke test đã chạy thành công trên Docker Compose thật. Stack dùng credential local cố định, dữ liệu
   sinh ngẫu nhiên theo từng run và không phụ thuộc hoặc thay đổi `Medusa_Reference`.
+- Smoke test mở rộng đã xác nhận cả arrival order đảo ngược vẫn rebuild thành `CONVERTED 4/4` theo
+  canonical event-time, còn event thiếu source timestamp được persist với
+  `time_basis=ingress_fallback` và `authoritative_event_time=false`.
