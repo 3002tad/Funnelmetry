@@ -18,7 +18,8 @@ test("reads V2 overview, funnel and privacy-safe journey projections from Postgr
   try {
     for (const migration of [
       "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
-      "004_kpi_projection.sql", "005_ingress_telemetry.sql",
+      "004_kpi_projection.sql", "005_ingress_telemetry.sql", "006_funnel_maturity.sql",
+      "007_maturity_finalization.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }

@@ -11,6 +11,8 @@ funnel-updated topic
 
 Projection lưu snapshot theo `funnel_instance_id` cùng SHA-256 hash và revision. Redelivery hoặc
 snapshot không đổi không cộng counter lần nữa. Outcome và quality được giữ thành hai chiều riêng.
+Snapshot canonicalization dùng chung package `@funnelmetry/kpi-snapshot-contract`, để maturity
+finalizer có thể kiểm tra KPI đã bắt kịp trước một atomic drop-off transition.
 
 Hai view hiện có:
 

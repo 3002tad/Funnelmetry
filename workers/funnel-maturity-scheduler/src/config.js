@@ -12,6 +12,14 @@ function positiveInteger(env, name, fallback) {
   return value
 }
 
+function booleanValue(env, name, fallback) {
+  const raw = env[name]
+  if (raw === undefined || raw === "") return fallback
+  if (raw === "true") return true
+  if (raw === "false") return false
+  throw new Error(`${name} must be true or false`)
+}
+
 export function loadConfig(env = process.env) {
   const instanceId = required(env, "MATURITY_SCHEDULER_INSTANCE_ID")
   if (!/^[A-Za-z0-9._-]+$/.test(instanceId)) {
@@ -25,6 +33,7 @@ export function loadConfig(env = process.env) {
     instanceId,
     pollIntervalMs: positiveInteger(env, "MATURITY_SCHEDULER_POLL_INTERVAL_MS", 5_000),
     batchSize: positiveInteger(env, "MATURITY_SCHEDULER_BATCH_SIZE", 100),
+    finalizationEnabled: booleanValue(env, "MATURITY_SCHEDULER_FINALIZATION_ENABLED", false),
     shutdownTimeoutMs: positiveInteger(env, "MATURITY_SCHEDULER_SHUTDOWN_TIMEOUT_MS", 10_000),
     postgres: Object.freeze({
       host: required(env, "POSTGRES_HOST"),

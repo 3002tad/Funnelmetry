@@ -163,7 +163,9 @@ time policy nên scheduler không tự kết luận `DROPPED`.
 
 Migration `006_funnel_maturity.sql` và repository trong `workers/funnel-maturity-scheduler` đã lưu
 được maturity evidence revisioned/idempotent. Scheduler chạy polling theo batch với PostgreSQL
-advisory lock cho single-leader coordination, nhưng chưa mutate Funnel Instance hay phát KPI.
+advisory lock cho single-leader coordination. Migration `007_maturity_finalization.sql` bổ sung
+atomic Funnel Instance/KPI drop-off finalizer, nhưng cờ runtime mặc định vẫn tắt cho tới khi có
+late-conversion evidence.
 
 Chạy riêng worker bằng `npm start` trong `workers/funnel-maturity-scheduler`, hoặc chạy cùng local
 stack qua `infra/compose.v2.yml`. Các tham số polling nằm trong `infra/.env.example`.

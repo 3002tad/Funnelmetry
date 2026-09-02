@@ -9,6 +9,7 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
+    "@funnelmetry/kpi-snapshot-contract": "file:../../packages/kpi-snapshot-contract",
     "@funnelmetry/time-semantics-contract": "file:../../packages/time-semantics-contract",
     "pg": "^8.13.3"
   },

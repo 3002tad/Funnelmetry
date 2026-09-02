@@ -12,6 +12,7 @@ const runtime = createMaturitySchedulerRuntime({
   instanceId: config.instanceId,
   batchSize: config.batchSize,
   pollIntervalMs: config.pollIntervalMs,
+  finalizationEnabled: config.finalizationEnabled,
 })
 let shuttingDown = false
 

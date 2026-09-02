@@ -1,5 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import { randomUUID } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import pg from "pg"
 import { createKpiRepository } from "../src/repository.js"
@@ -28,10 +29,14 @@ async function insertCanonical(pool, { id, sourceEventId, eventType, eventClass,
 }
 
 test("materializes idempotent KPI facts and denominator-safe observed views", { skip: !databaseUrl }, async () => {
-  const pool = new pg.Pool({ connectionString: databaseUrl })
+  const schema = `kpi_${randomUUID().replaceAll("-", "")}`
+  const admin = new pg.Pool({ connectionString: databaseUrl })
+  await admin.query(`CREATE SCHEMA ${schema}`)
+  const pool = new pg.Pool({ connectionString: databaseUrl, options: `-c search_path=${schema}` })
   try {
     for (const migration of [
-      "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql", "004_kpi_projection.sql",
+      "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
+      "004_kpi_projection.sql", "006_funnel_maturity.sql", "007_maturity_finalization.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }
@@ -127,9 +132,15 @@ test("materializes idempotent KPI facts and denominator-safe observed views", { 
     ])
     const applications = await pool.query("SELECT COUNT(*)::INTEGER AS count FROM kpi_projection_applications")
     assert.equal(applications.rows[0].count, 3)
-    const fact = await pool.query("SELECT projection_revision FROM funnel_kpi_instance_facts")
+    const fact = await pool.query(
+      "SELECT projection_revision, latest_projection_kind, latest_projection_id FROM funnel_kpi_instance_facts",
+    )
     assert.equal(fact.rows[0].projection_revision, "2")
+    assert.equal(fact.rows[0].latest_projection_kind, "CANONICAL_EVENT")
+    assert.equal(fact.rows[0].latest_projection_id, "can_2")
   } finally {
     await pool.end()
+    await admin.query(`DROP SCHEMA ${schema} CASCADE`)
+    await admin.end()
   }
 })

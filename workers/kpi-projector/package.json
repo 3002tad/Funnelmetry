@@ -8,6 +8,7 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
+    "@funnelmetry/kpi-snapshot-contract": "file:../../packages/kpi-snapshot-contract",
     "kafkajs": "^2.2.4",
     "pg": "^8.13.3"
   },

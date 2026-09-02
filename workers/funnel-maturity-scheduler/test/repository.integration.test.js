@@ -3,6 +3,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import pg from "pg"
+import { buildKpiSnapshot, hashKpiSnapshot } from "@funnelmetry/kpi-snapshot-contract"
 import { createFunnelMaturityRepository } from "../src/repository.js"
 
 const databaseUrl = process.env.TEST_DATABASE_URL
@@ -15,7 +16,7 @@ test("records idempotent, revisioned maturity evidence without closing the funne
   try {
     for (const migration of [
       "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
-      "006_funnel_maturity.sql",
+      "004_kpi_projection.sql", "006_funnel_maturity.sql", "007_maturity_finalization.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }
@@ -145,18 +146,73 @@ test("records idempotent, revisioned maturity evidence without closing the funne
     const instance = await pool.query("SELECT outcome_status, quality_status FROM funnel_instances")
     assert.deepEqual(instance.rows[0], { outcome_status: "IN_PROGRESS", quality_status: "PROVISIONAL" })
 
-    await pool.query(
-      `UPDATE funnel_instances
-          SET outcome_status = 'CONVERTED', converted_at = '2026-09-02T00:30:00Z'
-        WHERE funnel_instance_id = 'funnel-1'`,
+    assert.equal((await repository.listPendingFinalizations({ limit: 10 }))[0].evaluation_id, "evaluation-matured")
+    await assert.rejects(
+      () => repository.finalizeDropoff({
+        finalization_id: "finalization-before-kpi", evaluation_id: "evaluation-matured",
+        finalized_at: "2026-09-02T01:10:01.000Z",
+      }),
+      /KPI projection has not caught up/,
     )
-    const converted = await repository.recordEvaluation({
-      evaluation_id: "evaluation-converted", funnel_instance_id: "funnel-1",
+    assert.equal((await pool.query(
+      "SELECT outcome_status FROM funnel_instances WHERE funnel_instance_id = 'funnel-1'",
+    )).rows[0].outcome_status, "IN_PROGRESS")
+    const kpiSnapshot = buildKpiSnapshot({
+      funnel_instance_id: "funnel-1", source_id: "source-one", journey_id: "journey-1",
+      funnel_profile_id: "commerce", profile_version: "1.0.0",
+      entry_at: "2026-09-02T00:00:00Z", conversion_deadline: "2026-09-02T01:00:00Z",
+      outcome_status: "IN_PROGRESS", quality_status: "PROVISIONAL", converted_at: null,
+      total_step_count: 2,
+    }, [{
+      step_index: 0, step_id: "view", event_type: "behavior.product_viewed",
+      first_reached_at: "2026-09-02T00:00:00Z", last_reached_at: "2026-09-02T00:00:00Z",
+      occurrence_count: 1,
+    }], [])
+    await pool.query(
+      `INSERT INTO funnel_kpi_instance_facts (
+         funnel_instance_id, source_id, journey_id, funnel_profile_id, profile_version,
+         entry_at, conversion_deadline, outcome_status, quality_status, converted_at,
+         reached_step_count, total_step_count, branch_count, latest_trigger_event_id,
+         latest_projection_kind, latest_projection_id, projection_hash, projected_at
+       ) VALUES ('funnel-1','source-one','journey-1','commerce','1.0.0',
+         '2026-09-02T00:00:00Z','2026-09-02T01:00:00Z','IN_PROGRESS','PROVISIONAL',NULL,
+         1,2,0,'can-entry','CANONICAL_EVENT','can-entry',$1,'2026-09-02T01:00:00Z')`,
+      [hashKpiSnapshot(kpiSnapshot)],
+    )
+    const finalized = await repository.finalizeDropoff({
+      finalization_id: "finalization-1", evaluation_id: "evaluation-matured",
+      finalized_at: "2026-09-02T01:10:01.000Z",
+    })
+    assert.equal(finalized.status, "finalized")
+    assert.equal(finalized.outcome_status, "DROPPED")
+    assert.equal(finalized.kpi_projection_revision, 2)
+    assert.equal((await repository.finalizeDropoff({
+      finalization_id: "finalization-1", evaluation_id: "evaluation-matured",
+      finalized_at: "2026-09-02T01:10:01.000Z",
+    })).status, "duplicate")
+    assert.deepEqual(await repository.listPendingFinalizations({ limit: 10 }), [])
+    const finalizedState = await pool.query(
+      `SELECT instance.outcome_status, fact.outcome_status AS kpi_outcome_status,
+              fact.projection_revision, fact.latest_projection_kind
+         FROM funnel_instances instance
+         JOIN funnel_kpi_instance_facts fact USING (funnel_instance_id)`,
+    )
+    assert.deepEqual(finalizedState.rows[0], {
+      outcome_status: "DROPPED", kpi_outcome_status: "DROPPED",
+      projection_revision: "2", latest_projection_kind: "MATURITY_FINALIZATION",
+    })
+    await assert.rejects(
+      () => pool.query("DELETE FROM funnel_maturity_finalizations WHERE finalization_id = 'finalization-1'"),
+      /append-only/,
+    )
+
+    const closed = await repository.recordEvaluation({
+      evaluation_id: "evaluation-closed", funnel_instance_id: "funnel-1",
       source_id: "source-one", evaluated_at: "2026-09-02T01:11:00.000Z",
     })
-    assert.equal(converted.maturity_state, "MATURED")
-    assert.equal(converted.eligibility_status, "INELIGIBLE")
-    assert.equal(converted.eligibility_reason, "OUTCOME_NOT_ELIGIBLE")
+    assert.equal(closed.maturity_state, "MATURED")
+    assert.equal(closed.eligibility_status, "INELIGIBLE")
+    assert.equal(closed.eligibility_reason, "OUTCOME_NOT_ELIGIBLE")
   } finally {
     await pool.end()
     await admin.query(`DROP SCHEMA ${schema} CASCADE`)

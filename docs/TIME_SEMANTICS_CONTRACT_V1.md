@@ -71,5 +71,6 @@ path. Late conversion must preserve the original horizon-bound KPI instead of re
 The existing `funnel_profiles` columns represent horizon and grace. Migration `006` adds immutable
 transition timeout policy and append-only maturity evidence. The scheduler now provides bounded
 polling and single-leader PostgreSQL coordination; reference profiles still keep horizon and grace
-`null`, so no current projection is finalized. The next gate must define atomic outcome/KPI handoff
-and late-conversion evidence before enabling final drop-off transitions.
+`null`, so no current projection is finalized. Migration `007` provides a guarded atomic
+Funnel Instance/KPI drop-off transition, but runtime activation remains explicitly disabled. The
+next gate must implement late-conversion evidence before final drop-off transitions are enabled.

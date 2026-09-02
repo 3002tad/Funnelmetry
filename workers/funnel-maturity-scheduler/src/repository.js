@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 import { calculateFunnelTimeBounds, classifyFunnelMaturity } from "@funnelmetry/time-semantics-contract"
+import { buildKpiSnapshot, hashKpiSnapshot } from "@funnelmetry/kpi-snapshot-contract"
 
 function requiredString(value, field) {
   if (typeof value !== "string" || !value.trim()) throw new Error(`${field} is required`)
@@ -25,6 +26,17 @@ export function validateEvaluationRequest(input) {
     funnel_instance_id: requiredString(input.funnel_instance_id, "funnel_instance_id"),
     source_id: requiredString(input.source_id, "source_id"),
     evaluated_at: timestamp(input.evaluated_at, "evaluated_at"),
+  })
+}
+
+export function validateFinalizationRequest(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("maturity finalization request must be an object")
+  }
+  return Object.freeze({
+    finalization_id: requiredString(input.finalization_id, "finalization_id"),
+    evaluation_id: requiredString(input.evaluation_id, "evaluation_id"),
+    finalized_at: timestamp(input.finalized_at, "finalized_at"),
   })
 }
 
@@ -78,6 +90,28 @@ function duplicateResult(row, request) {
     throw new Error("evaluation_id already exists with different immutable input")
   }
   return resultFromRow(row, "duplicate")
+}
+
+function finalizationResult(row, status) {
+  return Object.freeze({
+    status,
+    finalization_id: row.finalization_id,
+    evaluation_id: row.evaluation_id,
+    funnel_instance_id: row.funnel_instance_id,
+    source_id: row.source_id,
+    journey_id: row.journey_id,
+    outcome_status: row.finalized_outcome_status,
+    kpi_projection_revision: Number(row.kpi_projection_revision),
+    kpi_projection_hash: row.kpi_projection_hash,
+    finalized_at: iso(row.finalized_at),
+  })
+}
+
+function duplicateFinalization(row, request) {
+  if (row.evaluation_id !== request.evaluation_id || iso(row.finalized_at) !== request.finalized_at) {
+    throw new Error("finalization_id already exists with different immutable input")
+  }
+  return finalizationResult(row, "duplicate")
 }
 
 export function createFunnelMaturityRepository({ pool } = {}) {
@@ -153,6 +187,175 @@ export function createFunnelMaturityRepository({ pool } = {}) {
         next_step_id: row.next_step_id,
         due_at: iso(row.due_at),
       }))
+    },
+
+    async listPendingFinalizations({ limit = 100 } = {}) {
+      if (!Number.isSafeInteger(limit) || limit <= 0) throw new Error("limit must be a positive integer")
+      const result = await pool.query(
+        `SELECT latest.evaluation_id, latest.funnel_instance_id, latest.source_id,
+                latest.evaluated_at
+           FROM funnel_instance_latest_maturity latest
+           JOIN funnel_instances instance
+             ON instance.funnel_instance_id = latest.funnel_instance_id
+           LEFT JOIN funnel_maturity_finalizations finalization
+             ON finalization.funnel_instance_id = latest.funnel_instance_id
+          WHERE latest.maturity_state = 'MATURED'
+            AND latest.eligibility_status = 'ELIGIBLE'
+            AND instance.outcome_status = 'IN_PROGRESS'
+            AND finalization.finalization_id IS NULL
+          ORDER BY latest.evaluated_at, latest.funnel_instance_id
+          LIMIT $1`,
+        [limit],
+      )
+      return result.rows.map((row) => Object.freeze({
+        evaluation_id: row.evaluation_id,
+        funnel_instance_id: row.funnel_instance_id,
+        source_id: row.source_id,
+        evaluated_at: iso(row.evaluated_at),
+      }))
+    },
+
+    async finalizeDropoff(input) {
+      const request = validateFinalizationRequest(input)
+      const client = await pool.connect()
+      try {
+        await client.query("BEGIN")
+        const existing = await client.query(
+          "SELECT * FROM funnel_maturity_finalizations WHERE finalization_id = $1",
+          [request.finalization_id],
+        )
+        if (existing.rowCount === 1) {
+          const duplicate = duplicateFinalization(existing.rows[0], request)
+          await client.query("COMMIT")
+          return duplicate
+        }
+        const evaluationResult = await client.query(
+          `SELECT evaluation.*, instance.journey_id, instance.funnel_profile_id,
+                  instance.profile_version, instance.entry_at, instance.entry_event_id,
+                  instance.outcome_status AS current_outcome_status,
+                  instance.quality_status AS current_quality_status, instance.converted_at,
+                  instance.conversion_deadline,
+                  (SELECT COUNT(*)::INTEGER FROM funnel_profile_steps profile_steps
+                    WHERE profile_steps.funnel_profile_id = instance.funnel_profile_id
+                      AND profile_steps.profile_version = instance.profile_version) AS total_step_count
+             FROM funnel_maturity_evaluations evaluation
+             JOIN funnel_instances instance USING (funnel_instance_id)
+            WHERE evaluation.evaluation_id = $1
+            FOR UPDATE OF instance`,
+          [request.evaluation_id],
+        )
+        if (evaluationResult.rowCount !== 1) throw new Error("maturity evaluation is missing")
+        const evaluation = evaluationResult.rows[0]
+        const instanceFinalization = await client.query(
+          "SELECT * FROM funnel_maturity_finalizations WHERE funnel_instance_id = $1",
+          [evaluation.funnel_instance_id],
+        )
+        if (instanceFinalization.rowCount === 1) {
+          throw new Error("funnel instance was already finalized with a different finalization_id")
+        }
+        const latest = await client.query(
+          `SELECT evaluation_id FROM funnel_maturity_evaluations
+            WHERE funnel_instance_id = $1 ORDER BY evaluation_revision DESC LIMIT 1`,
+          [evaluation.funnel_instance_id],
+        )
+        if (latest.rows[0]?.evaluation_id !== request.evaluation_id) {
+          throw new Error("only the latest maturity evaluation may finalize an outcome")
+        }
+        if (evaluation.maturity_state !== "MATURED" || evaluation.eligibility_status !== "ELIGIBLE"
+          || !evaluation.authoritative_entry_time) {
+          throw new Error("maturity evaluation is not eligible for final drop-off")
+        }
+        if (evaluation.current_outcome_status !== "IN_PROGRESS") {
+          throw new Error("only an IN_PROGRESS funnel instance may become DROPPED")
+        }
+        if (Date.parse(request.finalized_at) < Date.parse(evaluation.evaluated_at)) {
+          throw new Error("finalized_at cannot precede the maturity evaluation")
+        }
+        const steps = await client.query(
+          `SELECT step_index, step_id, event_type, first_reached_at, last_reached_at, occurrence_count
+             FROM funnel_instance_steps WHERE funnel_instance_id = $1 ORDER BY step_index`,
+          [evaluation.funnel_instance_id],
+        )
+        const branches = await client.query(
+          `SELECT canonical_event_id, event_type, occurred_at, branch_kind
+             FROM funnel_instance_branches WHERE funnel_instance_id = $1 ORDER BY occurred_at, canonical_event_id`,
+          [evaluation.funnel_instance_id],
+        )
+        const instance = {
+          funnel_instance_id: evaluation.funnel_instance_id,
+          source_id: evaluation.source_id,
+          journey_id: evaluation.journey_id,
+          funnel_profile_id: evaluation.funnel_profile_id,
+          profile_version: evaluation.profile_version,
+          entry_at: evaluation.entry_at,
+          conversion_deadline: evaluation.conversion_deadline,
+          outcome_status: evaluation.current_outcome_status,
+          quality_status: evaluation.current_quality_status,
+          converted_at: evaluation.converted_at,
+          total_step_count: evaluation.total_step_count,
+        }
+        const currentSnapshot = buildKpiSnapshot(instance, steps.rows, branches.rows)
+        const currentHash = hashKpiSnapshot(currentSnapshot)
+        const kpi = await client.query(
+          "SELECT projection_hash, projection_revision FROM funnel_kpi_instance_facts WHERE funnel_instance_id = $1 FOR UPDATE",
+          [evaluation.funnel_instance_id],
+        )
+        if (kpi.rowCount !== 1 || kpi.rows[0].projection_hash !== currentHash) {
+          throw new Error("KPI projection has not caught up with the Funnel Instance")
+        }
+        const droppedSnapshot = buildKpiSnapshot(
+          { ...instance, outcome_status: "DROPPED", converted_at: null },
+          steps.rows,
+          branches.rows,
+        )
+        const droppedHash = hashKpiSnapshot(droppedSnapshot)
+        const kpiRevision = Number(kpi.rows[0].projection_revision) + 1
+        await client.query(
+          `UPDATE funnel_instances
+              SET outcome_status = 'DROPPED', converted_at = NULL, updated_at = $2
+            WHERE funnel_instance_id = $1`,
+          [evaluation.funnel_instance_id, request.finalized_at],
+        )
+        await client.query(
+          `UPDATE funnel_kpi_instance_facts
+              SET outcome_status = 'DROPPED', converted_at = NULL,
+                  projection_hash = $2, projection_revision = $3, projected_at = $4,
+                  latest_projection_kind = 'MATURITY_FINALIZATION', latest_projection_id = $5
+            WHERE funnel_instance_id = $1`,
+          [evaluation.funnel_instance_id, droppedHash, kpiRevision, request.finalized_at,
+            request.finalization_id],
+        )
+        const document = {
+          finalization_id: request.finalization_id,
+          evaluation_id: request.evaluation_id,
+          funnel_instance_id: evaluation.funnel_instance_id,
+          source_id: evaluation.source_id,
+          journey_id: evaluation.journey_id,
+          previous_outcome_status: "IN_PROGRESS",
+          finalized_outcome_status: "DROPPED",
+          kpi_projection_revision: kpiRevision,
+          kpi_projection_hash: droppedHash,
+          finalized_at: request.finalized_at,
+        }
+        const inserted = await client.query(
+          `INSERT INTO funnel_maturity_finalizations (
+             finalization_id, evaluation_id, funnel_instance_id, source_id, journey_id,
+             previous_outcome_status, finalized_outcome_status, kpi_projection_revision,
+             kpi_projection_hash, finalized_at, finalization_document
+           ) VALUES ($1,$2,$3,$4,$5,'IN_PROGRESS','DROPPED',$6,$7,$8,$9::jsonb)
+           RETURNING *`,
+          [request.finalization_id, request.evaluation_id, evaluation.funnel_instance_id,
+            evaluation.source_id, evaluation.journey_id, kpiRevision, droppedHash,
+            request.finalized_at, JSON.stringify(document)],
+        )
+        await client.query("COMMIT")
+        return finalizationResult(inserted.rows[0], "finalized")
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => {})
+        throw error
+      } finally {
+        client.release()
+      }
     },
 
     async recordEvaluation(input) {

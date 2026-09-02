@@ -1,43 +1,7 @@
-import { createHash } from "node:crypto"
+import { buildKpiSnapshot, hashKpiSnapshot } from "@funnelmetry/kpi-snapshot-contract"
 
 function iso(value) {
   return value === null ? null : new Date(value).toISOString()
-}
-
-function snapshotHash(snapshot) {
-  return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex")
-}
-
-function snapshotFromRows(instance, steps, branches) {
-  return Object.freeze({
-    funnel_instance_id: instance.funnel_instance_id,
-    source_id: instance.source_id,
-    journey_id: instance.journey_id,
-    funnel_profile_id: instance.funnel_profile_id,
-    profile_version: instance.profile_version,
-    entry_at: iso(instance.entry_at),
-    conversion_deadline: iso(instance.conversion_deadline),
-    outcome_status: instance.outcome_status,
-    quality_status: instance.quality_status,
-    converted_at: iso(instance.converted_at),
-    reached_step_count: steps.length,
-    total_step_count: Number(instance.total_step_count),
-    branch_count: branches.length,
-    steps: steps.map((step) => ({
-      step_index: step.step_index,
-      step_id: step.step_id,
-      event_type: step.event_type,
-      first_reached_at: iso(step.first_reached_at),
-      last_reached_at: iso(step.last_reached_at),
-      occurrence_count: Number(step.occurrence_count),
-    })),
-    branches: branches.map((branch) => ({
-      canonical_event_id: branch.canonical_event_id,
-      event_type: branch.event_type,
-      occurred_at: iso(branch.occurred_at),
-      branch_kind: branch.branch_kind,
-    })),
-  })
 }
 
 export function createKpiRepository({ pool, now = () => new Date().toISOString() } = {}) {
@@ -82,28 +46,26 @@ export function createKpiRepository({ pool, now = () => new Date().toISOString()
             [instanceId, sourceId, journeyId],
           )
           if (instanceResult.rowCount !== 1) throw new Error(`funnel instance ${instanceId} is missing or outside the envelope scope`)
-          const [stepsResult, branchesResult] = await Promise.all([
-            client.query(
-              `SELECT step_index, step_id, event_type, first_reached_at, last_reached_at, occurrence_count
-                 FROM funnel_instance_steps WHERE funnel_instance_id = $1 ORDER BY step_index`,
-              [instanceId],
-            ),
-            client.query(
-              `SELECT canonical_event_id, event_type, occurred_at, branch_kind
-                 FROM funnel_instance_branches WHERE funnel_instance_id = $1 ORDER BY occurred_at, canonical_event_id`,
-              [instanceId],
-            ),
-          ])
-          const snapshot = snapshotFromRows(instanceResult.rows[0], stepsResult.rows, branchesResult.rows)
-          const hash = snapshotHash(snapshot)
+          const stepsResult = await client.query(
+            `SELECT step_index, step_id, event_type, first_reached_at, last_reached_at, occurrence_count
+               FROM funnel_instance_steps WHERE funnel_instance_id = $1 ORDER BY step_index`,
+            [instanceId],
+          )
+          const branchesResult = await client.query(
+            `SELECT canonical_event_id, event_type, occurred_at, branch_kind
+               FROM funnel_instance_branches WHERE funnel_instance_id = $1 ORDER BY occurred_at, canonical_event_id`,
+            [instanceId],
+          )
+          const snapshot = buildKpiSnapshot(instanceResult.rows[0], stepsResult.rows, branchesResult.rows)
+          const hash = hashKpiSnapshot(snapshot)
           const projectedAt = now()
           const upsert = await client.query(
             `INSERT INTO funnel_kpi_instance_facts (
                funnel_instance_id, source_id, journey_id, funnel_profile_id, profile_version,
                entry_at, conversion_deadline, outcome_status, quality_status, converted_at,
                reached_step_count, total_step_count, branch_count, latest_trigger_event_id,
-               projection_hash, projected_at
-             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+               latest_projection_kind, latest_projection_id, projection_hash, projected_at
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'CANONICAL_EVENT',$14,$15,$16)
              ON CONFLICT (funnel_instance_id) DO UPDATE SET
                outcome_status = EXCLUDED.outcome_status,
                quality_status = EXCLUDED.quality_status,
@@ -112,6 +74,8 @@ export function createKpiRepository({ pool, now = () => new Date().toISOString()
                total_step_count = EXCLUDED.total_step_count,
                branch_count = EXCLUDED.branch_count,
                latest_trigger_event_id = EXCLUDED.latest_trigger_event_id,
+               latest_projection_kind = EXCLUDED.latest_projection_kind,
+               latest_projection_id = EXCLUDED.latest_projection_id,
                projection_hash = EXCLUDED.projection_hash,
                projection_revision = funnel_kpi_instance_facts.projection_revision + 1,
                projected_at = EXCLUDED.projected_at

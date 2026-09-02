@@ -8,6 +8,10 @@ function evaluationId(candidate, observedAt) {
   return `maturity-${createHash("sha256").update(identity).digest("hex")}`
 }
 
+function finalizationId(evaluationIdValue) {
+  return `finalization-${createHash("sha256").update(evaluationIdValue).digest("hex")}`
+}
+
 export function createMaturitySchedulerRuntime({
   pool,
   repository,
@@ -17,6 +21,7 @@ export function createMaturitySchedulerRuntime({
   now = () => new Date().toISOString(),
   logger = console,
   lockName = LOCK_NAME,
+  finalizationEnabled = false,
 } = {}) {
   if (!pool || typeof pool.connect !== "function") throw new Error("A PostgreSQL pool is required")
   if (!repository || typeof repository.listDueCandidates !== "function"
@@ -29,6 +34,11 @@ export function createMaturitySchedulerRuntime({
     throw new Error("pollIntervalMs must be positive")
   }
   if (typeof lockName !== "string" || !lockName) throw new Error("lockName is required")
+  if (typeof finalizationEnabled !== "boolean") throw new Error("finalizationEnabled must be boolean")
+  if (finalizationEnabled && (typeof repository.listPendingFinalizations !== "function"
+    || typeof repository.finalizeDropoff !== "function")) {
+    throw new Error("Finalization-enabled runtime requires finalization repository methods")
+  }
 
   let coordinationClient
   let leader = false
@@ -60,7 +70,10 @@ export function createMaturitySchedulerRuntime({
 
   async function runOnce() {
     if (!await acquireLeadership()) {
-      return Object.freeze({ role: "standby", observed_at: null, candidates: 0, recorded: 0, failed: 0 })
+      return Object.freeze({
+        role: "standby", observed_at: null, candidates: 0, recorded: 0, failed: 0,
+        finalized: 0, finalization_failed: 0,
+      })
     }
     const observedAt = new Date(now()).toISOString()
     const candidates = await repository.listDueCandidates({ observed_at: observedAt, limit: batchSize })
@@ -80,8 +93,27 @@ export function createMaturitySchedulerRuntime({
         logger.error?.(`maturity evaluation failed for ${candidate.funnel_instance_id}`, error)
       }
     }
+    let finalized = 0
+    let finalizationFailed = 0
+    if (finalizationEnabled) {
+      const pending = await repository.listPendingFinalizations({ limit: batchSize })
+      for (const candidate of pending) {
+        try {
+          const result = await repository.finalizeDropoff({
+            finalization_id: finalizationId(candidate.evaluation_id),
+            evaluation_id: candidate.evaluation_id,
+            finalized_at: observedAt,
+          })
+          if (result.status === "finalized") finalized += 1
+        } catch (error) {
+          finalizationFailed += 1
+          logger.error?.(`maturity finalization failed for ${candidate.funnel_instance_id}`, error)
+        }
+      }
+    }
     return Object.freeze({
       role: "leader", observed_at: observedAt, candidates: candidates.length, recorded, failed,
+      finalized, finalization_failed: finalizationFailed,
     })
   }
 
@@ -102,6 +134,9 @@ export function createMaturitySchedulerRuntime({
         const result = await runOnce()
         if (result.recorded > 0) {
           logger.info?.(`maturity scheduler ${instanceId} recorded ${result.recorded}/${result.candidates} evaluations`)
+        }
+        if (result.finalized > 0) {
+          logger.info?.(`maturity scheduler ${instanceId} finalized ${result.finalized} drop-offs`)
         }
       } catch (error) {
         logger.error?.("maturity scheduler poll failed", error)

@@ -35,13 +35,14 @@ workers/
   canonical-ledger-writer/   # canonical Kafka → PostgreSQL source of truth
   journey-processor/         # persisted canonical → progressive journey projection
   funnel-processor/          # journey-resolved -> versioned Funnel Instance projection
-  funnel-maturity-scheduler/ # coordinated polling and immutable maturity evidence
+  funnel-maturity-scheduler/ # polling, maturity evidence and gated atomic finalization
   kpi-projector/             # funnel-updated -> idempotent KPI base facts/observed views
   reconciliation-worker/     # future
 packages/
   input-contract/
   canonical-contract/        # CanonicalEvent v1 + terminal outcome
   time-semantics-contract/   # pure horizon/grace/maturity and late-arrival rules
+  kpi-snapshot-contract/     # deterministic KPI snapshot and hash shared by projector/finalizer
   analytics-contract/        # future
   shared-config/             # future
   browser-sdk/

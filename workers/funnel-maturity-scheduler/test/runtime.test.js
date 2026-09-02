@@ -84,3 +84,33 @@ test("one invalid candidate does not block the rest of the batch", async () => {
   assert.match(errors[0], /bad/)
   await runtime.stop()
 })
+
+test("enabled finalization drains matured evidence with a stable identity", async () => {
+  const { pool } = coordinationPool(true)
+  const finalizations = []
+  const repository = {
+    async listDueCandidates() { return [] },
+    async recordEvaluation() { throw new Error("no evaluations expected") },
+    async listPendingFinalizations(request) {
+      assert.deepEqual(request, { limit: 100 })
+      return [{
+        evaluation_id: "evaluation-1", funnel_instance_id: "funnel-1",
+        source_id: "source-one", evaluated_at: "2026-09-02T01:10:00.001Z",
+      }]
+    },
+    async finalizeDropoff(request) {
+      finalizations.push(request)
+      return { status: "finalized" }
+    },
+  }
+  const runtime = createMaturitySchedulerRuntime({
+    pool, repository, instanceId: "maturity-1", finalizationEnabled: true,
+    now: () => "2026-09-02T02:00:00Z",
+  })
+  const result = await runtime.runOnce()
+  assert.equal(result.finalized, 1)
+  assert.match(finalizations[0].finalization_id, /^finalization-[a-f0-9]{64}$/)
+  assert.equal(finalizations[0].evaluation_id, "evaluation-1")
+  assert.equal(finalizations[0].finalized_at, "2026-09-02T02:00:00.000Z")
+  await runtime.stop()
+})

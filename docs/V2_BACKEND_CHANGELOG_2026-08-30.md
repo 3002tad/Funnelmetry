@@ -355,3 +355,18 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   và không tự tạo numeric time policy.
 - Chưa mutate outcome thành `DROPPED` và chưa phát matured KPI. Atomic outcome/KPI handoff cùng
   late-conversion evidence vẫn là gate kế tiếp.
+
+## 23. Gated atomic drop-off finalization
+
+- Thêm package `@funnelmetry/kpi-snapshot-contract` để KPI Projector và maturity finalizer dùng cùng
+  một snapshot shape/hash, tránh hai implementation diễn giải projection khác nhau.
+- Migration `007_maturity_finalization.sql` thêm projection identity và append-only finalization
+  evidence. Migration tương thích insert cũ bằng trigger canonical-event identity mặc định.
+- Finalizer chỉ nhận latest `MATURED + ELIGIBLE` evidence của Funnel Instance còn `IN_PROGRESS`, khóa
+  instance và yêu cầu KPI projection hash hiện tại đã bắt kịp.
+- `funnel_instances.outcome_status`, KPI outcome/hash/revision và finalization evidence được cập nhật
+  trong cùng một PostgreSQL transaction; KPI thiếu/stale làm toàn bộ transaction rollback.
+- Runtime có retry queue từ latest maturity evidence chưa finalization và stable finalization ID.
+  Một candidate lỗi không chặn phần còn lại của batch.
+- `MATURITY_SCHEDULER_FINALIZATION_ENABLED` mặc định và Compose đều là `false`. Chưa bật final drop-off
+  trước khi late-conversion evidence/path được triển khai; reference profile vẫn không có numeric policy.

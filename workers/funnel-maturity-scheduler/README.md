@@ -8,10 +8,15 @@ The repository derives maturity with `@funnelmetry/time-semantics-contract`, ver
 profile deadline and entry-event time authority, records append-only revisioned evidence, and treats
 a repeated `evaluation_id` as idempotent only when its immutable request matches.
 
-Apply migrations `001` through `006` before using it. Transition to `DROPPED`, late-conversion
-evidence and KPI publication remain separate implementation gates.
+Apply migrations `001` through `007` before using it. Migration `007` and the repository provide an
+atomic `IN_PROGRESS -> DROPPED` plus KPI snapshot transition, guarded by latest eligible maturity
+evidence and a caught-up KPI projection.
 
 The poller considers configured transition timeouts and `conversion horizon + late-arrival grace`,
 uses bounded batches, and re-evaluates each candidate under the Funnel Instance row lock. Reference
 profiles have no numeric finality policy, so the local runtime remains idle until a versioned profile
 publishes explicit values.
+
+Finalization is additionally gated by `MATURITY_SCHEDULER_FINALIZATION_ENABLED=false`. Keep it off
+until late-conversion evidence is implemented; the Compose reference stack sets it explicitly to
+`false`.
