@@ -401,3 +401,16 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
 - OpenAPI và typed dashboard client được mở rộng tương thích; chưa thay đổi cách UI render.
 - PostgreSQL integration test chứng minh official step/KPI vẫn là drop-off trong khi late evidence có thể
   được đọc riêng, đồng thời unit test khóa zero-denominator và privacy-safe query shape.
+
+## 26. Eligible matured conversion cohort
+
+- Migration `009_matured_conversion.sql` bổ sung `authoritative_conversion_time` vào append-only
+  maturity evidence và reason `NON_AUTHORITATIVE_CONVERSION_TIME`.
+- Scheduler poll cả `IN_PROGRESS` lẫn `CONVERTED`; transition timeout vẫn chỉ áp dụng cho instance đang
+  tiến hành, còn cả hai chỉ thành `MATURED` sau đúng horizon + grace của profile version.
+- Converted instance chỉ `ELIGIBLE` khi policy đã cấu hình, entry time authoritative và representative
+  final-step conversion time authoritative. Fallback-time conversion vẫn giữ observed outcome nhưng bị
+  loại khỏi final denominator.
+- Drop-off finalizer vẫn chỉ nhận `IN_PROGRESS`; thay đổi này không mở đường mutate converted outcome.
+- Analytics API công bố riêng `eligible_matured`, `matured_converted`, `final_end_to_end_rate` và
+  `final_dropoff_rate`; late conversion không được cộng ngược vào matured conversion.

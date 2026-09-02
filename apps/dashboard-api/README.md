@@ -2,7 +2,7 @@
 
 ## Local V2 demo data
 
-The demo seeder applies PostgreSQL migrations `001` through `008`, creates an
+The demo seeder applies PostgreSQL migrations `001` through `009`, creates an
 `analyst` account, and inserts a small source-scoped dataset for the dashboard:
 
 ```powershell
@@ -36,6 +36,8 @@ KPI window đã mature. Response funnel ghi `metric_state: OBSERVED` và giữ o
 Overview và funnel totals công bố riêng `finalized_dropped`, `late_conversions`, hai arrival class và
 `late_conversion_rate = late_conversions / finalized_dropped`; late conversion không được cộng vào
 `observed_converted` hay sửa historical horizon metric.
+Final KPI công bố `eligible_matured`, `matured_converted`, `final_end_to_end_rate` và
+`final_dropoff_rate`; pending, unconfigured hoặc non-authoritative conversion không vào mẫu số này.
 
 Journey detail chỉ trả canonical event metadata và evidence summary; không trả raw/canonical
 payload, identity value hoặc `journey_entities.entity_key`. Event browser cũng loại bỏ normalized data,

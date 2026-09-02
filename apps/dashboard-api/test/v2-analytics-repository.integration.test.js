@@ -19,7 +19,7 @@ test("reads V2 overview, funnel and privacy-safe journey projections from Postgr
     for (const migration of [
       "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
       "004_kpi_projection.sql", "005_ingress_telemetry.sql", "006_funnel_maturity.sql",
-      "007_maturity_finalization.sql", "008_late_conversion.sql",
+      "007_maturity_finalization.sql", "008_late_conversion.sql", "009_matured_conversion.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }
@@ -148,6 +148,7 @@ test("reads V2 overview, funnel and privacy-safe journey projections from Postgr
     const scope = { sourceId, from: "2026-08-01T00:00:00.000Z", to: null }
     const overview = await repository.getOverview(scope)
     assert.equal(overview.profiles[0].observed_end_to_end_rate, 1)
+    assert.equal(overview.profiles[0].final_end_to_end_rate, null)
     assert.equal(overview.profiles[0].provisional, 1)
     const funnel = await repository.getFunnel(scope, { profileId, version: "1.0.0" })
     assert.equal(funnel.steps[0].observed_reach_rate, 1)
@@ -182,7 +183,7 @@ test("exposes late conversions separately from finalized drop-off and observed c
     for (const migration of [
       "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
       "004_kpi_projection.sql", "005_ingress_telemetry.sql", "006_funnel_maturity.sql",
-      "007_maturity_finalization.sql", "008_late_conversion.sql",
+      "007_maturity_finalization.sql", "008_late_conversion.sql", "009_matured_conversion.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }
@@ -328,6 +329,9 @@ test("exposes late conversions separately from finalized drop-off and observed c
     assert.equal(overview.profiles[0].late_conversions, 1)
     assert.equal(overview.profiles[0].late_conversion_rate, 1)
     assert.equal(overview.profiles[0].after_horizon, 1)
+    assert.equal(overview.profiles[0].eligible_matured, 1)
+    assert.equal(overview.profiles[0].final_end_to_end_rate, 0)
+    assert.equal(overview.profiles[0].final_dropoff_rate, 1)
 
     const funnel = await repository.getFunnel(scope, { profileId: "commerce", version: "1.0.0" })
     assert.equal(funnel.totals.dropped, 1)

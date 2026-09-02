@@ -53,7 +53,7 @@ async function seed() {
     for (const migration of [
       "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
       "004_kpi_projection.sql", "005_ingress_telemetry.sql", "006_funnel_maturity.sql",
-      "007_maturity_finalization.sql", "008_late_conversion.sql",
+      "007_maturity_finalization.sql", "008_late_conversion.sql", "009_matured_conversion.sql",
     ]) {
       await client.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }

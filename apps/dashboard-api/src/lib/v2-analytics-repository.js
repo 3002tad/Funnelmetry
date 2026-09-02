@@ -40,6 +40,8 @@ function mapProfileTotal(row) {
   const converted = number(row.observed_converted)
   const finalizedDropped = number(row.finalized_dropped)
   const lateConversions = number(row.late_conversions)
+  const maturedConverted = number(row.matured_converted)
+  const eligibleMatured = maturedConverted + finalizedDropped
   return {
     funnel_profile_id: row.funnel_profile_id,
     profile_version: row.profile_version,
@@ -50,11 +52,15 @@ function mapProfileTotal(row) {
     dropped: number(row.dropped),
     terminated: number(row.terminated),
     invalid: number(row.invalid),
+    eligible_matured: eligibleMatured,
+    matured_converted: maturedConverted,
     finalized_dropped: finalizedDropped,
     late_conversions: lateConversions,
     too_late_for_final_cohort: number(row.too_late_for_final_cohort),
     after_horizon: number(row.after_horizon),
     late_conversion_rate: rate(lateConversions, finalizedDropped),
+    final_end_to_end_rate: rate(maturedConverted, eligibleMatured),
+    final_dropoff_rate: rate(finalizedDropped, eligibleMatured),
     provisional: number(row.provisional),
     reconciling: number(row.reconciling),
     reconciled: number(row.reconciled),
@@ -101,6 +107,11 @@ export function createV2AnalyticsRepository({ query } = {}) {
                 COUNT(*) FILTER (WHERE i.outcome_status = 'DROPPED')::bigint AS dropped,
                 COUNT(*) FILTER (WHERE i.outcome_status = 'TERMINATED')::bigint AS terminated,
                 COUNT(*) FILTER (WHERE i.outcome_status = 'INVALID')::bigint AS invalid,
+                COUNT(*) FILTER (
+                  WHERE latest_maturity.maturity_state = 'MATURED'
+                    AND latest_maturity.eligibility_status = 'ELIGIBLE'
+                    AND i.outcome_status = 'CONVERTED'
+                )::bigint AS matured_converted,
                 COUNT(finalization.finalization_id)::bigint AS finalized_dropped,
                 COUNT(late_conversion.late_conversion_id)::bigint AS late_conversions,
                 COUNT(late_conversion.late_conversion_id) FILTER (
@@ -122,6 +133,8 @@ export function createV2AnalyticsRepository({ query } = {}) {
              ON finalization.funnel_instance_id = i.funnel_instance_id
            LEFT JOIN funnel_late_conversions late_conversion
              ON late_conversion.funnel_instance_id = i.funnel_instance_id
+           LEFT JOIN funnel_instance_latest_maturity latest_maturity
+             ON latest_maturity.funnel_instance_id = i.funnel_instance_id
           WHERE ${filter.sql}
           GROUP BY i.funnel_profile_id, i.profile_version, p.display_name
           ORDER BY p.display_name, i.profile_version`,
@@ -149,6 +162,11 @@ export function createV2AnalyticsRepository({ query } = {}) {
                 COUNT(*) FILTER (WHERE i.outcome_status = 'DROPPED')::bigint AS dropped,
                 COUNT(*) FILTER (WHERE i.outcome_status = 'TERMINATED')::bigint AS terminated,
                 COUNT(*) FILTER (WHERE i.outcome_status = 'INVALID')::bigint AS invalid,
+                COUNT(*) FILTER (
+                  WHERE latest_maturity.maturity_state = 'MATURED'
+                    AND latest_maturity.eligibility_status = 'ELIGIBLE'
+                    AND i.outcome_status = 'CONVERTED'
+                )::bigint AS matured_converted,
                 COUNT(finalization.finalization_id)::bigint AS finalized_dropped,
                 COUNT(late_conversion.late_conversion_id)::bigint AS late_conversions,
                 COUNT(late_conversion.late_conversion_id) FILTER (
@@ -167,6 +185,8 @@ export function createV2AnalyticsRepository({ query } = {}) {
              ON finalization.funnel_instance_id = i.funnel_instance_id
            LEFT JOIN funnel_late_conversions late_conversion
              ON late_conversion.funnel_instance_id = i.funnel_instance_id
+           LEFT JOIN funnel_instance_latest_maturity latest_maturity
+             ON latest_maturity.funnel_instance_id = i.funnel_instance_id
           WHERE ${filter.sql}
             AND i.funnel_profile_id = $${profileIndex}
             AND i.profile_version = $${versionIndex}`,

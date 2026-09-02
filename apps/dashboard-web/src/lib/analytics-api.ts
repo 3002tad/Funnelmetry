@@ -13,11 +13,15 @@ export type ProfileTotal = {
   dropped: number
   terminated: number
   invalid: number
+  eligible_matured: number
+  matured_converted: number
   finalized_dropped: number
   late_conversions: number
   too_late_for_final_cohort: number
   after_horizon: number
   late_conversion_rate: number | null
+  final_end_to_end_rate: number | null
+  final_dropoff_rate: number | null
   provisional: number
   reconciling: number
   reconciled: number

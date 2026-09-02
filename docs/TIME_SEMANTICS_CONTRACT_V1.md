@@ -62,9 +62,11 @@ quality:  PROVISIONAL | RECONCILING | RECONCILED | DEGRADED
 maturity: UNCONFIGURED | PENDING | SUSPECTED_DROPOFF | MATURED
 ```
 
-A future scheduler may change `IN_PROGRESS` to `DROPPED` only after `MATURED`, after verifying
-eligibility and authoritative-time requirements. Reconciliation remains a separate quality/control
-path. Late conversion must preserve the original horizon-bound KPI instead of rewriting it.
+The scheduler may change `IN_PROGRESS` to `DROPPED` only after `MATURED`, after verifying eligibility
+and authoritative entry time. A `CONVERTED` instance enters the final denominator only after the same
+horizon + grace boundary and requires authoritative entry plus representative conversion-event time.
+Reconciliation remains a separate quality/control path. Late conversion must preserve the original
+horizon-bound KPI instead of rewriting it.
 
 ## Compatibility and next gate
 

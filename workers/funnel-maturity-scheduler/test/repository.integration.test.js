@@ -17,7 +17,7 @@ test("records idempotent, revisioned maturity evidence without closing the funne
     for (const migration of [
       "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
       "004_kpi_projection.sql", "006_funnel_maturity.sql", "007_maturity_finalization.sql",
-      "008_late_conversion.sql",
+      "008_late_conversion.sql", "009_matured_conversion.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }
@@ -49,6 +49,48 @@ test("records idempotent, revisioned maturity evidence without closing the funne
        ) VALUES ('commerce','1.0.0','cart',300)`,
     )
     const quality = { time_basis: "source_occurred", authoritative_event_time: true }
+    async function seedConvertedFunnel(suffix, conversionQuality = quality) {
+      const entryId = `can-${suffix}-entry`
+      const conversionId = `can-${suffix}-conversion`
+      for (const [eventId, eventType, eventClass, occurredAt, eventQuality] of [
+        [entryId, "behavior.product_viewed", "BEHAVIOR_INTENT", "2026-09-02T00:00:00Z", quality],
+        [conversionId, "cart.item_added", "BUSINESS_FACT", "2026-09-02T00:10:00Z", conversionQuality],
+      ]) {
+        await pool.query(
+          `INSERT INTO canonical_events (
+             canonical_event_id, source_id, source_event_id, event_type, event_class,
+             canonical_schema_version, mapping_version, occurred_at, ingested_at, normalized_at,
+             data, quality, raw_record_id, raw_content_hash, raw_byte_size, canonical_document
+           ) VALUES ($1,'source-one',$2,$3,$4,'canonical-event.v1','test-v1',$5,$5,$5,
+                     '{}'::jsonb,$6::jsonb,$7,$8,10,$9::jsonb)`,
+          [eventId, `source:${eventId}`, eventType, eventClass, occurredAt,
+            JSON.stringify(eventQuality), `raw-${eventId}`, "d".repeat(64),
+            JSON.stringify({ canonical_event_id: eventId, quality: eventQuality })],
+        )
+      }
+      await pool.query(
+        `INSERT INTO journeys (journey_id, source_id, first_event_at, last_event_at, event_count)
+         VALUES ($1,'source-one','2026-09-02T00:00:00Z','2026-09-02T00:10:00Z',2)`,
+        [`journey-${suffix}`],
+      )
+      await pool.query(
+        `INSERT INTO funnel_instances (
+           funnel_instance_id, source_id, journey_id, funnel_profile_id, profile_version,
+           entry_event_id, entry_at, conversion_deadline, outcome_status, converted_at
+         ) VALUES ($1,'source-one',$2,'commerce','1.0.0',$3,'2026-09-02T00:00:00Z',
+                   '2026-09-02T01:00:00Z','CONVERTED','2026-09-02T00:10:00Z')`,
+        [`funnel-${suffix}`, `journey-${suffix}`, entryId],
+      )
+      await pool.query(
+        `INSERT INTO funnel_instance_steps (
+           funnel_instance_id, step_index, step_id, event_type, representative_event_id,
+           first_reached_at, last_reached_at, occurrence_count, sequence_status
+         ) VALUES
+           ($1,0,'view','behavior.product_viewed',$2,'2026-09-02T00:00:00Z','2026-09-02T00:00:00Z',1,'IN_ORDER'),
+           ($1,1,'cart','cart.item_added',$3,'2026-09-02T00:10:00Z','2026-09-02T00:10:00Z',1,'IN_ORDER')`,
+        [`funnel-${suffix}`, entryId, conversionId],
+      )
+    }
     const canonical = {
       canonical_event_id: "can-entry", source_id: "source-one", source_event_id: "source:entry",
       event_type: "behavior.product_viewed", event_class: "BEHAVIOR_INTENT",
@@ -214,6 +256,39 @@ test("records idempotent, revisioned maturity evidence without closing the funne
     assert.equal(closed.maturity_state, "MATURED")
     assert.equal(closed.eligibility_status, "INELIGIBLE")
     assert.equal(closed.eligibility_reason, "OUTCOME_NOT_ELIGIBLE")
+
+    await seedConvertedFunnel("converted")
+    await seedConvertedFunnel("fallback", {
+      time_basis: "ingress_fallback", authoritative_event_time: false,
+    })
+    const convertedCandidates = await repository.listDueCandidates({
+      observed_at: "2026-09-02T01:10:00.001Z", limit: 10,
+    })
+    assert.deepEqual(convertedCandidates.map((candidate) => candidate.funnel_instance_id), [
+      "funnel-converted", "funnel-fallback",
+    ])
+    assert.ok(convertedCandidates.every((candidate) => candidate.target_state === "MATURED"))
+
+    const convertedMaturity = await repository.recordEvaluation({
+      evaluation_id: "evaluation-converted", funnel_instance_id: "funnel-converted",
+      source_id: "source-one", evaluated_at: "2026-09-02T01:10:00.001Z",
+    })
+    assert.equal(convertedMaturity.maturity_state, "MATURED")
+    assert.equal(convertedMaturity.eligibility_status, "ELIGIBLE")
+    assert.equal(convertedMaturity.authoritative_entry_time, true)
+    assert.equal(convertedMaturity.authoritative_conversion_time, true)
+
+    const fallbackMaturity = await repository.recordEvaluation({
+      evaluation_id: "evaluation-fallback", funnel_instance_id: "funnel-fallback",
+      source_id: "source-one", evaluated_at: "2026-09-02T01:10:00.001Z",
+    })
+    assert.equal(fallbackMaturity.maturity_state, "MATURED")
+    assert.equal(fallbackMaturity.eligibility_status, "INELIGIBLE")
+    assert.equal(fallbackMaturity.eligibility_reason, "NON_AUTHORITATIVE_CONVERSION_TIME")
+    assert.equal(fallbackMaturity.authoritative_conversion_time, false)
+    assert.deepEqual(await repository.listDueCandidates({
+      observed_at: "2026-09-02T01:11:00.000Z", limit: 10,
+    }), [])
   } finally {
     await pool.end()
     await admin.query(`DROP SCHEMA ${schema} CASCADE`)

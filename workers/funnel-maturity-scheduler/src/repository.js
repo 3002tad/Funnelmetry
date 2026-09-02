@@ -50,13 +50,16 @@ function maturityReason(state) {
 }
 
 function eligibility(instance, configured) {
-  if (instance.outcome_status !== "IN_PROGRESS") {
+  if (!["IN_PROGRESS", "CONVERTED"].includes(instance.outcome_status)) {
     return { status: "INELIGIBLE", reason: "OUTCOME_NOT_ELIGIBLE" }
   }
   if (!instance.authoritative_entry_time) {
     return { status: "INELIGIBLE", reason: "NON_AUTHORITATIVE_ENTRY_TIME" }
   }
   if (!configured) return { status: "UNDETERMINED", reason: "TIME_POLICY_UNCONFIGURED" }
+  if (instance.outcome_status === "CONVERTED" && !instance.authoritative_conversion_time) {
+    return { status: "INELIGIBLE", reason: "NON_AUTHORITATIVE_CONVERSION_TIME" }
+  }
   return { status: "ELIGIBLE", reason: null }
 }
 
@@ -75,6 +78,8 @@ function resultFromRow(row, status) {
     maturity_reason: row.maturity_reason,
     eligibility_status: row.eligibility_status,
     eligibility_reason: row.eligibility_reason,
+    authoritative_entry_time: row.authoritative_entry_time,
+    authoritative_conversion_time: row.authoritative_conversion_time,
     evaluated_at: iso(row.evaluated_at),
     conversion_deadline: iso(row.conversion_deadline),
     finalization_at: iso(row.finalization_at),
@@ -129,7 +134,8 @@ export function createFunnelMaturityRepository({ pool } = {}) {
                      AND $1::timestamptz > i.conversion_deadline
                        + make_interval(secs => p.late_arrival_grace_seconds::double precision)
                       THEN 'MATURED'
-                    WHEN timeout.timeout_seconds IS NOT NULL
+                    WHEN i.outcome_status = 'IN_PROGRESS'
+                     AND timeout.timeout_seconds IS NOT NULL
                      AND $1::timestamptz >= reached.last_reached_at
                        + make_interval(secs => timeout.timeout_seconds::double precision)
                       THEN 'SUSPECTED_DROPOFF'
@@ -159,7 +165,7 @@ export function createFunnelMaturityRepository({ pool } = {}) {
                ON timeout.funnel_profile_id = i.funnel_profile_id
               AND timeout.profile_version = i.profile_version
               AND timeout.next_step_id = next_step.step_id
-            WHERE i.outcome_status = 'IN_PROGRESS'
+            WHERE i.outcome_status IN ('IN_PROGRESS', 'CONVERTED')
          ), due AS (
            SELECT candidates.*,
                   CASE WHEN target_state = 'MATURED' THEN finalization_at
@@ -376,11 +382,25 @@ export function createFunnelMaturityRepository({ pool } = {}) {
         const instanceResult = await client.query(
           `SELECT i.*, p.conversion_horizon_seconds, p.late_arrival_grace_seconds,
                   COALESCE((entry.quality->>'authoritative_event_time')::boolean, false)
-                    AS authoritative_entry_time
+                    AS authoritative_entry_time,
+                  CASE WHEN i.outcome_status = 'CONVERTED'
+                    THEN COALESCE(conversion.authoritative_event_time, false)
+                    ELSE NULL
+                  END AS authoritative_conversion_time
              FROM funnel_instances i
              JOIN funnel_profiles p
                ON p.funnel_profile_id = i.funnel_profile_id AND p.profile_version = i.profile_version
              JOIN canonical_events entry ON entry.canonical_event_id = i.entry_event_id
+             LEFT JOIN LATERAL (
+               SELECT COALESCE((event.quality->>'authoritative_event_time')::boolean, false)
+                        AS authoritative_event_time
+                 FROM funnel_instance_steps step
+                 JOIN canonical_events event
+                   ON event.canonical_event_id = step.representative_event_id
+                WHERE step.funnel_instance_id = i.funnel_instance_id
+                ORDER BY step.step_index DESC
+                LIMIT 1
+             ) conversion ON true
             WHERE i.funnel_instance_id = $1 AND i.source_id = $2
             FOR UPDATE OF i`,
           [request.funnel_instance_id, request.source_id],
@@ -461,6 +481,7 @@ export function createFunnelMaturityRepository({ pool } = {}) {
           outcome_status_snapshot: instance.outcome_status,
           quality_status_snapshot: instance.quality_status,
           authoritative_entry_time: instance.authoritative_entry_time,
+          authoritative_conversion_time: instance.authoritative_conversion_time,
           evaluated_at: request.evaluated_at,
           conversion_deadline: bounds.conversion_deadline,
           finalization_at: bounds.finalization_at,
@@ -480,17 +501,18 @@ export function createFunnelMaturityRepository({ pool } = {}) {
              evaluation_id, funnel_instance_id, source_id, evaluation_revision,
              maturity_state, maturity_reason, eligibility_status, eligibility_reason,
              outcome_status_snapshot, quality_status_snapshot, authoritative_entry_time,
-             evaluated_at, conversion_deadline, finalization_at, next_step_id,
-             suspected_dropoff_at, evidence_hash, evaluation_document
+             authoritative_conversion_time, evaluated_at, conversion_deadline, finalization_at,
+             next_step_id, suspected_dropoff_at, evidence_hash, evaluation_document
            ) VALUES (
-             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb
            ) RETURNING *`,
           [request.evaluation_id, request.funnel_instance_id, request.source_id, revision,
             evidence.maturity_state, evidence.maturity_reason, evidence.eligibility_status,
             evidence.eligibility_reason, evidence.outcome_status_snapshot,
             evidence.quality_status_snapshot, evidence.authoritative_entry_time,
-            evidence.evaluated_at, evidence.conversion_deadline, evidence.finalization_at,
-            evidence.next_step_id, evidence.suspected_dropoff_at, hash, JSON.stringify(document)],
+            evidence.authoritative_conversion_time, evidence.evaluated_at,
+            evidence.conversion_deadline, evidence.finalization_at, evidence.next_step_id,
+            evidence.suspected_dropoff_at, hash, JSON.stringify(document)],
         )
         await client.query("COMMIT")
         return resultFromRow(inserted.rows[0], "recorded")

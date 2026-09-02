@@ -19,6 +19,8 @@ Schema V2 mới nằm trong `v2/`:
   atomic Funnel Instance/KPI drop-off transition.
 - `v2/008_late_conversion.sql`: append-only late-conversion evidence; giữ nguyên outcome/KPI đã
   finalization và không lưu business-key value trong document analytics.
+- `v2/009_matured_conversion.sql`: bổ sung conversion-time authority vào maturity evidence để tạo
+  eligible matured conversion cohort mà không trộn observed/pending hoặc fallback-time conversion.
 
 Compose chạy `postgres-migrations` mỗi lần khởi động để áp dụng idempotent toàn bộ migration V2 cho
 cả volume mới lẫn volume đã tồn tại.

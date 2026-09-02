@@ -166,6 +166,8 @@ Migration `006_funnel_maturity.sql` và repository trong `workers/funnel-maturit
 advisory lock cho single-leader coordination. Migration `007_maturity_finalization.sql` bổ sung
 atomic Funnel Instance/KPI drop-off finalizer. Migration `008_late_conversion.sql` và Funnel Processor
 ghi late conversion bằng append-only evidence mà không sửa ngược outcome/KPI đã finalization.
+Migration `009_matured_conversion.sql` đưa authoritative converted instance vào eligible matured cohort
+sau horizon + grace để API công bố final conversion/drop-off rate với mẫu số đúng contract.
 
 Chạy riêng worker bằng `npm start` trong `workers/funnel-maturity-scheduler`, hoặc chạy cùng local
 stack qua `infra/compose.v2.yml`. Các tham số polling nằm trong `infra/.env.example`.

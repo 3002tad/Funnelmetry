@@ -24,7 +24,7 @@ Các nguyên tắc hiện tại:
 
 ## Chạy
 
-Áp dụng các migration `001` đến `008` trong `infra/postgres/v2/`, publish/activate ít nhất một profile cho
+Áp dụng các migration `001` đến `009` trong `infra/postgres/v2/`, publish/activate ít nhất một profile cho
 `source_id`, provision journey/funnel topic rồi:
 
 ```powershell
