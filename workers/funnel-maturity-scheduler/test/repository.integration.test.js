@@ -87,6 +87,14 @@ test("records idempotent, revisioned maturity evidence without closing the funne
     )
 
     const repository = createFunnelMaturityRepository({ pool })
+    const initiallyDue = await repository.listDueCandidates({
+      observed_at: "2026-09-02T00:05:00.000Z", limit: 10,
+    })
+    assert.deepEqual(initiallyDue, [{
+      funnel_instance_id: "funnel-1", source_id: "source-one",
+      target_state: "SUSPECTED_DROPOFF", next_step_id: "cart",
+      due_at: "2026-09-02T00:05:00.000Z",
+    }])
     const suspectedRequest = {
       evaluation_id: "evaluation-suspected", funnel_instance_id: "funnel-1",
       source_id: "source-one", evaluated_at: "2026-09-02T00:05:00.000Z",
@@ -96,12 +104,20 @@ test("records idempotent, revisioned maturity evidence without closing the funne
     assert.equal(suspected.evaluation_revision, 1)
     assert.equal(suspected.maturity_state, "SUSPECTED_DROPOFF")
     assert.equal(suspected.eligibility_status, "ELIGIBLE")
+    assert.deepEqual(await repository.listDueCandidates({
+      observed_at: "2026-09-02T00:06:00.000Z", limit: 10,
+    }), [])
     assert.equal((await repository.recordEvaluation(suspectedRequest)).status, "duplicate")
     await assert.rejects(
       () => repository.recordEvaluation({ ...suspectedRequest, evaluated_at: "2026-09-02T00:06:00Z" }),
       /different immutable input/,
     )
 
+    const maturedCandidates = await repository.listDueCandidates({
+      observed_at: "2026-09-02T01:10:00.001Z", limit: 10,
+    })
+    assert.equal(maturedCandidates[0].target_state, "MATURED")
+    assert.equal(maturedCandidates[0].due_at, "2026-09-02T01:10:00.000Z")
     const matured = await repository.recordEvaluation({
       evaluation_id: "evaluation-matured", funnel_instance_id: "funnel-1",
       source_id: "source-one", evaluated_at: "2026-09-02T01:10:00.001Z",

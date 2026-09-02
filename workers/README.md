@@ -16,7 +16,7 @@ Hiện có:
   projection, sau đó phát journey-resolved handoff.
 - `funnel-processor/`: chiếu journey theo Funnel Profile immutable/versioned, rebuild theo
   event-time rồi phát funnel-updated handoff.
-- `funnel-maturity-scheduler/`: hiện mới có repository lưu maturity evidence immutable/revisioned;
-  chưa có polling runtime, chưa đóng outcome và chưa phát KPI handoff.
+- `funnel-maturity-scheduler/`: polling runtime có PostgreSQL advisory-lock coordination và lưu
+  maturity evidence immutable/revisioned; chưa đóng outcome và chưa phát KPI handoff.
 - `kpi-projector/`: materialize funnel snapshot idempotent thành KPI base fact và observed views,
   sau đó phát kpi-updated handoff.

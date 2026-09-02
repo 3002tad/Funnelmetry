@@ -341,3 +341,17 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   entry step. Integration test cũ được cô lập trong schema ngẫu nhiên để không phụ thuộc demo volume.
 - Compose có one-shot `postgres-migrations`, áp dụng idempotent migration `001–006` trước mọi
   PostgreSQL worker cho cả volume mới và volume đã tồn tại.
+
+## 22. Coordinated maturity polling
+
+- `funnel-maturity-scheduler` đã có runtime polling theo batch và cấu hình môi trường riêng.
+- Một PostgreSQL advisory lock theo session bảo đảm chỉ một replica làm leader; standby thử nhận lại
+  leadership ở mỗi poll, không cần bảng lease hoặc timeout tự đặt thêm.
+- Candidate query chỉ chọn Funnel Instance còn `IN_PROGRESS` đã đến transition timeout hoặc quá
+  `conversion horizon + late-arrival grace`, đồng thời bỏ qua maturity evidence không đổi.
+- Repository vẫn khóa và tính lại từng candidate trước khi append evidence, nên kết quả truy vấn cũ
+  không được dùng trực tiếp để quyết định trạng thái.
+- Compose V2 chạy scheduler sau migration. Reference profile vẫn `null/null`, vì vậy worker chạy idle
+  và không tự tạo numeric time policy.
+- Chưa mutate outcome thành `DROPPED` và chưa phát matured KPI. Atomic outcome/KPI handoff cùng
+  late-conversion evidence vẫn là gate kế tiếp.

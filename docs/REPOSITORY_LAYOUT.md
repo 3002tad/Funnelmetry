@@ -35,7 +35,7 @@ workers/
   canonical-ledger-writer/   # canonical Kafka → PostgreSQL source of truth
   journey-processor/         # persisted canonical → progressive journey projection
   funnel-processor/          # journey-resolved -> versioned Funnel Instance projection
-  funnel-maturity-scheduler/ # maturity evidence store; polling runtime is still gated
+  funnel-maturity-scheduler/ # coordinated polling and immutable maturity evidence
   kpi-projector/             # funnel-updated -> idempotent KPI base facts/observed views
   reconciliation-worker/     # future
 packages/

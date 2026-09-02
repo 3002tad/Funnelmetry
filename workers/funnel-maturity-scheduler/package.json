@@ -5,6 +5,7 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
+    "start": "node --env-file=../../infra/.env src/main.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

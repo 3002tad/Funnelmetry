@@ -158,12 +158,15 @@ denominator chưa bị hard-code khi contract tương ứng còn experimental.
 ## Time Semantics Contract v1
 
 Package `packages/time-semantics-contract` chuẩn hóa clock, horizon/grace, maturity và late-arrival
-boundary bằng các hàm thuần. Contract không có timeout mặc định và chưa kích hoạt scheduler; hai
-reference profile còn `null` time policy nên không bị tự kết luận `DROPPED`.
+boundary bằng các hàm thuần. Contract không có timeout mặc định; hai reference profile còn `null`
+time policy nên scheduler không tự kết luận `DROPPED`.
 
 Migration `006_funnel_maturity.sql` và repository trong `workers/funnel-maturity-scheduler` đã lưu
-được maturity evidence revisioned/idempotent. Thành phần này vẫn chưa phải scheduler chạy nền và
-không mutate Funnel Instance.
+được maturity evidence revisioned/idempotent. Scheduler chạy polling theo batch với PostgreSQL
+advisory lock cho single-leader coordination, nhưng chưa mutate Funnel Instance hay phát KPI.
+
+Chạy riêng worker bằng `npm start` trong `workers/funnel-maturity-scheduler`, hoặc chạy cùng local
+stack qua `infra/compose.v2.yml`. Các tham số polling nằm trong `infra/.env.example`.
 
 Xem [`docs/TIME_SEMANTICS_CONTRACT_V1.md`](docs/TIME_SEMANTICS_CONTRACT_V1.md).
 

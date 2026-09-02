@@ -225,6 +225,22 @@ services:
       profile-publisher:
         condition: service_completed_successfully
 
+  funnel-maturity-scheduler:
+    image: funnelmetry/funnel-maturity-scheduler:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: workers/funnel-maturity-scheduler
+    environment:
+      <<: *postgres-environment
+      MATURITY_SCHEDULER_INSTANCE_ID: maturity-local-1
+      MATURITY_SCHEDULER_POLL_INTERVAL_MS: "5000"
+      MATURITY_SCHEDULER_BATCH_SIZE: "100"
+    depends_on:
+      postgres-migrations:
+        condition: service_completed_successfully
+
   kpi-projector:
     image: funnelmetry/kpi-projector:local
     build:

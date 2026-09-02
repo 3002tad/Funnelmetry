@@ -84,6 +84,77 @@ export function createFunnelMaturityRepository({ pool } = {}) {
   if (!pool || typeof pool.connect !== "function") throw new Error("A PostgreSQL pool is required")
 
   return Object.freeze({
+    async listDueCandidates({ observed_at: observedAtInput, limit = 100 } = {}) {
+      const observedAt = timestamp(observedAtInput, "observed_at")
+      if (!Number.isSafeInteger(limit) || limit <= 0) throw new Error("limit must be a positive integer")
+      const result = await pool.query(
+        `WITH candidates AS (
+           SELECT i.funnel_instance_id, i.source_id,
+                  CASE
+                    WHEN p.conversion_horizon_seconds IS NOT NULL
+                     AND $1::timestamptz > i.conversion_deadline
+                       + make_interval(secs => p.late_arrival_grace_seconds::double precision)
+                      THEN 'MATURED'
+                    WHEN timeout.timeout_seconds IS NOT NULL
+                     AND $1::timestamptz >= reached.last_reached_at
+                       + make_interval(secs => timeout.timeout_seconds::double precision)
+                      THEN 'SUSPECTED_DROPOFF'
+                  END AS target_state,
+                  next_step.step_id AS next_step_id,
+                  reached.last_reached_at
+                    + make_interval(secs => timeout.timeout_seconds::double precision)
+                    AS suspected_dropoff_at,
+                  i.conversion_deadline
+                    + make_interval(secs => p.late_arrival_grace_seconds::double precision)
+                    AS finalization_at
+             FROM funnel_instances i
+             JOIN funnel_profiles p
+               ON p.funnel_profile_id = i.funnel_profile_id
+              AND p.profile_version = i.profile_version
+             LEFT JOIN LATERAL (
+               SELECT step_index, last_reached_at
+                 FROM funnel_instance_steps
+                WHERE funnel_instance_id = i.funnel_instance_id
+                ORDER BY step_index DESC LIMIT 1
+             ) reached ON true
+             LEFT JOIN funnel_profile_steps next_step
+               ON next_step.funnel_profile_id = i.funnel_profile_id
+              AND next_step.profile_version = i.profile_version
+              AND next_step.step_index = COALESCE(reached.step_index, -1) + 1
+             LEFT JOIN funnel_profile_transition_timeouts timeout
+               ON timeout.funnel_profile_id = i.funnel_profile_id
+              AND timeout.profile_version = i.profile_version
+              AND timeout.next_step_id = next_step.step_id
+            WHERE i.outcome_status = 'IN_PROGRESS'
+         ), due AS (
+           SELECT candidates.*,
+                  CASE WHEN target_state = 'MATURED' THEN finalization_at
+                       ELSE suspected_dropoff_at END AS due_at
+             FROM candidates
+            WHERE target_state IS NOT NULL
+         )
+         SELECT due.funnel_instance_id, due.source_id, due.target_state,
+                due.next_step_id, due.due_at
+           FROM due
+           LEFT JOIN funnel_instance_latest_maturity latest
+             ON latest.funnel_instance_id = due.funnel_instance_id
+          WHERE latest.maturity_state IS DISTINCT FROM due.target_state
+             OR (due.target_state = 'SUSPECTED_DROPOFF'
+                 AND (latest.next_step_id IS DISTINCT FROM due.next_step_id
+                   OR latest.suspected_dropoff_at IS DISTINCT FROM due.suspected_dropoff_at))
+          ORDER BY due.due_at, due.funnel_instance_id
+          LIMIT $2`,
+        [observedAt, limit],
+      )
+      return result.rows.map((row) => Object.freeze({
+        funnel_instance_id: row.funnel_instance_id,
+        source_id: row.source_id,
+        target_state: row.target_state,
+        next_step_id: row.next_step_id,
+        due_at: iso(row.due_at),
+      }))
+    },
+
     async recordEvaluation(input) {
       const request = validateEvaluationRequest(input)
       const client = await pool.connect()
