@@ -101,7 +101,7 @@ components:
         to: { type: string, format: date-time, nullable: true }
     ProfileTotal:
       type: object
-      required: [funnel_profile_id, profile_version, display_name, entrants, observed_converted, pending]
+      required: [funnel_profile_id, profile_version, display_name, entrants, observed_converted, pending, finalized_dropped, late_conversions]
       properties:
         funnel_profile_id: { type: string }
         profile_version: { type: string }
@@ -112,6 +112,11 @@ components:
         dropped: { type: integer }
         terminated: { type: integer }
         invalid: { type: integer }
+        finalized_dropped: { type: integer, description: Eligible instances atomically finalized as DROPPED }
+        late_conversions: { type: integer, description: Finalized drop-offs later linked to an authoritative conversion by strong business key }
+        too_late_for_final_cohort: { type: integer }
+        after_horizon: { type: integer }
+        late_conversion_rate: { type: number, format: double, nullable: true, description: late_conversions / finalized_dropped }
         provisional: { type: integer }
         reconciling: { type: integer }
         reconciled: { type: integer }
@@ -170,6 +175,20 @@ components:
         quality_status: { type: string, enum: [PROVISIONAL, RECONCILING, RECONCILED, DEGRADED] }
         entry_at: { type: string, format: date-time }
         converted_at: { type: string, format: date-time, nullable: true }
+        has_late_conversion: { type: boolean }
+    LateConversion:
+      type: object
+      description: Privacy-safe evidence; matched business-key values and internal documents are excluded.
+      properties:
+        late_conversion_id: { type: string }
+        conversion_event_id: { type: string }
+        arrival_class: { type: string, enum: [TOO_LATE_FOR_FINAL_COHORT, AFTER_HORIZON] }
+        conversion_occurred_at: { type: string, format: date-time }
+        conversion_ingested_at: { type: string, format: date-time }
+        link_method: { type: string }
+        link_confidence: { type: string, enum: [STRONG] }
+        matched_entity_type: { type: string, enum: [CART, CHECKOUT, ORDER, PAYMENT] }
+        detected_at: { type: string, format: date-time }
     JourneyList:
       type: object
       required: [source_id, limit, journeys]
@@ -228,6 +247,10 @@ components:
               - { $ref: "#/components/schemas/FunnelInstanceSummary" }
               - type: object
                 properties:
+                  late_conversion:
+                    nullable: true
+                    allOf:
+                      - { $ref: "#/components/schemas/LateConversion" }
                   steps:
                     type: array
                     items:

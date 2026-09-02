@@ -13,6 +13,11 @@ export type ProfileTotal = {
   dropped: number
   terminated: number
   invalid: number
+  finalized_dropped: number
+  late_conversions: number
+  too_late_for_final_cohort: number
+  after_horizon: number
+  late_conversion_rate: number | null
   provisional: number
   reconciling: number
   reconciled: number
@@ -20,6 +25,18 @@ export type ProfileTotal = {
   observed_end_to_end_rate: number | null
   first_entry_at: string | null
   last_entry_at: string | null
+}
+
+export type LateConversionSummary = {
+  late_conversion_id: string
+  conversion_event_id: string
+  arrival_class: "TOO_LATE_FOR_FINAL_COHORT" | "AFTER_HORIZON"
+  conversion_occurred_at: string
+  conversion_ingested_at: string
+  link_method: string
+  link_confidence: "STRONG"
+  matched_entity_type: "CART" | "CHECKOUT" | "ORDER" | "PAYMENT"
+  detected_at: string
 }
 
 export type OverviewResponse = {
@@ -70,6 +87,7 @@ export type JourneyListItem = {
     quality_status: QualityStatus
     entry_at: string
     converted_at: string | null
+    has_late_conversion: boolean
   }>
 }
 
@@ -103,6 +121,7 @@ export type JourneyDetail = {
     quality_status: QualityStatus
     entry_at: string
     converted_at: string | null
+    late_conversion: LateConversionSummary | null
     steps: Array<{ step_index: number; step_id: string; event_type: string; sequence_status: string }>
   }>
 }

@@ -38,6 +38,8 @@ function timestampFilter({ sourceId, from, to }, column, alias = "c") {
 function mapProfileTotal(row) {
   const entrants = number(row.entrants)
   const converted = number(row.observed_converted)
+  const finalizedDropped = number(row.finalized_dropped)
+  const lateConversions = number(row.late_conversions)
   return {
     funnel_profile_id: row.funnel_profile_id,
     profile_version: row.profile_version,
@@ -48,6 +50,11 @@ function mapProfileTotal(row) {
     dropped: number(row.dropped),
     terminated: number(row.terminated),
     invalid: number(row.invalid),
+    finalized_dropped: finalizedDropped,
+    late_conversions: lateConversions,
+    too_late_for_final_cohort: number(row.too_late_for_final_cohort),
+    after_horizon: number(row.after_horizon),
+    late_conversion_rate: rate(lateConversions, finalizedDropped),
     provisional: number(row.provisional),
     reconciling: number(row.reconciling),
     reconciled: number(row.reconciled),
@@ -94,6 +101,14 @@ export function createV2AnalyticsRepository({ query } = {}) {
                 COUNT(*) FILTER (WHERE i.outcome_status = 'DROPPED')::bigint AS dropped,
                 COUNT(*) FILTER (WHERE i.outcome_status = 'TERMINATED')::bigint AS terminated,
                 COUNT(*) FILTER (WHERE i.outcome_status = 'INVALID')::bigint AS invalid,
+                COUNT(finalization.finalization_id)::bigint AS finalized_dropped,
+                COUNT(late_conversion.late_conversion_id)::bigint AS late_conversions,
+                COUNT(late_conversion.late_conversion_id) FILTER (
+                  WHERE late_conversion.arrival_class = 'TOO_LATE_FOR_FINAL_COHORT'
+                )::bigint AS too_late_for_final_cohort,
+                COUNT(late_conversion.late_conversion_id) FILTER (
+                  WHERE late_conversion.arrival_class = 'AFTER_HORIZON'
+                )::bigint AS after_horizon,
                 COUNT(*) FILTER (WHERE i.quality_status = 'PROVISIONAL')::bigint AS provisional,
                 COUNT(*) FILTER (WHERE i.quality_status = 'RECONCILING')::bigint AS reconciling,
                 COUNT(*) FILTER (WHERE i.quality_status = 'RECONCILED')::bigint AS reconciled,
@@ -103,6 +118,10 @@ export function createV2AnalyticsRepository({ query } = {}) {
            FROM funnel_kpi_instance_facts i
            JOIN funnel_profiles p
              ON p.funnel_profile_id = i.funnel_profile_id AND p.profile_version = i.profile_version
+           LEFT JOIN funnel_maturity_finalizations finalization
+             ON finalization.funnel_instance_id = i.funnel_instance_id
+           LEFT JOIN funnel_late_conversions late_conversion
+             ON late_conversion.funnel_instance_id = i.funnel_instance_id
           WHERE ${filter.sql}
           GROUP BY i.funnel_profile_id, i.profile_version, p.display_name
           ORDER BY p.display_name, i.profile_version`,
@@ -130,12 +149,24 @@ export function createV2AnalyticsRepository({ query } = {}) {
                 COUNT(*) FILTER (WHERE i.outcome_status = 'DROPPED')::bigint AS dropped,
                 COUNT(*) FILTER (WHERE i.outcome_status = 'TERMINATED')::bigint AS terminated,
                 COUNT(*) FILTER (WHERE i.outcome_status = 'INVALID')::bigint AS invalid,
+                COUNT(finalization.finalization_id)::bigint AS finalized_dropped,
+                COUNT(late_conversion.late_conversion_id)::bigint AS late_conversions,
+                COUNT(late_conversion.late_conversion_id) FILTER (
+                  WHERE late_conversion.arrival_class = 'TOO_LATE_FOR_FINAL_COHORT'
+                )::bigint AS too_late_for_final_cohort,
+                COUNT(late_conversion.late_conversion_id) FILTER (
+                  WHERE late_conversion.arrival_class = 'AFTER_HORIZON'
+                )::bigint AS after_horizon,
                 COUNT(*) FILTER (WHERE i.quality_status = 'PROVISIONAL')::bigint AS provisional,
                 COUNT(*) FILTER (WHERE i.quality_status = 'RECONCILING')::bigint AS reconciling,
                 COUNT(*) FILTER (WHERE i.quality_status = 'RECONCILED')::bigint AS reconciled,
                 COUNT(*) FILTER (WHERE i.quality_status = 'DEGRADED')::bigint AS degraded,
                 MIN(i.entry_at) AS first_entry_at, MAX(i.entry_at) AS last_entry_at
            FROM funnel_kpi_instance_facts i
+           LEFT JOIN funnel_maturity_finalizations finalization
+             ON finalization.funnel_instance_id = i.funnel_instance_id
+           LEFT JOIN funnel_late_conversions late_conversion
+             ON late_conversion.funnel_instance_id = i.funnel_instance_id
           WHERE ${filter.sql}
             AND i.funnel_profile_id = $${profileIndex}
             AND i.profile_version = $${versionIndex}`,
@@ -205,11 +236,14 @@ export function createV2AnalyticsRepository({ query } = {}) {
                   'outcome_status', instances.outcome_status,
                   'quality_status', instances.quality_status,
                   'entry_at', instances.entry_at,
-                  'converted_at', instances.converted_at
+                  'converted_at', instances.converted_at,
+                  'has_late_conversion', late_conversion.late_conversion_id IS NOT NULL
                 )) FILTER (WHERE instances.funnel_instance_id IS NOT NULL), '[]'::jsonb) AS funnel_instances
            FROM journeys j
            LEFT JOIN journey_entities entities ON entities.journey_id = j.journey_id
            LEFT JOIN funnel_instances instances ON instances.journey_id = j.journey_id
+           LEFT JOIN funnel_late_conversions late_conversion
+             ON late_conversion.funnel_instance_id = instances.funnel_instance_id
           WHERE j.source_id = $1
           GROUP BY j.journey_id
           ORDER BY j.last_event_at DESC, j.journey_id
@@ -248,6 +282,17 @@ export function createV2AnalyticsRepository({ query } = {}) {
         query(
           `SELECT i.funnel_instance_id, i.funnel_profile_id, i.profile_version, i.entry_at,
                   i.conversion_deadline, i.outcome_status, i.quality_status, i.converted_at,
+                  CASE WHEN late_conversion.late_conversion_id IS NULL THEN NULL ELSE jsonb_build_object(
+                    'late_conversion_id', late_conversion.late_conversion_id,
+                    'conversion_event_id', late_conversion.conversion_event_id,
+                    'arrival_class', late_conversion.arrival_class,
+                    'conversion_occurred_at', late_conversion.conversion_occurred_at,
+                    'conversion_ingested_at', late_conversion.conversion_ingested_at,
+                    'link_method', late_conversion.link_method,
+                    'link_confidence', late_conversion.link_confidence,
+                    'matched_entity_type', late_conversion.matched_entity_type,
+                    'detected_at', late_conversion.detected_at
+                  ) END AS late_conversion,
                   COALESCE(jsonb_agg(jsonb_build_object(
                     'step_index', s.step_index, 'step_id', s.step_id, 'event_type', s.event_type,
                     'first_reached_at', s.first_reached_at, 'last_reached_at', s.last_reached_at,
@@ -255,8 +300,10 @@ export function createV2AnalyticsRepository({ query } = {}) {
                   ) ORDER BY s.step_index) FILTER (WHERE s.step_index IS NOT NULL), '[]'::jsonb) AS steps
              FROM funnel_instances i
              LEFT JOIN funnel_instance_steps s ON s.funnel_instance_id = i.funnel_instance_id
+             LEFT JOIN funnel_late_conversions late_conversion
+               ON late_conversion.funnel_instance_id = i.funnel_instance_id
             WHERE i.journey_id = $1
-            GROUP BY i.funnel_instance_id
+            GROUP BY i.funnel_instance_id, late_conversion.late_conversion_id
             ORDER BY i.entry_at, i.funnel_instance_id`,
           [journeyId],
         ),

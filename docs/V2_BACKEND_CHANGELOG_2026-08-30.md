@@ -389,3 +389,15 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   của Funnel Instance, official steps, KPI outcome, revision và hash sau finalization.
 - Compose và `.env.example` bật finalization gate sau khi late-conversion path đã có; default trong code
   vẫn là `false` để deployment thiếu cấu hình không tự thay đổi outcome.
+
+## 25. Privacy-safe late-conversion analytics read model
+
+- Overview và Funnel API tổng hợp `finalized_dropped`, `late_conversions`, arrival-class breakdown và
+  `late_conversion_rate` theo cùng entry cohort/profile/version.
+- Mẫu số late-conversion rate được định nghĩa tường minh là số eligible instance đã atomic finalization
+  thành `DROPPED`; không cộng late conversion vào `observed_converted` của horizon cũ.
+- Journey list chỉ công bố `has_late_conversion`; Journey detail trả classification, timestamps,
+  link method/confidence và business entity type nhưng không trả matched entity key/document nội bộ.
+- OpenAPI và typed dashboard client được mở rộng tương thích; chưa thay đổi cách UI render.
+- PostgreSQL integration test chứng minh official step/KPI vẫn là drop-off trong khi late evidence có thể
+  được đọc riêng, đồng thời unit test khóa zero-denominator và privacy-safe query shape.

@@ -33,10 +33,15 @@ Các endpoint dùng authentication/role zone giống shop analytics API hiện t
 buộc. `from`/`to` dùng `entry_at` cho Funnel KPI, `occurred_at` cho Event browser và `persisted_at`
 cho canonical Data Health; response luôn ghi rõ window basis. Funnel cohort không được diễn giải là
 KPI window đã mature. Response funnel ghi `metric_state: OBSERVED` và giữ outcome/quality thành hai chiều riêng.
+Overview và funnel totals công bố riêng `finalized_dropped`, `late_conversions`, hai arrival class và
+`late_conversion_rate = late_conversions / finalized_dropped`; late conversion không được cộng vào
+`observed_converted` hay sửa historical horizon metric.
 
 Journey detail chỉ trả canonical event metadata và evidence summary; không trả raw/canonical
 payload, identity value hoặc `journey_entities.entity_key`. Event browser cũng loại bỏ normalized data,
 relations, source event identity và aggregate ID.
+Late-conversion detail chỉ trả classification, timestamps và loại/phương pháp liên kết; không trả
+matched business-key value hoặc evidence document nội bộ.
 
 Data Health công bố metric từ accepted ingress receipt, terminal canonicalization outcome, canonical
 ledger và Funnel KPI facts: terminal outcome rate, canonicalization/normalization/persistence latency,
