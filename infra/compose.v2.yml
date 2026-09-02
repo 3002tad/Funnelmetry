@@ -82,6 +82,22 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/v2:/docker-entrypoint-initdb.d:ro
 
+  postgres-migrations:
+    image: postgres:15-alpine
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: funnelmetry
+      PGUSER: funnelmetry
+      PGPASSWORD: funnelmetry-local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./postgres/v2:/migrations:ro
+      - ./postgres/apply-v2-migrations.sh:/apply-v2-migrations.sh:ro
+    command: ["sh", "/apply-v2-migrations.sh"]
+
   input-gateway:
     image: funnelmetry/input-gateway:local
     build:
@@ -137,8 +153,8 @@ services:
     depends_on:
       kafka-topics:
         condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
+      postgres-migrations:
+        condition: service_completed_successfully
 
   canonical-ledger-writer:
     image: funnelmetry/canonical-ledger-writer:local
@@ -154,8 +170,8 @@ services:
     depends_on:
       kafka-topics:
         condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
+      postgres-migrations:
+        condition: service_completed_successfully
 
   journey-processor:
     image: funnelmetry/journey-processor:local
@@ -171,8 +187,8 @@ services:
     depends_on:
       kafka-topics:
         condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
+      postgres-migrations:
+        condition: service_completed_successfully
 
   profile-publisher:
     image: funnelmetry/funnel-processor:local
@@ -187,8 +203,8 @@ services:
       FUNNEL_PROCESSOR_INSTANCE_ID: funnel-profile-publisher-local-1
       FUNNEL_PROFILE_SOURCE_ID: medusa-reference
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-migrations:
+        condition: service_completed_successfully
 
   funnel-processor:
     image: funnelmetry/funnel-processor:local
@@ -204,8 +220,8 @@ services:
     depends_on:
       kafka-topics:
         condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
+      postgres-migrations:
+        condition: service_completed_successfully
       profile-publisher:
         condition: service_completed_successfully
 
@@ -223,8 +239,8 @@ services:
     depends_on:
       kafka-topics:
         condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
+      postgres-migrations:
+        condition: service_completed_successfully
 
   e2e-smoke:
     profiles: ["smoke"]
@@ -248,8 +264,8 @@ services:
     depends_on:
       input-gateway:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
+      postgres-migrations:
+        condition: service_completed_successfully
     command: ["node", "src/run.mjs"]
 
 volumes:

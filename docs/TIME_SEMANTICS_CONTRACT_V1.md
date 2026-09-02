@@ -68,7 +68,7 @@ path. Late conversion must preserve the original horizon-bound KPI instead of re
 
 ## Compatibility and next gate
 
-The existing `funnel_profiles` columns already represent horizon and grace. Reference profiles keep
-both values `null`, so adding this package changes no current projection result. Before runtime
-activation, the next contract/migration must define persistence for maturity evidence, transition
-timeouts, eligibility reason, late-conversion evidence and idempotent scheduler handoff.
+The existing `funnel_profiles` columns represent horizon and grace. Migration `006` adds immutable
+transition timeout policy and append-only maturity evidence; reference profiles still keep horizon
+and grace `null`, so no current projection is finalized. Before runtime activation, the next gate
+must define polling/coordination, atomic outcome/KPI handoff and late-conversion evidence.

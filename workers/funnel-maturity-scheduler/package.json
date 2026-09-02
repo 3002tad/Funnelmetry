@@ -1,0 +1,17 @@
+{
+  "name": "@funnelmetry/funnel-maturity-scheduler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@funnelmetry/time-semantics-contract": "file:../../packages/time-semantics-contract",
+    "pg": "^8.13.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

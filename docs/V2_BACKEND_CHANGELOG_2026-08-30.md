@@ -327,3 +327,17 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   tránh race với event đến đúng tại finalization timestamp.
 - Chưa thêm scheduler/migration lifecycle. Gate tiếp theo là chốt persistence cho maturity evidence,
   transition timeout, eligibility, late conversion và idempotent scheduler handoff.
+
+## 21. Funnel maturity persistence foundation
+
+- Thêm migration `006_funnel_maturity.sql`: transition timeout immutable theo profile/version và
+  maturity evaluation append-only theo revision, kèm latest-state view.
+- Maturity evidence lưu outcome/quality snapshot, authoritative entry-time, deadline/finalization,
+  eligibility và reason; database kiểm tra shape theo từng maturity state.
+- Repository khóa Funnel Instance, kiểm tra deadline khớp immutable profile policy, tự suy ra
+  eligibility/maturity bằng `time-semantics.v1`, chặn stale evaluation và hỗ trợ stable-ID redelivery.
+- Repository không mutate `funnel_instances`, không kết luận `DROPPED` và không phát KPI handoff.
+- Funnel Profile publisher persist/round-trip transition timeout; timeout phải trỏ tới một step sau
+  entry step. Integration test cũ được cô lập trong schema ngẫu nhiên để không phụ thuộc demo volume.
+- Compose có one-shot `postgres-migrations`, áp dụng idempotent migration `001–006` trước mọi
+  PostgreSQL worker cho cả volume mới và volume đã tồn tại.

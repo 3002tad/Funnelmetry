@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto"
 import test from "node:test"
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
@@ -8,20 +9,27 @@ import { canonicalEvent, commerceProfile } from "./fixtures.js"
 const databaseUrl = process.env.TEST_DATABASE_URL
 
 test("projects a late commerce sequence and preserves a post-conversion negative branch", { skip: !databaseUrl }, async () => {
-  const pool = new pg.Pool({ connectionString: databaseUrl })
+  const schema = `funnel_${randomUUID().replaceAll("-", "")}`
+  const admin = new pg.Pool({ connectionString: databaseUrl })
+  await admin.query(`CREATE SCHEMA ${schema}`)
+  const pool = new pg.Pool({ connectionString: databaseUrl, options: `-c search_path=${schema}` })
   try {
-    for (const migration of ["001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql"]) {
+    for (const migration of [
+      "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
+      "006_funnel_maturity.sql",
+    ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }
     const profileRepository = createFunnelProfileRepository({ pool })
+    const persistedProfile = { ...commerceProfile, transition_timeouts_seconds: { cart: 300 } }
     await profileRepository.publish({
       sourceId: "source-one",
-      profile: commerceProfile,
+      profile: persistedProfile,
       publishedAt: "2026-08-29T00:00:00.000Z",
     })
     await profileRepository.publish({
       sourceId: "source-one",
-      profile: commerceProfile,
+      profile: persistedProfile,
       publishedAt: "2026-08-29T00:00:01.000Z",
     })
     await assert.rejects(
@@ -30,6 +38,8 @@ test("projects a late commerce sequence and preserves a post-conversion negative
     )
     const activations = await pool.query("SELECT * FROM funnel_profile_activations")
     assert.equal(activations.rowCount, 1)
+    const timeouts = await pool.query("SELECT next_step_id, timeout_seconds FROM funnel_profile_transition_timeouts")
+    assert.deepEqual(timeouts.rows, [{ next_step_id: "cart", timeout_seconds: "300" }])
     await pool.query(
       `INSERT INTO journeys (journey_id, source_id, first_event_at, last_event_at)
        VALUES ('journey_1', 'source-one', '2026-08-29T01:00:01Z', '2026-08-29T01:00:05Z')`,
@@ -77,5 +87,7 @@ test("projects a late commerce sequence and preserves a post-conversion negative
     assert.deepEqual(branches.rows.map((row) => row.event_type), ["order.cancelled"])
   } finally {
     await pool.end()
+    await admin.query(`DROP SCHEMA ${schema} CASCADE`)
+    await admin.end()
   }
 })

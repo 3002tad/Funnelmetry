@@ -13,3 +13,8 @@ Schema V2 mới nằm trong `v2/`:
   chưa áp đặt time-window policy còn experimental.
 - `v2/005_ingress_telemetry.sql`: accepted ingress receipt và versioned canonicalization outcome
   dùng làm durable evidence cho terminal outcome rate và canonicalization latency.
+- `v2/006_funnel_maturity.sql`: immutable profile transition timeout và append-only, revisioned
+  Funnel Instance maturity evidence; chưa tự thay đổi outcome thành `DROPPED`.
+
+Compose chạy `postgres-migrations` mỗi lần khởi động để áp dụng idempotent toàn bộ migration V2 cho
+cả volume mới lẫn volume đã tồn tại.

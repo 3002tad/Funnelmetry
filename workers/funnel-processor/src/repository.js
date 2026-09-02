@@ -17,7 +17,7 @@ function comparePosition(leftTime, leftId, rightTime, rightId) {
   return Date.parse(leftTime) - Date.parse(rightTime) || leftId.localeCompare(rightId)
 }
 
-function profileFromRows(profileRow, stepRows, negativeRows) {
+function profileFromRows(profileRow, stepRows, negativeRows, transitionRows) {
   return validateProfile({
     funnel_profile_id: profileRow.funnel_profile_id,
     profile_version: profileRow.profile_version,
@@ -32,6 +32,9 @@ function profileFromRows(profileRow, stepRows, negativeRows) {
       event_class: row.event_class,
     })),
     negative_events: negativeRows.map((row) => row.event_type),
+    transition_timeouts_seconds: Object.fromEntries(
+      transitionRows.map((row) => [row.next_step_id, Number(row.timeout_seconds)]),
+    ),
   })
 }
 
@@ -77,6 +80,14 @@ export function createFunnelProfileRepository({ pool } = {}) {
               `INSERT INTO funnel_profile_negative_events (funnel_profile_id, profile_version, event_type)
                VALUES ($1, $2, $3)`,
               [profile.funnel_profile_id, profile.profile_version, eventType],
+            )
+          }
+          for (const [nextStepId, timeoutSeconds] of Object.entries(profile.transition_timeouts_seconds ?? {})) {
+            await client.query(
+              `INSERT INTO funnel_profile_transition_timeouts (
+                 funnel_profile_id, profile_version, next_step_id, timeout_seconds
+               ) VALUES ($1, $2, $3, $4)`,
+              [profile.funnel_profile_id, profile.profile_version, nextStepId, timeoutSeconds],
             )
           }
         }
@@ -136,19 +147,28 @@ export function createFunnelRepository({ pool, now = () => new Date().toISOStrin
             duplicateProfiles += 1
             continue
           }
-          const [stepsResult, negativesResult] = await Promise.all([
-            client.query(
-              `SELECT step_id, event_type, event_class FROM funnel_profile_steps
-                WHERE funnel_profile_id = $1 AND profile_version = $2 ORDER BY step_index`,
-              [profileRow.funnel_profile_id, profileRow.profile_version],
-            ),
-            client.query(
-              `SELECT event_type FROM funnel_profile_negative_events
-                WHERE funnel_profile_id = $1 AND profile_version = $2 ORDER BY event_type`,
-              [profileRow.funnel_profile_id, profileRow.profile_version],
-            ),
-          ])
-          const profile = profileFromRows(profileRow, stepsResult.rows, negativesResult.rows)
+          const profileIdentity = [profileRow.funnel_profile_id, profileRow.profile_version]
+          const stepsResult = await client.query(
+            `SELECT step_id, event_type, event_class FROM funnel_profile_steps
+              WHERE funnel_profile_id = $1 AND profile_version = $2 ORDER BY step_index`,
+            profileIdentity,
+          )
+          const negativesResult = await client.query(
+            `SELECT event_type FROM funnel_profile_negative_events
+              WHERE funnel_profile_id = $1 AND profile_version = $2 ORDER BY event_type`,
+            profileIdentity,
+          )
+          const transitionsResult = await client.query(
+            `SELECT next_step_id, timeout_seconds FROM funnel_profile_transition_timeouts
+              WHERE funnel_profile_id = $1 AND profile_version = $2 ORDER BY next_step_id`,
+            profileIdentity,
+          )
+          const profile = profileFromRows(
+            profileRow,
+            stepsResult.rows,
+            negativesResult.rows,
+            transitionsResult.rows,
+          )
 
           if (event.event_type === profile.entry_event_type && event.event_class === profile.ordered_steps[0].event_class) {
             const deadline = profile.conversion_horizon_seconds === null

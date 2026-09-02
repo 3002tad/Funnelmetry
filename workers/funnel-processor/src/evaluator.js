@@ -22,7 +22,13 @@ export function validateProfile(profile) {
   if (profile.ordered_steps[0].event_type !== profile.entry_event_type) {
     throw new Error("entry_event_type must match the first ordered step")
   }
-  validateFunnelTimePolicy(profile)
+  const timePolicy = validateFunnelTimePolicy(profile)
+  for (const stepId of Object.keys(timePolicy.transition_timeouts_seconds)) {
+    if (!ids.has(stepId)) throw new Error(`transition timeout references unknown step ${stepId}`)
+    if (stepId === profile.ordered_steps[0].step_id) {
+      throw new Error("transition timeout must target a step after the entry step")
+    }
+  }
   const negativeEvents = profile.negative_events ?? []
   if (!Array.isArray(negativeEvents) || negativeEvents.some((value) => typeof value !== "string" || !value)) {
     throw new Error("negative_events must be an array of event types")

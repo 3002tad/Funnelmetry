@@ -61,6 +61,17 @@ test("rejects a partially configured time policy", () => {
   )
 })
 
+test("requires transition timeouts to target a non-entry profile step", () => {
+  assert.throws(
+    () => validateProfile({ ...commerceProfile, transition_timeouts_seconds: { missing: 60 } }),
+    /unknown step/,
+  )
+  assert.throws(
+    () => validateProfile({ ...commerceProfile, transition_timeouts_seconds: { view: 60 } }),
+    /after the entry step/,
+  )
+})
+
 test("ships only the two approved reference semantics without invented timeout values", () => {
   assert.deepEqual(REFERENCE_FUNNEL_PROFILES.map((profile) => profile.ordered_steps.map((step) => step.event_type)), [
     ["behavior.product_viewed", "cart.item_added", "checkout.started", "order.accepted"],
