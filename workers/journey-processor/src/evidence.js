@@ -35,7 +35,7 @@ export function extractJourneyEvidence(event) {
       entity_key: event.aggregate.id,
       link_method: "BUSINESS_ENTITY",
       link_confidence: "STRONG",
-      priority: 30,
+      priority: 50,
     })
   }
   for (const [field, entityType] of Object.entries(RELATION_ENTITIES)) {
@@ -45,7 +45,7 @@ export function extractJourneyEvidence(event) {
       entity_key: value,
       link_method: "BUSINESS_ENTITY",
       link_confidence: "STRONG",
-      priority: 30,
+      priority: 50,
     })
   }
 

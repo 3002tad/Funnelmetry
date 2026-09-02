@@ -12,8 +12,8 @@ docker compose -f infra/compose.v2.yml run --rm e2e-smoke
 Service one-shot `postgres-migrations` áp dụng tuần tự mọi migration V2 trước khi các PostgreSQL
 worker khởi động, nên volume cũ cũng nhận migration mới mà không cần xóa dữ liệu.
 `funnel-maturity-scheduler` cũng chạy trong stack nhưng sẽ không có candidate với reference profile
-`null/null`; atomic outcome/KPI finalization cũng bị khóa bởi
-`MATURITY_SCHEDULER_FINALIZATION_ENABLED=false` cho tới khi có late-conversion path.
+`null/null`. Khi profile version cấu hình time policy, atomic outcome/KPI finalization có thể bật qua
+`MATURITY_SCHEDULER_FINALIZATION_ENABLED`; event muộn đủ strong-business-key evidence được lưu riêng.
 
 The smoke runner sends the approved four-step Commerce Conversion sequence through Input Gateway,
 Kafka, Canonical Normalizer, Canonical Ledger Writer, Ingress Telemetry Writer, Journey Processor,

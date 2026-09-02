@@ -17,6 +17,7 @@ test("records idempotent, revisioned maturity evidence without closing the funne
     for (const migration of [
       "001_canonical_ledger.sql", "002_journey_projection.sql", "003_funnel_projection.sql",
       "004_kpi_projection.sql", "006_funnel_maturity.sql", "007_maturity_finalization.sql",
+      "008_late_conversion.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }

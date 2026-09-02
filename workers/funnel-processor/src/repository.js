@@ -1,12 +1,23 @@
 import { createHash } from "node:crypto"
 import { validateCanonicalEvent } from "@funnelmetry/canonical-contract"
+import { classifyCanonicalEventArrival } from "@funnelmetry/time-semantics-contract"
 import { evaluateFunnelWindow, validateProfile } from "./evaluator.js"
+
+const STRONG_BUSINESS_ENTITY_TYPES = new Set(["CART", "CHECKOUT", "ORDER", "PAYMENT"])
+const LATE_CONVERSION_ARRIVAL_CLASSES = new Set(["TOO_LATE_FOR_FINAL_COHORT", "AFTER_HORIZON"])
 
 function deterministicInstanceId(profile, journeyId, entryEventId) {
   const digest = createHash("sha256")
     .update(JSON.stringify([profile.funnel_profile_id, profile.profile_version, journeyId, entryEventId]))
     .digest("hex")
   return `funnel_${digest}`
+}
+
+function deterministicLateConversionId(instanceId, conversionEventId) {
+  const digest = createHash("sha256")
+    .update(JSON.stringify([instanceId, conversionEventId]))
+    .digest("hex")
+  return `late_conversion_${digest}`
 }
 
 function toIso(value) {
@@ -36,6 +47,92 @@ function profileFromRows(profileRow, stepRows, negativeRows, transitionRows) {
       transitionRows.map((row) => [row.next_step_id, Number(row.timeout_seconds)]),
     ),
   })
+}
+
+export function lateConversionCandidate({ instance, profile, projection, events }) {
+  if (instance.outcome_status !== "DROPPED" || projection.outcome_status !== "CONVERTED") return null
+  const finalStep = projection.steps.at(-1)
+  const conversionEvent = events.find(
+    (candidate) => candidate.canonical_event_id === finalStep?.representative_event_id,
+  )
+  if (!conversionEvent || conversionEvent.event_class !== "BUSINESS_FACT") return null
+  if (conversionEvent.quality?.authoritative_event_time !== true) return null
+  if (conversionEvent.link_confidence !== "STRONG"
+    || !STRONG_BUSINESS_ENTITY_TYPES.has(conversionEvent.matched_entity_type)) return null
+  const arrival = classifyCanonicalEventArrival({
+    entry_at: toIso(instance.entry_at),
+    occurred_at: conversionEvent.occurred_at,
+    ingested_at: conversionEvent.ingested_at,
+    time_basis: conversionEvent.quality.time_basis,
+    policy: profile,
+  })
+  if (!LATE_CONVERSION_ARRIVAL_CLASSES.has(arrival.classification)) return null
+  return Object.freeze({ conversionEvent, arrival })
+}
+
+async function recordLateConversion({ client, instance, profile, candidate, detectedAt }) {
+  const finalization = await client.query(
+    `SELECT f.finalization_id, f.kpi_projection_revision, f.kpi_projection_hash,
+            k.outcome_status AS kpi_outcome_status,
+            k.projection_revision AS current_kpi_projection_revision,
+            k.projection_hash AS current_kpi_projection_hash,
+            k.latest_projection_kind, k.latest_projection_id
+       FROM funnel_maturity_finalizations f
+       JOIN funnel_kpi_instance_facts k USING (funnel_instance_id)
+      WHERE f.funnel_instance_id = $1`,
+    [instance.funnel_instance_id],
+  )
+  if (finalization.rowCount !== 1) return null
+  const official = finalization.rows[0]
+  if (official.kpi_outcome_status !== "DROPPED"
+    || official.latest_projection_kind !== "MATURITY_FINALIZATION"
+    || official.latest_projection_id !== official.finalization_id
+    || Number(official.current_kpi_projection_revision) !== Number(official.kpi_projection_revision)
+    || official.current_kpi_projection_hash !== official.kpi_projection_hash) return null
+
+  const { conversionEvent, arrival } = candidate
+  const lateConversionId = deterministicLateConversionId(
+    instance.funnel_instance_id,
+    conversionEvent.canonical_event_id,
+  )
+  const document = {
+    late_conversion_id: lateConversionId,
+    finalization_id: official.finalization_id,
+    funnel_instance_id: instance.funnel_instance_id,
+    source_id: instance.source_id,
+    journey_id: instance.journey_id,
+    funnel_profile_id: profile.funnel_profile_id,
+    profile_version: profile.profile_version,
+    conversion_event_id: conversionEvent.canonical_event_id,
+    arrival_class: arrival.classification,
+    conversion_occurred_at: conversionEvent.occurred_at,
+    conversion_ingested_at: conversionEvent.ingested_at,
+    link_method: conversionEvent.link_method,
+    link_confidence: conversionEvent.link_confidence,
+    matched_entity_type: conversionEvent.matched_entity_type,
+    official_outcome_status: "DROPPED",
+    official_kpi_projection_revision: Number(official.kpi_projection_revision),
+    official_kpi_projection_hash: official.kpi_projection_hash,
+    detected_at: detectedAt,
+  }
+  const inserted = await client.query(
+    `INSERT INTO funnel_late_conversions (
+       late_conversion_id, finalization_id, funnel_instance_id, source_id, journey_id,
+       conversion_event_id, arrival_class, conversion_occurred_at, conversion_ingested_at,
+       link_method, link_confidence, matched_entity_type, official_outcome_status,
+       official_kpi_projection_revision, official_kpi_projection_hash, detected_at,
+       late_conversion_document
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'STRONG',$11,'DROPPED',$12,$13,$14,$15::jsonb)
+     ON CONFLICT (funnel_instance_id) DO NOTHING
+     RETURNING late_conversion_id`,
+    [lateConversionId, official.finalization_id, instance.funnel_instance_id, instance.source_id,
+      instance.journey_id, conversionEvent.canonical_event_id, arrival.classification,
+      conversionEvent.occurred_at, conversionEvent.ingested_at, conversionEvent.link_method,
+      conversionEvent.matched_entity_type, official.kpi_projection_revision,
+      official.kpi_projection_hash, detectedAt, JSON.stringify(document)],
+  )
+  if (inserted.rowCount === 0) return null
+  return Object.freeze(document)
 }
 
 export function createFunnelProfileRepository({ pool } = {}) {
@@ -135,6 +232,7 @@ export function createFunnelRepository({ pool, now = () => new Date().toISOStrin
           [event.source_id, event.event_type],
         )
         const updates = []
+        const lateConversions = []
         let duplicateProfiles = 0
 
         for (const profileRow of profilesResult.rows) {
@@ -192,7 +290,9 @@ export function createFunnelRepository({ pool, now = () => new Date().toISOStrin
             [journeyId, profile.funnel_profile_id, profile.profile_version],
           )
           const journeyEventsResult = await client.query(
-            `SELECT c.canonical_event_id, c.event_type, c.event_class, c.occurred_at
+            `SELECT c.canonical_event_id, c.event_type, c.event_class, c.occurred_at,
+                    c.ingested_at, c.quality, j.link_method, j.link_confidence,
+                    j.matched_entity_type
                FROM journey_events j JOIN canonical_events c USING (canonical_event_id)
               WHERE j.journey_id = $1 ORDER BY c.occurred_at, c.canonical_event_id`,
             [journeyId],
@@ -200,12 +300,41 @@ export function createFunnelRepository({ pool, now = () => new Date().toISOStrin
 
           for (const [index, instance] of instancesResult.rows.entries()) {
             const next = instancesResult.rows[index + 1]
-            const windowEvents = journeyEventsResult.rows.filter((candidate) => {
+            const instanceEvents = journeyEventsResult.rows.filter((candidate) => {
               const afterEntry = comparePosition(candidate.occurred_at, candidate.canonical_event_id, instance.entry_at, instance.entry_event_id) >= 0
               const beforeNext = !next || comparePosition(candidate.occurred_at, candidate.canonical_event_id, next.entry_at, next.entry_event_id) < 0
-              const beforeDeadline = !instance.conversion_deadline || Date.parse(candidate.occurred_at) <= Date.parse(instance.conversion_deadline)
-              return afterEntry && beforeNext && beforeDeadline
-            }).map((candidate) => ({ ...candidate, occurred_at: toIso(candidate.occurred_at) }))
+              return afterEntry && beforeNext
+            }).map((candidate) => ({
+              ...candidate,
+              occurred_at: toIso(candidate.occurred_at),
+              ingested_at: toIso(candidate.ingested_at),
+            }))
+
+            if (instance.outcome_status === "DROPPED") {
+              const fullProjection = evaluateFunnelWindow(profile, instanceEvents)
+              const candidate = lateConversionCandidate({
+                instance,
+                profile,
+                projection: fullProjection,
+                events: instanceEvents,
+              })
+              if (candidate) {
+                const recorded = await recordLateConversion({
+                  client,
+                  instance,
+                  profile,
+                  candidate,
+                  detectedAt: now(),
+                })
+                if (recorded) lateConversions.push(recorded)
+              }
+              continue
+            }
+
+            const windowEvents = instanceEvents.filter((candidate) => (
+              !instance.conversion_deadline
+              || Date.parse(candidate.occurred_at) <= Date.parse(instance.conversion_deadline)
+            ))
             const projection = evaluateFunnelWindow(profile, windowEvents)
             await client.query("DELETE FROM funnel_instance_steps WHERE funnel_instance_id = $1", [instance.funnel_instance_id])
             await client.query("DELETE FROM funnel_instance_branches WHERE funnel_instance_id = $1", [instance.funnel_instance_id])
@@ -260,6 +389,7 @@ export function createFunnelRepository({ pool, now = () => new Date().toISOStrin
           canonical_event_id: event.canonical_event_id,
           journey_id: journeyId,
           updates: Object.freeze(updates),
+          late_conversions: Object.freeze(lateConversions),
         })
       } catch (error) {
         await client.query("ROLLBACK").catch(() => {})

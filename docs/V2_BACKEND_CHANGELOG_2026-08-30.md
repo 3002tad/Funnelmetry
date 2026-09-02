@@ -370,3 +370,22 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   Một candidate lỗi không chặn phần còn lại của batch.
 - `MATURITY_SCHEDULER_FINALIZATION_ENABLED` mặc định và Compose đều là `false`. Chưa bật final drop-off
   trước khi late-conversion evidence/path được triển khai; reference profile vẫn không có numeric policy.
+
+## 24. Late conversion without historical KPI rewrite
+
+- Migration `008_late_conversion.sql` thêm ledger `funnel_late_conversions` append-only, idempotent theo
+  Funnel Instance và giữ tham chiếu tới finalization/KPI snapshot chính thức.
+- Funnel Processor coi instance `DROPPED` đã finalization là projection đóng: không dựng lại step/branch,
+  không đổi outcome và không phát instance update khiến KPI Projector sửa snapshot cũ.
+- Chỉ final `BUSINESS_FACT` có authoritative source occurrence time và liên kết `STRONG` qua business
+  entity `CART/CHECKOUT/ORDER/PAYMENT` mới đủ điều kiện ghi late conversion.
+- Journey evidence ưu tiên strong business entity cao hơn opaque correlation khi event có cả hai, đúng
+  progressive business anchoring; correlation-only vẫn là strong fallback hợp lệ cho journey linking.
+- Phân biệt `TOO_LATE_FOR_FINAL_COHORT` (occurred trong horizon nhưng ingest sau grace) với
+  `AFTER_HORIZON`; cả hai đều không sửa metric thuộc horizon đã chốt.
+- Late-conversion document lưu loại business entity và phương pháp liên kết nhưng không lưu entity key,
+  tránh đưa identifier nghiệp vụ vào analytics evidence không cần thiết.
+- Unit/integration test khóa strong-key/time-authority guard, append-only/idempotent evidence và bất biến
+  của Funnel Instance, official steps, KPI outcome, revision và hash sau finalization.
+- Compose và `.env.example` bật finalization gate sau khi late-conversion path đã có; default trong code
+  vẫn là `false` để deployment thiếu cấu hình không tự thay đổi outcome.

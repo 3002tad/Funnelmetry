@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { extractJourneyEvidence } from "../src/evidence.js"
 import { canonicalEvent } from "./fixtures.js"
 
-test("prioritizes direct and business evidence over identity context", () => {
+test("prioritizes business keys over correlation and identity context", () => {
   const evidence = extractJourneyEvidence(canonicalEvent({
     aggregate: { type: "order", id: "order_1", version: "1" },
     relations: { correlation_id: "corr_1", cart_id: "cart_1" },
@@ -11,7 +11,7 @@ test("prioritizes direct and business evidence over identity context", () => {
   }))
 
   assert.deepEqual(evidence.map((item) => item.entity_type), [
-    "CORRELATION", "ORDER", "CART", "USER", "SESSION",
+    "ORDER", "CART", "CORRELATION", "USER", "SESSION",
   ])
   assert.equal(evidence[0].link_confidence, "STRONG")
   assert.equal(evidence.at(-1).link_confidence, "WEAK")

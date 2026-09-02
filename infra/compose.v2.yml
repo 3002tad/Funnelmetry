@@ -237,7 +237,7 @@ services:
       MATURITY_SCHEDULER_INSTANCE_ID: maturity-local-1
       MATURITY_SCHEDULER_POLL_INTERVAL_MS: "5000"
       MATURITY_SCHEDULER_BATCH_SIZE: "100"
-      MATURITY_SCHEDULER_FINALIZATION_ENABLED: "false"
+      MATURITY_SCHEDULER_FINALIZATION_ENABLED: "true"
     depends_on:
       postgres-migrations:
         condition: service_completed_successfully

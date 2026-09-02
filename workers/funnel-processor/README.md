@@ -17,12 +17,14 @@ Các nguyên tắc hiện tại:
 - Negative event được giữ ở nhánh riêng và không đảo ngược một conversion đã hoàn tất.
 - `conversion_horizon_seconds` và `late_arrival_grace_seconds` thuộc từng profile; worker không
   tự gán một con số kiến trúc mặc định.
-- Worker chưa tự kết luận `DROPPED` theo thời gian. `time-semantics.v1` hiện chỉ cung cấp phép tính
-  thuần; runtime maturity persistence/scheduler phải có contract và migration riêng trước khi bật.
+- Maturity Scheduler kết luận `DROPPED` sau horizon + grace; Funnel Processor coi projection đã
+  finalization là đóng và không sửa ngược step/outcome/KPI chính thức.
+- Conversion đến sau finalization chỉ được ghi vào append-only late-conversion ledger khi final
+  `BUSINESS_FACT` có authoritative time và liên kết bằng strong business entity.
 
 ## Chạy
 
-Áp dụng ba migration trong `infra/postgres/v2/`, publish/activate ít nhất một profile cho
+Áp dụng các migration `001` đến `008` trong `infra/postgres/v2/`, publish/activate ít nhất một profile cho
 `source_id`, provision journey/funnel topic rồi:
 
 ```powershell

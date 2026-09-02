@@ -16,7 +16,9 @@ Schema V2 mới nằm trong `v2/`:
 - `v2/006_funnel_maturity.sql`: immutable profile transition timeout và append-only, revisioned
   Funnel Instance maturity evidence; chưa tự thay đổi outcome thành `DROPPED`.
 - `v2/007_maturity_finalization.sql`: append-only finalization evidence và projection identity cho
-  atomic Funnel Instance/KPI drop-off transition; runtime activation mặc định vẫn tắt.
+  atomic Funnel Instance/KPI drop-off transition.
+- `v2/008_late_conversion.sql`: append-only late-conversion evidence; giữ nguyên outcome/KPI đã
+  finalization và không lưu business-key value trong document analytics.
 
 Compose chạy `postgres-migrations` mỗi lần khởi động để áp dụng idempotent toàn bộ migration V2 cho
 cả volume mới lẫn volume đã tồn tại.
