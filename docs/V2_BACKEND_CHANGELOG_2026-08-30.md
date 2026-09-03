@@ -448,3 +448,21 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   append-only trigger và aggregate-only limitation.
 - Batch này vẫn chưa so sánh source với analytics, chưa ghi discrepancy/repair và không mutate raw/canonical
   history hoặc current projection.
+
+## 29. Revisioned reconciliation discrepancy evidence
+
+- Mở rộng reconciliation contract với comparator yêu cầu analytics current projection có cùng
+  `source_id`, `entity_type`, coverage/timezone/scope và `as_of` không cũ hơn source snapshot.
+- Comparator tách `MISSING`, `PHANTOM`, `STATE_MISMATCH` và `AMOUNT_MISMATCH`; một entity có thể mang
+  cả state lẫn amount mismatch thay vì bị ép vào một reason duy nhất.
+- Count rate dùng đúng mẫu số source/analytics theo Master và trả `null` khi denominator rỗng. Revenue
+  deviation được tính riêng theo currency bằng decimal/BigInt, không dùng floating point cho monetary value.
+- Closed + complete + record-level snapshot chỉ `RECONCILED` khi không còn record discrepancy hoặc
+  control-total mismatch; nếu còn mismatch thì giữ `RECONCILING`. Aggregate-only/incomplete vẫn `DEGRADED`
+  và record-level metric tiếp tục unavailable.
+- Migration `011_reconciliation_comparison.sql` lưu comparison revision, exact analytics observation set,
+  summary/rates, revenue deviation và từng discrepancy bằng append-only evidence.
+- Repository khóa snapshot trong lúc cấp revision, commit summary/observations/discrepancies atomically,
+  replay cùng comparison identity/hash idempotent và reject immutable conflict.
+- Comparator không đọc CanonicalEvent cuối để dựng current state. Provider cho current Order/Payment/Revenue
+  projection và correction ledger vẫn là gate tiếp theo; batch này chưa repair hoặc bịa historical event.

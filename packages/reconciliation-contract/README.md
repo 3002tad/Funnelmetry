@@ -13,6 +13,11 @@ The validator preserves the approved claim boundary:
 compare authoritative versions/watermarks and write explicit correction evidence before changing a current
 projection.
 
+`compareReconciliationEvidence` accepts an analytics current projection with the exact same
+source/entity/coverage boundary. It computes missing, phantom, state and amount mismatch separately,
+reports null rates for empty denominators and calculates currency deviation with decimal-safe arithmetic.
+It never derives current state from the last canonical event.
+
 Run:
 
 ```powershell

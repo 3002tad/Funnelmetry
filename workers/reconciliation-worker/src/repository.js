@@ -1,5 +1,6 @@
 import {
   assessReconciliationCapability,
+  compareReconciliationEvidence,
   hashReconciliationManifest,
   validateReconciliationManifest,
 } from "@funnelmetry/reconciliation-contract"
@@ -26,6 +27,61 @@ function snapshotResult(row, status) {
     record_count: Number(row.record_count),
     manifest_hash: row.manifest_hash,
     recorded_at: iso(row.recorded_at),
+  })
+}
+
+function requiredString(value, field) {
+  if (typeof value !== "string" || !value.trim()) throw new Error(`${field} is required`)
+  return value.trim()
+}
+
+function timestamp(value, field) {
+  const normalized = requiredString(value, field)
+  if (Number.isNaN(Date.parse(normalized))) throw new Error(`${field} must be an ISO-8601 timestamp`)
+  return new Date(normalized).toISOString()
+}
+
+function comparisonResult(row, status) {
+  return Object.freeze({
+    status,
+    comparison_id: row.comparison_id,
+    source_id: row.source_id,
+    snapshot_id: row.snapshot_id,
+    comparison_revision: Number(row.comparison_revision),
+    observed_at: iso(row.observed_at),
+    analytics_as_of: iso(row.analytics_as_of),
+    window_state: row.window_state,
+    limitation_reason: row.limitation_reason,
+    record_level_metrics_available: row.record_level_metrics_available,
+    source_count: Number(row.source_count),
+    analytics_count: Number(row.analytics_count),
+    source_denominator_empty: row.source_denominator_empty,
+    analytics_denominator_empty: row.analytics_denominator_empty,
+    control_total_mismatch: row.control_total_mismatch,
+    missing_count: row.missing_count === null ? null : Number(row.missing_count),
+    phantom_count: row.phantom_count === null ? null : Number(row.phantom_count),
+    state_mismatch_count: row.state_mismatch_count === null ? null : Number(row.state_mismatch_count),
+    amount_mismatch_count: row.amount_mismatch_count === null ? null : Number(row.amount_mismatch_count),
+    missing_rate: row.missing_rate,
+    phantom_rate: row.phantom_rate,
+    state_mismatch_rate: row.state_mismatch_rate,
+    amount_mismatch_rate: row.amount_mismatch_rate,
+    revenue_deviation: row.revenue_deviation,
+    evidence_hash: row.evidence_hash,
+    recorded_at: iso(row.recorded_at),
+  })
+}
+
+function validateComparisonRequest(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("reconciliation comparison request must be an object")
+  }
+  return Object.freeze({
+    comparison_id: requiredString(input.comparison_id, "comparison_id"),
+    source_id: requiredString(input.source_id, "source_id"),
+    snapshot_id: requiredString(input.snapshot_id, "snapshot_id"),
+    observed_at: timestamp(input.observed_at, "observed_at"),
+    analytics_projection: input.analytics_projection,
   })
 }
 
@@ -124,6 +180,106 @@ export function createReconciliationRepository({ pool } = {}) {
         [sourceId.trim(), snapshotId.trim()],
       )
       return result.rows[0] ? snapshotResult(result.rows[0], "found") : null
+    },
+
+    async recordComparison(input) {
+      const request = validateComparisonRequest(input)
+      const client = await pool.connect()
+      try {
+        await client.query("BEGIN")
+        const snapshotResultSet = await client.query(
+          `SELECT manifest_document FROM reconciliation_snapshots
+            WHERE source_id = $1 AND snapshot_id = $2
+            FOR UPDATE`,
+          [request.source_id, request.snapshot_id],
+        )
+        if (!snapshotResultSet.rows[0]) throw new Error("reconciliation snapshot was not found")
+        const comparison = compareReconciliationEvidence({
+          manifest: snapshotResultSet.rows[0].manifest_document,
+          analytics_projection: request.analytics_projection,
+        })
+        const existing = await client.query(
+          `SELECT * FROM reconciliation_comparisons WHERE comparison_id = $1`,
+          [request.comparison_id],
+        )
+        if (existing.rows[0]) {
+          const row = existing.rows[0]
+          if (row.source_id !== request.source_id
+            || row.snapshot_id !== request.snapshot_id
+            || iso(row.observed_at) !== request.observed_at
+            || row.evidence_hash !== comparison.evidence_hash) {
+            throw new Error("comparison_id already exists with different immutable input")
+          }
+          await client.query("COMMIT")
+          return comparisonResult(row, "duplicate")
+        }
+        const revisionResult = await client.query(
+          `SELECT COALESCE(MAX(comparison_revision), 0) + 1 AS revision
+             FROM reconciliation_comparisons
+            WHERE source_id = $1 AND snapshot_id = $2`,
+          [request.source_id, request.snapshot_id],
+        )
+        const revision = Number(revisionResult.rows[0].revision)
+        const inserted = await client.query(
+          `INSERT INTO reconciliation_comparisons (
+             comparison_id, source_id, snapshot_id, comparison_revision, observed_at,
+             analytics_as_of, window_state, limitation_reason, record_level_metrics_available,
+             source_count, analytics_count, source_denominator_empty, analytics_denominator_empty,
+             control_total_mismatch, missing_count, phantom_count, state_mismatch_count,
+             amount_mismatch_count, missing_rate, phantom_rate, state_mismatch_rate,
+             amount_mismatch_rate, revenue_deviation, evidence_hash, comparison_document
+           ) VALUES (
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
+             $22,$23::jsonb,$24,$25::jsonb
+           ) RETURNING *`,
+          [
+            request.comparison_id, request.source_id, request.snapshot_id, revision,
+            request.observed_at, comparison.analytics_as_of, comparison.window_state,
+            comparison.limitation_reason, comparison.record_level_metrics_available,
+            comparison.source_count, comparison.analytics_count, comparison.source_denominator_empty,
+            comparison.analytics_denominator_empty, comparison.control_total_mismatch,
+            comparison.missing_count, comparison.phantom_count, comparison.state_mismatch_count,
+            comparison.amount_mismatch_count, comparison.missing_rate, comparison.phantom_rate,
+            comparison.state_mismatch_rate, comparison.amount_mismatch_rate,
+            JSON.stringify(comparison.revenue_deviation), comparison.evidence_hash,
+            JSON.stringify(comparison),
+          ],
+        )
+        for (const record of comparison.analytics_projection.records) {
+          await client.query(
+            `INSERT INTO reconciliation_analytics_observations (
+               comparison_id, entity_id, current_status, entity_version, analytics_updated_at,
+               analytics_occurred_at, analytics_committed_at, tombstone, amount, currency,
+               observation_document
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)`,
+            [
+              request.comparison_id, record.entity_id, record.current_status, record.version ?? null,
+              record.updated_at ?? null, record.occurred_at ?? null, record.committed_at ?? null,
+              record.tombstone, record.money?.amount ?? null, record.money?.currency ?? null,
+              JSON.stringify(record),
+            ],
+          )
+        }
+        for (const discrepancy of comparison.discrepancies) {
+          await client.query(
+            `INSERT INTO reconciliation_discrepancies (
+               comparison_id, discrepancy_kind, entity_id, source_record, analytics_record
+             ) VALUES ($1,$2,$3,$4::jsonb,$5::jsonb)`,
+            [
+              request.comparison_id, discrepancy.kind, discrepancy.entity_id,
+              discrepancy.source_record ? JSON.stringify(discrepancy.source_record) : null,
+              discrepancy.analytics_record ? JSON.stringify(discrepancy.analytics_record) : null,
+            ],
+          )
+        }
+        await client.query("COMMIT")
+        return comparisonResult(inserted.rows[0], "recorded")
+      } catch (error) {
+        await client.query("ROLLBACK")
+        throw error
+      } finally {
+        client.release()
+      }
     },
   })
 }

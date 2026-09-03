@@ -23,6 +23,8 @@ Schema V2 mới nằm trong `v2/`:
   eligible matured conversion cohort mà không trộn observed/pending hoặc fallback-time conversion.
 - `v2/010_reconciliation_evidence.sql`: append-only reconciliation snapshot, normalized source records
   và currency control totals; chưa so sánh hoặc repair current analytics projection.
+- `v2/011_reconciliation_comparison.sql`: append-only comparison revisions, analytics observation set,
+  denominator-safe discrepancy metrics và record-level discrepancy evidence.
 
 Compose chạy `postgres-migrations` mỗi lần khởi động để áp dụng idempotent toàn bộ migration V2 cho
 cả volume mới lẫn volume đã tồn tại.

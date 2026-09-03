@@ -8,10 +8,15 @@ Current foundation persists validated `reconciliation-manifest.v1` snapshots int
 - evidence tables are append-only;
 - raw source transport and credentials remain outside this worker.
 
-This batch does not compare analytics state or repair projections yet. Those operations must consume only
-closed, complete, record-level snapshots whose persisted capability allows record comparison/repair.
+The repository also compares a caller-supplied, identically scoped analytics current projection and stores
+revisioned `missing`, `phantom`, `state mismatch` and `amount mismatch` evidence. Count rates preserve empty
+denominators; currency totals use exact decimal arithmetic. Aggregate-only/incomplete snapshots remain
+`DEGRADED` and never expose record-level metrics or repair capability.
 
-Apply migrations `001` through `010`, then run tests with:
+Canonical events are not treated as a current Order/Payment/Revenue projection. The provider for that
+projection and explicit correction records remain the next gate; this worker still performs no repair.
+
+Apply migrations `001` through `011`, then run tests with:
 
 ```powershell
 $env:TEST_DATABASE_URL = "postgresql://funnelmetry:funnelmetry-local@localhost:55433/funnelmetry"

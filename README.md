@@ -183,7 +183,8 @@ phải `DEGRADED`; snapshot chưa đóng vẫn `PROVISIONAL`.
 
 Contract không bịa historical event và không tự đặt quality threshold. Migration
 `010_reconciliation_evidence.sql` cùng repository của `workers/reconciliation-worker` persist snapshot,
-record và currency control totals atomically; discrepancy comparison/repair vẫn là gate backend kế tiếp.
+record và currency control totals atomically. Migration `011_reconciliation_comparison.sql` lưu revisioned
+comparison, analytics observations và discrepancy evidence; current-projection repair vẫn là gate kế tiếp.
 
 ## Tài liệu
 
