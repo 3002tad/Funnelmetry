@@ -37,7 +37,7 @@ workers/
   funnel-processor/          # journey-resolved -> versioned Funnel Instance projection
   funnel-maturity-scheduler/ # polling, maturity evidence and gated atomic finalization
   kpi-projector/             # funnel-updated -> idempotent KPI base facts/observed views
-  reconciliation-worker/     # future
+  reconciliation-worker/     # snapshot evidence persistence; comparison/repair follows
 packages/
   input-contract/
   canonical-contract/        # CanonicalEvent v1 + terminal outcome

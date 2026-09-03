@@ -431,3 +431,20 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   khác thứ tự không tạo evidence identity mới.
 - Batch này chưa thêm persistence/worker, chưa repair current projection, không tạo historical event
   và không tự đặt discrepancy threshold.
+
+## 28. Append-only reconciliation snapshot persistence
+
+- Thêm migration `010_reconciliation_evidence.sql` cho snapshot metadata, normalized record và
+  currency-grouped control totals. Ba bảng đều append-only và cùng giữ source-scoped snapshot identity.
+- Persist riêng coverage/scope/timezone, closure/completeness, watermark/grace, schema/semantic version,
+  capability state, limitation reason, control totals và canonical manifest hash/document để audit/replay.
+- `reconciliation-worker` repository validate manifest trước khi mở transaction, sau đó ghi snapshot,
+  record và amount totals atomically; lỗi giữa chừng rollback toàn bộ evidence.
+- Retry cùng `(source_id, snapshot_id)` và cùng semantic hash trả `duplicate`; tái sử dụng identity với
+  manifest khác bị reject thay vì ghi đè hoặc trộn hai snapshot.
+- Database khóa capability invariant: open chỉ `PROVISIONAL`, closed + complete + record-level mới
+  `RECONCILING`, incomplete/aggregate-only phải `DEGRADED` và không có record-level repair permission.
+- Integration test áp dụng migration hai lần, kiểm tra atomic persistence, idempotency, immutable conflict,
+  append-only trigger và aggregate-only limitation.
+- Batch này vẫn chưa so sánh source với analytics, chưa ghi discrepancy/repair và không mutate raw/canonical
+  history hoặc current projection.

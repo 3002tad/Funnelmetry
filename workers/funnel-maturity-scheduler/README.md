@@ -8,7 +8,7 @@ The repository derives maturity with `@funnelmetry/time-semantics-contract`, ver
 profile deadline and entry-event time authority, records append-only revisioned evidence, and treats
 a repeated `evaluation_id` as idempotent only when its immutable request matches.
 
-Apply migrations `001` through `009` before using it. Migration `007` and the repository provide an
+Apply migrations `001` through `010` before using it. Migration `007` and the repository provide an
 atomic `IN_PROGRESS -> DROPPED` plus KPI snapshot transition, guarded by latest eligible maturity
 evidence and a caught-up KPI projection.
 

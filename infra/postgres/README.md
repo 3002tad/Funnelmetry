@@ -21,6 +21,8 @@ Schema V2 mới nằm trong `v2/`:
   finalization và không lưu business-key value trong document analytics.
 - `v2/009_matured_conversion.sql`: bổ sung conversion-time authority vào maturity evidence để tạo
   eligible matured conversion cohort mà không trộn observed/pending hoặc fallback-time conversion.
+- `v2/010_reconciliation_evidence.sql`: append-only reconciliation snapshot, normalized source records
+  và currency control totals; chưa so sánh hoặc repair current analytics projection.
 
 Compose chạy `postgres-migrations` mỗi lần khởi động để áp dụng idempotent toàn bộ migration V2 cho
 cả volume mới lẫn volume đã tồn tại.

@@ -181,8 +181,9 @@ transport REST/CSV/MQ. Chỉ snapshot record-level đã đóng và đầy đủ 
 `RECONCILING` và có capability repair current projection. Snapshot aggregate-only hoặc incomplete
 phải `DEGRADED`; snapshot chưa đóng vẫn `PROVISIONAL`.
 
-Contract không bịa historical event, không tự đặt quality threshold và chưa mutate projection.
-Migration, discrepancy ledger và reconciliation worker là gate backend kế tiếp.
+Contract không bịa historical event và không tự đặt quality threshold. Migration
+`010_reconciliation_evidence.sql` cùng repository của `workers/reconciliation-worker` persist snapshot,
+record và currency control totals atomically; discrepancy comparison/repair vẫn là gate backend kế tiếp.
 
 ## Tài liệu
 
