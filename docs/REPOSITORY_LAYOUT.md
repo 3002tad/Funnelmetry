@@ -43,6 +43,7 @@ packages/
   canonical-contract/        # CanonicalEvent v1 + terminal outcome
   time-semantics-contract/   # pure horizon/grace/maturity and late-arrival rules
   kpi-snapshot-contract/     # deterministic KPI snapshot and hash shared by projector/finalizer
+  reconciliation-contract/  # transport-independent authoritative snapshot boundary
   analytics-contract/        # future
   shared-config/             # future
   browser-sdk/

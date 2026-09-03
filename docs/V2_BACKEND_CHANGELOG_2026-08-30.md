@@ -414,3 +414,20 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
 - Drop-off finalizer vẫn chỉ nhận `IN_PROGRESS`; thay đổi này không mở đường mutate converted outcome.
 - Analytics API công bố riêng `eligible_matured`, `matured_converted`, `final_end_to_end_rate` và
   `final_dropoff_rate`; late conversion không được cộng ngược vào matured conversion.
+
+## 27. Reconciliation Manifest v1 foundation
+
+- Thêm package `@funnelmetry/reconciliation-contract` cho internal manifest độc lập transport;
+  REST, CSV/export và MQ control message có thể cùng normalize về contract này.
+- Validator khóa source/snapshot identity, entity type, coverage/timezone, `as_of`, closure/completeness,
+  watermark/grace, schema/semantic version, record identity/version, money và control totals.
+- Record-level manifest phải có entity ID duy nhất, version hoặc authoritative `updated_at`, và
+  `control_totals.record_count` khớp số record. Amount được giữ bằng decimal string theo currency,
+  không ép qua floating point.
+- Chỉ closed + complete + record-level snapshot được phép vào `RECONCILING` và có record-level
+  repair capability. Open snapshot chỉ `PROVISIONAL`; incomplete/aggregate-only snapshot `DEGRADED`
+  với limitation reason tường minh.
+- Manifest hash được canonical hóa theo record/entity, currency, field set và JSON object key để retry
+  khác thứ tự không tạo evidence identity mới.
+- Batch này chưa thêm persistence/worker, chưa repair current projection, không tạo historical event
+  và không tự đặt discrepancy threshold.

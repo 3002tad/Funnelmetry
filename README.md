@@ -174,6 +174,16 @@ stack qua `infra/compose.v2.yml`. Các tham số polling nằm trong `infra/.env
 
 Xem [`docs/TIME_SEMANTICS_CONTRACT_V1.md`](docs/TIME_SEMANTICS_CONTRACT_V1.md).
 
+## Reconciliation Manifest Contract v1
+
+Package `packages/reconciliation-contract` chuẩn hóa snapshot đối soát nội bộ, độc lập với
+transport REST/CSV/MQ. Chỉ snapshot record-level đã đóng và đầy đủ mới được phép chuyển sang
+`RECONCILING` và có capability repair current projection. Snapshot aggregate-only hoặc incomplete
+phải `DEGRADED`; snapshot chưa đóng vẫn `PROVISIONAL`.
+
+Contract không bịa historical event, không tự đặt quality threshold và chưa mutate projection.
+Migration, discrepancy ledger và reconciliation worker là gate backend kế tiếp.
+
 ## Tài liệu
 
 - Kiến trúc đích: repository `../System_Backbone`
