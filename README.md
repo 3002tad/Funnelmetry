@@ -184,7 +184,16 @@ phải `DEGRADED`; snapshot chưa đóng vẫn `PROVISIONAL`.
 Contract không bịa historical event và không tự đặt quality threshold. Migration
 `010_reconciliation_evidence.sql` cùng repository của `workers/reconciliation-worker` persist snapshot,
 record và currency control totals atomically. Migration `011_reconciliation_comparison.sql` lưu revisioned
-comparison, analytics observations và discrepancy evidence; current-projection repair vẫn là gate kế tiếp.
+comparison, analytics observations và discrepancy evidence. Migration
+`012_reconciliation_current_projection.sql` bổ sung read model hiện tại theo revision, head theo exact scope
+và correction evidence. Repair chỉ áp dụng cho comparison record-level còn hiện hành; nó tạo projection
+revision mới mà không sửa raw/canonical event hoặc historical funnel.
+
+Dashboard API/Data Health tổng hợp revision mới nhất của từng snapshot theo `coverage_end_at`, công bố
+record discrepancy, revenue deviation và repair verification có denominator rõ ràng. Quality gate chỉ cho
+phép gắn nhãn authoritative business analysis khi toàn bộ window trong scope là `RECONCILED`; dữ liệu
+`UNAVAILABLE`, `PROVISIONAL`, `RECONCILING` hoặc `DEGRADED` vẫn được hiển thị nhưng không được diễn giải
+như số liệu business authoritative.
 
 ## Tài liệu
 

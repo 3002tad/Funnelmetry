@@ -53,7 +53,10 @@ test("persists reconciliation evidence atomically and idempotently", { skip: !da
   await admin.query(`CREATE SCHEMA ${schema}`)
   const pool = new pg.Pool({ connectionString: databaseUrl, options: `-c search_path=${schema}` })
   try {
-    for (const migrationName of ["010_reconciliation_evidence.sql", "011_reconciliation_comparison.sql"]) {
+    for (const migrationName of [
+      "010_reconciliation_evidence.sql", "011_reconciliation_comparison.sql",
+      "012_reconciliation_current_projection.sql",
+    ]) {
       const migration = await readFile(
         new URL(`../../../infra/postgres/v2/${migrationName}`, import.meta.url),
         "utf8",
@@ -103,9 +106,25 @@ test("persists reconciliation evidence atomically and idempotently", { skip: !da
       ],
       control_totals: { record_count: 2, amounts: [{ currency: "VND", amount: "130000.00" }] },
     }
+    const current = await repository.recordCurrentProjection({
+      projection_id: "projection-1",
+      analytics_projection: analyticsProjection,
+    })
+    assert.equal(current.status, "recorded")
+    assert.equal(current.projection_revision, 1)
+    assert.equal((await repository.getCurrentProjection({
+      source_id: "source-one",
+      entity_type: "ORDER",
+      as_of: analyticsProjection.as_of,
+      coverage: analyticsProjection.coverage,
+    })).projection_id, "projection-1")
+    assert.equal((await repository.recordCurrentProjection({
+      projection_id: "projection-1",
+      analytics_projection: analyticsProjection,
+    })).status, "duplicate")
     const comparison = await repository.recordComparison({
       comparison_id: "comparison-1", source_id: "source-one", snapshot_id: "orders-window-1",
-      observed_at: "2026-09-03T00:12:00Z", analytics_projection: analyticsProjection,
+      observed_at: "2026-09-03T00:12:00Z",
     })
     assert.equal(comparison.status, "recorded")
     assert.equal(comparison.comparison_revision, 1)
@@ -116,29 +135,92 @@ test("persists reconciliation evidence atomically and idempotently", { skip: !da
     assert.equal(comparison.amount_mismatch_count, 1)
     assert.equal((await repository.recordComparison({
       comparison_id: "comparison-1", source_id: "source-one", snapshot_id: "orders-window-1",
-      observed_at: "2026-09-03T00:12:00Z", analytics_projection: analyticsProjection,
+      observed_at: "2026-09-03T00:12:00Z",
+    })).status, "duplicate")
+
+    const repair = await repository.repairComparison({
+      repair_id: "repair-1",
+      comparison_id: "comparison-1",
+      repaired_at: "2026-09-03T00:13:00Z",
+    })
+    assert.equal(repair.status, "recorded")
+    assert.equal(repair.before_projection_id, "projection-1")
+    assert.equal(repair.after_projection_id, "repair-1:projection")
+    assert.equal(repair.correction_count, 3)
+    assert.equal((await repository.getCurrentProjection({
+      source_id: "source-one",
+      entity_type: "ORDER",
+      as_of: "2026-09-03T00:13:00Z",
+      coverage: analyticsProjection.coverage,
+    })).projection_id, "repair-1:projection")
+    await assert.rejects(
+      () => repository.recordCurrentProjection({
+        projection_id: "projection-regression",
+        analytics_projection: analyticsProjection,
+      }),
+      /must not move backwards/,
+    )
+    assert.equal((await repository.repairComparison({
+      repair_id: "repair-1",
+      comparison_id: "comparison-1",
+      repaired_at: "2026-09-03T00:13:00Z",
     })).status, "duplicate")
 
     const reconciled = await repository.recordComparison({
       comparison_id: "comparison-2", source_id: "source-one", snapshot_id: "orders-window-1",
       observed_at: "2026-09-03T00:13:00Z",
-      analytics_projection: {
-        ...analyticsProjection,
-        as_of: "2026-09-03T00:13:00Z",
-        records: manifest().records,
-        control_totals: manifest().control_totals,
-      },
     })
     assert.equal(reconciled.comparison_revision, 2)
     assert.equal(reconciled.window_state, "RECONCILED")
+    const verification = await repository.verifyRepair({
+      repair_id: "repair-1",
+      comparison_id: "comparison-2",
+      verified_at: "2026-09-03T00:14:00Z",
+    })
+    assert.equal(verification.status, "recorded")
+    assert.equal(verification.attempted_correction_count, 3)
+    assert.equal(verification.successful_correction_count, 3)
+    assert.equal(verification.repair_success_rate, 1)
+    assert.equal(verification.current_projection_converged, true)
+    assert.equal((await repository.verifyRepair({
+      repair_id: "repair-1",
+      comparison_id: "comparison-2",
+      verified_at: "2026-09-03T00:14:00Z",
+    })).status, "duplicate")
+    await assert.rejects(
+      () => repository.repairComparison({
+        repair_id: "repair-stale",
+        comparison_id: "comparison-1",
+        repaired_at: "2026-09-03T00:14:00Z",
+      }),
+      /comparison is stale/,
+    )
+    await assert.rejects(
+      () => repository.repairComparison({
+        repair_id: "repair-not-needed",
+        comparison_id: "comparison-2",
+        repaired_at: "2026-09-03T00:14:00Z",
+      }),
+      /does not allow record-level/,
+    )
 
     const comparisonCounts = await pool.query(
       `SELECT
          (SELECT COUNT(*)::int FROM reconciliation_comparisons) AS comparisons,
          (SELECT COUNT(*)::int FROM reconciliation_analytics_observations) AS observations,
-         (SELECT COUNT(*)::int FROM reconciliation_discrepancies) AS discrepancies`,
+         (SELECT COUNT(*)::int FROM reconciliation_discrepancies) AS discrepancies,
+         (SELECT COUNT(*)::int FROM analytics_current_projection_revisions) AS projections,
+         (SELECT COUNT(*)::int FROM analytics_current_projection_records) AS projection_records,
+         (SELECT COUNT(*)::int FROM analytics_current_projection_heads) AS projection_heads,
+         (SELECT COUNT(*)::int FROM reconciliation_repairs) AS repairs,
+         (SELECT COUNT(*)::int FROM reconciliation_corrections) AS corrections,
+         (SELECT COUNT(*)::int FROM reconciliation_repair_verifications) AS verifications`,
     )
-    assert.deepEqual(comparisonCounts.rows[0], { comparisons: 2, observations: 4, discrepancies: 4 })
+    assert.deepEqual(comparisonCounts.rows[0], {
+      comparisons: 2, observations: 4, discrepancies: 4,
+      projections: 2, projection_records: 4, projection_heads: 1,
+      repairs: 1, corrections: 3, verifications: 1,
+    })
 
     await assert.rejects(
       () => repository.recordSnapshot(manifest({ semantic_version: "order-state.v2" })),
@@ -166,6 +248,14 @@ test("persists reconciliation evidence atomically and idempotently", { skip: !da
       () => pool.query("DELETE FROM reconciliation_discrepancies WHERE comparison_id = 'comparison-1'"),
       /append-only/,
     )
+    await assert.rejects(
+      () => pool.query("UPDATE reconciliation_repairs SET correction_count = 0 WHERE repair_id = 'repair-1'"),
+      /append-only/,
+    )
+    await assert.rejects(
+      () => pool.query("DELETE FROM reconciliation_repair_verifications WHERE repair_id = 'repair-1'"),
+      /append-only/,
+    )
   } finally {
     await pool.end()
     await admin.query(`DROP SCHEMA ${schema} CASCADE`)
@@ -179,7 +269,10 @@ test("persists aggregate-only limitation without record-level repair capability"
   await admin.query(`CREATE SCHEMA ${schema}`)
   const pool = new pg.Pool({ connectionString: databaseUrl, options: `-c search_path=${schema}` })
   try {
-    for (const migrationName of ["010_reconciliation_evidence.sql", "011_reconciliation_comparison.sql"]) {
+    for (const migrationName of [
+      "010_reconciliation_evidence.sql", "011_reconciliation_comparison.sql",
+      "012_reconciliation_current_projection.sql",
+    ]) {
       await pool.query(await readFile(
         new URL(`../../../infra/postgres/v2/${migrationName}`, import.meta.url),
         "utf8",
@@ -223,6 +316,14 @@ test("persists aggregate-only limitation without record-level repair capability"
     assert.equal(comparison.limitation_reason, "AGGREGATE_ONLY")
     assert.equal(comparison.record_level_metrics_available, false)
     assert.equal(comparison.missing_count, null)
+    await assert.rejects(
+      () => repository.repairComparison({
+        repair_id: "aggregate-repair",
+        comparison_id: "comparison-aggregate-1",
+        repaired_at: "2026-09-03T00:13:00Z",
+      }),
+      /does not allow record-level/,
+    )
   } finally {
     await pool.end()
     await admin.query(`DROP SCHEMA ${schema} CASCADE`)

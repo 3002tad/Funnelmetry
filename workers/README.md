@@ -20,5 +20,5 @@ Hiện có:
   maturity evidence immutable/revisioned; gated finalizer đóng drop-off và KPI trong một transaction.
 - `kpi-projector/`: materialize funnel snapshot idempotent thành KPI base fact và observed views,
   sau đó phát kpi-updated handoff.
-- `reconciliation-worker/`: foundation persist manifest, record và control totals atomically;
+- `reconciliation-worker/`: persist manifest/comparison, version current projection và repair có audit;
   discrepancy comparison và current-projection repair chưa được bật.

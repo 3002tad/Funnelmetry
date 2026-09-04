@@ -245,11 +245,20 @@ export function hashReconciliationManifest(input) {
   return createHash("sha256").update(JSON.stringify(manifest)).digest("hex")
 }
 
-function normalizeAnalyticsProjection(input) {
+export function validateReconciliationAnalyticsProjection(input) {
   const value = plainObject(input, "analytics_projection")
   const sourceId = requiredString(value.source_id, "analytics_projection.source_id")
   if (!sourceIdPattern.test(sourceId)) throw new Error("analytics_projection.source_id must be lowercase kebab-case")
   const coverage = plainObject(value.coverage, "analytics_projection.coverage")
+  const startAt = timestamp(coverage.start_at, "analytics_projection.coverage.start_at")
+  const endAt = timestamp(coverage.end_at, "analytics_projection.coverage.end_at")
+  const asOf = timestamp(value.as_of, "analytics_projection.as_of")
+  if (Date.parse(startAt) >= Date.parse(endAt)) {
+    throw new Error("analytics_projection.coverage.start_at must be before coverage.end_at")
+  }
+  if (Date.parse(endAt) > Date.parse(asOf)) {
+    throw new Error("analytics_projection.coverage.end_at must not be after as_of")
+  }
   const records = value.records
   if (!Array.isArray(records)) throw new Error("analytics_projection.records must be an array")
   const normalizedRecords = records.map((record, index) => normalizeRecord(record, index))
@@ -264,10 +273,10 @@ function normalizeAnalyticsProjection(input) {
   return Object.freeze({
     source_id: sourceId,
     entity_type: requiredString(value.entity_type, "analytics_projection.entity_type"),
-    as_of: timestamp(value.as_of, "analytics_projection.as_of"),
+    as_of: asOf,
     coverage: {
-      start_at: timestamp(coverage.start_at, "analytics_projection.coverage.start_at"),
-      end_at: timestamp(coverage.end_at, "analytics_projection.coverage.end_at"),
+      start_at: startAt,
+      end_at: endAt,
       timezone: requiredString(coverage.timezone, "analytics_projection.coverage.timezone"),
       scope: jsonValue(
         plainObject(coverage.scope, "analytics_projection.coverage.scope"),
@@ -277,6 +286,27 @@ function normalizeAnalyticsProjection(input) {
     records: normalizedRecords,
     control_totals: controlTotals,
   })
+}
+
+export function hashReconciliationAnalyticsProjection(input) {
+  const projection = validateReconciliationAnalyticsProjection(input)
+  return createHash("sha256").update(JSON.stringify(projection)).digest("hex")
+}
+
+export function hashReconciliationCoverage(input) {
+  const projection = validateReconciliationAnalyticsProjection({
+    source_id: input?.source_id,
+    entity_type: input?.entity_type,
+    as_of: input?.as_of,
+    coverage: input?.coverage,
+    records: [],
+    control_totals: { record_count: 0, amounts: [] },
+  })
+  return createHash("sha256").update(JSON.stringify({
+    source_id: projection.source_id,
+    entity_type: projection.entity_type,
+    coverage: projection.coverage,
+  })).digest("hex")
 }
 
 function rate(numerator, denominator) {
@@ -343,7 +373,7 @@ export function compareReconciliationEvidence({ manifest: manifestInput, analyti
   const manifest = validateReconciliationManifest(manifestInput)
   const capability = assessReconciliationCapability(manifest)
   if (!capability.aggregate_comparison_allowed) throw new Error("snapshot must be closed before comparison")
-  const analytics = normalizeAnalyticsProjection(analyticsInput)
+  const analytics = validateReconciliationAnalyticsProjection(analyticsInput)
   if (analytics.source_id !== manifest.source_id) throw new Error("analytics projection source_id does not match snapshot")
   if (analytics.entity_type !== manifest.entity_type) throw new Error("analytics projection entity_type does not match snapshot")
   if (Date.parse(analytics.as_of) < Date.parse(manifest.as_of)) {

@@ -18,6 +18,11 @@ source/entity/coverage boundary. It computes missing, phantom, state and amount 
 reports null rates for empty denominators and calculates currency deviation with decimal-safe arithmetic.
 It never derives current state from the last canonical event.
 
+`validateReconciliationAnalyticsProjection`, `hashReconciliationAnalyticsProjection` and
+`hashReconciliationCoverage` provide the normalized identity used by the revisioned current-projection
+provider. The coverage hash excludes records and `as_of`, so revisions of the same declared scope share
+one serialized head.
+
 Run:
 
 ```powershell

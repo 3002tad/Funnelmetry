@@ -130,6 +130,16 @@ export interface ReconciliationComparison {
 export function validateReconciliationManifest(input: unknown): Readonly<ReconciliationManifest>
 export function assessReconciliationCapability(input: unknown): Readonly<ReconciliationCapabilityAssessment>
 export function hashReconciliationManifest(input: unknown): string
+export function validateReconciliationAnalyticsProjection(
+  input: unknown,
+): Readonly<ReconciliationAnalyticsProjection>
+export function hashReconciliationAnalyticsProjection(input: unknown): string
+export function hashReconciliationCoverage(input: {
+  source_id: unknown
+  entity_type: unknown
+  as_of: unknown
+  coverage: unknown
+}): string
 export function compareReconciliationEvidence(input: {
   manifest: unknown
   analytics_projection: unknown

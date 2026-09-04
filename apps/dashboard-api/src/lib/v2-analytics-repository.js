@@ -7,6 +7,34 @@ function rate(numerator, denominator) {
   return total === 0 ? null : number(numerator) / total
 }
 
+function reconciliationGate({ snapshots, provisional, reconciling, reconciled, degraded }) {
+  let state = "UNAVAILABLE"
+  const reasons = []
+  if (snapshots > 0) {
+    if (degraded > 0) {
+      state = "DEGRADED"
+      reasons.push("DEGRADED_WINDOW")
+    } else if (provisional > 0) {
+      state = "PROVISIONAL"
+      reasons.push("PROVISIONAL_WINDOW")
+    } else if (reconciling > 0) {
+      state = "RECONCILING"
+      reasons.push("UNRESOLVED_DISCREPANCY")
+    } else if (reconciled === snapshots) {
+      state = "RECONCILED"
+    }
+  } else {
+    reasons.push("NO_RECONCILIATION_EVIDENCE")
+  }
+  return Object.freeze({
+    state,
+    eligible_for_authoritative_business_analysis: state === "RECONCILED",
+    eligible_window_count: reconciled,
+    ineligible_window_count: snapshots - reconciled,
+    reasons: Object.freeze(reasons),
+  })
+}
+
 function cohortFilter({ sourceId, from, to }, alias = "i", startIndex = 1) {
   const clauses = [`${alias}.source_id = $${startIndex}`]
   const params = [sourceId]
@@ -370,7 +398,11 @@ export function createV2AnalyticsRepository({ query } = {}) {
       const persistedWindow = timestampFilter(scope, "persisted_at")
       const acceptedWindow = timestampFilter(scope, "received_at", "r")
       const entryWindow = cohortFilter(scope)
-      const [canonicalRows, bucketRows, projectionRows, telemetryRows] = await Promise.all([
+      const reconciliationWindow = timestampFilter(scope, "coverage_end_at", "s")
+      const [
+        canonicalRows, bucketRows, projectionRows, telemetryRows,
+        reconciliationRows, latestComparisonRows, repairRows,
+      ] = await Promise.all([
         query(
           `SELECT COUNT(*)::bigint AS canonical_events,
                   COUNT(*) FILTER (WHERE c.event_class = 'BEHAVIOR_INTENT')::bigint AS behavior_intent,
@@ -436,6 +468,63 @@ export function createV2AnalyticsRepository({ query } = {}) {
             WHERE ${acceptedWindow.sql}`,
           acceptedWindow.params,
         ),
+        query(
+          `SELECT COUNT(*)::bigint AS snapshots,
+                  COUNT(*) FILTER (WHERE COALESCE(c.window_state, s.window_state) = 'PROVISIONAL')::bigint AS provisional,
+                  COUNT(*) FILTER (WHERE COALESCE(c.window_state, s.window_state) = 'RECONCILING')::bigint AS reconciling,
+                  COUNT(*) FILTER (WHERE COALESCE(c.window_state, s.window_state) = 'RECONCILED')::bigint AS reconciled,
+                  COUNT(*) FILTER (WHERE COALESCE(c.window_state, s.window_state) = 'DEGRADED')::bigint AS degraded,
+                  COUNT(c.comparison_id)::bigint AS comparisons,
+                  COUNT(c.comparison_id) FILTER (WHERE c.record_level_metrics_available)::bigint AS record_level_comparisons,
+                  COALESCE(SUM(c.source_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS source_count,
+                  COALESCE(SUM(c.analytics_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS analytics_count,
+                  COALESCE(SUM(c.missing_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS missing_count,
+                  COALESCE(SUM(c.phantom_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS phantom_count,
+                  COALESCE(SUM(c.state_mismatch_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS state_mismatch_count,
+                  COALESCE(SUM(c.amount_mismatch_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS amount_mismatch_count,
+                  MAX(c.observed_at) AS last_compared_at
+             FROM reconciliation_snapshots s
+             LEFT JOIN LATERAL (
+               SELECT comparison.*
+                 FROM reconciliation_comparisons comparison
+                WHERE comparison.source_id = s.source_id
+                  AND comparison.snapshot_id = s.snapshot_id
+                ORDER BY comparison.comparison_revision DESC
+                LIMIT 1
+             ) c ON true
+            WHERE ${reconciliationWindow.sql}`,
+          reconciliationWindow.params,
+        ),
+        query(
+          `SELECT c.snapshot_id, s.entity_type, c.observed_at, c.window_state,
+                  c.limitation_reason, c.revenue_deviation
+             FROM reconciliation_comparisons c
+             JOIN reconciliation_snapshots s
+               ON s.source_id = c.source_id AND s.snapshot_id = c.snapshot_id
+            WHERE ${reconciliationWindow.sql}
+              AND c.comparison_revision = (
+                SELECT MAX(latest.comparison_revision)
+                  FROM reconciliation_comparisons latest
+                 WHERE latest.source_id = c.source_id AND latest.snapshot_id = c.snapshot_id
+              )
+            ORDER BY c.observed_at DESC, c.snapshot_id
+            LIMIT 1`,
+          reconciliationWindow.params,
+        ),
+        query(
+          `SELECT COUNT(r.repair_id)::bigint AS repairs,
+                  COUNT(v.repair_id)::bigint AS verified_repairs,
+                  COALESCE(SUM(v.attempted_correction_count), 0)::bigint AS attempted_corrections,
+                  COALESCE(SUM(v.successful_correction_count), 0)::bigint AS successful_corrections,
+                  MAX(r.repaired_at) AS last_repaired_at,
+                  MAX(v.verified_at) AS last_verified_at
+             FROM reconciliation_repairs r
+             JOIN reconciliation_snapshots s
+               ON s.source_id = r.source_id AND s.snapshot_id = r.snapshot_id
+             LEFT JOIN reconciliation_repair_verifications v ON v.repair_id = r.repair_id
+            WHERE ${reconciliationWindow.sql}`,
+          reconciliationWindow.params,
+        ),
       ])
       const canonical = canonicalRows[0] ?? {}
       const projections = projectionRows[0] ?? {}
@@ -444,11 +533,33 @@ export function createV2AnalyticsRepository({ query } = {}) {
       const authoritative = number(canonical.authoritative_event_time)
       const acceptedEvents = number(telemetry.accepted_events)
       const terminalOutcomes = number(telemetry.terminal_outcomes)
+      const reconciliation = reconciliationRows[0] ?? {}
+      const repairs = repairRows[0] ?? {}
+      const snapshots = number(reconciliation.snapshots)
+      const comparisons = number(reconciliation.comparisons)
+      const recordLevelComparisons = number(reconciliation.record_level_comparisons)
+      const sourceCount = number(reconciliation.source_count)
+      const analyticsCount = number(reconciliation.analytics_count)
+      const attemptedCorrections = number(repairs.attempted_corrections)
+      const successfulCorrections = number(repairs.successful_corrections)
+      const reconciliationStates = {
+        snapshots,
+        provisional: number(reconciliation.provisional),
+        reconciling: number(reconciliation.reconciling),
+        reconciled: number(reconciliation.reconciled),
+        degraded: number(reconciliation.degraded),
+      }
+      const latestComparison = latestComparisonRows[0] ?? null
+      const unavailable = ["event_loss_rate", "duplicate_rate", "queue_drop_rate", "rejected_event_rate"]
+      if (recordLevelComparisons === 0) unavailable.push("missing_rate", "phantom_rate", "state_mismatch_rate")
+      if (comparisons === 0) unavailable.push("revenue_deviation")
+      if (number(repairs.verified_repairs) === 0) unavailable.push("repair_success_rate")
       return Object.freeze({
         source_id: scope.sourceId,
         observation_window: Object.freeze({ basis: "persisted_at", from: scope.from, to: scope.to }),
         ingress_window: Object.freeze({ basis: "received_at", from: scope.from, to: scope.to }),
         projection_window: Object.freeze({ basis: "entry_at", from: scope.from, to: scope.to }),
+        reconciliation_window: Object.freeze({ basis: "coverage_end_at", from: scope.from, to: scope.to }),
         canonicalization: Object.freeze({
           accepted_events: acceptedEvents,
           terminal_outcomes: terminalOutcomes,
@@ -489,10 +600,43 @@ export function createV2AnalyticsRepository({ query } = {}) {
           reconciled: number(projections.reconciled),
           degraded: number(projections.degraded),
         }),
-        unavailable_metrics: Object.freeze([
-          "event_loss_rate", "duplicate_rate", "queue_drop_rate", "rejected_event_rate",
-          "missing_rate", "phantom_rate", "state_mismatch_rate", "revenue_deviation",
-        ]),
+        reconciliation: Object.freeze({
+          ...reconciliationStates,
+          comparisons,
+          record_level_comparisons: recordLevelComparisons,
+          source_count: sourceCount,
+          analytics_count: analyticsCount,
+          source_denominator_empty: sourceCount === 0,
+          analytics_denominator_empty: analyticsCount === 0,
+          missing_count: number(reconciliation.missing_count),
+          phantom_count: number(reconciliation.phantom_count),
+          state_mismatch_count: number(reconciliation.state_mismatch_count),
+          amount_mismatch_count: number(reconciliation.amount_mismatch_count),
+          missing_rate: recordLevelComparisons === 0 ? null : rate(reconciliation.missing_count, sourceCount),
+          phantom_rate: recordLevelComparisons === 0 ? null : rate(reconciliation.phantom_count, analyticsCount),
+          state_mismatch_rate: recordLevelComparisons === 0 ? null : rate(reconciliation.state_mismatch_count, sourceCount),
+          last_compared_at: reconciliation.last_compared_at ?? null,
+          latest_comparison: latestComparison ? Object.freeze({
+            snapshot_id: latestComparison.snapshot_id,
+            entity_type: latestComparison.entity_type,
+            observed_at: latestComparison.observed_at,
+            window_state: latestComparison.window_state,
+            limitation_reason: latestComparison.limitation_reason,
+            revenue_deviation: Object.freeze(latestComparison.revenue_deviation),
+          }) : null,
+          repairs: number(repairs.repairs),
+          verified_repairs: number(repairs.verified_repairs),
+          attempted_corrections: attemptedCorrections,
+          successful_corrections: successfulCorrections,
+          repair_denominator_empty: attemptedCorrections === 0,
+          repair_success_rate: number(repairs.verified_repairs) === 0
+            ? null
+            : rate(successfulCorrections, attemptedCorrections),
+          last_repaired_at: repairs.last_repaired_at ?? null,
+          last_verified_at: repairs.last_verified_at ?? null,
+          quality_gate: reconciliationGate(reconciliationStates),
+        }),
+        unavailable_metrics: Object.freeze(unavailable),
       })
     },
   })
