@@ -466,3 +466,23 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   replay cùng comparison identity/hash idempotent và reject immutable conflict.
 - Comparator không đọc CanonicalEvent cuối để dựng current state. Provider cho current Order/Payment/Revenue
   projection và correction ledger vẫn là gate tiếp theo; batch này chưa repair hoặc bịa historical event.
+
+## 30. Revisioned current projection and auditable repair
+
+- Thêm migration `012_reconciliation_current_projection.sql` với immutable projection revisions/records,
+  một mutable head được ràng buộc FK theo exact `source/entity/coverage`, cùng append-only repair và
+  per-entity correction evidence.
+- Reconciliation contract công khai validator/hash cho analytics projection và stable coverage identity;
+  record ordering, JSON scope và decimal money tiếp tục được normalize trước khi hash.
+- `reconciliation-worker` có provider `recordCurrentProjection`/`getCurrentProjection`; comparison có thể
+  tự lấy head đúng scope thay vì nhận projection ad-hoc từ caller.
+- `repairComparison` chỉ nhận comparison `RECONCILING` gắn snapshot closed, complete, record-level; stale,
+  `RECONCILED`, aggregate-only và incomplete evidence đều bị từ chối.
+- Repair tạo projection revision authoritative mới, ghi correction `UPSERT`/`REMOVE` theo entity rồi đổi
+  head trong cùng transaction. Raw/canonical history và historical funnel không bị mutate hoặc dựng lại.
+- Advisory transaction lock serialize revision theo coverage; replay cùng identity idempotent, còn reuse
+  identity với immutable input khác bị reject.
+- Projection head không được lùi `as_of`; khi version khác nhau, repair yêu cầu `updated_at` so sánh được
+  và reject source record cũ hơn thay vì tự đoán thứ tự version theo chuỗi.
+- `verifyRepair` liên kết một comparison revision sau repair, tính `repair_success_rate` theo correction
+  entity với denominator-empty state và ghi riêng trạng thái hội tụ toàn projection; không đặt threshold.

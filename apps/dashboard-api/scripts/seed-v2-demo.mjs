@@ -55,6 +55,7 @@ async function seed() {
       "004_kpi_projection.sql", "005_ingress_telemetry.sql", "006_funnel_maturity.sql",
       "007_maturity_finalization.sql", "008_late_conversion.sql", "009_matured_conversion.sql",
       "010_reconciliation_evidence.sql", "011_reconciliation_comparison.sql",
+      "012_reconciliation_current_projection.sql",
     ]) {
       await client.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }

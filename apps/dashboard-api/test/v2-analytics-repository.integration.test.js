@@ -21,6 +21,7 @@ test("reads V2 overview, funnel and privacy-safe journey projections from Postgr
       "004_kpi_projection.sql", "005_ingress_telemetry.sql", "006_funnel_maturity.sql",
       "007_maturity_finalization.sql", "008_late_conversion.sql", "009_matured_conversion.sql",
       "010_reconciliation_evidence.sql", "011_reconciliation_comparison.sql",
+      "012_reconciliation_current_projection.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }
@@ -186,6 +187,7 @@ test("exposes late conversions separately from finalized drop-off and observed c
       "004_kpi_projection.sql", "005_ingress_telemetry.sql", "006_funnel_maturity.sql",
       "007_maturity_finalization.sql", "008_late_conversion.sql", "009_matured_conversion.sql",
       "010_reconciliation_evidence.sql", "011_reconciliation_comparison.sql",
+      "012_reconciliation_current_projection.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }

@@ -2,7 +2,7 @@
 
 ## Local V2 demo data
 
-The demo seeder applies PostgreSQL migrations `001` through `011`, creates an
+The demo seeder applies PostgreSQL migrations `001` through `012`, creates an
 `analyst` account, and inserts a small source-scoped dataset for the dashboard:
 
 ```powershell

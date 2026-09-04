@@ -1,6 +1,11 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { compareReconciliationEvidence } from "../src/index.js"
+import {
+  compareReconciliationEvidence,
+  hashReconciliationAnalyticsProjection,
+  hashReconciliationCoverage,
+  validateReconciliationAnalyticsProjection,
+} from "../src/index.js"
 
 const coverage = {
   start_at: "2026-09-02T00:00:00Z",
@@ -157,4 +162,19 @@ test("compares decimal money exactly without floating-point coercion", () => {
   })
   assert.equal(result.amount_mismatch_count, 1)
   assert.equal(result.revenue_deviation[0].absolute_deviation, "0.01")
+})
+
+test("normalizes and hashes analytics projection scope deterministically", () => {
+  const input = analytics([
+    record("order-2", "COMPLETED", "0.00"),
+    record("order-1", "COMPLETED", "0.00"),
+  ], [{ currency: "VND", amount: "0.00" }])
+  const normalized = validateReconciliationAnalyticsProjection(input)
+  assert.deepEqual(normalized.records.map((item) => item.entity_id), ["order-1", "order-2"])
+  assert.equal(hashReconciliationAnalyticsProjection(input).length, 64)
+  assert.equal(hashReconciliationCoverage(input), hashReconciliationCoverage({
+    ...input,
+    records: [record("other", "PENDING", "1.00")],
+    control_totals: { record_count: 1, amounts: [] },
+  }))
 })
