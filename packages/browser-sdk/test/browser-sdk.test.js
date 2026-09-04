@@ -14,7 +14,7 @@ test("keeps the same event in the queue until a durable receipt arrives", async 
     sourceKeyId: "medusa-reference-dev",
     endpoint: "https://ingest.example.test/v1/ingress/events",
     writeKey: "public-write-key",
-    allowedEventTypes: ["commerce.product.viewed"],
+    allowedEventTypes: ["behavior.product_viewed"],
     hasConsent: () => true,
     createEventId: () => "browser:stable-1",
     now: () => "2026-08-22T09:00:00.000Z",
@@ -27,7 +27,7 @@ test("keeps the same event in the queue until a durable receipt arrives", async 
     },
   })
 
-  await sdk.track("commerce.product.viewed", { product_id: "prod_1" })
+  await sdk.track("behavior.product_viewed", { product_id: "prod_1" })
   assert.equal(sent.length, 3)
   assert.equal(new Set(sent.map((event) => event.event_id)).size, 1)
   assert.equal(sdk.getMetrics().queued, 0)
@@ -39,12 +39,12 @@ test("does not enqueue browser data without explicit consent", async () => {
     sourceKeyId: "medusa-reference-dev",
     endpoint: "https://ingest.example.test",
     writeKey: "public-write-key",
-    allowedEventTypes: ["commerce.product.viewed"],
+    allowedEventTypes: ["behavior.product_viewed"],
     hasConsent: () => false,
     fetch: async () => { throw new Error("must not send") },
   })
 
-  assert.deepEqual(await sdk.track("commerce.product.viewed", { product_id: "prod_1" }), { status: "skipped_no_consent" })
+  assert.deepEqual(await sdk.track("behavior.product_viewed", { product_id: "prod_1" }), { status: "skipped_no_consent" })
 })
 
 test("retains a retryable event for a later flush instead of silently dropping it", async () => {
@@ -56,7 +56,7 @@ test("retains a retryable event for a later flush instead of silently dropping i
     sourceKeyId: "medusa-reference-dev",
     endpoint: "https://ingest.example.test",
     writeKey: "public-write-key",
-    allowedEventTypes: ["commerce.product.viewed"],
+    allowedEventTypes: ["behavior.product_viewed"],
     hasConsent: () => true,
     createEventId: () => "browser:stable-2",
     now: () => "2026-08-22T09:00:00.000Z",
@@ -69,7 +69,7 @@ test("retains a retryable event for a later flush instead of silently dropping i
     },
   })
 
-  assert.equal((await sdk.track("commerce.product.viewed", { product_id: "prod_1" })).status, "retryable_failure")
+  assert.equal((await sdk.track("behavior.product_viewed", { product_id: "prod_1" })).status, "retryable_failure")
   assert.equal(sdk.getMetrics().queued, 1)
   available = true
   await sdk.flush()

@@ -36,6 +36,10 @@ function generatedSubscriber(manifest) {
 
 function configureGeneratedClient(content, manifest) {
   return content
+    .replaceAll("commerce.product.viewed", "behavior.product_viewed")
+    .replaceAll("commerce.checkout.started", "checkout.started")
+    .replaceAll("commerce.cart.item_added", "cart.add_clicked")
+    .replaceAll("trackCartItemAdded", "trackCartAddClicked")
     .replace(
       'endpoint: process.env.NEXT_PUBLIC_FUNNELMETRY_INGEST_URL ?? "",',
       `endpoint: ${JSON.stringify(manifest.ingest.url)},`,
@@ -168,11 +172,11 @@ export async function createPlan(projectRoot, manifest) {
     const actions = replaceOnce(
       originals[paths.productActions],
       'import { addToCart } from "@lib/data/cart"',
-      'import { addToCart } from "@lib/data/cart"\nimport { trackCartItemAdded } from "@funnelmetry/client"',
+      'import { addToCart } from "@lib/data/cart"\nimport { trackCartAddClicked } from "@funnelmetry/client"',
       paths.productActions,
     ).replace(
       '    await addToCart({\n      variantId: selectedVariant.id,\n      quantity: 1,\n      countryCode,\n    })',
-      '    await addToCart({\n      variantId: selectedVariant.id,\n      quantity: 1,\n      countryCode,\n    })\n\n    void trackCartItemAdded({ productId: product.id, variantId: selectedVariant.id, quantity: 1 })',
+      '    void trackCartAddClicked({ productId: product.id, variantId: selectedVariant.id, quantity: 1 })\n\n    await addToCart({\n      variantId: selectedVariant.id,\n      quantity: 1,\n      countryCode,\n    })',
     )
     const checkout = replaceOnce(
       originals[paths.checkoutPage],

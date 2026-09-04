@@ -12,12 +12,14 @@ const env = {
 }
 
 test("loads canonical-normalizer Kafka configuration", () => {
-  const config = loadConfig(env)
+  const config = loadConfig({ ...env, CANONICAL_NORMALIZER_MEDUSA_ORDER_CREATED_SOURCE_IDS: "medusa-reference" })
   assert.deepEqual(config.brokers, ["kafka-1:9092", "kafka-2:9092"])
   assert.equal(config.consumerGroupId, "funnelmetry-canonical-normalizer-v1")
+  assert.deepEqual(config.medusaOrderCreatedSourceIds, ["medusa-reference"])
 })
 
 test("requires a stable transactional instance identity and all output topics", () => {
   assert.throws(() => loadConfig({}), /CANONICAL_NORMALIZER_INSTANCE_ID is required/)
   assert.throws(() => loadConfig({ ...env, KAFKA_TOPIC_QUARANTINE: "" }), /KAFKA_TOPIC_QUARANTINE is required/)
+  assert.throws(() => loadConfig({ ...env, CANONICAL_NORMALIZER_MEDUSA_ORDER_CREATED_SOURCE_IDS: "Medusa Reference" }), /invalid source id/)
 })

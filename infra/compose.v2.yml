@@ -135,6 +135,7 @@ services:
       <<: *kafka-environment
       CANONICAL_NORMALIZER_INSTANCE_ID: normalizer-local-1
       CANONICAL_NORMALIZER_CONSUMER_GROUP_ID: funnelmetry-canonical-normalizer-local-v1
+      CANONICAL_NORMALIZER_MEDUSA_ORDER_CREATED_SOURCE_IDS: medusa-reference
     depends_on:
       kafka-topics:
         condition: service_completed_successfully

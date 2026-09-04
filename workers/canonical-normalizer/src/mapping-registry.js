@@ -26,6 +26,28 @@ export function createPassthroughMappings(mappingVersion = "canonical-passthroug
   }))
 }
 
+/**
+ * Maps the Medusa v2 native `order.placed` notification conservatively.
+ *
+ * This mapping is opt-in per configured source. It deliberately does not
+ * infer `order.accepted`, `payment.captured`, or `cart.item_added`: those
+ * require a source-owned hook with the stronger business semantics.
+ */
+export function createMedusaOrderPlacedMappings(
+  sourceIds,
+  mappingVersion = "medusa-v2-order-placed-to-order-created.v1",
+) {
+  return [...new Set(sourceIds)].map((sourceId) => Object.freeze({
+    source_id: sourceId,
+    source_event_type: "medusa.order_placed",
+    source_schema_version: "1.0",
+    event_type: "order.created",
+    event_class: "BUSINESS_FACT",
+    mapping_version: mappingVersion,
+    map_data: (event) => event.source_payload,
+  }))
+}
+
 function score(mapping, event) {
   if (mapping.source_id !== "*" && mapping.source_id !== event.source_id) return -1
   if (mapping.source_event_type !== event.source_event_type) return -1

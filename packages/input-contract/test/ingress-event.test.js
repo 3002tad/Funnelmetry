@@ -6,7 +6,7 @@ const event = {
   specversion: INGRESS_EVENT_SPEC_VERSION,
   source_id: "medusa-reference",
   event_id: "browser:evt-123",
-  source_event_type: "commerce.product.viewed",
+  source_event_type: "behavior.product_viewed",
   source_schema_version: "1.0",
   occurred_at: "2026-08-22T09:00:00.000Z",
   producer: "browser_sdk",

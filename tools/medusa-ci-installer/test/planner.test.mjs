@@ -17,7 +17,7 @@ const manifest = validateManifest({
     browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY",
     backend_signing_key_ref: "FUNNELMETRY_BACKEND_SIGNING_KEY",
   },
-  frontend: { enabled: true, events: ["commerce.product.viewed", "commerce.cart.item_added", "commerce.checkout.started"] },
+  frontend: { enabled: true, events: ["behavior.product_viewed", "cart.add_clicked", "checkout.started"] },
   backend: { enabled: true, binding: "medusa.order_placed" },
 })
 
@@ -46,6 +46,12 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /apps\/backend\/src\/subscribers\/funnelmetry-order-placed\.ts/)
   assert.match(plan.patch, /apps\/storefront\/src\/funnelmetry\/client\.tsx/)
   assert.match(plan.patch, /FunnelmetryCheckoutStarted/)
+  assert.match(plan.patch, /"behavior\.product_viewed"/)
+  assert.match(plan.patch, /"cart\.add_clicked"/)
+  assert.match(plan.patch, /"checkout\.started"/)
+  assert.match(plan.patch, /sourceEventType: "medusa\.order_placed"/)
+  assert.match(plan.patch, /void trackCartAddClicked\([\s\S]*?await addToCart/)
+  assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
   assert.match(plan.patch, /"@funnelmetry\/browser-sdk": "0\.1\.0"/)
   assert.match(plan.patch, /"@funnelmetry\/\*"/)
   assert.match(plan.patch, /"funnelmetry\/\*"/)
@@ -69,7 +75,7 @@ test("manifest rejects a browser secret reference that looks like a secret value
     source: { id: "medusa-reference" },
     ingest: { url: "https://ingest.example.test" },
     auth: { source_key_id: "source", browser_write_key_ref: "not-a-secret-reference" },
-    frontend: { enabled: true, events: ["commerce.product.viewed"] },
+    frontend: { enabled: true, events: ["behavior.product_viewed"] },
     backend: { enabled: false },
 }), /environment\/secret reference/)
 })
@@ -82,7 +88,7 @@ test("manifest only accepts fail-open reliability settings", () => {
     source: { id: "medusa-reference" },
     ingest: { url: "https://ingest.example.test" },
     auth: { source_key_id: "source", browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY" },
-    frontend: { enabled: true, events: ["commerce.product.viewed"] },
+    frontend: { enabled: true, events: ["behavior.product_viewed"] },
     backend: { enabled: false },
     reliability: { failure_mode: "fail_closed" },
   }), /fail_open/)

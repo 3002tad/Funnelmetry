@@ -2,9 +2,9 @@ import { readFile } from "node:fs/promises"
 import { parseManifestYaml } from "./yaml.mjs"
 
 const eventTypes = new Set([
-  "commerce.product.viewed",
-  "commerce.cart.item_added",
-  "commerce.checkout.started",
+  "behavior.product_viewed",
+  "cart.add_clicked",
+  "checkout.started",
 ])
 
 function requiredString(value, name) {

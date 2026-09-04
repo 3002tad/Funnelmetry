@@ -19,9 +19,9 @@ auth:
 frontend:
   enabled: true
   events:
-    - commerce.product.viewed
-    - commerce.cart.item_added
-    - commerce.checkout.started
+    - behavior.product_viewed
+    - cart.add_clicked
+    - checkout.started
 
 backend:
   enabled: true

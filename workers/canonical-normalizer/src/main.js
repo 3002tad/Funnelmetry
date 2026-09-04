@@ -1,8 +1,18 @@
 import { loadConfig } from "./config.js"
 import { createKafkaNormalizerRuntime } from "./kafka-runtime.js"
+import {
+  createMappingRegistry,
+  createMedusaOrderPlacedMappings,
+  createPassthroughMappings,
+} from "./mapping-registry.js"
+import { createNormalizer } from "./normalizer.js"
 
 const config = loadConfig()
-const runtime = createKafkaNormalizerRuntime(config)
+const registry = createMappingRegistry([
+  ...createPassthroughMappings(),
+  ...createMedusaOrderPlacedMappings(config.medusaOrderCreatedSourceIds),
+])
+const runtime = createKafkaNormalizerRuntime({ ...config, normalizer: createNormalizer({ registry }) })
 let shuttingDown = false
 
 async function shutdown(signal) {

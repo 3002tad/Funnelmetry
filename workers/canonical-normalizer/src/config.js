@@ -8,6 +8,17 @@ function list(value) {
   return value.split(",").map((item) => item.trim()).filter(Boolean)
 }
 
+function sourceIdList(value, name) {
+  if (value === undefined || value.trim() === "") return []
+  const sourceIds = [...new Set(list(value))]
+  for (const sourceId of sourceIds) {
+    if (!/^[a-z0-9][a-z0-9-]{2,62}$/.test(sourceId)) {
+      throw new Error(`${name} contains an invalid source id '${sourceId}'`)
+    }
+  }
+  return Object.freeze(sourceIds)
+}
+
 function positiveInteger(env, name, fallback) {
   const raw = env[name]
   if (raw === undefined || raw === "") return fallback
@@ -30,6 +41,12 @@ export function loadConfig(env = process.env) {
     canonicalTopic: required(env, "KAFKA_TOPIC_CANONICAL"),
     outcomeTopic: required(env, "KAFKA_TOPIC_CANONICALIZATION_OUTCOMES"),
     quarantineTopic: required(env, "KAFKA_TOPIC_QUARANTINE"),
+    // Native source-to-canonical mappings are opt-in. Keeping this empty
+    // means unknown native events stay visible as unsupported/quarantined.
+    medusaOrderCreatedSourceIds: sourceIdList(
+      env.CANONICAL_NORMALIZER_MEDUSA_ORDER_CREATED_SOURCE_IDS,
+      "CANONICAL_NORMALIZER_MEDUSA_ORDER_CREATED_SOURCE_IDS",
+    ),
     transactionTimeoutMs: positiveInteger(env, "CANONICAL_NORMALIZER_TRANSACTION_TIMEOUT_MS", 30_000),
     shutdownTimeoutMs: positiveInteger(env, "CANONICAL_NORMALIZER_SHUTDOWN_TIMEOUT_MS", 10_000),
   })
