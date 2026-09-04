@@ -133,6 +133,24 @@ test("data health reports durable canonicalization, canonical and projection evi
       canonicalization_latency_p50_ms: "18", canonicalization_latency_p95_ms: "55",
       first_received_at: "2026-08-01Z", last_received_at: "2026-08-02Z", last_processed_at: "2026-08-02Z",
     }],
+    [{
+      snapshots: "2", provisional: "0", reconciling: "1", reconciled: "1", degraded: "0",
+      comparisons: "2", record_level_comparisons: "2", source_count: "10", analytics_count: "9",
+      missing_count: "1", phantom_count: "0", state_mismatch_count: "1", amount_mismatch_count: "0",
+      last_compared_at: "2026-08-03Z",
+    }],
+    [{
+      snapshot_id: "snapshot-2", entity_type: "ORDER", observed_at: "2026-08-03Z",
+      window_state: "RECONCILING", limitation_reason: null,
+      revenue_deviation: [{
+        currency: "VND", source_amount: "100", analytics_amount: "90",
+        absolute_deviation: "10", deviation_rate: "0.1", denominator_empty: false,
+      }],
+    }],
+    [{
+      repairs: "1", verified_repairs: "1", attempted_corrections: "2",
+      successful_corrections: "2", last_repaired_at: "2026-08-03Z", last_verified_at: "2026-08-03Z",
+    }],
   ]
   const repository = createV2AnalyticsRepository({ query: async () => responses.shift() })
   const result = await repository.getDataHealth({ sourceId: "medusa-reference", from: null, to: null })
@@ -142,7 +160,52 @@ test("data health reports durable canonicalization, canonical and projection evi
   assert.equal(result.canonicalization.unsupported, 1)
   assert.equal(result.ingress_window.basis, "received_at")
   assert.equal(result.projection_quality.provisional, 2)
+  assert.equal(result.reconciliation.missing_rate, 0.1)
+  assert.equal(result.reconciliation.repair_success_rate, 1)
+  assert.equal(result.reconciliation.quality_gate.state, "RECONCILING")
+  assert.equal(result.reconciliation.quality_gate.eligible_for_authoritative_business_analysis, false)
+  assert.equal(result.unavailable_metrics.includes("missing_rate"), false)
   assert.ok(result.unavailable_metrics.includes("event_loss_rate"))
   assert.equal(result.unavailable_metrics.includes("convergence_lag"), false)
   assert.equal("accepted_event_rate" in result.canonical, false)
+})
+
+test("data health gates authoritative analysis when reconciliation evidence is degraded", async () => {
+  const responses = [
+    [{}],
+    [],
+    [{}],
+    [{}],
+    [{
+      snapshots: "2", provisional: "1", reconciling: "0", reconciled: "0", degraded: "1",
+      comparisons: "1", record_level_comparisons: "0", source_count: "0", analytics_count: "0",
+      missing_count: "0", phantom_count: "0", state_mismatch_count: "0", amount_mismatch_count: "0",
+    }],
+    [{
+      snapshot_id: "snapshot-degraded", entity_type: "ORDER", observed_at: "2026-08-03Z",
+      window_state: "DEGRADED", limitation_reason: "AGGREGATE_ONLY", revenue_deviation: [],
+    }],
+    [{}],
+  ]
+  const repository = createV2AnalyticsRepository({ query: async () => responses.shift() })
+
+  const result = await repository.getDataHealth({ sourceId: "medusa-reference", from: null, to: null })
+
+  assert.equal(result.reconciliation.quality_gate.state, "DEGRADED")
+  assert.equal(result.reconciliation.quality_gate.eligible_for_authoritative_business_analysis, false)
+  assert.deepEqual(result.reconciliation.quality_gate.reasons, ["DEGRADED_WINDOW"])
+  assert.equal(result.reconciliation.missing_rate, null)
+  assert.ok(result.unavailable_metrics.includes("missing_rate"))
+})
+
+test("data health reports an unavailable gate when no reconciliation snapshot exists", async () => {
+  const responses = [[{}], [], [{}], [{}], [{}], [], [{}]]
+  const repository = createV2AnalyticsRepository({ query: async () => responses.shift() })
+
+  const result = await repository.getDataHealth({ sourceId: "medusa-reference", from: null, to: null })
+
+  assert.equal(result.reconciliation.quality_gate.state, "UNAVAILABLE")
+  assert.equal(result.reconciliation.quality_gate.eligible_for_authoritative_business_analysis, false)
+  assert.deepEqual(result.reconciliation.quality_gate.reasons, ["NO_RECONCILIATION_EVIDENCE"])
+  assert.ok(result.unavailable_metrics.includes("revenue_deviation"))
 })

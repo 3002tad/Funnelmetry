@@ -208,8 +208,64 @@ async function seed() {
         )
       }
     }
+
+    const reconciliationSnapshotId = "snapshot-demo-orders-reconciled"
+    const reconciliationComparisonId = "comparison-demo-orders-reconciled-r1"
+    const reconciliationEntityId = hash("demo-order-reconciled")
+    const reconciliationCoverageStart = iso(13)
+    const reconciliationCoverageEnd = iso(11)
+    const reconciliationObservedAt = iso(10)
+    await client.query(
+      `INSERT INTO reconciliation_snapshots (
+         source_id, snapshot_id, entity_type, reconciliation_mode, as_of,
+         coverage_start_at, coverage_end_at, coverage_timezone, coverage_scope,
+         closed, complete, closed_at, watermark_at, watermark_grace_seconds,
+         source_schema_version, semantic_version, window_state, limitation_reason,
+         aggregate_comparison_allowed, record_level_comparison_allowed,
+         record_level_repair_allowed, record_count, control_totals,
+         manifest_hash, manifest_document
+       ) VALUES (
+         $1,$2,'ORDER','RECORD_LEVEL',$3,$4,$5,'UTC','{"demo":true}'::jsonb,
+         true,true,$3,$5,86400,'demo-order.v1','order-state.v1','RECONCILING',NULL,
+         true,true,true,1,'{"record_count":1,"amounts":[]}'::jsonb,$6,'{"demo":true}'::jsonb
+       ) ON CONFLICT DO NOTHING`,
+      [sourceId, reconciliationSnapshotId, reconciliationObservedAt,
+        reconciliationCoverageStart, reconciliationCoverageEnd, hash("demo-reconciliation-manifest")],
+    )
+    await client.query(
+      `INSERT INTO reconciliation_snapshot_records (
+         source_id, snapshot_id, entity_id, current_status, entity_version,
+         source_updated_at, tombstone, record_hash, record_document
+       ) VALUES ($1,$2,$3,'COMPLETED','1',$4,false,$5,'{"demo":true}'::jsonb)
+       ON CONFLICT DO NOTHING`,
+      [sourceId, reconciliationSnapshotId, reconciliationEntityId,
+        reconciliationCoverageEnd, hash("demo-reconciliation-record")],
+    )
+    await client.query(
+      `INSERT INTO reconciliation_comparisons (
+         comparison_id, source_id, snapshot_id, comparison_revision, observed_at,
+         analytics_as_of, window_state, limitation_reason, record_level_metrics_available,
+         source_count, analytics_count, source_denominator_empty, analytics_denominator_empty,
+         control_total_mismatch, missing_count, phantom_count, state_mismatch_count,
+         amount_mismatch_count, missing_rate, phantom_rate, state_mismatch_rate,
+         amount_mismatch_rate, revenue_deviation, evidence_hash, comparison_document
+       ) VALUES (
+         $1,$2,$3,1,$4,$4,'RECONCILED',NULL,true,1,1,false,false,false,
+         0,0,0,0,0,0,0,0,'[]'::jsonb,$5,'{"demo":true}'::jsonb
+       ) ON CONFLICT DO NOTHING`,
+      [reconciliationComparisonId, sourceId, reconciliationSnapshotId,
+        reconciliationObservedAt, hash("demo-reconciliation-comparison")],
+    )
+    await client.query(
+      `INSERT INTO reconciliation_analytics_observations (
+         comparison_id, entity_id, current_status, entity_version,
+         analytics_updated_at, tombstone, observation_document
+       ) VALUES ($1,$2,'COMPLETED','1',$3,false,'{"demo":true}'::jsonb)
+       ON CONFLICT DO NOTHING`,
+      [reconciliationComparisonId, reconciliationEntityId, reconciliationCoverageEnd],
+    )
     await client.query("COMMIT")
-    console.log(`[demo-seed] ${journeys.length} journeys and ${journeys.reduce((sum, item) => sum + item.events.length, 0)} canonical events with telemetry ready`)
+    console.log(`[demo-seed] ${journeys.length} journeys and ${journeys.reduce((sum, item) => sum + item.events.length, 0)} canonical events with telemetry and reconciled ORDER evidence ready`)
     console.log(`[demo-seed] login ${analystEmail} / ${analystPassword}`)
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {})

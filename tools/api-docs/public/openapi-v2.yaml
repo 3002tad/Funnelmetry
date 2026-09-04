@@ -299,7 +299,7 @@ components:
               link_confidence: { type: string, nullable: true }
     DataHealth:
       type: object
-      required: [source_id, observation_window, ingress_window, projection_window, canonicalization, canonical, hourly, projection_quality, unavailable_metrics]
+      required: [source_id, observation_window, ingress_window, projection_window, reconciliation_window, canonicalization, canonical, hourly, projection_quality, reconciliation, unavailable_metrics]
       properties:
         source_id: { type: string }
         observation_window:
@@ -318,6 +318,12 @@ components:
           type: object
           properties:
             basis: { type: string, enum: [entry_at] }
+            from: { type: string, format: date-time, nullable: true }
+            to: { type: string, format: date-time, nullable: true }
+        reconciliation_window:
+          type: object
+          properties:
+            basis: { type: string, enum: [coverage_end_at] }
             from: { type: string, format: date-time, nullable: true }
             to: { type: string, format: date-time, nullable: true }
         canonicalization:
@@ -366,6 +372,68 @@ components:
             reconciling: { type: integer }
             reconciled: { type: integer }
             degraded: { type: integer }
+        reconciliation:
+          type: object
+          required: [snapshots, provisional, reconciling, reconciled, degraded, comparisons, record_level_comparisons, quality_gate]
+          properties:
+            snapshots: { type: integer }
+            provisional: { type: integer }
+            reconciling: { type: integer }
+            reconciled: { type: integer }
+            degraded: { type: integer }
+            comparisons: { type: integer }
+            record_level_comparisons: { type: integer }
+            source_count: { type: integer }
+            analytics_count: { type: integer }
+            source_denominator_empty: { type: boolean }
+            analytics_denominator_empty: { type: boolean }
+            missing_count: { type: integer }
+            phantom_count: { type: integer }
+            state_mismatch_count: { type: integer }
+            amount_mismatch_count: { type: integer }
+            missing_rate: { type: number, nullable: true }
+            phantom_rate: { type: number, nullable: true }
+            state_mismatch_rate: { type: number, nullable: true }
+            last_compared_at: { type: string, format: date-time, nullable: true }
+            latest_comparison:
+              type: object
+              nullable: true
+              properties:
+                snapshot_id: { type: string }
+                entity_type: { type: string }
+                observed_at: { type: string, format: date-time }
+                window_state: { type: string, enum: [RECONCILING, RECONCILED, DEGRADED] }
+                limitation_reason: { type: string, nullable: true }
+                revenue_deviation:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      currency: { type: string }
+                      source_amount: { type: string }
+                      analytics_amount: { type: string }
+                      absolute_deviation: { type: string }
+                      deviation_rate: { type: string, nullable: true }
+                      denominator_empty: { type: boolean }
+            repairs: { type: integer }
+            verified_repairs: { type: integer }
+            attempted_corrections: { type: integer }
+            successful_corrections: { type: integer }
+            repair_denominator_empty: { type: boolean }
+            repair_success_rate: { type: number, nullable: true }
+            last_repaired_at: { type: string, format: date-time, nullable: true }
+            last_verified_at: { type: string, format: date-time, nullable: true }
+            quality_gate:
+              type: object
+              required: [state, eligible_for_authoritative_business_analysis, eligible_window_count, ineligible_window_count, reasons]
+              properties:
+                state: { type: string, enum: [UNAVAILABLE, PROVISIONAL, RECONCILING, RECONCILED, DEGRADED] }
+                eligible_for_authoritative_business_analysis: { type: boolean }
+                eligible_window_count: { type: integer }
+                ineligible_window_count: { type: integer }
+                reasons:
+                  type: array
+                  items: { type: string, enum: [NO_RECONCILIATION_EVIDENCE, PROVISIONAL_WINDOW, UNRESOLVED_DISCREPANCY, DEGRADED_WINDOW] }
         unavailable_metrics:
           type: array
           items: { type: string }

@@ -486,3 +486,18 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   và reject source record cũ hơn thay vì tự đoán thứ tự version theo chuỗi.
 - `verifyRepair` liên kết một comparison revision sau repair, tính `repair_success_rate` theo correction
   entity với denominator-empty state và ghi riêng trạng thái hội tụ toàn projection; không đặt threshold.
+
+## 31. Data Health reconciliation evidence and authoritative quality gate
+
+- Dashboard API tổng hợp latest comparison revision theo từng snapshot trong window `coverage_end_at`;
+  comparison revision cũ không bị cộng lặp vào Data Health.
+- Công bố snapshot quality states, record-level discrepancy counts/rates, exact revenue deviation và
+  repair verification. Metric thiếu evidence hoặc denominator tiếp tục trả `null` và xuất hiện trong
+  `unavailable_metrics`, không dựng số 0 giả.
+- Thêm quality gate với trạng thái `UNAVAILABLE`, `PROVISIONAL`, `RECONCILING`, `RECONCILED`, `DEGRADED`.
+  Chỉ scope hoàn toàn `RECONCILED` mới eligible cho authoritative business analysis; đây không phải global
+  kill-switch cho UI hoặc các phép quan sát kỹ thuật.
+- Data Health UI hiển thị reconciliation, repair verification và trạng thái gate. OpenAPI và TypeScript
+  response contract được cập nhật tương ứng.
+- Demo seed thêm một ORDER snapshot/comparison record-level đã `RECONCILED` để UI local trình bày evidence
+  thật, đồng thời giữ repair metric unavailable khi chưa có repair verification.

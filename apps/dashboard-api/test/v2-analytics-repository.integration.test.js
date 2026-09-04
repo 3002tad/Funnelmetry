@@ -145,6 +145,41 @@ test("reads V2 overview, funnel and privacy-safe journey projections from Postgr
        ) VALUES ($1,0,'view','behavior.product_viewed','2026-08-29T01:00:00Z','2026-08-29T01:00:00Z',1)`,
       [funnelInstanceId],
     )
+    const snapshotId = `snapshot-${runId}`
+    await pool.query(
+      `INSERT INTO reconciliation_snapshots (
+         source_id, snapshot_id, entity_type, reconciliation_mode, as_of,
+         coverage_start_at, coverage_end_at, coverage_timezone, coverage_scope,
+         closed, complete, closed_at, watermark_at, watermark_grace_seconds,
+         source_schema_version, semantic_version, window_state, limitation_reason,
+         aggregate_comparison_allowed, record_level_comparison_allowed,
+         record_level_repair_allowed, record_count, control_totals,
+         manifest_hash, manifest_document
+       ) VALUES (
+         $1,$2,'ORDER','RECORD_LEVEL','2026-08-30T00:10:00Z',
+         '2026-08-28T00:00:00Z','2026-08-29T00:00:00Z','UTC','{}'::jsonb,
+         true,true,'2026-08-30T00:05:00Z','2026-08-29T00:00:00Z',300,
+         'report.v1','order-state.v1','RECONCILING',NULL,
+         true,true,true,1,'{"record_count":1,"amounts":[]}'::jsonb,
+         $3,'{}'::jsonb
+       )`,
+      [sourceId, snapshotId, "c".repeat(64)],
+    )
+    await pool.query(
+      `INSERT INTO reconciliation_comparisons (
+         comparison_id, source_id, snapshot_id, comparison_revision, observed_at,
+         analytics_as_of, window_state, limitation_reason, record_level_metrics_available,
+         source_count, analytics_count, source_denominator_empty, analytics_denominator_empty,
+         control_total_mismatch, missing_count, phantom_count, state_mismatch_count,
+         amount_mismatch_count, missing_rate, phantom_rate, state_mismatch_rate,
+         amount_mismatch_rate, revenue_deviation, evidence_hash, comparison_document
+       ) VALUES (
+         $1,$2,$3,1,'2026-08-30T00:12:00Z','2026-08-30T00:11:00Z',
+         'RECONCILING',NULL,true,1,0,false,true,true,1,0,0,0,1,NULL,0,0,
+         '[]'::jsonb,$4,'{}'::jsonb
+       )`,
+      [`comparison-${runId}`, sourceId, snapshotId, "d".repeat(64)],
+    )
 
     const repository = createV2AnalyticsRepository({ query: async (sql, params) => (await pool.query(sql, params)).rows })
     const scope = { sourceId, from: "2026-08-01T00:00:00.000Z", to: null }
@@ -170,6 +205,13 @@ test("reads V2 overview, funnel and privacy-safe journey projections from Postgr
     assert.equal(health.canonicalization.terminal_outcome_rate, 1)
     assert.equal(health.canonicalization.normalized, 1)
     assert.equal(health.projection_quality.provisional, 1)
+    assert.equal(health.reconciliation.snapshots, 1)
+    assert.equal(health.reconciliation.missing_count, 1)
+    assert.equal(health.reconciliation.missing_rate, 1)
+    assert.equal(health.reconciliation.quality_gate.state, "RECONCILING")
+    assert.equal(health.reconciliation.quality_gate.eligible_for_authoritative_business_analysis, false)
+    assert.equal(health.unavailable_metrics.includes("missing_rate"), false)
+    assert.equal(health.unavailable_metrics.includes("repair_success_rate"), true)
     assert.ok(health.unavailable_metrics.includes("event_loss_rate"))
   } finally {
     await pool.end()

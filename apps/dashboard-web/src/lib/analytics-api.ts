@@ -154,6 +154,7 @@ export type DataHealthResponse = {
   observation_window: { basis: "persisted_at"; from: string | null; to: string | null }
   ingress_window: { basis: "received_at"; from: string | null; to: string | null }
   projection_window: { basis: "entry_at"; from: string | null; to: string | null }
+  reconciliation_window: { basis: "coverage_end_at"; from: string | null; to: string | null }
   canonicalization: {
     accepted_events: number
     terminal_outcomes: number
@@ -189,6 +190,57 @@ export type DataHealthResponse = {
     reconciling: number
     reconciled: number
     degraded: number
+  }
+  reconciliation: {
+    snapshots: number
+    provisional: number
+    reconciling: number
+    reconciled: number
+    degraded: number
+    comparisons: number
+    record_level_comparisons: number
+    source_count: number
+    analytics_count: number
+    source_denominator_empty: boolean
+    analytics_denominator_empty: boolean
+    missing_count: number
+    phantom_count: number
+    state_mismatch_count: number
+    amount_mismatch_count: number
+    missing_rate: number | null
+    phantom_rate: number | null
+    state_mismatch_rate: number | null
+    last_compared_at: string | null
+    latest_comparison: null | {
+      snapshot_id: string
+      entity_type: string
+      observed_at: string
+      window_state: "RECONCILING" | "RECONCILED" | "DEGRADED"
+      limitation_reason: "SNAPSHOT_INCOMPLETE" | "AGGREGATE_ONLY" | null
+      revenue_deviation: Array<{
+        currency: string
+        source_amount: string
+        analytics_amount: string
+        absolute_deviation: string
+        deviation_rate: string | null
+        denominator_empty: boolean
+      }>
+    }
+    repairs: number
+    verified_repairs: number
+    attempted_corrections: number
+    successful_corrections: number
+    repair_denominator_empty: boolean
+    repair_success_rate: number | null
+    last_repaired_at: string | null
+    last_verified_at: string | null
+    quality_gate: {
+      state: "UNAVAILABLE" | "PROVISIONAL" | "RECONCILING" | "RECONCILED" | "DEGRADED"
+      eligible_for_authoritative_business_analysis: boolean
+      eligible_window_count: number
+      ineligible_window_count: number
+      reasons: Array<"NO_RECONCILIATION_EVIDENCE" | "PROVISIONAL_WINDOW" | "UNRESOLVED_DISCREPANCY" | "DEGRADED_WINDOW">
+    }
   }
   unavailable_metrics: string[]
 }

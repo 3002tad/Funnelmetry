@@ -47,8 +47,14 @@ matched business-key value hoặc evidence document nội bộ.
 
 Data Health công bố metric từ accepted ingress receipt, terminal canonicalization outcome, canonical
 ledger và Funnel KPI facts: terminal outcome rate, canonicalization/normalization/persistence latency,
-time-basis quality và projection quality. Các metric pre-handoff loss, duplicate/rejected attempt,
-queue drop và reconciliation vẫn được trả trong `unavailable_metrics` thay vì dựng số.
+time-basis quality và projection quality. Reconciliation snapshot/comparison/repair evidence từ migrations
+`010`–`012` được tổng hợp theo `coverage_end_at`; missing, phantom, state mismatch, revenue deviation
+và repair success chỉ có giá trị khi có đúng evidence/denominator.
+
+`reconciliation.quality_gate` trả `UNAVAILABLE`, `PROVISIONAL`, `RECONCILING`, `RECONCILED` hoặc
+`DEGRADED`. Chỉ `RECONCILED` có `eligible_for_authoritative_business_analysis: true`; gate này chỉ áp
+dụng cho phân tích business authoritative, không phải global kill-switch. Các metric pre-handoff loss,
+duplicate/rejected attempt và queue drop vẫn nằm trong `unavailable_metrics` thay vì dựng số.
 
 Dashboard UI hiện dùng API V2 cho Overview, Funnels, Journeys, Events và Data Health.
 

@@ -26,7 +26,8 @@ trong `localStorage` để phục vụ bản local demo; UI không chứa token 
 - `Funnels`: từng profile/version, reached steps và quality state.
 - `Journeys`: canonical event metadata, identity evidence summary và Funnel Instances.
 - `Events`: canonical ledger metadata; không trả raw payload, identity hoặc aggregate ID.
-- `Data Health`: time-basis, processing latency và Funnel projection quality có bằng chứng.
+- `Data Health`: time-basis, processing latency, Funnel projection quality, reconciliation/repair evidence
+  và authoritative business quality gate. Gate chỉ eligible khi mọi window trong scope đã `RECONCILED`.
 - `Settings`: tài khoản thật, analytics scope đang dùng và đổi mật khẩu qua Dashboard API.
 - `Products`, `Insights` và session detail: còn dùng mock/demo data.
 
