@@ -42,7 +42,7 @@ const journeys = [
 
 const steps = [
   ["view", "behavior.product_viewed", "BEHAVIOR_INTENT"],
-  ["cart", "cart.item_added", "BEHAVIOR_INTENT"],
+  ["cart", "cart.item_added", "BUSINESS_FACT"],
   ["checkout", "checkout.started", "BEHAVIOR_INTENT"],
   ["order", "order.accepted", "BUSINESS_FACT"],
 ]
@@ -101,7 +101,9 @@ async function seed() {
       const eventIds = journey.events.map((_, index) => `canonical-demo-${journeyIndex + 1}-${index + 1}`)
       const occurred = journey.events.map((_, index) => iso(journey.daysAgo, index * 8))
       for (const [eventIndex, eventType] of journey.events.entries()) {
-        const eventClass = eventType === "order.accepted" ? "BUSINESS_FACT" : "BEHAVIOR_INTENT"
+        const eventClass = ["cart.item_added", "order.accepted"].includes(eventType)
+          ? "BUSINESS_FACT"
+          : "BEHAVIOR_INTENT"
         const eventId = eventIds[eventIndex]
         const timeBasis = journey.fallback ? "ingress_fallback" : "source_occurred"
         const quality = { time_basis: timeBasis, authoritative_event_time: !journey.fallback, demo_seed: true }

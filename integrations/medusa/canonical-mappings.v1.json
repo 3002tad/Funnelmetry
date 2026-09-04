@@ -1,0 +1,13 @@
+{
+  "schema_version": "canonical-mappings.v1",
+  "source_id": "medusa-reference",
+  "mappings": [
+    {
+      "source_event_type": "medusa.order_placed",
+      "source_schema_version": "1.0",
+      "event_type": "order.created",
+      "event_class": "BUSINESS_FACT",
+      "mapping_version": "medusa-v2-order-placed-v1"
+    }
+  ]
+}

@@ -501,3 +501,19 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   response contract được cập nhật tương ứng.
 - Demo seed thêm một ORDER snapshot/comparison record-level đã `RECONCILED` để UI local trình bày evidence
   thật, đồng thời giữ repair metric unavailable khi chưa có repair verification.
+
+## 32. Master-aligned Medusa input semantics
+
+- Đồng bộ Browser SDK installer với manifest reference mới: `behavior.product_viewed`,
+  `cart.add_clicked`, `checkout.started`; loại namespace `commerce.*` cũ khỏi generated binding.
+- Add-to-cart browser hook phát intent trước business request. Nó không được đổi tên hoặc diễn giải thành
+  authoritative `cart.item_added`.
+- Canonical Normalizer nạp mapping source-native từ artifact versioned trong `integrations/medusa`, giữ
+  core generic. Mapping baseline duy nhất là `medusa.order_placed -> order.created` `BUSINESS_FACT`;
+  không fabricate `order.accepted`, payment hoặc cart persistence.
+- Capability report của planner công bố `cartItemPersisted` và `orderAccepted` là `NOT_SUPPORTED`, còn
+  Commerce Conversion là `IN_PROGRESS`.
+- E2E tách strict Commerce Conversion 4/4 thành pipeline self-test và thêm Medusa input scenario riêng:
+  bốn input được canonicalize, order dừng ở `order.created`, không claim Medusa conversion 4/4.
+- Dashboard synthetic seed sửa authority của strict reference event `cart.item_added` thành
+  `BUSINESS_FACT`; seed này là UI fixture, không phải evidence về capability Medusa.

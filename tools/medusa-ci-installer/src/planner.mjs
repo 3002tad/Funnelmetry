@@ -24,7 +24,7 @@ function generatedClient(manifest) {
   const sourceKeyId = JSON.stringify(manifest.auth.sourceKeyId)
   const allowedEvents = JSON.stringify(manifest.frontend.events)
   const reliability = JSON.stringify(manifest.reliability)
-  return `"use client"\n\nimport { useEffect } from "react"\nimport { createBrowserSdk } from "@funnelmetry/browser-sdk"\n\nconst sourceId = ${sourceId}\nconst sourceKeyId = ${sourceKeyId}\nconst allowedEventTypes = ${allowedEvents}\nconst reliability = ${reliability}\n\ntype EventPayload = Record<string, unknown>\ntype BrowserSdk = ReturnType<typeof createBrowserSdk>\n\ndeclare global { interface Window { __FUNNELMETRY_CONSENT__?: boolean } }\n\nlet sdk: BrowserSdk | null | undefined\n\nfunction getSdk(): BrowserSdk | null {\n  if (sdk !== undefined) return sdk\n  try {\n    sdk = createBrowserSdk({\n      sourceId,\n      sourceKeyId,\n      endpoint: process.env.NEXT_PUBLIC_FUNNELMETRY_INGEST_URL ?? "",\n      writeKey: process.env.NEXT_PUBLIC_FUNNELMETRY_BROWSER_WRITE_KEY ?? "",\n      allowedEventTypes,\n      maxAttempts: reliability.retry.maxAttempts,\n      maxQueueSize: reliability.maxQueueSize,\n      hasConsent: () => typeof window !== "undefined" && window.__FUNNELMETRY_CONSENT__ === true,\n    })\n  } catch (error) {\n    sdk = null\n    console.warn("Funnelmetry browser integration is inactive", error)\n  }\n  return sdk\n}\n\nfunction track(eventType: string, payload: EventPayload) {\n  const currentSdk = getSdk()\n  return currentSdk ? currentSdk.track(eventType, payload) : Promise.resolve({ status: "inactive" })\n}\n\nexport function FunnelmetryBootstrap() {\n  useEffect(() => getSdk()?.attachLifecycle(), [])\n  return null\n}\n\nexport function FunnelmetryProductViewed({ productId }: { productId: string }) {\n  useEffect(() => { void track("commerce.product.viewed", { product_id: productId }) }, [productId])\n  return null\n}\n\nexport function FunnelmetryCheckoutStarted({ cartId, step }: { cartId: string; step: string }) {\n  useEffect(() => { void track("commerce.checkout.started", { cart_id: cartId, step }) }, [cartId, step])\n  return null\n}\n\nexport function trackCartItemAdded(input: { productId: string; variantId: string; quantity: number }) {\n  return track("commerce.cart.item_added", { product_id: input.productId, variant_id: input.variantId, quantity: input.quantity })\n}\n`
+  return `"use client"\n\nimport { useEffect } from "react"\nimport { createBrowserSdk } from "@funnelmetry/browser-sdk"\n\nconst sourceId = ${sourceId}\nconst sourceKeyId = ${sourceKeyId}\nconst allowedEventTypes = ${allowedEvents}\nconst reliability = ${reliability}\n\ntype EventPayload = Record<string, unknown>\ntype BrowserSdk = ReturnType<typeof createBrowserSdk>\n\ndeclare global { interface Window { __FUNNELMETRY_CONSENT__?: boolean } }\n\nlet sdk: BrowserSdk | null | undefined\n\nfunction getSdk(): BrowserSdk | null {\n  if (sdk !== undefined) return sdk\n  try {\n    sdk = createBrowserSdk({\n      sourceId,\n      sourceKeyId,\n      endpoint: process.env.NEXT_PUBLIC_FUNNELMETRY_INGEST_URL ?? "",\n      writeKey: process.env.NEXT_PUBLIC_FUNNELMETRY_BROWSER_WRITE_KEY ?? "",\n      allowedEventTypes,\n      maxAttempts: reliability.retry.maxAttempts,\n      maxQueueSize: reliability.maxQueueSize,\n      hasConsent: () => typeof window !== "undefined" && window.__FUNNELMETRY_CONSENT__ === true,\n    })\n  } catch (error) {\n    sdk = null\n    console.warn("Funnelmetry browser integration is inactive", error)\n  }\n  return sdk\n}\n\nfunction track(eventType: string, payload: EventPayload) {\n  const currentSdk = getSdk()\n  return currentSdk ? currentSdk.track(eventType, payload) : Promise.resolve({ status: "inactive" })\n}\n\nexport function FunnelmetryBootstrap() {\n  useEffect(() => getSdk()?.attachLifecycle(), [])\n  return null\n}\n\nexport function FunnelmetryProductViewed({ productId }: { productId: string }) {\n  useEffect(() => { void track("behavior.product_viewed", { product_id: productId }) }, [productId])\n  return null\n}\n\nexport function FunnelmetryCheckoutStarted({ cartId, step }: { cartId: string; step: string }) {\n  useEffect(() => { void track("checkout.started", { cart_id: cartId, step }) }, [cartId, step])\n  return null\n}\n\nexport function trackCartAddClicked(input: { productId: string; variantId: string; quantity: number }) {\n  return track("cart.add_clicked", { product_id: input.productId, variant_id: input.variantId, quantity: input.quantity })\n}\n`
 }
 
 function generatedSubscriber(manifest) {
@@ -36,10 +36,6 @@ function generatedSubscriber(manifest) {
 
 function configureGeneratedClient(content, manifest) {
   return content
-    .replaceAll("commerce.product.viewed", "behavior.product_viewed")
-    .replaceAll("commerce.checkout.started", "checkout.started")
-    .replaceAll("commerce.cart.item_added", "cart.add_clicked")
-    .replaceAll("trackCartItemAdded", "trackCartAddClicked")
     .replace(
       'endpoint: process.env.NEXT_PUBLIC_FUNNELMETRY_INGEST_URL ?? "",',
       `endpoint: ${JSON.stringify(manifest.ingest.url)},`,
@@ -228,6 +224,10 @@ export async function createPlan(projectRoot, manifest) {
     capabilities: {
       behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
       orderPlaced: manifest.backend.enabled ? "ENABLED" : "DISABLED",
+      cartItemPersisted: "NOT_SUPPORTED",
+      orderCreated: manifest.backend.enabled ? "ENABLED" : "DISABLED",
+      orderAccepted: "NOT_SUPPORTED",
+      commerceConversion: "IN_PROGRESS",
       payment: "NOT_REQUESTED",
       refund: "NOT_REQUESTED",
     },

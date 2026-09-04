@@ -1,10 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import {
-  createMappingRegistry,
-  createMedusaOrderPlacedMappings,
-  createNormalizer,
-} from "../src/index.js"
+import { createMappingRegistry, createNormalizer, loadMappingRegistry } from "../src/index.js"
 
 const receivedAt = "2026-08-29T03:00:00.000Z"
 const normalizedAt = "2026-08-29T03:00:01.000Z"
@@ -76,26 +72,6 @@ test("emits an unsupported outcome and quarantine reference for an unknown mappi
   assert.equal(result.quarantine.source_reference.raw_record_id, "ing_1")
 })
 
-test("maps the native Medusa order.placed event to conservative order.created semantics", () => {
-  const registry = createMappingRegistry(createMedusaOrderPlacedMappings(["medusa-reference"]))
-  const event = ingressEvent({
-    source_id: "medusa-reference",
-    event_id: "medusa:order.placed:order_1",
-    source_event_type: "medusa.order_placed",
-    producer: "source_bridge",
-    aggregate: { type: "order", id: "order_1" },
-    source_payload: { order_id: "order_1", currency_code: "usd", total_minor: 1200 },
-  })
-
-  const result = createNormalizer({ registry, now: () => normalizedAt }).normalize(rawInput(event))
-
-  assert.equal(result.status, "normalized")
-  assert.equal(result.canonicalEvent.event_type, "order.created")
-  assert.equal(result.canonicalEvent.event_class, "BUSINESS_FACT")
-  assert.equal(result.canonicalEvent.mapping_version, "medusa-v2-order-placed-to-order-created.v1")
-  assert.deepEqual(result.canonicalEvent.data, event.source_payload)
-})
-
 test("quarantines a semantic mapping failure instead of dropping the accepted raw event", () => {
   const registry = createMappingRegistry([{
     source_id: "reference-shop",
@@ -118,4 +94,36 @@ test("creates a stable canonical identity across raw redelivery", () => {
   const first = normalizer.normalize(rawInput())
   const second = normalizer.normalize(rawInput())
   assert.equal(first.canonicalEvent.canonical_event_id, second.canonicalEvent.canonical_event_id)
+})
+
+test("loads the Medusa source-native order mapping without weakening canonical semantics", async () => {
+  const mappingPath = new URL("../../../integrations/medusa/canonical-mappings.v1.json", import.meta.url)
+  const registry = await loadMappingRegistry(mappingPath)
+  const normalizer = createNormalizer({ registry, now: () => normalizedAt })
+  const result = normalizer.normalize(rawInput(ingressEvent({
+    source_id: "medusa-reference",
+    event_id: "medusa:order.placed:order_1",
+    source_event_type: "medusa.order_placed",
+    producer: "source_bridge",
+    aggregate: { type: "order", id: "order_1" },
+    source_payload: { order_id: "order_1", currency_code: "usd", total_minor: 1200 },
+  })))
+
+  assert.equal(result.status, "normalized")
+  assert.equal(result.canonicalEvent.event_type, "order.created")
+  assert.equal(result.canonicalEvent.event_class, "BUSINESS_FACT")
+  assert.equal(result.canonicalEvent.mapping_version, "medusa-v2-order-placed-v1")
+  assert.equal(result.canonicalEvent.data.order_id, "order_1")
+})
+
+test("does not apply the Medusa native mapping to another source", async () => {
+  const mappingPath = new URL("../../../integrations/medusa/canonical-mappings.v1.json", import.meta.url)
+  const registry = await loadMappingRegistry(mappingPath)
+  const result = createNormalizer({ registry, now: () => normalizedAt }).normalize(rawInput(ingressEvent({
+    source_event_type: "medusa.order_placed",
+    producer: "source_bridge",
+  })))
+
+  assert.equal(result.status, "unsupported")
+  assert.equal(result.outcome.reason_code, "mapping_not_found")
 })

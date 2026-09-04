@@ -12,6 +12,12 @@ the source checkout:
   `@funnelmetry/backend-integration-kit`; nó không chép runtime SDK/forwarder vào
   source Medusa.
 
+Browser hooks emit only `behavior.product_viewed`, `cart.add_clicked` and `checkout.started` as
+`BEHAVIOR_INTENT`. The order subscriber emits source-native `medusa.order_placed`; the versioned
+Normalizer mapping owns the conservative conversion to `order.created` as `BUSINESS_FACT`. The plan
+reports persisted cart-item and accepted-order capabilities as `NOT_SUPPORTED`, so this first input
+demo remains `IN_PROGRESS` and is not evidence of Commerce Conversion 4/4.
+
 There is deliberately no `apply` command. Applying the patch, committing it and
 building a production host image remain explicit customer CI/CD decisions.
 

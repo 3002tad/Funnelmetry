@@ -83,7 +83,9 @@ npm start
 ```
 
 Worker chỉ commit raw offset cùng transaction đã ghi canonical/quarantine và terminal
-outcome. Mapping native theo source chưa nằm trong core này.
+outcome. Mapping native theo source nằm trong artifact versioned dưới `integrations/` và
+được nạp qua config path; core normalizer không hard-code Medusa. Reference hiện chỉ map
+`medusa.order_placed` sang `order.created`, không suy diễn `cart.item_added` hoặc `order.accepted`.
 
 ## Chạy Canonical Ledger Writer
 
