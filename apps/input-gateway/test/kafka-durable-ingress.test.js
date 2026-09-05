@@ -142,3 +142,40 @@ test("hydrates durable receipts before becoming ready", () => {
   assert.equal(index.isReady(), true)
   assert.equal(index.get(event.source_id, event.event_id).ingestion_id, "ing_existing")
 })
+
+test("uses a shared coordinator as the authority across gateway replicas", async () => {
+  let acceptedReceipt
+  let ownerToken
+  const coordinator = {
+    async claim({ receipt }) {
+      if (acceptedReceipt) return { status: "duplicate", receipt: acceptedReceipt, owner_token: null }
+      ownerToken = "gateway-1:claim-1"
+      return { status: "claimed", receipt, owner_token: ownerToken }
+    },
+    async complete({ owner_token }) {
+      assert.equal(owner_token, ownerToken)
+      acceptedReceipt = {
+        status: "accepted", source_id: event.source_id, event_id: event.event_id,
+        ingestion_id: "ing_shared", received_at: context.received_at,
+      }
+    },
+    async release() {},
+  }
+  const firstProducer = createProducer()
+  const secondProducer = createProducer()
+  const first = createKafkaDurableIngress({
+    producer: firstProducer, receiptIndex: createReadyIndex(), receiptCoordinator: coordinator,
+    rawTopic: "raw", receiptTopic: "receipts", createIngestionId: () => "ing_shared",
+  })
+  const second = createKafkaDurableIngress({
+    producer: secondProducer, receiptIndex: createReadyIndex(), receiptCoordinator: coordinator,
+    rawTopic: "raw", receiptTopic: "receipts", createIngestionId: () => "ing_other",
+  })
+
+  assert.equal((await first.accept(event, context)).status, "accepted")
+  const duplicate = await second.accept(event, { ...context, ingestion_attempt_id: "attempt-2" })
+  assert.equal(duplicate.status, "duplicate")
+  assert.equal(duplicate.ingestion_id, "ing_shared")
+  assert.equal(firstProducer.transactions.length, 1)
+  assert.equal(secondProducer.transactions.length, 0)
+})

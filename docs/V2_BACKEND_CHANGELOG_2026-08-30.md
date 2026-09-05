@@ -189,7 +189,7 @@ PostgreSQL 15 thật đều đã qua.
 ## 11. Phần chưa hoàn thiện
 
 - Chưa có source-native mapping đầy đủ cho từng nền tảng; Medusa adapter thuộc integration scope riêng.
-- Chưa có multi-replica coordination cho Input Gateway receipt index.
+- Multi-replica coordination của Input Gateway được hoàn thiện sau đó tại mục 34.
 - Chưa triển khai reconciliation worker, matured/drop-off scheduler và late-arrival watermark policy.
 - KPI hiện là profile/instance base facts và observed totals; product/category attribution cùng time
   window chưa triển khai vì contract tương ứng còn provisional/experimental.
@@ -529,3 +529,20 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   qua command line.
 - Unit test khóa dispatch cả năm command, help path không mở database, bắt buộc config database và
   cleanup khi repository trả lỗi. Toàn bộ 11 test, gồm 2 PostgreSQL integration test, đã chạy thành công.
+
+## 34. Distributed Input Gateway receipt coordination
+
+- Migration `013_ingress_coordination.sql` thêm coordination ledger theo `(source_id,event_id)`, stable
+  `ingestion_id`, semantic event fingerprint, owner token và lease có thể takeover giữa các replica.
+- PostgreSQL chỉ điều phối claim trong hạ tầng Funnelmetry; Kafka transaction vẫn là Raw Durable Ingress
+  và Gateway chỉ chuyển claim sang `ACCEPTED` sau khi Kafka commit thành công.
+- Retry trong lúc replica khác giữ lease trả retryable failure. Sau lease/release, replica mới dùng lại
+  receipt và `ingestion_id` ban đầu; cùng identity nhưng semantic payload khác trả
+  `event_identity_conflict` thay vì ghi raw record mâu thuẫn.
+- Receipt Kafka đã tồn tại được adopt vào ledger khi gặp lại. Migration cũng backfill receipt telemetry cũ;
+  do schema cũ chưa có fingerprint, payload đầu tiên gặp lại sẽ gắn fingerprint và limitation này được
+  công bố trong runtime README.
+- `single_replica` vẫn là compatibility mode. Compose V2 bật `postgres`, chờ migration hoàn tất trước khi
+  chạy Gateway và dùng database Funnelmetry, không nhận quyền database của source/Medusa.
+- 28/28 Input Gateway test đã qua, gồm PostgreSQL integration test cho hai replica/lease takeover/conflict.
+  Compose config hợp lệ và full pipeline E2E kết thúc với exit code 0.

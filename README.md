@@ -69,7 +69,7 @@ npm install
 npm start
 ```
 
-Chi tiết topic, readiness và giới hạn single-replica nằm trong
+Chi tiết topic, readiness, chế độ single-replica và PostgreSQL coordination cho multi-replica nằm trong
 [`apps/input-gateway/README.md`](apps/input-gateway/README.md).
 
 ## Chạy Canonical Normalizer

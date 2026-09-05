@@ -43,6 +43,7 @@ export function createKafkaRuntime({
   instanceId,
   rawTopic,
   receiptTopic,
+  receiptCoordinator,
   transactionTimeoutMs = 30_000,
   replayTimeoutMs = 60_000,
   kafka,
@@ -66,7 +67,9 @@ export function createKafkaRuntime({
   })
   const admin = client.admin()
   const receiptIndex = createReceiptIndex()
-  const durableIngress = createKafkaDurableIngress({ producer, receiptIndex, rawTopic, receiptTopic })
+  const durableIngress = createKafkaDurableIngress({
+    producer, receiptIndex, receiptCoordinator, rawTopic, receiptTopic,
+  })
   let started = false
   let runPromise
 

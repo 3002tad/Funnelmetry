@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@funnelmetry/input-contract": "file:../../packages/input-contract",
-    "kafkajs": "^2.2.4"
+    "kafkajs": "^2.2.4",
+    "pg": "^8.13.3"
   },
   "engines": {
     "node": ">=20"

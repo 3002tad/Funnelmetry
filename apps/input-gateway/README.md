@@ -28,7 +28,17 @@ npm start
 - `INPUT_GATEWAY_INSTANCE_ID` phải ổn định và duy nhất cho producer transactional ID;
 - memory receipt index chỉ là cache được hydrate từ Kafka, không phải durable boundary.
 
-Reference runtime hiện chỉ hỗ trợ **một active gateway replica**. Khóa đồng thời và
-receipt cache chỉ nằm trong process; chạy nhiều replica có thể race trên cùng
-`(source_id,event_id)`. Chỉ nâng replica sau khi có idempotency coordination phân tán
-hoặc partition ownership được kiểm thử riêng.
+`INPUT_GATEWAY_COORDINATION_MODE=postgres` bật coordination ledger dùng chung giữa nhiều Gateway.
+Mỗi replica cần một `INPUT_GATEWAY_INSTANCE_ID` riêng, cùng `INPUT_GATEWAY_DATABASE_URL` và cùng
+`INPUT_GATEWAY_CLAIM_LEASE_MS`. Ledger giữ stable `ingestion_id` cùng semantic event fingerprint:
+
+- replica đầu tiên claim event rồi mới mở Kafka transaction;
+- replica khác thấy claim còn hạn sẽ trả retryable failure để source retry;
+- claim hết hạn có thể được takeover nhưng vẫn dùng lại cùng `ingestion_id`;
+- cùng `(source_id,event_id)` nhưng nội dung semantic khác bị từ chối với
+  `event_identity_conflict`;
+- chỉ sau Kafka commit thành công claim mới chuyển thành `ACCEPTED`.
+
+Migration `013_ingress_coordination.sql` backfill receipt cũ từ telemetry ledger. Fingerprint của receipt
+cũ được gắn ở lần retry đầu tiên vì telemetry V2 trước đó chưa lưu fingerprint. Chế độ
+`single_replica` vẫn được giữ để tương thích runtime không có PostgreSQL, nhưng không được scale ngang.

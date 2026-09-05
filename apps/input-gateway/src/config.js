@@ -44,6 +44,19 @@ function credentialRegistry(env, name) {
   return Object.freeze(parsed)
 }
 
+function coordinationConfig(env) {
+  const mode = env.INPUT_GATEWAY_COORDINATION_MODE?.trim() || "single_replica"
+  if (mode !== "single_replica" && mode !== "postgres") {
+    throw new Error("INPUT_GATEWAY_COORDINATION_MODE must be single_replica or postgres")
+  }
+  if (mode === "single_replica") return Object.freeze({ mode })
+  return Object.freeze({
+    mode,
+    databaseUrl: requiredString(env, "INPUT_GATEWAY_DATABASE_URL"),
+    leaseMs: positiveInteger(env, "INPUT_GATEWAY_CLAIM_LEASE_MS", 30_000),
+  })
+}
+
 export function loadConfig(env = process.env) {
   const instanceId = requiredString(env, "INPUT_GATEWAY_INSTANCE_ID")
   if (!/^[A-Za-z0-9._-]+$/.test(instanceId)) {
@@ -60,6 +73,7 @@ export function loadConfig(env = process.env) {
     corsOrigins: Object.freeze(stringList(env.INPUT_GATEWAY_CORS_ORIGINS)),
     browserKeys: credentialRegistry(env, "INPUT_GATEWAY_BROWSER_KEYS_JSON"),
     backendKeys: credentialRegistry(env, "INPUT_GATEWAY_BACKEND_KEYS_JSON"),
+    coordination: coordinationConfig(env),
     kafka: Object.freeze({
       brokers: Object.freeze(stringList(requiredString(env, "KAFKA_BOOTSTRAP_SERVERS"))),
       clientId: env.INPUT_GATEWAY_KAFKA_CLIENT_ID?.trim() || "funnelmetry-input-gateway",
