@@ -197,6 +197,10 @@ phép gắn nhãn authoritative business analysis khi toàn bộ window trong sc
 `UNAVAILABLE`, `PROVISIONAL`, `RECONCILING` hoặc `DEGRADED` vẫn được hiển thị nhưng không được diễn giải
 như số liệu business authoritative.
 
+`workers/reconciliation-worker` có CLI vận hành thủ công nhận request JSON cho các bước `snapshot`,
+`projection`, `compare`, `repair` và `verify`. CLI này chỉ orchestration contract/repository hiện có;
+không tự chọn transport phía source, không đọc Medusa và không mở thêm REST/MQ contract.
+
 ## Tài liệu
 
 - Kiến trúc đích: repository `../System_Backbone`

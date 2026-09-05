@@ -517,3 +517,15 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   bốn input được canonicalize, order dừng ở `order.created`, không claim Medusa conversion 4/4.
 - Dashboard synthetic seed sửa authority của strict reference event `cart.item_added` thành
   `BUSINESS_FACT`; seed này là UI fixture, không phải evidence về capability Medusa.
+
+## 33. Transport-neutral reconciliation operations CLI
+
+- Bổ sung CLI thủ công cho `reconciliation-worker` với năm lệnh `snapshot`, `projection`, `compare`,
+  `repair` và `verify`; mỗi lệnh nhận đúng request JSON của repository hiện có.
+- CLI chỉ orchestration contract/repository, không tự chọn source transport, không đọc Medusa và không
+  mở REST/MQ contract mới khi ranh giới integration chưa được chốt.
+- Kết quả được ghi JSON ra stdout, lỗi validation/persistence trả exit code khác 0 và PostgreSQL pool
+  luôn được đóng. Credential chỉ đọc từ `RECONCILIATION_DATABASE_URL` hoặc `DATABASE_URL`, không nhận
+  qua command line.
+- Unit test khóa dispatch cả năm command, help path không mở database, bắt buộc config database và
+  cleanup khi repository trả lỗi. Toàn bộ 11 test, gồm 2 PostgreSQL integration test, đã chạy thành công.
