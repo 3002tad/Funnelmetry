@@ -5,6 +5,7 @@
   "type": "module",
   "main": "src/repository.js",
   "scripts": {
+    "start": "node src/cli.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

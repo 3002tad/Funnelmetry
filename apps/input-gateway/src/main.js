@@ -2,9 +2,21 @@ import { createIngressHandler } from "./ingress-handler.js"
 import { loadConfig } from "./config.js"
 import { createIngressHttpServer } from "./http-server.js"
 import { createKafkaRuntime } from "./kafka-runtime.js"
+import { createPostgresReceiptCoordinator } from "./postgres-receipt-coordinator.js"
+import pg from "pg"
 
 const config = loadConfig()
-const runtime = createKafkaRuntime(config.kafka)
+const coordinationPool = config.coordination.mode === "postgres"
+  ? new pg.Pool({ connectionString: config.coordination.databaseUrl })
+  : null
+const receiptCoordinator = coordinationPool
+  ? createPostgresReceiptCoordinator({
+      pool: coordinationPool,
+      instanceId: config.kafka.instanceId,
+      leaseMs: config.coordination.leaseMs,
+    })
+  : null
+const runtime = createKafkaRuntime({ ...config.kafka, receiptCoordinator })
 const handleIngress = createIngressHandler({
   durableIngress: runtime.durableIngress,
   browserKeys: config.browserKeys,
@@ -30,6 +42,7 @@ async function shutdown(signal) {
   server.closeIdleConnections?.()
   await new Promise((resolve) => server.close(resolve))
   await runtime.stop()
+  await coordinationPool?.end()
   clearTimeout(forceExit)
 }
 
@@ -52,5 +65,6 @@ try {
 } catch (error) {
   console.error("input-gateway startup failed", error)
   await runtime.stop()
+  await coordinationPool?.end()
   process.exitCode = 1
 }

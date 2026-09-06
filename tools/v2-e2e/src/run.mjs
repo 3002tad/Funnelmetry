@@ -30,7 +30,7 @@ function scenario(label) {
   }
 }
 
-function ingressEvent(context, { suffix, eventType, producer, occurredAt, aggregate, sourcePayload }) {
+function ingressEvent(context, { suffix, eventType, producer, occurredAt, aggregate, sourcePayload, includeBrowserContext = true }) {
   const eventId = `e2e:${context.runId}:${suffix}`
   context.sourceEventIds.push(eventId)
   return {
@@ -41,9 +41,11 @@ function ingressEvent(context, { suffix, eventType, producer, occurredAt, aggreg
     source_schema_version: "1.0",
     ...(occurredAt ? { occurred_at: occurredAt, produced_at: occurredAt } : {}),
     producer,
-    anonymous_id: `e2e-anonymous-${context.runId}`,
-    session_id: context.sessionId,
-    correlation_id: context.correlationId,
+    ...(includeBrowserContext ? {
+      anonymous_id: `e2e-anonymous-${context.runId}`,
+      session_id: context.sessionId,
+      correlation_id: context.correlationId,
+    } : {}),
     ...(aggregate ? { aggregate } : {}),
     source_payload: sourcePayload,
   }
@@ -164,6 +166,21 @@ async function waitForCanonicalQuality(pool, sourceEventId, timeoutMs = 60_000) 
   throw new Error("timed out waiting for canonical time quality")
 }
 
+async function waitForCanonicalMappings(pool, sourceEventIds, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const result = await pool.query(
+      `SELECT source_event_id, event_type, event_class, mapping_version
+         FROM canonical_events
+        WHERE source_id = $1 AND source_event_id = ANY($2::text[])`,
+      [sourceId, sourceEventIds],
+    )
+    if (result.rows.length === sourceEventIds.length) return result.rows
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  throw new Error("timed out waiting for canonical Medusa input mappings")
+}
+
 async function waitForTelemetry(pool, sourceEventIds, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -223,6 +240,58 @@ function commerceEvents(context, baseTime) {
   ]
 }
 
+function medusaInputEvents(context, baseTime) {
+  return [
+    ingressEvent(context, {
+      suffix: "product-viewed",
+      eventType: "behavior.product_viewed",
+      producer: "browser_sdk",
+      occurredAt: new Date(baseTime).toISOString(),
+      sourcePayload: { product_id: `product-${context.runId}` },
+    }),
+    ingressEvent(context, {
+      suffix: "add-clicked",
+      eventType: "cart.add_clicked",
+      producer: "browser_sdk",
+      occurredAt: new Date(baseTime + 1_000).toISOString(),
+      sourcePayload: { product_id: `product-${context.runId}`, quantity: 1 },
+    }),
+    ingressEvent(context, {
+      suffix: "checkout-started",
+      eventType: "checkout.started",
+      producer: "browser_sdk",
+      occurredAt: new Date(baseTime + 2_000).toISOString(),
+      sourcePayload: { cart_id: `cart-${context.runId}` },
+    }),
+    ingressEvent(context, {
+      suffix: "order-placed",
+      eventType: "medusa.order_placed",
+      producer: "source_bridge",
+      occurredAt: new Date(baseTime + 3_000).toISOString(),
+      aggregate: { type: "order", id: `order-${context.runId}`, version: "1" },
+      sourcePayload: { order_id: `order-${context.runId}`, currency_code: "usd", total_minor: 1200 },
+      includeBrowserContext: false,
+    }),
+  ]
+}
+
+async function verifyMedusaInputScenario(pool, context, events) {
+  for (const event of events) {
+    const receipt = await post(event)
+    if (receipt.status !== "accepted") throw new Error(`expected accepted receipt for ${event.event_id}`)
+  }
+  const rows = await waitForCanonicalMappings(pool, context.sourceEventIds)
+  const bySourceEventId = new Map(rows.map((row) => [row.source_event_id, row]))
+  const order = bySourceEventId.get(events.at(-1).event_id)
+  if (order?.event_type !== "order.created" || order.event_class !== "BUSINESS_FACT") {
+    throw new Error(`medusa.order_placed was not conservatively mapped to order.created: ${JSON.stringify(order)}`)
+  }
+  if (rows.some((row) => row.event_type === "cart.item_added" || row.event_type === "order.accepted")) {
+    throw new Error("Medusa input demo fabricated an unsupported authoritative funnel fact")
+  }
+  console.log("[v2-e2e] medusa-input canonical=4 order=order.created commerce_conversion=IN_PROGRESS")
+}
+
 async function verifyCommerceScenario(pool, context, deliveryOrder) {
   for (const event of deliveryOrder) {
     const receipt = await post(event)
@@ -253,13 +322,17 @@ async function verifyCommerceScenario(pool, context, deliveryOrder) {
 
 const pool = new pg.Pool({ connectionString: databaseUrl, max: 2 })
 try {
-  const ordered = scenario("ordered")
+  const ordered = scenario("pipeline-self-test-ordered")
   const orderedEvents = commerceEvents(ordered, Date.now() - 20_000)
   await verifyCommerceScenario(pool, ordered, orderedEvents)
 
-  const outOfOrder = scenario("out-of-order")
+  const outOfOrder = scenario("pipeline-self-test-out-of-order")
   const outOfOrderEvents = commerceEvents(outOfOrder, Date.now() - 10_000)
   await verifyCommerceScenario(pool, outOfOrder, [...outOfOrderEvents].reverse())
+
+  const medusaInput = scenario("medusa-input")
+  const medusaEvents = medusaInputEvents(medusaInput, Date.now() - 5_000)
+  await verifyMedusaInputScenario(pool, medusaInput, medusaEvents)
 
   const unsupported = scenario("unsupported")
   const unsupportedEvent = ingressEvent(unsupported, {
@@ -289,18 +362,19 @@ try {
   const allSourceEventIds = [
     ...ordered.sourceEventIds,
     ...outOfOrder.sourceEventIds,
+    ...medusaInput.sourceEventIds,
     ...unsupported.sourceEventIds,
     ...fallback.sourceEventIds,
   ]
   const telemetry = await waitForTelemetry(pool, allSourceEventIds)
-  if (telemetry.normalized !== 9 || telemetry.unsupported !== 1 || telemetry.quarantined !== 0) {
+  if (telemetry.normalized !== 13 || telemetry.unsupported !== 1 || telemetry.quarantined !== 0) {
     throw new Error(`unexpected durable telemetry totals: ${JSON.stringify(telemetry)}`)
   }
 
   console.log(`[v2-e2e] fallback-time basis=${quality.time_basis} authoritative=${quality.authoritative_event_time}`)
   console.log(`[v2-e2e] telemetry accepted=${telemetry.accepted} terminal=${telemetry.terminal} normalized=${telemetry.normalized} unsupported=${telemetry.unsupported}`)
   console.log(
-    `[v2-e2e] PASS ordered=${ordered.runId} out-of-order=${outOfOrder.runId} unsupported=${unsupported.runId} fallback=${fallback.runId}`,
+    `[v2-e2e] PASS ordered=${ordered.runId} out-of-order=${outOfOrder.runId} medusa-input=${medusaInput.runId} unsupported=${unsupported.runId} fallback=${fallback.runId}`,
   )
 } finally {
   await pool.end()

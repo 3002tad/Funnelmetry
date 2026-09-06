@@ -43,6 +43,7 @@ export function createKafkaRuntime({
   instanceId,
   rawTopic,
   receiptTopic,
+  receiptCoordinator,
   transactionTimeoutMs = 30_000,
   replayTimeoutMs = 60_000,
   kafka,
@@ -66,7 +67,9 @@ export function createKafkaRuntime({
   })
   const admin = client.admin()
   const receiptIndex = createReceiptIndex()
-  const durableIngress = createKafkaDurableIngress({ producer, receiptIndex, rawTopic, receiptTopic })
+  const durableIngress = createKafkaDurableIngress({
+    producer, receiptIndex, receiptCoordinator, rawTopic, receiptTopic,
+  })
   let started = false
   let runPromise
 
@@ -96,7 +99,9 @@ export function createKafkaRuntime({
           eachBatch: async ({ batch }) => {
             for (const message of batch.messages) {
               if (message.value !== null) {
-                receiptIndex.set(validateIngressReceipt(JSON.parse(message.value.toString("utf8"))))
+                const receipt = validateIngressReceipt(JSON.parse(message.value.toString("utf8")))
+                if (receiptCoordinator) await receiptCoordinator.confirmReceipt(receipt)
+                receiptIndex.set(receipt)
               }
             }
             // Kafka high watermarks include transaction control records, which are

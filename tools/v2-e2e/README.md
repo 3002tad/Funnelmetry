@@ -1,18 +1,21 @@
 # V2 end-to-end smoke test
 
-This runner verifies three paths through the public Input Gateway:
+This runner verifies independent paths through the public Input Gateway:
 
-- a four-step Commerce Conversion journey delivered in order;
+- a strict four-step Commerce Conversion pipeline self-test delivered in order;
 - the same journey delivered in reverse arrival order but rebuilt by canonical event time;
+- the bounded Medusa input demo: `behavior.product_viewed`, `cart.add_clicked`, `checkout.started`,
+  and source-native `medusa.order_placed` conservatively mapped to `order.created`;
 - an unsupported semantic that must produce both a terminal `unsupported` outcome and quarantine
   record without creating a canonical ledger row;
 - an event without source timestamps that must persist as `ingress_fallback` and non-authoritative.
 
-Both commerce scenarios wait until the KPI Projector materializes a converted 4/4 snapshot in
-PostgreSQL. The runner also resends an event to verify the durable duplicate receipt path, then waits
-for the telemetry writer to persist ten unique accepted receipts and ten terminal outcomes (nine
-normalized and one unsupported).
+Both pipeline self-test scenarios wait until the KPI Projector materializes a converted 4/4 snapshot in
+PostgreSQL. That is not a claim that the Medusa binding currently supplies all four facts. The Medusa
+scenario explicitly rejects fabricated `cart.item_added` or `order.accepted` output and remains
+`IN_PROGRESS`. The runner also verifies the durable duplicate receipt path, then waits for fourteen
+unique accepted receipts and terminal outcomes (thirteen normalized and one unsupported).
 
 Run it with the local V2 Compose stack documented in [`../../infra/README.md`](../../infra/README.md).
 The credentials and generated commerce identifiers are local test values only; the runner does not
-depend on Medusa or mutate `Medusa_Reference`.
+execute Medusa itself or mutate `Medusa_Reference`.

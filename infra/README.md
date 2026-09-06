@@ -15,16 +15,18 @@ worker khởi động, nên volume cũ cũng nhận migration mới mà không c
 `null/null`. Khi profile version cấu hình time policy, atomic outcome/KPI finalization có thể bật qua
 `MATURITY_SCHEDULER_FINALIZATION_ENABLED`; event muộn đủ strong-business-key evidence được lưu riêng.
 
-The smoke runner sends the approved four-step Commerce Conversion sequence through Input Gateway,
-Kafka, Canonical Normalizer, Canonical Ledger Writer, Ingress Telemetry Writer, Journey Processor,
-Funnel Processor and KPI Projector. A successful run ends with:
+The smoke runner first sends the strict four-step Commerce Conversion sequence as a pipeline self-test
+through Input Gateway, Kafka, Canonical Normalizer, Canonical Ledger Writer, Ingress Telemetry Writer,
+Journey Processor, Funnel Processor and KPI Projector. It separately verifies the bounded Medusa input
+demo without claiming that unsupported authoritative facts exist. A successful run ends with:
 
 ```text
-[v2-e2e] ordered canonical=4 journeys=1 outcome=CONVERTED steps=4/4
-[v2-e2e] out-of-order canonical=4 journeys=1 outcome=CONVERTED steps=4/4
+[v2-e2e] pipeline-self-test-ordered canonical=4 journeys=1 outcome=CONVERTED steps=4/4
+[v2-e2e] pipeline-self-test-out-of-order canonical=4 journeys=1 outcome=CONVERTED steps=4/4
+[v2-e2e] medusa-input canonical=4 order=order.created commerce_conversion=IN_PROGRESS
 [v2-e2e] unsupported outcome=unsupported quarantine=mapping_not_found canonical=0
 [v2-e2e] fallback-time basis=ingress_fallback authoritative=false
-[v2-e2e] telemetry accepted=10 terminal=10 normalized=9 unsupported=1
+[v2-e2e] telemetry accepted=14 terminal=14 normalized=13 unsupported=1
 ```
 
 Inspect service state and logs with:

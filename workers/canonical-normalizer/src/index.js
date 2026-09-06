@@ -1,8 +1,5 @@
-export {
-  createMappingRegistry,
-  createMedusaOrderPlacedMappings,
-  createPassthroughMappings,
-} from "./mapping-registry.js"
+export { createMappingRegistry, createPassthroughMappings } from "./mapping-registry.js"
+export { loadMappingRegistry } from "./mapping-loader.js"
 export { createNormalizer } from "./normalizer.js"
 export { loadConfig } from "./config.js"
 export { createKafkaNormalizerRuntime } from "./kafka-runtime.js"

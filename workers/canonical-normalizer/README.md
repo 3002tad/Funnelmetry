@@ -21,11 +21,12 @@ host vào streaming/KPI core.
 `occurred_at` fallback lần lượt từ `produced_at` rồi `ingested_at`. Fallback luôn gắn
 `quality.authoritative_event_time=false` và không được giả làm source occurrence time.
 
-Reference Medusa có mapping opt-in `medusa.order_placed -> order.created` qua
-`CANONICAL_NORMALIZER_MEDUSA_ORDER_CREATED_SOURCE_IDS`. Ingress vẫn giữ nguyên native
-event type; `mapping_version` là provenance của canonical semantics. Không có mapping
-mặc định cho `cart.item_added`, `order.accepted` hay payment: chỉ bật sau khi có native
-hook và conformance test chứng minh đúng business semantics.
+Mapping source-native được nạp tùy chọn qua `CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH`.
+Reference Medusa dùng artifact versioned trong `integrations/medusa` cho
+`medusa.order_placed -> order.created`; core normalizer không hard-code host. Ingress vẫn
+giữ native event type và `mapping_version` là provenance của canonical semantics. Không có
+mapping mặc định cho `cart.item_added`, `order.accepted` hay payment: chỉ bật sau khi có
+native hook và conformance test chứng minh đúng business semantics.
 
 ## Chạy
 

@@ -142,3 +142,87 @@ test("hydrates durable receipts before becoming ready", () => {
   assert.equal(index.isReady(), true)
   assert.equal(index.get(event.source_id, event.event_id).ingestion_id, "ing_existing")
 })
+
+test("uses a shared coordinator as the authority across gateway replicas", async () => {
+  let acceptedReceipt
+  let ownerToken
+  const coordinator = {
+    async claim({ receipt }) {
+      if (acceptedReceipt) return { status: "duplicate", receipt: acceptedReceipt, owner_token: null }
+      ownerToken = "gateway-1:claim-1"
+      return { status: "claimed", receipt, owner_token: ownerToken }
+    },
+    async complete({ owner_token }) {
+      assert.equal(owner_token, ownerToken)
+      acceptedReceipt = {
+        status: "accepted", source_id: event.source_id, event_id: event.event_id,
+        ingestion_id: "ing_shared", received_at: context.received_at,
+      }
+    },
+    async release() {},
+  }
+  const firstProducer = createProducer()
+  const secondProducer = createProducer()
+  const first = createKafkaDurableIngress({
+    producer: firstProducer, receiptIndex: createReadyIndex(), receiptCoordinator: coordinator,
+    rawTopic: "raw", receiptTopic: "receipts", createIngestionId: () => "ing_shared",
+  })
+  const second = createKafkaDurableIngress({
+    producer: secondProducer, receiptIndex: createReadyIndex(), receiptCoordinator: coordinator,
+    rawTopic: "raw", receiptTopic: "receipts", createIngestionId: () => "ing_other",
+  })
+
+  assert.equal((await first.accept(event, context)).status, "accepted")
+  const duplicate = await second.accept(event, { ...context, ingestion_attempt_id: "attempt-2" })
+  assert.equal(duplicate.status, "duplicate")
+  assert.equal(duplicate.ingestion_id, "ing_shared")
+  assert.equal(firstProducer.transactions.length, 1)
+  assert.equal(secondProducer.transactions.length, 0)
+})
+
+test('PostgreSQL completion failure retains committed receipt and retry does not send again', async () => {
+  const producer = createProducer()
+  const index = createReadyIndex()
+  const coordinator = {
+    claim: async ({ receipt }) => ({ status: 'claimed', receipt, owner_token: 'owner' }),
+    complete: async () => { throw new Error('database disconnected') },
+    adopt: async ({ receipt }) => ({ status: 'duplicate', receipt }),
+  }
+  const adapter = createKafkaDurableIngress({ producer, receiptIndex: index,
+    receiptCoordinator: coordinator, rawTopic: 'raw', receiptTopic: 'receipts' })
+  await assert.rejects(adapter.accept(event, context), /database disconnected/)
+  assert.equal(producer.transactions[0].committed, true)
+  const retry = await adapter.accept(event, context)
+  assert.equal(retry.status, 'duplicate')
+  assert.equal(retry.ingestion_id, index.get(event.source_id, event.event_id).ingestion_id)
+  assert.equal(producer.transactions.length, 1)
+})
+
+test('ambiguous Kafka commit never releases claim and stops further writes', async () => {
+  const producer = createProducer({ failCommit: true })
+  let released = false
+  const adapter = createKafkaDurableIngress({ producer, receiptIndex: createReadyIndex(),
+    receiptCoordinator: {
+      claim: async ({ receipt }) => ({ status: 'claimed', receipt, owner_token: 'owner' }),
+      release: async () => { released = true },
+    }, rawTopic: 'raw', receiptTopic: 'receipts' })
+  await assert.rejects(adapter.accept(event, context), /commit failed/)
+  assert.equal(released, false)
+  assert.equal(adapter.isReady(), false)
+  await assert.rejects(adapter.accept(event, context), /not ready/)
+  assert.equal(producer.transactions.length, 1)
+})
+
+test('distinct events cannot overlap transactions on one producer', async () => {
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const producer = createProducer({ waitForCommit: () => gate })
+  const { adapter } = createAdapter(producer)
+  const first = adapter.accept(event, context)
+  const second = adapter.accept({ ...event, event_id: 'different-event' }, context)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(producer.transactions.length, 1)
+  release()
+  await Promise.all([first, second])
+  assert.equal(producer.transactions.length, 2)
+})

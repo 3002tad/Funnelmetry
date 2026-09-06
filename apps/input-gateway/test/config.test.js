@@ -24,6 +24,25 @@ test("loads a complete gateway configuration", () => {
   assert.deepEqual(config.kafka.brokers, ["kafka-1:9092", "kafka-2:9092"])
   assert.deepEqual(config.corsOrigins, ["http://localhost:8000", "http://localhost:9000"])
   assert.equal(config.backendKeys.bridge.secret, "hmac-key")
+  assert.deepEqual(config.coordination, { mode: "single_replica" })
+})
+
+test("loads PostgreSQL coordination and requires its database URL", () => {
+  assert.throws(
+    () => loadConfig({ ...validEnv(), INPUT_GATEWAY_COORDINATION_MODE: "postgres" }),
+    /INPUT_GATEWAY_DATABASE_URL is required/,
+  )
+  const config = loadConfig({
+    ...validEnv(),
+    INPUT_GATEWAY_COORDINATION_MODE: "postgres",
+    INPUT_GATEWAY_DATABASE_URL: "postgresql://gateway@postgres/funnelmetry",
+    INPUT_GATEWAY_CLAIM_LEASE_MS: "45000",
+  })
+  assert.deepEqual(config.coordination, {
+    mode: "postgres",
+    databaseUrl: "postgresql://gateway@postgres/funnelmetry",
+    leaseMs: 45000,
+  })
 })
 
 test("rejects missing Kafka and credential configuration", () => {

@@ -189,7 +189,7 @@ PostgreSQL 15 thật đều đã qua.
 ## 11. Phần chưa hoàn thiện
 
 - Chưa có source-native mapping đầy đủ cho từng nền tảng; Medusa adapter thuộc integration scope riêng.
-- Chưa có multi-replica coordination cho Input Gateway receipt index.
+- Multi-replica coordination của Input Gateway có nền tảng tại mục 34; giới hạn phục hồi ở mục 35.
 - Chưa triển khai reconciliation worker, matured/drop-off scheduler và late-arrival watermark policy.
 - KPI hiện là profile/instance base facts và observed totals; product/category attribution cùng time
   window chưa triển khai vì contract tương ứng còn provisional/experimental.
@@ -501,3 +501,79 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   response contract được cập nhật tương ứng.
 - Demo seed thêm một ORDER snapshot/comparison record-level đã `RECONCILED` để UI local trình bày evidence
   thật, đồng thời giữ repair metric unavailable khi chưa có repair verification.
+
+## 32. Master-aligned Medusa input semantics
+
+- Đồng bộ Browser SDK installer với manifest reference mới: `behavior.product_viewed`,
+  `cart.add_clicked`, `checkout.started`; loại namespace `commerce.*` cũ khỏi generated binding.
+- Add-to-cart browser hook phát intent trước business request. Nó không được đổi tên hoặc diễn giải thành
+  authoritative `cart.item_added`.
+- Canonical Normalizer nạp mapping source-native từ artifact versioned trong `integrations/medusa`, giữ
+  core generic. Mapping baseline duy nhất là `medusa.order_placed -> order.created` `BUSINESS_FACT`;
+  không fabricate `order.accepted`, payment hoặc cart persistence.
+- Capability report của planner công bố `cartItemPersisted` và `orderAccepted` là `NOT_SUPPORTED`, còn
+  Commerce Conversion là `IN_PROGRESS`.
+- E2E tách strict Commerce Conversion 4/4 thành pipeline self-test và thêm Medusa input scenario riêng:
+  bốn input được canonicalize, order dừng ở `order.created`, không claim Medusa conversion 4/4.
+- Dashboard synthetic seed sửa authority của strict reference event `cart.item_added` thành
+  `BUSINESS_FACT`; seed này là UI fixture, không phải evidence về capability Medusa.
+
+## 33. Transport-neutral reconciliation operations CLI
+
+- Bổ sung CLI thủ công cho `reconciliation-worker` với năm lệnh `snapshot`, `projection`, `compare`,
+  `repair` và `verify`; mỗi lệnh nhận đúng request JSON của repository hiện có.
+- CLI chỉ orchestration contract/repository, không tự chọn source transport, không đọc Medusa và không
+  mở REST/MQ contract mới khi ranh giới integration chưa được chốt.
+- Kết quả được ghi JSON ra stdout, lỗi validation/persistence trả exit code khác 0 và PostgreSQL pool
+  luôn được đóng. Credential chỉ đọc từ `RECONCILIATION_DATABASE_URL` hoặc `DATABASE_URL`, không nhận
+  qua command line.
+- Unit test khóa dispatch cả năm command, help path không mở database, bắt buộc config database và
+  cleanup khi repository trả lỗi. Toàn bộ 11 test, gồm 2 PostgreSQL integration test, đã chạy thành công.
+
+## 34. Distributed Input Gateway receipt coordination
+
+**Đính chính 2026-09-06:** đây là implementation ban đầu, chưa hoàn thiện multi-replica.
+Các mô tả takeover/fingerprint và xác nhận E2E bên dưới được thay thế bởi mục 35.
+
+- Migration `013_ingress_coordination.sql` thêm coordination ledger theo `(source_id,event_id)`, stable
+  `ingestion_id`, semantic event fingerprint, owner token và lease có thể takeover giữa các replica.
+- PostgreSQL chỉ điều phối claim trong hạ tầng Funnelmetry; Kafka transaction vẫn là Raw Durable Ingress
+  và Gateway chỉ chuyển claim sang `ACCEPTED` sau khi Kafka commit thành công.
+- Retry trong lúc replica khác giữ lease trả retryable failure. Sau lease/release, replica mới dùng lại
+  receipt và `ingestion_id` ban đầu; cùng identity nhưng semantic payload khác trả
+  `event_identity_conflict` thay vì ghi raw record mâu thuẫn.
+- Receipt Kafka đã tồn tại được adopt vào ledger khi gặp lại. Migration cũng backfill receipt telemetry cũ;
+  do schema cũ chưa có fingerprint, payload đầu tiên gặp lại sẽ gắn fingerprint và limitation này được
+  công bố trong runtime README.
+- `single_replica` vẫn là compatibility mode. Compose V2 bật `postgres`, chờ migration hoàn tất trước khi
+  chạy Gateway và dùng database Funnelmetry, không nhận quyền database của source/Medusa.
+- 28/28 Input Gateway test đã qua, gồm PostgreSQL integration test cho hai replica/lease takeover/conflict.
+  Compose config hợp lệ và full pipeline E2E kết thúc với exit code 0.
+
+## 35. Gateway failure-path corrections (2026-09-06)
+
+- Chặn takeover chỉ dựa vào lease hết hạn. Kafka commit có thể đã thành công dù client không nhận
+  được kết quả; tự gửi lại có thể append raw hai lần với cùng ingestion ID.
+- Chỉ release sau lỗi trước commit và abort thành công. Commit không xác định làm Gateway unready;
+  khởi động lại replay receipt. Claim không có evidence vẫn pending, cần cơ chế fencing/recovery tiếp theo.
+- Giữ receipt trong cache ngay sau Kafka commit, trước PostgreSQL completion. Adopt chỉ hoàn tất claim
+  có ingestion ID/fingerprint khớp và không gán fingerprint lịch sử từ request retry.
+- Transaction trên cùng KafkaJS producer được chạy tuần tự cả khi khác event key.
+- PostgreSQL integration test kiểm tra claim đồng thời, lease hết hạn, khôi phục từ receipt và fingerprint
+  thiếu; fault injection kiểm tra mất DB sau commit, commit không xác định và transaction đồng thời.
+- E2E thực sự chạy qua runner: ordered/out-of-order CONVERTED 4/4; Medusa input IN_PROGRESS;
+  telemetry accepted=14, terminal=14, normalized=13, unsupported=1. Không coi đây là kill-process test
+  hay chứng minh tự động phục hồi hoàn chỉnh của hai Gateway.
+
+## 36. Committed receipt recovery and process fault drill
+
+- Consumer Kafka `read_committed` tự hoàn tất claim có receipt document/ingestion ID khớp, kể cả claim
+  thuộc replica đã chết. Producer completion tương thích với consumer đã hoàn tất cùng claim.
+- Receipt sai bị từ chối; receipt không có claim lịch sử không tạo fingerprint từ dữ liệu retry.
+- Test dùng HTTP Gateway ở tiến trình độc lập, Kafka và PostgreSQL thật: gửi cùng event đồng thời,
+  kiểm tra conflict, SIGKILL ngay sau commit và restart. Hai event chỉ tạo hai raw record;
+  claim đã tự phục hồi trước HTTP retry. Hook SIGKILL nằm riêng trong fixture test.
+- Topics/schema ngẫu nhiên của test được dọn sau chạy. Đây là kiểm chứng crash sau commit;
+  network partition và claim không có receipt vẫn cần broker fencing/recovery bổ sung.
+- Kiểm chứng: 32/32 Gateway test pass (không skip), fault drill raw=2 unique=2;
+  E2E toàn pipeline PASS với accepted=14 terminal=14 normalized=13 unsupported=1.

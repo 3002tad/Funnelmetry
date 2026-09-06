@@ -69,7 +69,7 @@ npm install
 npm start
 ```
 
-Chi tiết topic, readiness và giới hạn single-replica nằm trong
+Chi tiết topic, readiness, chế độ single-replica và PostgreSQL coordination cho multi-replica nằm trong
 [`apps/input-gateway/README.md`](apps/input-gateway/README.md).
 
 ## Chạy Canonical Normalizer
@@ -83,7 +83,9 @@ npm start
 ```
 
 Worker chỉ commit raw offset cùng transaction đã ghi canonical/quarantine và terminal
-outcome. Mapping native theo source chưa nằm trong core này.
+outcome. Mapping native theo source nằm trong artifact versioned dưới `integrations/` và
+được nạp qua config path; core normalizer không hard-code Medusa. Reference hiện chỉ map
+`medusa.order_placed` sang `order.created`, không suy diễn `cart.item_added` hoặc `order.accepted`.
 
 ## Chạy Canonical Ledger Writer
 
@@ -194,6 +196,10 @@ record discrepancy, revenue deviation và repair verification có denominator r�
 phép gắn nhãn authoritative business analysis khi toàn bộ window trong scope là `RECONCILED`; dữ liệu
 `UNAVAILABLE`, `PROVISIONAL`, `RECONCILING` hoặc `DEGRADED` vẫn được hiển thị nhưng không được diễn giải
 như số liệu business authoritative.
+
+`workers/reconciliation-worker` có CLI vận hành thủ công nhận request JSON cho các bước `snapshot`,
+`projection`, `compare`, `repair` và `verify`. CLI này chỉ orchestration contract/repository hiện có;
+không tự chọn transport phía source, không đọc Medusa và không mở thêm REST/MQ contract.
 
 ## Tài liệu
 
