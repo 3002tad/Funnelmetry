@@ -33,6 +33,25 @@ export function createPostgresReceiptCoordinator({
   if (!Number.isSafeInteger(leaseMs) || leaseMs <= 0) throw new Error("leaseMs must be a positive integer")
 
   return Object.freeze({
+    // Only the read_committed receipt consumer may call this recovery path.
+    async confirmReceipt(input) {
+      const receipt = validateIngressReceipt(input)
+      if (receipt.status !== 'accepted') throw new Error('recovery requires an accepted Kafka receipt')
+      const updated = await pool.query(
+        `UPDATE ingress_receipt_claims SET claim_state = 'ACCEPTED', updated_at = NOW()
+         WHERE source_id = $1 AND event_id = $2 AND ingestion_id = $3
+           AND receipt_document = $4::jsonb RETURNING *`,
+        [receipt.source_id, receipt.event_id, receipt.ingestion_id, JSON.stringify(receipt)],
+      )
+      if (updated.rowCount === 1) return result('accepted', updated.rows[0])
+      const existing = await pool.query(
+        'SELECT ingestion_id FROM ingress_receipt_claims WHERE source_id = $1 AND event_id = $2',
+        [receipt.source_id, receipt.event_id],
+      )
+      if (existing.rowCount) throw new Error('Kafka receipt conflicts with coordination claim')
+      // Historical receipts may predate coordination; do not invent a fingerprint.
+      return result('untracked', null)
+    },
     async adopt({ event, receipt }) {
       const validatedReceipt = validateIngressReceipt({ ...receipt, status: "accepted" })
       const fingerprint = fingerprintIngressEvent(event)
@@ -122,7 +141,7 @@ export function createPostgresReceiptCoordinator({
       const updated = await pool.query(
         `UPDATE ingress_receipt_claims
             SET claim_state = 'ACCEPTED', updated_at = NOW()
-          WHERE source_id = $1 AND event_id = $2 AND owner_token = $3 AND claim_state = 'CLAIMED'
+          WHERE source_id = $1 AND event_id = $2 AND owner_token = $3 AND claim_state IN ('CLAIMED', 'ACCEPTED')
           RETURNING *`,
         [sourceId, eventId, ownerToken],
       )

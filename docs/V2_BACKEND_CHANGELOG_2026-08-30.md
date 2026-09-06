@@ -564,3 +564,16 @@ Các mô tả takeover/fingerprint và xác nhận E2E bên dưới được tha
 - E2E thực sự chạy qua runner: ordered/out-of-order CONVERTED 4/4; Medusa input IN_PROGRESS;
   telemetry accepted=14, terminal=14, normalized=13, unsupported=1. Không coi đây là kill-process test
   hay chứng minh tự động phục hồi hoàn chỉnh của hai Gateway.
+
+## 36. Committed receipt recovery and process fault drill
+
+- Consumer Kafka `read_committed` tự hoàn tất claim có receipt document/ingestion ID khớp, kể cả claim
+  thuộc replica đã chết. Producer completion tương thích với consumer đã hoàn tất cùng claim.
+- Receipt sai bị từ chối; receipt không có claim lịch sử không tạo fingerprint từ dữ liệu retry.
+- Test dùng HTTP Gateway ở tiến trình độc lập, Kafka và PostgreSQL thật: gửi cùng event đồng thời,
+  kiểm tra conflict, SIGKILL ngay sau commit và restart. Hai event chỉ tạo hai raw record;
+  claim đã tự phục hồi trước HTTP retry. Hook SIGKILL nằm riêng trong fixture test.
+- Topics/schema ngẫu nhiên của test được dọn sau chạy. Đây là kiểm chứng crash sau commit;
+  network partition và claim không có receipt vẫn cần broker fencing/recovery bổ sung.
+- Kiểm chứng: 32/32 Gateway test pass (không skip), fault drill raw=2 unique=2;
+  E2E toàn pipeline PASS với accepted=14 terminal=14 normalized=13 unsupported=1.

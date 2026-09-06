@@ -99,7 +99,9 @@ export function createKafkaRuntime({
           eachBatch: async ({ batch }) => {
             for (const message of batch.messages) {
               if (message.value !== null) {
-                receiptIndex.set(validateIngressReceipt(JSON.parse(message.value.toString("utf8"))))
+                const receipt = validateIngressReceipt(JSON.parse(message.value.toString("utf8")))
+                if (receiptCoordinator) await receiptCoordinator.confirmReceipt(receipt)
+                receiptIndex.set(receipt)
               }
             }
             // Kafka high watermarks include transaction control records, which are

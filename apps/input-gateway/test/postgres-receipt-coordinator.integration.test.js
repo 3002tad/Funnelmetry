@@ -61,6 +61,8 @@ test("coordinates claim, takeover, completion and conflict across replicas", { s
     const claimed = await first.claim({ event, receipt })
     assert.equal(claimed.status, "claimed")
     assert.equal(claimed.receipt.ingestion_id, "ing_shared")
+    await assert.rejects(first.confirmReceipt({ ...receipt, ingestion_id: 'wrong-ingestion' }), /conflicts/)
+    assert.equal((await pool.query('SELECT claim_state FROM ingress_receipt_claims')).rows[0].claim_state, 'CLAIMED')
     assert.equal((await second.claim({ event, receipt: { ...receipt, ingestion_id: "ing_other" } })).status, "pending")
 
     clock.value = new Date(clock.value.getTime() + 60_000)
@@ -72,6 +74,8 @@ test("coordinates claim, takeover, completion and conflict across replicas", { s
     const takeover = await second.claim({ event, receipt: { ...receipt, ingestion_id: "ing_other" } })
     assert.equal(takeover.status, "claimed")
     assert.equal(takeover.receipt.ingestion_id, "ing_shared")
+    await first.confirmReceipt(takeover.receipt)
+    await first.confirmReceipt(takeover.receipt)
     await second.complete({
       source_id: event.source_id, event_id: event.event_id, owner_token: takeover.owner_token,
     })

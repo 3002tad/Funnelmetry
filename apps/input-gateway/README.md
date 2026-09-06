@@ -51,5 +51,23 @@ tránh append trùng. Phục hồi tự động claim này cần broker fencing 
 hiện chưa triển khai. Không xóa/release claim thủ công chỉ vì lease đã hết hạn.
 
 Một producer xử lý tuần tự các transaction, kể cả event khác key. Đây là giới hạn throughput hiện tại.
-Các test fault injection chưa thay thế bài kiểm tra kill-process/network partition trên hai Gateway
-thật. Chế độ `single_replica` chỉ giữ để tương thích, không được scale ngang.
+Chế độ `single_replica` chỉ giữ để tương thích, không được scale ngang.
+
+## Recovery từ Kafka receipt và kiểm thử hai tiến trình
+
+Receipt consumer chạy `read_committed` tự hoàn tất claim PostgreSQL khi toàn bộ receipt document và
+ingestion ID khớp. Replica sống có thể phục hồi claim của replica chết sau Kafka commit mà không cần
+HTTP retry. Completion từ producer và consumer là idempotent; receipt mâu thuẫn làm consumer báo lỗi.
+Recovery không suy diễn fingerprint của receipt lịch sử và không giải phóng claim thiếu receipt.
+
+`test/replica-fault.integration.test.js` tạo các tiến trình HTTP Gateway độc lập, Kafka topics và
+PostgreSQL schema riêng. Nó gửi đồng thời cùng event, kiểm tra payload conflict, dùng SIGKILL ngay sau
+Kafka commit, chờ replica sống hoàn tất claim, restart và đếm raw record. Các tài nguyên test được dọn
+sau mỗi lần chạy; không xóa topic/schema runtime. Cần Node chạy trên Linux để thực hiện SIGKILL:
+
+```sh
+TEST_DATABASE_URL=postgresql://... TEST_KAFKA_BROKERS=kafka:9092 npm test
+```
+
+Thiếu một trong hai biến trên thì test Kafka thật được skip. Kill hook chỉ nằm trong fixture test.
+Network partition và sự cố trước khi có receipt vẫn chưa có cơ chế tự phục hồi đầy đủ.
