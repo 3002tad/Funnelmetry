@@ -179,3 +179,50 @@ test("uses a shared coordinator as the authority across gateway replicas", async
   assert.equal(firstProducer.transactions.length, 1)
   assert.equal(secondProducer.transactions.length, 0)
 })
+
+test('PostgreSQL completion failure retains committed receipt and retry does not send again', async () => {
+  const producer = createProducer()
+  const index = createReadyIndex()
+  const coordinator = {
+    claim: async ({ receipt }) => ({ status: 'claimed', receipt, owner_token: 'owner' }),
+    complete: async () => { throw new Error('database disconnected') },
+    adopt: async ({ receipt }) => ({ status: 'duplicate', receipt }),
+  }
+  const adapter = createKafkaDurableIngress({ producer, receiptIndex: index,
+    receiptCoordinator: coordinator, rawTopic: 'raw', receiptTopic: 'receipts' })
+  await assert.rejects(adapter.accept(event, context), /database disconnected/)
+  assert.equal(producer.transactions[0].committed, true)
+  const retry = await adapter.accept(event, context)
+  assert.equal(retry.status, 'duplicate')
+  assert.equal(retry.ingestion_id, index.get(event.source_id, event.event_id).ingestion_id)
+  assert.equal(producer.transactions.length, 1)
+})
+
+test('ambiguous Kafka commit never releases claim and stops further writes', async () => {
+  const producer = createProducer({ failCommit: true })
+  let released = false
+  const adapter = createKafkaDurableIngress({ producer, receiptIndex: createReadyIndex(),
+    receiptCoordinator: {
+      claim: async ({ receipt }) => ({ status: 'claimed', receipt, owner_token: 'owner' }),
+      release: async () => { released = true },
+    }, rawTopic: 'raw', receiptTopic: 'receipts' })
+  await assert.rejects(adapter.accept(event, context), /commit failed/)
+  assert.equal(released, false)
+  assert.equal(adapter.isReady(), false)
+  await assert.rejects(adapter.accept(event, context), /not ready/)
+  assert.equal(producer.transactions.length, 1)
+})
+
+test('distinct events cannot overlap transactions on one producer', async () => {
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const producer = createProducer({ waitForCommit: () => gate })
+  const { adapter } = createAdapter(producer)
+  const first = adapter.accept(event, context)
+  const second = adapter.accept({ ...event, event_id: 'different-event' }, context)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(producer.transactions.length, 1)
+  release()
+  await Promise.all([first, second])
+  assert.equal(producer.transactions.length, 2)
+})

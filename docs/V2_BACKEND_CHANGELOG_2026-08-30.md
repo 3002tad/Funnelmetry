@@ -189,7 +189,7 @@ PostgreSQL 15 thật đều đã qua.
 ## 11. Phần chưa hoàn thiện
 
 - Chưa có source-native mapping đầy đủ cho từng nền tảng; Medusa adapter thuộc integration scope riêng.
-- Multi-replica coordination của Input Gateway được hoàn thiện sau đó tại mục 34.
+- Multi-replica coordination của Input Gateway có nền tảng tại mục 34; giới hạn phục hồi ở mục 35.
 - Chưa triển khai reconciliation worker, matured/drop-off scheduler và late-arrival watermark policy.
 - KPI hiện là profile/instance base facts và observed totals; product/category attribution cùng time
   window chưa triển khai vì contract tương ứng còn provisional/experimental.
@@ -532,6 +532,9 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
 
 ## 34. Distributed Input Gateway receipt coordination
 
+**Đính chính 2026-09-06:** đây là implementation ban đầu, chưa hoàn thiện multi-replica.
+Các mô tả takeover/fingerprint và xác nhận E2E bên dưới được thay thế bởi mục 35.
+
 - Migration `013_ingress_coordination.sql` thêm coordination ledger theo `(source_id,event_id)`, stable
   `ingestion_id`, semantic event fingerprint, owner token và lease có thể takeover giữa các replica.
 - PostgreSQL chỉ điều phối claim trong hạ tầng Funnelmetry; Kafka transaction vẫn là Raw Durable Ingress
@@ -546,3 +549,18 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
   chạy Gateway và dùng database Funnelmetry, không nhận quyền database của source/Medusa.
 - 28/28 Input Gateway test đã qua, gồm PostgreSQL integration test cho hai replica/lease takeover/conflict.
   Compose config hợp lệ và full pipeline E2E kết thúc với exit code 0.
+
+## 35. Gateway failure-path corrections (2026-09-06)
+
+- Chặn takeover chỉ dựa vào lease hết hạn. Kafka commit có thể đã thành công dù client không nhận
+  được kết quả; tự gửi lại có thể append raw hai lần với cùng ingestion ID.
+- Chỉ release sau lỗi trước commit và abort thành công. Commit không xác định làm Gateway unready;
+  khởi động lại replay receipt. Claim không có evidence vẫn pending, cần cơ chế fencing/recovery tiếp theo.
+- Giữ receipt trong cache ngay sau Kafka commit, trước PostgreSQL completion. Adopt chỉ hoàn tất claim
+  có ingestion ID/fingerprint khớp và không gán fingerprint lịch sử từ request retry.
+- Transaction trên cùng KafkaJS producer được chạy tuần tự cả khi khác event key.
+- PostgreSQL integration test kiểm tra claim đồng thời, lease hết hạn, khôi phục từ receipt và fingerprint
+  thiếu; fault injection kiểm tra mất DB sau commit, commit không xác định và transaction đồng thời.
+- E2E thực sự chạy qua runner: ordered/out-of-order CONVERTED 4/4; Medusa input IN_PROGRESS;
+  telemetry accepted=14, terminal=14, normalized=13, unsupported=1. Không coi đây là kill-process test
+  hay chứng minh tự động phục hồi hoàn chỉnh của hai Gateway.

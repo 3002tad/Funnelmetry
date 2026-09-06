@@ -34,11 +34,22 @@ Mỗi replica cần một `INPUT_GATEWAY_INSTANCE_ID` riêng, cùng `INPUT_GATEW
 
 - replica đầu tiên claim event rồi mới mở Kafka transaction;
 - replica khác thấy claim còn hạn sẽ trả retryable failure để source retry;
-- claim hết hạn có thể được takeover nhưng vẫn dùng lại cùng `ingestion_id`;
+- lease hết hạn không tự cho phép takeover: kết quả Kafka có thể chưa xác định;
+- chỉ claim được release sau lỗi trước commit và abort thành công mới được gửi lại;
 - cùng `(source_id,event_id)` nhưng nội dung semantic khác bị từ chối với
   `event_identity_conflict`;
 - chỉ sau Kafka commit thành công claim mới chuyển thành `ACCEPTED`.
 
-Migration `013_ingress_coordination.sql` backfill receipt cũ từ telemetry ledger. Fingerprint của receipt
-cũ được gắn ở lần retry đầu tiên vì telemetry V2 trước đó chưa lưu fingerprint. Chế độ
-`single_replica` vẫn được giữ để tương thích runtime không có PostgreSQL, nhưng không được scale ngang.
+Migration `013_ingress_coordination.sql` backfill receipt cũ từ telemetry ledger. Receipt cũ thiếu
+fingerprint trả retryable failure; cần khôi phục fingerprint từ raw evidence gốc, không dùng payload
+retry làm bằng chứng cho nội dung lịch sử.
+
+Sau Kafka commit, cache giữ receipt ngay cả khi cập nhật PostgreSQL thất bại. Retry với receipt đã
+replay và fingerprint khớp sẽ hoàn tất claim mà không gửi Kafka lần nữa. Nếu commit có kết quả không
+xác định, Gateway hạ readiness; restart để replay receipt. Claim chưa có receipt vẫn bị giữ lại để
+tránh append trùng. Phục hồi tự động claim này cần broker fencing và xác minh kết quả transaction;
+hiện chưa triển khai. Không xóa/release claim thủ công chỉ vì lease đã hết hạn.
+
+Một producer xử lý tuần tự các transaction, kể cả event khác key. Đây là giới hạn throughput hiện tại.
+Các test fault injection chưa thay thế bài kiểm tra kill-process/network partition trên hai Gateway
+thật. Chế độ `single_replica` chỉ giữ để tương thích, không được scale ngang.

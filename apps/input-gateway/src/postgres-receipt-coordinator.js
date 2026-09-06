@@ -37,20 +37,20 @@ export function createPostgresReceiptCoordinator({
       const validatedReceipt = validateIngressReceipt({ ...receipt, status: "accepted" })
       const fingerprint = fingerprintIngressEvent(event)
       const inserted = await pool.query(
-        `INSERT INTO ingress_receipt_claims (
-           source_id, event_id, event_fingerprint, ingestion_id, receipt_document,
-           claim_state, owner_token, lease_expires_at
-         ) VALUES ($1,$2,$3,$4,$5::jsonb,'ACCEPTED',$6,NOW())
-         ON CONFLICT (source_id, event_id) DO UPDATE SET
-           event_fingerprint = COALESCE(ingress_receipt_claims.event_fingerprint, EXCLUDED.event_fingerprint),
-           updated_at = NOW()
+        `UPDATE ingress_receipt_claims SET claim_state = 'ACCEPTED', updated_at = NOW()
+         WHERE source_id = $1 AND event_id = $2
+           AND ingestion_id = $4 AND event_fingerprint = $3
          RETURNING *`,
-        [event.source_id, event.event_id, fingerprint, validatedReceipt.ingestion_id,
-          JSON.stringify(validatedReceipt), `${instanceId}:adopted`],
+        [event.source_id, event.event_id, fingerprint, validatedReceipt.ingestion_id],
       )
       const row = inserted.rows[0]
-      if (row.event_fingerprint !== fingerprint || row.ingestion_id !== validatedReceipt.ingestion_id) {
-        return result("conflict", row)
+      if (!row) {
+        const existing = await pool.query(
+          'SELECT * FROM ingress_receipt_claims WHERE source_id = $1 AND event_id = $2',
+          [event.source_id, event.event_id],
+        )
+        const evidence = existing.rows[0]
+        return result(!evidence || evidence.event_fingerprint === null ? 'pending' : 'conflict', evidence)
       }
       return result("duplicate", row)
     },
@@ -80,13 +80,8 @@ export function createPostgresReceiptCoordinator({
         )
         const row = selected.rows[0]
         if (row.event_fingerprint === null && row.claim_state === "ACCEPTED") {
-          const adopted = await client.query(
-            `UPDATE ingress_receipt_claims SET event_fingerprint = $3, updated_at = NOW()
-              WHERE source_id = $1 AND event_id = $2 RETURNING *`,
-            [event.source_id, event.event_id, fingerprint],
-          )
           await client.query("COMMIT")
-          return result("duplicate", adopted.rows[0])
+          return result("pending", row)
         }
         if (row.event_fingerprint !== fingerprint) {
           await client.query("COMMIT")
@@ -100,7 +95,9 @@ export function createPostgresReceiptCoordinator({
           await client.query("COMMIT")
           return result("claimed", row, ownerToken)
         }
-        if (new Date(row.lease_expires_at).getTime() > claimedAt.getTime()) {
+        // Expiration cannot prove the previous Kafka transaction did not commit.
+        // Only an explicit release before commit was attempted permits another send.
+        if (row.owner_token !== 'released') {
           await client.query("COMMIT")
           return result("pending", row)
         }
@@ -135,7 +132,7 @@ export function createPostgresReceiptCoordinator({
 
     async release({ source_id: sourceId, event_id: eventId, owner_token: ownerToken }) {
       await pool.query(
-        `UPDATE ingress_receipt_claims SET lease_expires_at = NOW(), updated_at = NOW()
+        `UPDATE ingress_receipt_claims SET owner_token = 'released', lease_expires_at = NOW(), updated_at = NOW()
           WHERE source_id = $1 AND event_id = $2 AND owner_token = $3 AND claim_state = 'CLAIMED'`,
         [sourceId, eventId, ownerToken],
       )

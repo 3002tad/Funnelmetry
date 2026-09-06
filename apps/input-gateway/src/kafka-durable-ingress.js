@@ -83,11 +83,14 @@ export function createKafkaDurableIngress({
     async accept(event, context) {
       if (receiptIndex.isReady?.() !== true) throw new Error("receipt index is not ready")
       const key = eventKey(event.source_id, event.event_id)
-      return withKeyLock(key, async () => {
+      // KafkaJS supports one transaction at a time per producer, including distinct keys.
+      return withKeyLock('producer', async () => {
+        if (receiptIndex.isReady?.() !== true) throw new Error("receipt index is not ready")
         const existing = receiptIndex.get(event.source_id, event.event_id)
         if (existing) {
           if (receiptCoordinator) {
             const adopted = await receiptCoordinator.adopt({ event, receipt: existing })
+            if (adopted.status === 'pending') throw new Error('original event fingerprint is unavailable')
             if (adopted.status === "conflict") {
               return validateIngressReceipt({
                 status: "rejected", source_id: event.source_id, event_id: event.event_id,
@@ -149,8 +152,10 @@ export function createKafkaDurableIngress({
           raw_body: context.raw_body,
         }
 
-        const transaction = await producer.transaction()
+        let transaction
+        let commitAttempted = false
         try {
+          transaction = await producer.transaction()
           await transaction.send({
             topic: rawTopic,
             messages: [{ key, value: JSON.stringify(rawRecord) }],
@@ -159,23 +164,29 @@ export function createKafkaDurableIngress({
             topic: receiptTopic,
             messages: [{ key, value: JSON.stringify(receipt) }],
           })
+          commitAttempted = true
           await transaction.commit()
         } catch (error) {
-          await transaction.abort().catch(() => {})
-          if (ownerToken) {
+          let aborted = !transaction
+          if (transaction) {
+            try { await transaction.abort(); aborted = true } catch {}
+          }
+          if (ownerToken && !commitAttempted && aborted) {
             await receiptCoordinator.release({
               source_id: event.source_id, event_id: event.event_id, owner_token: ownerToken,
             }).catch(() => {})
           }
+          if (commitAttempted || !aborted) receiptIndex.markNotReady()
           throw error
         }
 
+        // Preserve broker-confirmed evidence even if PostgreSQL completion fails.
+        receiptIndex.set(receipt)
         if (ownerToken) {
           await receiptCoordinator.complete({
             source_id: event.source_id, event_id: event.event_id, owner_token: ownerToken,
           })
         }
-        receiptIndex.set(receipt)
         return receipt
       })
     },

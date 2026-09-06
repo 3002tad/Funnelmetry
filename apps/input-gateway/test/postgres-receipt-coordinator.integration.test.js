@@ -63,6 +63,10 @@ test("coordinates claim, takeover, completion and conflict across replicas", { s
     assert.equal(claimed.receipt.ingestion_id, "ing_shared")
     assert.equal((await second.claim({ event, receipt: { ...receipt, ingestion_id: "ing_other" } })).status, "pending")
 
+    clock.value = new Date(clock.value.getTime() + 60_000)
+    assert.equal((await second.claim({ event, receipt })).status, "pending",
+      "expired lease is not evidence that Kafka failed to commit")
+
     await first.release({ source_id: event.source_id, event_id: event.event_id, owner_token: claimed.owner_token })
     clock.value = new Date(clock.value.getTime() + 1_000)
     const takeover = await second.claim({ event, receipt: { ...receipt, ingestion_id: "ing_other" } })
@@ -79,7 +83,22 @@ test("coordinates claim, takeover, completion and conflict across replicas", { s
       event: { ...event, source_payload: { order_id: "order_changed" } }, receipt,
     })
     assert.equal(conflict.status, "conflict")
-    assert.equal((await pool.query("SELECT COUNT(*)::int AS count FROM ingress_receipt_claims")).rows[0].count, 1)
+    const anotherEvent = { ...event, event_id: 'concurrent-event' }
+    const anotherReceipt = { ...receipt, event_id: anotherEvent.event_id, ingestion_id: 'ing_concurrent' }
+    const claims = await Promise.all([
+      first.claim({ event: anotherEvent, receipt: anotherReceipt }),
+      second.claim({ event: anotherEvent, receipt: { ...anotherReceipt, ingestion_id: 'ing_loser' } }),
+    ])
+    assert.deepEqual(claims.map(c => c.status).sort(), ['claimed', 'pending'])
+    const recovered = await second.adopt({ event: anotherEvent, receipt: claims.find(c => c.status === 'claimed').receipt })
+    assert.equal(recovered.status, 'duplicate')
+    assert.equal((await first.claim({ event: anotherEvent, receipt: anotherReceipt })).status, 'duplicate')
+    await pool.query("UPDATE ingress_receipt_claims SET event_fingerprint = NULL WHERE event_id = $1", [anotherEvent.event_id])
+    assert.equal((await first.claim({ event: anotherEvent, receipt: anotherReceipt })).status, 'pending')
+    assert.equal((await first.adopt({ event: anotherEvent, receipt: anotherReceipt })).status, 'pending')
+    assert.equal((await pool.query('SELECT event_fingerprint FROM ingress_receipt_claims WHERE event_id = $1',
+      [anotherEvent.event_id])).rows[0].event_fingerprint, null, 'retry cannot invent the historical fingerprint')
+    assert.equal((await pool.query("SELECT COUNT(*)::int AS count FROM ingress_receipt_claims")).rows[0].count, 2)
   } finally {
     await pool.end()
     await admin.query(`DROP SCHEMA ${schema} CASCADE`)
