@@ -14,6 +14,11 @@ const paths = {
   subscriberDirectory: "apps/backend/src/subscribers",
 }
 
+const generatedPaths = {
+  browserClient: "apps/storefront/src/funnelmetry/client.tsx",
+  orderPlacedSubscriber: "apps/backend/src/subscribers/funnelmetry-order-placed.ts",
+}
+
 const packageVersions = {
   browserSdk: "0.1.0",
   backendIntegrationKit: "0.1.0",
@@ -107,9 +112,81 @@ async function readProjectFile(projectRoot, relativePath) {
   return readFile(path.join(projectRoot, relativePath), "utf8")
 }
 
+async function readOptionalProjectFile(projectRoot, relativePath) {
+  try {
+    return await readProjectFile(projectRoot, relativePath)
+  } catch (error) {
+    if (error?.code === "ENOENT") return null
+    throw error
+  }
+}
+
 async function assertDirectory(projectRoot, relativePath) {
   const target = path.join(projectRoot, relativePath)
   if (!(await stat(target)).isDirectory()) throw new Error(`Pinned Medusa layout is missing directory ${relativePath}`)
+}
+
+function packageHasDependency(content, dependency, version, file) {
+  let packageJson
+  try {
+    packageJson = JSON.parse(content)
+  } catch {
+    throw new Error(`Pinned Medusa layout has invalid JSON in ${file}`)
+  }
+  return packageJson.dependencies?.[dependency] === version
+}
+
+function requireMarker(content, marker, file) {
+  if (!content.includes(marker)) {
+    throw new Error(`Existing Funnelmetry integration is incomplete or has drifted in ${file}`)
+  }
+}
+
+function sourceFingerprint(originals) {
+  const fingerprint = createHash("sha256")
+  for (const relativePath of Object.keys(originals).sort()) {
+    fingerprint.update(relativePath).update("\0").update(originals[relativePath])
+  }
+  return fingerprint.digest("hex")
+}
+
+async function existingIntegration(projectRoot, originals, manifest) {
+  const [browserClient, orderPlacedSubscriber] = await Promise.all([
+    readOptionalProjectFile(projectRoot, generatedPaths.browserClient),
+    readOptionalProjectFile(projectRoot, generatedPaths.orderPlacedSubscriber),
+  ])
+  const expectedBrowserClient = manifest.frontend.enabled
+    ? configureGeneratedClient(generatedClient(manifest), manifest)
+    : null
+  const expectedOrderPlacedSubscriber = manifest.backend.enabled
+    ? configureGeneratedSubscriber(generatedSubscriber(manifest), manifest)
+    : null
+  const detected = browserClient !== null || orderPlacedSubscriber !== null ||
+    originals[paths.storefrontPackage].includes("@funnelmetry/browser-sdk") ||
+    originals[paths.backendPackage].includes("@funnelmetry/backend-integration-kit")
+
+  if (!detected) return false
+  if (browserClient !== expectedBrowserClient || orderPlacedSubscriber !== expectedOrderPlacedSubscriber) {
+    throw new Error("Existing Funnelmetry integration is partial, stale, or owned by another installer version")
+  }
+  if (manifest.frontend.enabled) {
+    if (!packageHasDependency(originals[paths.storefrontPackage], "@funnelmetry/browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) {
+      throw new Error("Existing Funnelmetry browser integration has an unexpected package version")
+    }
+    requireMarker(originals[paths.storefrontTsConfig], '"@funnelmetry/*": ["funnelmetry/*"]', paths.storefrontTsConfig)
+    requireMarker(originals[paths.storefrontLayout], 'import { FunnelmetryBootstrap } from "@funnelmetry/client"', paths.storefrontLayout)
+    requireMarker(originals[paths.storefrontLayout], "<FunnelmetryBootstrap />", paths.storefrontLayout)
+    requireMarker(originals[paths.productPage], 'import { FunnelmetryProductViewed } from "@funnelmetry/client"', paths.productPage)
+    requireMarker(originals[paths.productPage], "<FunnelmetryProductViewed productId={pricedProduct.id} />", paths.productPage)
+    requireMarker(originals[paths.productActions], 'import { trackCartAddClicked } from "@funnelmetry/client"', paths.productActions)
+    requireMarker(originals[paths.productActions], "void trackCartAddClicked(", paths.productActions)
+    requireMarker(originals[paths.checkoutPage], 'import { FunnelmetryCheckoutStarted } from "@funnelmetry/client"', paths.checkoutPage)
+    requireMarker(originals[paths.checkoutPage], "<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />", paths.checkoutPage)
+  }
+  if (manifest.backend.enabled && !packageHasDependency(originals[paths.backendPackage], "@funnelmetry/backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage)) {
+    throw new Error("Existing Funnelmetry backend integration has an unexpected package version")
+  }
+  return true
 }
 
 export async function inspectMedusa(projectRoot, manifest) {
@@ -136,6 +213,25 @@ export async function createPlan(projectRoot, manifest) {
   for (const [name, relativePath] of Object.entries(paths)) {
     if (name === "subscriberDirectory") continue
     originals[relativePath] = await readProjectFile(projectRoot, relativePath)
+  }
+
+  if (await existingIntegration(projectRoot, originals, manifest)) {
+    return {
+      schemaVersion: "funnelmetry-ci-plan.v1",
+      mode: "plan-only",
+      sourceMutation: false,
+      host,
+      manifest,
+      sourceFingerprint: sourceFingerprint(originals),
+      capabilities: {
+        behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
+        orderPlaced: manifest.backend.enabled ? "ENABLED" : "DISABLED",
+        payment: "NOT_REQUESTED",
+        refund: "NOT_REQUESTED",
+      },
+      changes: [],
+      patch: "",
+    }
   }
 
   const changes = []
@@ -193,7 +289,7 @@ export async function createPlan(projectRoot, manifest) {
     changes.push(
       { path: paths.storefrontTsConfig, before: originals[paths.storefrontTsConfig], after: storefrontTsConfig },
       { path: paths.storefrontPackage, before: originals[paths.storefrontPackage], after: storefrontPackage },
-      { path: "apps/storefront/src/funnelmetry/client.tsx", before: null, after: client },
+      { path: generatedPaths.browserClient, before: null, after: client },
       { path: paths.storefrontLayout, before: originals[paths.storefrontLayout], after: layout },
       { path: paths.productPage, before: originals[paths.productPage], after: productPage },
       { path: paths.productActions, before: originals[paths.productActions], after: actions },
@@ -210,21 +306,17 @@ export async function createPlan(projectRoot, manifest) {
     )
     changes.push(
       { path: paths.backendPackage, before: originals[paths.backendPackage], after: backendPackage },
-      { path: "apps/backend/src/subscribers/funnelmetry-order-placed.ts", before: null, after: subscriber },
+      { path: generatedPaths.orderPlacedSubscriber, before: null, after: subscriber },
     )
   }
 
-  const fingerprint = createHash("sha256")
-  for (const relativePath of Object.keys(originals).sort()) {
-    fingerprint.update(relativePath).update("\0").update(originals[relativePath])
-  }
   return {
     schemaVersion: "funnelmetry-ci-plan.v1",
     mode: "plan-only",
     sourceMutation: false,
     host,
     manifest,
-    sourceFingerprint: fingerprint.digest("hex"),
+    sourceFingerprint: sourceFingerprint(originals),
     capabilities: {
       behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
       orderPlaced: manifest.backend.enabled ? "ENABLED" : "DISABLED",

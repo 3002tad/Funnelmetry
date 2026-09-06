@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
-import { readFile } from "node:fs/promises"
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
@@ -32,6 +33,21 @@ const fixtureFiles = [
   "apps/storefront/src/modules/products/components/product-actions/index.tsx",
   "apps/storefront/src/app/[countryCode]/(checkout)/checkout/page.tsx",
 ]
+
+async function applyWholeFilePatch(projectRoot, patch) {
+  for (const section of patch.split(/(?=diff --git )/)) {
+    const match = section.match(/^diff --git a\/(.+) b\/\1/m)
+    if (!match) continue
+    const output = section
+      .split("\n")
+      .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
+      .map((line) => line.slice(1))
+      .join("\n")
+    const target = path.join(projectRoot, match[1])
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, `${output}\n`)
+  }
+}
 
 test("planner creates PR-ready artifacts without mutating the Medusa checkout", async () => {
   const before = await Promise.all(fixtureFiles.map(async (file) => [file, await readFile(path.join(fixtureRoot, file), "utf8")]))
@@ -102,4 +118,29 @@ test("planner emits a static Next.js public-key reference from the manifest", as
 
   assert.match(plan.patch, /process\.env\.NEXT_PUBLIC_FUNNELMETRY_ALT_BROWSER_WRITE_KEY/)
   assert.doesNotMatch(plan.patch, /process\.env\[/)
+})
+
+test("planner returns an empty patch when the exact generated binding already exists", async (t) => {
+  let temporaryRoot
+  try {
+    temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-medusa-plan-"))
+  } catch (error) {
+    if (error?.code === "EPERM") {
+      t.skip("The sandbox does not permit temporary-directory writes")
+      return
+    }
+    throw error
+  }
+  try {
+    await cp(fixtureRoot, temporaryRoot, { recursive: true })
+    const initial = await createPlan(temporaryRoot, manifest)
+    await applyWholeFilePatch(temporaryRoot, initial.patch)
+
+    const rerun = await createPlan(temporaryRoot, manifest)
+
+    assert.deepEqual(rerun.changes, [])
+    assert.equal(rerun.patch, "")
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true })
+  }
 })
