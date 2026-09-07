@@ -1,5 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto"
-import { INGRESS_EVENT_SPEC_VERSION, validateIngressEvent, validateIngressReceipt } from "@funnelmetry/input-contract"
+import { INGRESS_EVENT_SPEC_VERSION, validateIngressEvent, validateIngressReceipt } from "@3002tad/funnelmetry-input-contract"
 
 function requiredString(value, name) {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} is required`)

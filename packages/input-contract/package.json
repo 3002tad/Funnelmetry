@@ -1,8 +1,22 @@
 {
-  "name": "@funnelmetry/input-contract",
+  "name": "@3002tad/funnelmetry-input-contract",
   "version": "0.1.0",
-  "private": true,
+  "license": "UNLICENSED",
   "type": "module",
+  "files": [
+    "src",
+    "schemas",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/3002tad/Funnelmetry.git",
+    "directory": "packages/input-contract"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
+  },
   "exports": {
     ".": "./src/index.js"
   },

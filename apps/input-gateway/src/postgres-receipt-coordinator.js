@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
-import { validateIngressReceipt } from "@funnelmetry/input-contract"
+import { validateIngressReceipt } from "@3002tad/funnelmetry-input-contract"
 
 function stableValue(value) {
   if (Array.isArray(value)) return value.map(stableValue)

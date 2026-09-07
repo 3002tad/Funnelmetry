@@ -8,8 +8,8 @@ the source checkout:
 - `integration-plan.json`: host/capability report and ownership list.
 - `integration.patch`: a PR-ready patch for the generated Browser SDK hooks and
   Medusa `order.placed` subscriber. Patch chỉ thêm host binding mỏng và hai
-  dependency đã pin: `@funnelmetry/browser-sdk` và
-  `@funnelmetry/backend-integration-kit`; nó không chép runtime SDK/forwarder vào
+  dependency đã pin: `@3002tad/funnelmetry-browser-sdk` và
+  `@3002tad/funnelmetry-backend-integration-kit`; nó không chép runtime SDK/forwarder vào
   source Medusa.
 
 Browser hooks emit only `behavior.product_viewed`, `cart.add_clicked` and `checkout.started` as

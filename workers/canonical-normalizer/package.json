@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@funnelmetry/canonical-contract": "file:../../packages/canonical-contract",
-    "@funnelmetry/input-contract": "file:../../packages/input-contract",
+    "@3002tad/funnelmetry-input-contract": "file:../../packages/input-contract",
     "kafkajs": "^2.2.4"
   },
   "engines": {

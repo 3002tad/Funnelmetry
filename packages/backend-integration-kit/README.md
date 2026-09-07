@@ -1,4 +1,4 @@
-# @funnelmetry/backend-integration-kit
+# @3002tad/funnelmetry-backend-integration-kit
 
 Forwarder Node.js dùng chung. Host binding cung cấp event đã map; kit tạo
 `IngressEvent`, ký HMAC, retry có giới hạn và trả receipt/failure result mà không

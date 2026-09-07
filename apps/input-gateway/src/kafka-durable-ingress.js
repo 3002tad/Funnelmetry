@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { validateIngressReceipt } from "@funnelmetry/input-contract"
+import { validateIngressReceipt } from "@3002tad/funnelmetry-input-contract"
 
 function eventKey(sourceId, eventId) {
   return JSON.stringify([sourceId, eventId])

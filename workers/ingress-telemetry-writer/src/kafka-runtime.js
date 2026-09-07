@@ -1,6 +1,6 @@
 import { Kafka, logLevel } from "kafkajs"
 import { validateCanonicalizationOutcome } from "@funnelmetry/canonical-contract"
-import { validateIngressReceipt } from "@funnelmetry/input-contract"
+import { validateIngressReceipt } from "@3002tad/funnelmetry-input-contract"
 
 function parseKey(message) {
   let key

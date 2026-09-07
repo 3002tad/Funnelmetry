@@ -75,12 +75,14 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /sourceEventType: "medusa\.order_placed"/)
   assert.match(plan.patch, /void trackCartAddClicked\([\s\S]*?await addToCart/)
   assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
-  assert.match(plan.patch, /"@funnelmetry\/browser-sdk": "0\.1\.0"/)
+  assert.match(plan.patch, /"@3002tad\/funnelmetry-browser-sdk": "0\.1\.0"/)
   assert.match(plan.patch, /"@funnelmetry\/\*"/)
   assert.match(plan.patch, /"funnelmetry\/\*"/)
-  assert.match(plan.patch, /"@funnelmetry\/backend-integration-kit": "0\.1\.0"/)
+  assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.1\.0"/)
   assert.match(plan.patch, /createBrowserSdk/)
   assert.match(plan.patch, /createBackendForwarder/)
+  assert.match(plan.patch, /@3002tad\/funnelmetry-browser-sdk/)
+  assert.match(plan.patch, /@3002tad\/funnelmetry-backend-integration-kit/)
   assert.match(plan.patch, /track\("behavior\.product_viewed"/)
   assert.match(plan.patch, /track\("cart\.add_clicked"/)
   assert.match(plan.patch, /track\("checkout\.started"/)
@@ -173,6 +175,13 @@ test("planner returns an empty patch when the exact generated binding already ex
     await cp(fixtureRoot, temporaryRoot, { recursive: true })
     const initial = await createPlan(temporaryRoot, manifest)
     await applyWholeFilePatch(temporaryRoot, initial.patch)
+    for (const generatedFile of [
+      "apps/storefront/src/funnelmetry/client.tsx",
+      "apps/backend/src/subscribers/funnelmetry-order-placed.ts",
+    ]) {
+      const target = path.join(temporaryRoot, generatedFile)
+      await writeFile(target, (await readFile(target, "utf8")).replace(/\n/g, "\r\n"))
+    }
 
     const rerun = await createPlan(temporaryRoot, manifest)
 

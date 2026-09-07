@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { validateIngressEvent, validateIngressReceipt } from "@funnelmetry/input-contract"
+import { validateIngressEvent, validateIngressReceipt } from "@3002tad/funnelmetry-input-contract"
 import { authenticateIngress, getIngressHeader, IngressAuthError } from "./auth.js"
 
 function jsonResponse(httpStatus, body) {

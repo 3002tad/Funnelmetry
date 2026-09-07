@@ -1,0 +1,68 @@
+name: Publish integration packages
+
+on:
+  push:
+    tags:
+      - "integration-kit-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Test and publish immutable integration packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@v4
+
+      - name: Set up Node and GitHub Packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://npm.pkg.github.com
+          scope: "@3002tad"
+
+      - name: Verify tag matches every integration package version
+        working-directory: packages
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node - <<'NODE'
+          const fs = require("node:fs")
+          const expected = process.env.RELEASE_TAG.replace(/^integration-kit-v/, "")
+          const directories = ["input-contract", "browser-sdk", "backend-integration-kit"]
+          for (const directory of directories) {
+            const pkg = JSON.parse(fs.readFileSync(`${directory}/package.json`, "utf8"))
+            if (pkg.version !== expected) {
+              throw new Error(`${pkg.name} has version ${pkg.version}; expected ${expected} from tag`)
+            }
+          }
+          NODE
+
+      - name: Install and test package workspace
+        working-directory: packages
+        run: |
+          npm ci
+          npm test
+
+      - name: Publish input contract
+        working-directory: packages
+        run: npm publish --workspace input-contract
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Browser SDK
+        working-directory: packages
+        run: npm publish --workspace browser-sdk
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Backend Integration Kit
+        working-directory: packages
+        run: npm publish --workspace backend-integration-kit
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

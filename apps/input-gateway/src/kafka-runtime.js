@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { Kafka, logLevel, Partitioners } from "kafkajs"
-import { validateIngressReceipt } from "@funnelmetry/input-contract"
+import { validateIngressReceipt } from "@3002tad/funnelmetry-input-contract"
 import { createKafkaDurableIngress, createReceiptIndex } from "./kafka-durable-ingress.js"
 
 function offsetsByPartition(offsets) {

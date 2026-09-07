@@ -41,6 +41,7 @@ function generatedSubscriber(manifest) {
 
 function configureGeneratedClient(content, manifest) {
   return content
+    .replace("@funnelmetry/browser-sdk", "@3002tad/funnelmetry-browser-sdk")
     .replace(
       'endpoint: process.env.NEXT_PUBLIC_FUNNELMETRY_INGEST_URL ?? "",',
       `endpoint: ${JSON.stringify(manifest.ingest.browserUrl)},`,
@@ -55,6 +56,7 @@ function configureGeneratedClient(content, manifest) {
 
 function configureGeneratedSubscriber(content, manifest) {
   return content
+    .replace("@funnelmetry/backend-integration-kit", "@3002tad/funnelmetry-backend-integration-kit")
     .replace(
       'endpoint: process.env.FUNNELMETRY_INGEST_URL ?? "",',
       `endpoint: ${JSON.stringify(manifest.ingest.backendUrl)},`,
@@ -138,6 +140,20 @@ function requireMarker(content, marker, file) {
   }
 }
 
+function normalizedText(content) {
+  return String(content ?? "").replace(/\r\n/g, "\n")
+}
+
+function firstDifferentLine(actual, expected) {
+  const actualLines = normalizedText(actual).split("\n")
+  const expectedLines = normalizedText(expected).split("\n")
+  const length = Math.max(actualLines.length, expectedLines.length)
+  for (let index = 0; index < length; index += 1) {
+    if (actualLines[index] !== expectedLines[index]) return index + 1
+  }
+  return 0
+}
+
 function hasFunnelmetryAlias(content, file) {
   let tsConfig
   try {
@@ -169,15 +185,18 @@ async function existingIntegration(projectRoot, originals, manifest) {
     ? configureGeneratedSubscriber(generatedSubscriber(manifest), manifest)
     : null
   const detected = browserClient !== null || orderPlacedSubscriber !== null ||
-    originals[paths.storefrontPackage].includes("@funnelmetry/browser-sdk") ||
-    originals[paths.backendPackage].includes("@funnelmetry/backend-integration-kit")
+    originals[paths.storefrontPackage].includes("@3002tad/funnelmetry-browser-sdk") ||
+    originals[paths.backendPackage].includes("@3002tad/funnelmetry-backend-integration-kit")
 
   if (!detected) return false
-  if (browserClient !== expectedBrowserClient || orderPlacedSubscriber !== expectedOrderPlacedSubscriber) {
-    throw new Error("Existing Funnelmetry integration is partial, stale, or owned by another installer version")
+  if (normalizedText(browserClient) !== normalizedText(expectedBrowserClient)) {
+    throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.browserClient} differs at line ${firstDifferentLine(browserClient, expectedBrowserClient)}`)
+  }
+  if (normalizedText(orderPlacedSubscriber) !== normalizedText(expectedOrderPlacedSubscriber)) {
+    throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.orderPlacedSubscriber} differs at line ${firstDifferentLine(orderPlacedSubscriber, expectedOrderPlacedSubscriber)}`)
   }
   if (manifest.frontend.enabled) {
-    if (!packageHasDependency(originals[paths.storefrontPackage], "@funnelmetry/browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) {
+    if (!packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) {
       throw new Error("Existing Funnelmetry browser integration has an unexpected package version")
     }
     if (!hasFunnelmetryAlias(originals[paths.storefrontTsConfig], paths.storefrontTsConfig)) {
@@ -192,7 +211,7 @@ async function existingIntegration(projectRoot, originals, manifest) {
     requireMarker(originals[paths.checkoutPage], 'import { FunnelmetryCheckoutStarted } from "@funnelmetry/client"', paths.checkoutPage)
     requireMarker(originals[paths.checkoutPage], "<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />", paths.checkoutPage)
   }
-  if (manifest.backend.enabled && !packageHasDependency(originals[paths.backendPackage], "@funnelmetry/backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage)) {
+  if (manifest.backend.enabled && !packageHasDependency(originals[paths.backendPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage)) {
     throw new Error("Existing Funnelmetry backend integration has an unexpected package version")
   }
   return true
@@ -252,16 +271,22 @@ export async function createPlan(projectRoot, manifest) {
     )
     const storefrontPackage = addDependency(
       originals[paths.storefrontPackage],
-      "@funnelmetry/browser-sdk",
+      "@3002tad/funnelmetry-browser-sdk",
       packageVersions.browserSdk,
       paths.storefrontPackage,
     )
-    const layout = replaceOnce(
+    const layoutWithImport = replaceOnce(
       originals[paths.storefrontLayout],
       'import "styles/globals.css"',
       'import "styles/globals.css"\nimport { FunnelmetryBootstrap } from "@funnelmetry/client"',
       paths.storefrontLayout,
-    ).replace('<body>', '<body>\n        <FunnelmetryBootstrap />')
+    )
+    const layout = replaceOnce(
+      layoutWithImport,
+      "<body>",
+      "<body>\n        <FunnelmetryBootstrap />",
+      paths.storefrontLayout,
+    )
     const productPage = replaceOnce(
       originals[paths.productPage],
       'import ProductTemplate from "@modules/products/templates"',
@@ -309,7 +334,7 @@ export async function createPlan(projectRoot, manifest) {
     const subscriber = configureGeneratedSubscriber(generatedSubscriber(manifest), manifest)
     const backendPackage = addDependency(
       originals[paths.backendPackage],
-      "@funnelmetry/backend-integration-kit",
+      "@3002tad/funnelmetry-backend-integration-kit",
       packageVersions.backendIntegrationKit,
       paths.backendPackage,
     )

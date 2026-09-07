@@ -1,4 +1,4 @@
-import type { IngressReceipt } from "@funnelmetry/input-contract"
+import type { IngressReceipt } from "@3002tad/funnelmetry-input-contract"
 
 export interface MappedSourceEvent {
   eventId: string
