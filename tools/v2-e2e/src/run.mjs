@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto"
+import assert from "node:assert/strict"
 import { Kafka, logLevel } from "kafkajs"
 import pg from "pg"
 
@@ -18,6 +19,7 @@ const backendSecret = required("E2E_BACKEND_SECRET")
 const kafkaBrokers = required("KAFKA_BOOTSTRAP_SERVERS").split(",").map((value) => value.trim()).filter(Boolean)
 const outcomeTopic = required("KAFKA_TOPIC_CANONICALIZATION_OUTCOMES")
 const quarantineTopic = required("KAFKA_TOPIC_QUARANTINE")
+const rawTopic = required("KAFKA_TOPIC_RAW")
 
 function scenario(label) {
   const runId = randomUUID()
@@ -66,7 +68,9 @@ async function post(event) {
       .update(`${timestamp}.${body}`)
       .digest("hex")
   }
-  const response = await fetch(`${gatewayUrl}/v1/ingress/events`, { method: "POST", headers, body })
+  const response = await fetch(`${gatewayUrl}/v1/ingress/events`, {
+    method: "POST", headers, body, signal: AbortSignal.timeout(15_000),
+  })
   const result = await response.json()
   if (!response.ok) throw new Error(`ingress ${event.event_id} failed (${response.status}): ${JSON.stringify(result)}`)
   return result
@@ -293,9 +297,11 @@ async function verifyMedusaInputScenario(pool, context, events) {
 }
 
 async function verifyCommerceScenario(pool, context, deliveryOrder) {
+  const receipts = new Map()
   for (const event of deliveryOrder) {
     const receipt = await post(event)
     if (receipt.status !== "accepted") throw new Error(`expected accepted receipt for ${event.event_id}`)
+    receipts.set(event.event_id, receipt)
   }
   const duplicate = await post(deliveryOrder[0])
   if (duplicate.status !== "duplicate") throw new Error("gateway did not return a duplicate receipt")
@@ -317,7 +323,63 @@ async function verifyCommerceScenario(pool, context, deliveryOrder) {
 
   if (canonical.rows[0].count !== 4) throw new Error(`expected 4 canonical events, got ${canonical.rows[0].count}`)
   if (journeys.rows[0].count !== 1) throw new Error(`expected 1 linked journey, got ${journeys.rows[0].count}`)
+  assert.equal(Number(projection.total_step_count), 4)
+  await verifyConcurrentRetries(pool, context, deliveryOrder, receipts, projection)
   console.log(`[v2-e2e] ${context.label} canonical=4 journeys=1 outcome=${projection.outcome_status} steps=${projection.reached_step_count}/${projection.total_step_count}`)
+}
+
+async function retrySnapshot(pool, context, projection) {
+  const events = [sourceId, context.sourceEventIds]
+  const canonical = await pool.query(
+    `SELECT canonical_event_id FROM canonical_events
+     WHERE source_id = $1 AND source_event_id = ANY($2::text[]) ORDER BY canonical_event_id`, events)
+  const links = await pool.query(
+    `SELECT link.journey_id, link.canonical_event_id FROM journey_events link
+     JOIN canonical_events event USING (canonical_event_id)
+     WHERE event.source_id = $1 AND event.source_event_id = ANY($2::text[])
+     ORDER BY link.journey_id, link.canonical_event_id`, events)
+  const facts = await pool.query(
+    'SELECT * FROM funnel_kpi_instance_facts WHERE funnel_instance_id = $1', [projection.funnel_instance_id])
+  const steps = await pool.query(
+    'SELECT * FROM funnel_kpi_step_facts WHERE funnel_instance_id = $1 ORDER BY step_index', [projection.funnel_instance_id])
+  assert.equal(canonical.rowCount, 4)
+  assert.equal(links.rowCount, 4)
+  assert.equal(facts.rowCount, 1)
+  assert.equal(steps.rowCount, 4)
+  for (const step of steps.rows) assert.equal(Number(step.occurrence_count), 1)
+  return { canonical: canonical.rows, links: links.rows, facts: facts.rows, steps: steps.rows }
+}
+
+async function verifyConcurrentRetries(pool, context, events, receipts, projection) {
+  // Wait for every original event's projector transaction, not merely the first
+  // converted snapshot, so a legitimate in-flight update cannot look like a retry defect.
+  const deadline = Date.now() + 60_000
+  while (true) {
+    const applied = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM kpi_projection_applications application
+       JOIN canonical_events event ON event.canonical_event_id = application.trigger_event_id
+       WHERE event.source_id = $1 AND event.source_event_id = ANY($2::text[])`,
+      [sourceId, context.sourceEventIds])
+    if (applied.rows[0].count === 4) break
+    if (Date.now() >= deadline) throw new Error('timed out waiting for all KPI applications before retry')
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  }
+  const admin = new Kafka({ brokers: kafkaBrokers, clientId: `retry-check-${randomUUID()}`,
+    logLevel: logLevel.NOTHING }).admin()
+  try {
+    await admin.connect()
+    const beforeOffsets = await admin.fetchTopicOffsets(rawTopic)
+    const before = await retrySnapshot(pool, context, projection)
+    await Promise.all(events.flatMap(event => Array.from({ length: 3 }, async () => {
+      const retried = await post(event)
+      assert.equal(retried.status, 'duplicate')
+      assert.equal(retried.ingestion_id, receipts.get(event.event_id).ingestion_id)
+    })))
+    // This assertion requires a dedicated stack without unrelated ingress traffic.
+    assert.deepEqual(await admin.fetchTopicOffsets(rawTopic), beforeOffsets, 'retry appended raw Kafka records')
+    assert.deepEqual(await retrySnapshot(pool, context, projection), before, 'retry changed analytics facts')
+    console.log(`[v2-e2e] ${context.label} concurrent-retries=12 stable-ids=true raw-unchanged=true analytics-unchanged=true`)
+  } finally { await admin.disconnect() }
 }
 
 const pool = new pg.Pool({ connectionString: databaseUrl, max: 2 })

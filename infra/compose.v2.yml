@@ -113,6 +113,7 @@ services:
       INPUT_GATEWAY_COORDINATION_MODE: postgres
       INPUT_GATEWAY_DATABASE_URL: postgresql://funnelmetry:funnelmetry-local@postgres:5432/funnelmetry
       INPUT_GATEWAY_CLAIM_LEASE_MS: "30000"
+      INPUT_GATEWAY_RECOVER_FENCED_CLAIMS: "false"
       INPUT_GATEWAY_CORS_ORIGINS: http://localhost:8000
       INPUT_GATEWAY_BROWSER_KEYS_JSON: '{"e2e-browser":{"source_id":"medusa-reference","secret":"local-browser-secret"}}'
       INPUT_GATEWAY_BACKEND_KEYS_JSON: '{"e2e-backend":{"source_id":"medusa-reference","secret":"local-backend-secret"}}'
@@ -284,6 +285,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC_CANONICALIZATION_OUTCOMES: funnelmetry.canonicalization.outcomes.v1
       KAFKA_TOPIC_QUARANTINE: funnelmetry.quarantine.v1
+      KAFKA_TOPIC_RAW: funnelmetry.raw.v1
     depends_on:
       input-gateway:
         condition: service_healthy

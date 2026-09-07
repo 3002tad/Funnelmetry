@@ -577,3 +577,225 @@ Các mô tả takeover/fingerprint và xác nhận E2E bên dưới được tha
   network partition và claim không có receipt vẫn cần broker fencing/recovery bổ sung.
 - Kiểm chứng: 32/32 Gateway test pass (không skip), fault drill raw=2 unique=2;
   E2E toàn pipeline PASS với accepted=14 terminal=14 normalized=13 unsupported=1.
+
+## 37. Pre-commit crash and database connection fault drill
+
+- Mở rộng fixture test để SIGKILL Gateway sau khi gửi raw/receipt nhưng trước Kafka commit.
+  Retry từ replica sống vẫn trả retryable failure dù lease hết hạn; claim giữ `CLAIMED`.
+  Consumer `read_committed` không nhận event của transaction chưa commit.
+- TCP proxy riêng của test từ chối kết nối PostgreSQL mới trước claim: HTTP trả retryable failure,
+  database không có claim cho event đó. Mở lại kết nối rồi retry được `accepted`.
+- Quan sát tổng cộng ba raw record đã commit cho ba event hợp lệ; không có raw của event bị kill
+  trước commit. Không thay đổi runtime, API contract, Medusa, AI hoặc cấu hình `.env`.
+- Kiểm chứng: fault drill Kafka/PostgreSQL thật PASS riêng (1 test, khoảng 137 giây);
+  31 test Gateway còn lại PASS trong lượt chạy riêng, loại fault drill bằng name filter.
+  Không chạy lại E2E toàn pipeline cho thay đổi chỉ gồm test/tài liệu này.
+- Giới hạn: đây là kiểm tra fail-safe, không phải tự phục hồi claim trước commit. TCP refusal trước
+  claim không chứng minh xử lý mọi network partition; broker fencing/recovery vẫn chưa triển khai.
+
+## 38. Receipt replay readiness barrier correction
+
+- Phát hiện prerequisite cho recovery: `batch.highWatermark` là mốc broker, không phải vị trí
+  consumer đã xử lý. Dùng mốc đó sau batch đầu có thể cho Gateway ready khi còn receipt chưa replay.
+- Dùng `batch.lastOffset() + 1` sau khi xử lý thành công toàn batch, so với target startup của từng
+  partition. Theo dõi thêm `END_BATCH_PROCESS` cho batch chỉ có control/aborted records; KafkaJS
+  không gọi `eachBatch` cho chúng. Offset giữ kiểu BigInt, không mất chính xác khi vượt safe integer.
+- Giữ lỗi consumer trong startup để không ghi đè trạng thái lỗi thành ready khi replay vừa hoàn tất.
+- Thêm regression test cho replay nhiều batch, nhiều partition, control-only batch, topic khác,
+  offset lớn và consumer crash trong startup.
+- Không mở takeover/release claim mới. Barrier này là điều kiện cần, chưa thay thế broker fencing
+  và transaction-outcome verification cho automatic recovery.
+- Kiểm chứng: toàn bộ 35/35 Gateway test PASS, không skip, gồm PostgreSQL integration và HTTP
+  multi-process fault drill với Kafka thật (raw committed=3, không có event chưa commit).
+  Không chạy lại E2E downstream toàn pipeline trong lượt này.
+
+## 39. Read-only claim inspection CLI
+
+- Thêm `npm run claims:inspect -- <source_id> [event_id]` để kiểm tra coordination ledger;
+  dùng database environment hiện có, không tự nạp hoặc sửa `.env`.
+- Phân biệt pending transaction evidence, explicit release, accepted trong ledger và thiếu fingerprint.
+  Không suy ra quyền takeover từ lease hết hạn; không claim đã xác minh Kafka outcome.
+- SQL parameterized, bắt buộc source scope, giới hạn kết quả, transaction READ ONLY và statement
+  timeout. Không xuất payload, receipt document, fingerprint hoặc owner token; không có mutation command.
+- Sáu test mới kiểm tra phân loại, giới hạn, CLI/config/cleanup và PostgreSQL thật: snapshot toàn ledger
+  trước/sau inspection không đổi, source khác không lọt vào kết quả.
+- Kiểm chứng: 40 test PASS, 1 Kafka process fault test SKIP vì lượt này chỉ bật PostgreSQL.
+  Không thay đổi đường ingestion/recovery runtime, không chạy lại full pipeline E2E.
+- Automatic recovery trước commit vẫn chưa triển khai: cần durable producer binding, fencing và
+  outcome barrier sau fencing; CLI này chỉ phục vụ chẩn đoán.
+
+## 40. Automatic pre-send claim recovery on retry
+
+- Migration 014 thêm guard gắn owner và trạng thái cấp quyền gửi. Claim lịch sử mặc định đã cấp
+  quyền/không đủ evidence, không tự chuyển thành chưa gửi.
+- Gateway bắt buộc authorizeSend bằng atomic UPDATE trước khi mở Kafka transaction. Claim mới chưa
+  được cấp quyền và hết lease được retry tự takeover, giữ nguyên receipt/ingestion ID.
+- Takeover và cấp quyền serialize trên cùng PostgreSQL row. Owner cũ không gửi được sau takeover;
+  owner được cấp quyền trước thì ngăn takeover. Mất phản hồi authorizeSend không tự release claim.
+- CLI nhận biết pre-send lease active và pre-send retry eligible. Không suy ra trạng thái từ lease
+  nếu owner guard không khớp hoặc đã cấp quyền gửi.
+- Thêm SIGKILL trước authorizeSend vào process drill; kiểm tra retry giữ stable ID và một raw record.
+  Bổ sung regression cho owner cũ, cấp quyền lặp, race authorize/takeover, legacy owner và legacy insert.
+- Phạm vi: chỉ recovery **trước authorizeSend**, kích hoạt bởi source retry; không phải background
+  resend. Crash sau cấp quyền hoặc transaction outcome chưa xác định vẫn pending. Broker fencing
+  và recovery cửa sổ đó chưa triển khai. Không nâng cấp database runtime trong lượt này.
+- Kiểm chứng: 42/42 Gateway test PASS, không skip, gồm process fault drill raw=4 và pre-send recovery.
+  Sau khi bổ sung thêm assertion race/legacy/inspector, chạy lại 7 test liên quan: 7/7 PASS.
+  Không chạy full downstream pipeline E2E; đã dọn schema/topic test và dừng Kafka/PostgreSQL test.
+
+## 41. Eager transactional initialization and stale-producer fencing
+
+- KafkaJS hiện cài chỉ khởi tạo transactional producer ở `transaction()`, không ở `connect()`.
+  Runtime nay mở/abort transaction rỗng trước replay/ready, không append raw hoặc receipt.
+- Replacement cùng client/instance ID khởi tạo epoch mới để fence producer cũ đã khởi tạo.
+  Lỗi INVALID_PRODUCER_EPOCH/PRODUCER_FENCED hạ readiness kể cả khi abort rỗng thành công.
+- Unit test khóa thứ tự startup, cleanup khi initialization/abort lỗi và trạng thái unready sau fencing.
+  Process drill thêm hai Gateway cùng instance ID: producer cũ chưa từng gửi event cũng phải bị chặn,
+  replacement nhận event và retry không tạo raw trùng.
+- Không bổ sung tự release claim đã cấp quyền gửi. Vẫn thiếu durable claim-to-producer-generation
+  binding và recovery policy sau fencing; không claim full automatic recovery hoặc full HA.
+- Kiểm chứng lượt trước: 44/44 Gateway test PASS, không skip; old producer health=503, replacement
+  accepted rồi duplicate, raw committed=5. Bước ghi kết quả cuối lượt bị giới hạn công cụ nên bổ sung ở đây.
+
+## 42. Durable producer-generation evidence per send authorization
+
+- Migration 015 tạo `ingress_send_attempts`, lưu source/event, owner, ingestion ID, transactional ID,
+  mã runtime boot generation và thời điểm authorize. Không backfill evidence lịch sử bằng suy đoán.
+- Runtime bind danh tính producer sau transactional initialization, trước replay/ready. Coordinator
+  từ chối authorize nếu chưa bind hoặc bị yêu cầu đổi danh tính trong cùng coordinator.
+- Authorize và INSERT attempt nằm trong một SQL statement: ghi evidence lỗi thì cấp quyền rollback.
+  Retry qua owner mới tạo attempt mới, không ghi đè lịch sử lần gửi cũ.
+- CLI hiển thị producer attempt của owner hiện tại (không xuất owner token). Generation là boot ID
+  của ứng dụng, không phải Kafka epoch; trường null nghĩa thiếu evidence, không chứng minh chưa gửi.
+- Đây là liên kết phục vụ recovery, chưa là generation registry/revocation hay bằng chứng Kafka
+  transaction đã abort. Không bổ sung release tự động cho claim đã cấp quyền gửi.
+- Kiểm chứng: 45/45 Gateway test PASS, không skip, gồm Kafka/PostgreSQL process drill; thêm kiểm tra
+  hai boot generation, cùng transactional ID/ingestion ID và chỉ một raw cho event replacement.
+  Sau bổ sung producer attempt vào CLI, chạy lại 6 test inspector: 6/6 PASS.
+  Migration chỉ chạy trong schema test; chưa áp dụng 015 vào database runtime, chưa chạy full downstream E2E.
+
+## 43. Producer-generation registry and authorization revocation (2026-09-07)
+
+- Migration 016 lưu current generation/phase theo transactional ID; không suy diễn từ attempt lịch sử.
+- Startup đăng ký INITIALIZING trước Kafka initialization, chỉ CAS sang READY sau receipt replay nếu
+  vẫn là current generation. Startup bị thay thế phải fail; không tái sử dụng runtime/coordinator đã dừng.
+- AuthorizeSend giữ khóa SHARE trên generation đang READY trong cùng SQL statement với guard/attempt;
+  replacement UPDATE registry thu hồi quyền cấp phép của generation cũ. Khi bị từ chối do generation,
+  Gateway hạ readiness trước khi mở transaction Kafka. Chưa có background watcher cho readiness.
+- Unit/PostgreSQL test kiểm tra generation cũ, startup chưa ready/bị thay thế, slot độc lập; process
+  drill kiểm tra old Gateway health=503, không có send attempt, retry từ replacement sau lease hết hạn.
+- Registry không thay thế Kafka fencing cho send đã được cấp quyền. Startup chồng nhau vẫn có thể
+  gây gián đoạn; chưa bật tự release claim đã authorize khi commit outcome không xác định.
+- Kiểm chứng: lượt đầu phát hiện lỗi trùng tên biến trong PostgreSQL test, đã sửa; chạy lại 46 unit/
+  PostgreSQL test PASS (Kafka drill skip ở lượt này). Kafka process drill ở lượt riêng cũng PASS,
+  raw committed=5, generation cũ không tạo send attempt. Không claim một lượt 47/47 clean run.
+- Chưa chạy full downstream E2E hoặc áp dụng migration 016 vào database runtime. Schema/topic test
+  được dọn; các container Kafka/PostgreSQL test được dừng, dữ liệu runtime giữ nguyên.
+
+## 44. Opt-in post-fence claim recovery (2026-09-07)
+
+- Migration 017 ghi Kafka scope của attempt và audit recovery; không backfill attempt cũ.
+- `INPUT_GATEWAY_RECOVER_FENCED_CLAIMS` mặc định false và yêu cầu PostgreSQL. Khi bật, runtime
+  kiểm tra cluster ID và compact-only receipt topic; sau same-ID fencing và complete read_committed
+  replay mới release pending claim đúng owner/guard/scope của generation cũ. Receipt đã commit
+  được hoàn tất trước. Source retry giữ ingestion ID; không có worker tự gửi lại.
+- Khóa current INITIALIZING generation, release và audit atomic; generation bị thay thế, scope
+  thiếu/sai, slot khác hoặc audit lỗi không được release. Không suy diễn từ lease expiry.
+- Bắt buộc lịch sử receipt còn nguyên: cấu hình compact hiện tại không chứng minh điều này.
+  Topic recreation, tombstone, delete-records/retention và restore không đồng bộ không được hỗ trợ.
+  Khi không xác nhận được history, phải giữ recovery tắt. Chưa claim full HA/network-partition recovery.
+- Kiểm chứng: sửa lỗi CommonJS named import KafkaJS; lượt toàn bộ Gateway sau sửa PASS 50/50,
+  không skip, gồm PostgreSQL và Kafka process drill. SIGKILL trước commit rồi restart cùng ID:
+  claim được release kèm audit, retry accepted/duplicate đúng ID, chỉ một raw record cho event;
+  tổng raw committed của drill là 6. Test scope mismatch, accepted-skip và audit rollback đều PASS.
+- Bổ sung test ngăn recovery trước replay/sau consumer crash; sửa test double thiếu confirmReceipt,
+  chạy riêng runtime suite PASS 10/10. Lượt 50/50 ở trên chưa chứa test bổ sung này.
+- Chưa bật recovery hoặc chạy migration 014–017 trên database runtime, chưa full downstream E2E.
+  Không sửa Medusa/AI, không commit/push. Tài nguyên schema/topic test được tự dọn sau test.
+
+## 45. Full pipeline smoke and concurrent HTTP retry checks (2026-09-07)
+
+- Bổ sung vào `tools/v2-e2e`: chờ đủ bốn KPI projection applications rồi gửi 12 retry đồng thời
+  cho mỗi Commerce scenario. Kiểm tra duplicate cùng ingestion ID, raw-topic offsets không đổi,
+  bốn canonical rows/journey links, KPI instance/step facts không đổi kể cả revision/occurrence count.
+  Thêm HTTP timeout 15 giây và xác nhận total_step_count=4.
+- Build backend hiện tại và chạy trên project riêng `funnelmetry-e2e-20260907`, volume Kafka/PG mới;
+  migration 001–017 chỉ áp dụng trong project test, không migrate volume runtime `funnelmetry-v2`.
+  Image tags `:local` được cập nhật khi build; recovery vẫn tắt mặc định.
+- E2E PASS (exit 0): ordered và reverse-arrival đều canonical=4, journeys=1, CONVERTED 4/4;
+  tổng 24 retry đồng thời giữ ID, không thêm raw và không đổi analytics. Unsupported có quarantine,
+  canonical=0; thiếu source timestamp giữ ingress_fallback/non-authoritative.
+  Telemetry accepted=14, terminal=14, normalized=13, unsupported=1.
+- Run evidence: ordered `8a79ee8e-770d-42a4-9fee-232d9be167b6`,
+  out-of-order `960d1b42-fa40-40ac-94f7-027333d39ce7`.
+- Đây là HTTP retry end-to-end smoke tới PostgreSQL analytics, không phải kiểm thử Kafka redelivery,
+  crash downstream worker, Dashboard UI hoặc Medusa thực tế. Không làm AI/Medusa, không commit/push.
+  Stack test được dừng và giữ volume để tra evidence; không xóa dữ liệu runtime.
+
+## 46. KPI Projector downtime/backlog recovery drill (2026-09-07)
+
+- Chạy lại E2E trên project riêng `funnelmetry-e2e-20260907`, giữ KPI Projector dừng khi gửi
+  bốn event đầu. Trước restart: canonical tăng 13 → 17, KPI applications giữ 13; bốn event của
+  run `e1f3d77a-1ff6-45fa-8178-ba3e6db2143d` chưa có application. Consumer group không có member,
+  current offset=25, log-end=34, lag=9 (offsets không tương đương số business event).
+- Start lại đúng worker/group, không reset offset, không seed hoặc gửi lại event gốc.
+  Runner PASS: ordered/reverse-arrival đều CONVERTED 4/4; 24 retry đồng thời không thêm raw
+  hoặc đổi analytics; telemetry lượt mới accepted=14, terminal=14, normalized=13, unsupported=1.
+- Sau test, toàn bộ dataset hai lượt có canonical=26 và KPI applications=26. Consumer offset=51,
+  log-end=52, lag=1; không claim lag bằng 0. Kafka transaction control positions có thể góp vào lag,
+  nên kết luận business processing dựa trên application và projection assertions, không chỉ offset.
+- Bổ sung runbook trong `tools/v2-e2e/README.md`. Đây là downtime/backlog recovery, chưa phải
+  crash đúng cửa sổ giữa PostgreSQL commit và Kafka commit. Không thay code worker trong lượt này.
+- Dừng riêng stack E2E, giữ volume evidence. Demo Dashboard/UI và database demo vẫn mở;
+  không sửa AI/Medusa hoặc database pipeline runtime, chưa commit/push.
+
+## 47. KPI crash after PostgreSQL commit, before Kafka transaction (2026-09-07)
+
+- Thêm process integration test và fixture riêng cho KPI Projector. Process đầu gọi repository thật,
+  sau COMMIT PostgreSQL bị SIGKILL trước khi runtime mở Kafka transaction. Process thứ hai dùng
+  cùng group/transactional ID, replay message thật từ Kafka, không reset offset.
+- Assertions: trước restart có application và KPI revision=1/occurrence=1, input offset chưa commit
+  (-1), output topic rỗng. Sau replay có committed duplicate handoff, input offset=1, toàn bộ snapshot
+  instance/step/application không đổi. SQL schema và Kafka topics có UUID riêng, tự dọn sau test.
+- Lượt đầu qua bind mount toàn repo thiếu node_modules KPI; chuyển sang image KPI đã build với
+  test/SQL mount read-only. Suite chạy với Kafka/PostgreSQL thật PASS 10/10, không skip.
+- Không thay production worker. Duplicate handoff hiện mang changed_instances=[]; chưa bảo đảm
+  tái phát danh sách thay đổi từ lần PostgreSQL commit trước crash. Đã ghi giới hạn trong README;
+  chưa kiểm thử cửa sổ sau send/sendOffsets hay ambiguous Kafka commit.
+- Chỉ khởi động/dừng Kafka/PostgreSQL của project E2E; không thay database runtime, AI hoặc Medusa.
+  Chưa commit/push.
+
+## 48. Durable KPI handoff evidence for replay (2026-09-07)
+
+- Migration 018 thêm changed_instances nullable vào KPI application, kiểm tra array/count.
+  Repository lưu danh sách/revision trong cùng transaction PostgreSQL với facts/application.
+  Duplicate trả lại danh sách và applied_at ban đầu, không dựng từ current projection.
+  Envelope vẫn dùng projection_status=duplicate; shape không đổi, danh sách không còn bị bỏ trống.
+- Lịch sử không được backfill: count=0 có thể trả []; count>0 nhưng thiếu evidence báo lỗi trước
+  Kafka transaction/offset ACK. Khi triển khai cần dừng writer cũ, migrate trước rồi chạy code mới;
+  không trộn phiên bản writer hoặc reset offset để che thiếu evidence.
+- Unit/PostgreSQL/Kafka process suite PASS 10/10, không skip. Test SIGKILL sau PG commit xác nhận
+  output chứa đúng danh sách đã lưu và applied_at, input offset tiến tiếp, snapshot KPI không đổi.
+  PostgreSQL test kiểm tra replay revision cũ, rollback khi ghi application lỗi, thiếu evidence và
+  chạy migration hai lần. Kafka có retry kết nối lúc broker khởi động, suite kết thúc exit 0.
+- Thay đổi chỉ trong Pipeline; migration 018 chỉ chạy trong schema test, chưa áp dụng database
+  runtime hoặc build lại image triển khai. Chưa chạy lại full E2E; chưa kiểm thử crash sau Kafka send
+  hoặc ambiguous commit. Schema/topic test được dọn, Kafka/Postgres E2E được dừng; chưa commit/push.
+
+## 49. Full E2E after KPI handoff evidence migration (2026-09-07)
+
+- Build lại các image backend `:local`, khởi động project `funnelmetry-e2e-20260907` và áp dụng
+  migration 018 trên volume test đã tồn tại. Không thay database runtime hoặc backfill lịch sử.
+- E2E PASS (exit 0): ordered và reverse-arrival đều canonical=4, journeys=1, CONVERTED 4/4.
+  Tổng 24 retry đồng thời giữ ingestion ID, raw offsets và analytics facts không đổi.
+  Telemetry accepted=14, terminal=14, normalized=13, unsupported=1; unsupported có quarantine,
+  canonical=0; fallback timestamp vẫn non-authoritative.
+- Kiểm tra sau test: KPI applications=39, trong đó 13 bản ghi mới có handoff evidence,
+  26 bản ghi cũ vẫn NULL; không có array/count mismatch. Kafka retry lúc coordinator khởi động
+  rồi worker tiếp tục chạy; không reset offset hoặc sửa ledger để vượt test.
+- Run IDs: ordered `e9b36975-7495-4e70-b7e7-a3421e48a4ed`,
+  out-of-order `85b95502-ffea-4ec2-891c-01dc4a8ee10c`.
+- Kết hợp với mục 48: crash test KPI 10/10 và full pipeline smoke đã qua cho thay đổi handoff.
+  Lượt này không thêm tính năng hoặc thay production code; chỉ kiểm chứng và ghi kết quả.
+  Dừng riêng stack E2E, giữ volume evidence. Chưa migrate runtime, commit/push hoặc triển khai;
+  chưa claim mọi cửa sổ crash/network partition. AI/Medusa không thay đổi.
