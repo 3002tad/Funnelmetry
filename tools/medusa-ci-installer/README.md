@@ -18,6 +18,10 @@ Normalizer mapping owns the conservative conversion to `order.created` as `BUSIN
 reports persisted cart-item and accepted-order capabilities as `NOT_SUPPORTED`, so this first input
 demo remains `IN_PROGRESS` and is not evidence of Commerce Conversion 4/4.
 
+`ingest.browser_url` is the URL embedded in the Browser SDK and must be reachable from the
+storefront user's browser. `ingest.backend_url` is embedded in the Medusa subscriber and may be
+an internal/container-reachable URL. A binding only requires the endpoint it enables.
+
 There is deliberately no `apply` command. Applying the patch, committing it and
 building a production host image remain explicit customer CI/CD decisions.
 

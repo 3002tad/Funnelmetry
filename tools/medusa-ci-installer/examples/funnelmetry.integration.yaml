@@ -9,7 +9,9 @@ source:
   id: medusa-reference
 
 ingest:
-  url: https://funnelmetry.example.com/v1/ingress/events
+  # The browser needs a public URL; the backend may use an internal URL.
+  browser_url: https://funnelmetry.example.com/v1/ingress/events
+  backend_url: https://funnelmetry.example.com/v1/ingress/events
 
 auth:
   source_key_id: medusa-reference-dev

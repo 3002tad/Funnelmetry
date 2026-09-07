@@ -12,7 +12,10 @@ const manifest = validateManifest({
   kind: "InputIntegration",
   host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
   source: { id: "medusa-reference" },
-  ingest: { url: "https://ingest.example.test/v1/ingress/events" },
+  ingest: {
+    browser_url: "https://browser-ingest.example.test/v1/ingress/events",
+    backend_url: "https://backend-ingest.example.test/v1/ingress/events",
+  },
   auth: {
     source_key_id: "medusa-reference-dev",
     browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY",
@@ -82,7 +85,8 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /track\("cart\.add_clicked"/)
   assert.match(plan.patch, /track\("checkout\.started"/)
   assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
-  assert.match(plan.patch, /endpoint: "https:\/\/ingest\.example\.test\/v1\/ingress\/events"/)
+  assert.match(plan.patch, /endpoint: "https:\/\/browser-ingest\.example\.test\/v1\/ingress\/events"/)
+  assert.match(plan.patch, /endpoint: "https:\/\/backend-ingest\.example\.test\/v1\/ingress\/events"/)
   assert.match(plan.patch, /process\.env\.NEXT_PUBLIC_FUNNELMETRY_BROWSER_WRITE_KEY/)
   assert.match(plan.patch, /process\.env\.FUNNELMETRY_BACKEND_SIGNING_KEY/)
   assert.doesNotMatch(plan.patch, /process\.env\[/)
@@ -97,7 +101,7 @@ test("manifest rejects a browser secret reference that looks like a secret value
     kind: "InputIntegration",
     host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
     source: { id: "medusa-reference" },
-    ingest: { url: "https://ingest.example.test" },
+    ingest: { browser_url: "https://ingest.example.test" },
     auth: { source_key_id: "source", browser_write_key_ref: "not-a-secret-reference" },
     frontend: { enabled: true, events: ["behavior.product_viewed"] },
     backend: { enabled: false },
@@ -110,7 +114,7 @@ test("manifest only accepts fail-open reliability settings", () => {
     kind: "InputIntegration",
     host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
     source: { id: "medusa-reference" },
-    ingest: { url: "https://ingest.example.test" },
+    ingest: { browser_url: "https://ingest.example.test" },
     auth: { source_key_id: "source", browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY" },
     frontend: { enabled: true, events: ["behavior.product_viewed"] },
     backend: { enabled: false },
@@ -126,6 +130,32 @@ test("planner emits a static Next.js public-key reference from the manifest", as
 
   assert.match(plan.patch, /process\.env\.NEXT_PUBLIC_FUNNELMETRY_ALT_BROWSER_WRITE_KEY/)
   assert.doesNotMatch(plan.patch, /process\.env\[/)
+})
+
+test("manifest requires only the endpoint used by each enabled binding", () => {
+  const browserOnly = validateManifest({
+    apiVersion: "funnelmetry.io/v1",
+    kind: "InputIntegration",
+    host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
+    source: { id: "medusa-reference" },
+    ingest: { browser_url: "https://browser-ingest.example.test" },
+    auth: { source_key_id: "source", browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY" },
+    frontend: { enabled: true, events: ["behavior.product_viewed"] },
+    backend: { enabled: false },
+  })
+  assert.equal(browserOnly.ingest.browserUrl, "https://browser-ingest.example.test")
+  assert.equal(browserOnly.ingest.backendUrl, undefined)
+
+  assert.throws(() => validateManifest({
+    apiVersion: "funnelmetry.io/v1",
+    kind: "InputIntegration",
+    host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
+    source: { id: "medusa-reference" },
+    ingest: { browser_url: "https://browser-ingest.example.test" },
+    auth: { source_key_id: "source", backend_signing_key_ref: "FUNNELMETRY_BACKEND_SIGNING_KEY" },
+    frontend: { enabled: false },
+    backend: { enabled: true, binding: "medusa.order_placed" },
+  }), /ingest\.backend_url is required/)
 })
 
 test("planner returns an empty patch when the exact generated binding already exists", async (t) => {

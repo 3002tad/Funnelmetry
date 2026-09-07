@@ -43,7 +43,7 @@ function configureGeneratedClient(content, manifest) {
   return content
     .replace(
       'endpoint: process.env.NEXT_PUBLIC_FUNNELMETRY_INGEST_URL ?? "",',
-      `endpoint: ${JSON.stringify(manifest.ingest.url)},`,
+      `endpoint: ${JSON.stringify(manifest.ingest.browserUrl)},`,
     )
     .replace(
       'writeKey: process.env.NEXT_PUBLIC_FUNNELMETRY_BROWSER_WRITE_KEY ?? "",',
@@ -57,7 +57,7 @@ function configureGeneratedSubscriber(content, manifest) {
   return content
     .replace(
       'endpoint: process.env.FUNNELMETRY_INGEST_URL ?? "",',
-      `endpoint: ${JSON.stringify(manifest.ingest.url)},`,
+      `endpoint: ${JSON.stringify(manifest.ingest.backendUrl)},`,
     )
     .replace(
       'signingKey: process.env.FUNNELMETRY_BACKEND_SIGNING_KEY ?? "",',
