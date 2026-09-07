@@ -154,6 +154,18 @@ export function createKafkaDurableIngress({
 
         let transaction
         let commitAttempted = false
+        // Keep this outside the abort/release handler: an ambiguous DB response
+        // or stale owner must not undo an authorization granted elsewhere.
+        if (ownerToken) {
+          try {
+            await receiptCoordinator.authorizeSend({
+              source_id: event.source_id, event_id: event.event_id, owner_token: ownerToken,
+            })
+          } catch (error) {
+            if (error.code === 'INGRESS_GENERATION_REVOKED') receiptIndex.markNotReady()
+            throw error
+          }
+        }
         try {
           transaction = await producer.transaction()
           await transaction.send({
@@ -176,7 +188,9 @@ export function createKafkaDurableIngress({
               source_id: event.source_id, event_id: event.event_id, owner_token: ownerToken,
             }).catch(() => {})
           }
-          if (commitAttempted || !aborted) receiptIndex.markNotReady()
+          const fenced = error.type === 'INVALID_PRODUCER_EPOCH' || error.type === 'PRODUCER_FENCED'
+            || error.code === 47 || error.code === 90
+          if (commitAttempted || !aborted || fenced) receiptIndex.markNotReady()
           throw error
         }
 

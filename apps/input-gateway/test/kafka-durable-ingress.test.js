@@ -147,6 +147,7 @@ test("uses a shared coordinator as the authority across gateway replicas", async
   let acceptedReceipt
   let ownerToken
   const coordinator = {
+    authorizeSend: async () => {},
     async claim({ receipt }) {
       if (acceptedReceipt) return { status: "duplicate", receipt: acceptedReceipt, owner_token: null }
       ownerToken = "gateway-1:claim-1"
@@ -184,6 +185,7 @@ test('PostgreSQL completion failure retains committed receipt and retry does not
   const producer = createProducer()
   const index = createReadyIndex()
   const coordinator = {
+    authorizeSend: async () => {},
     claim: async ({ receipt }) => ({ status: 'claimed', receipt, owner_token: 'owner' }),
     complete: async () => { throw new Error('database disconnected') },
     adopt: async ({ receipt }) => ({ status: 'duplicate', receipt }),
@@ -203,6 +205,7 @@ test('ambiguous Kafka commit never releases claim and stops further writes', asy
   let released = false
   const adapter = createKafkaDurableIngress({ producer, receiptIndex: createReadyIndex(),
     receiptCoordinator: {
+      authorizeSend: async () => {},
       claim: async ({ receipt }) => ({ status: 'claimed', receipt, owner_token: 'owner' }),
       release: async () => { released = true },
     }, rawTopic: 'raw', receiptTopic: 'receipts' })
@@ -211,6 +214,48 @@ test('ambiguous Kafka commit never releases claim and stops further writes', asy
   assert.equal(adapter.isReady(), false)
   await assert.rejects(adapter.accept(event, context), /not ready/)
   assert.equal(producer.transactions.length, 1)
+})
+
+test('stale or uncertain send authorization never opens Kafka or releases claim', async () => {
+  const producer = createProducer()
+  let released = false
+  const adapter = createKafkaDurableIngress({ producer, receiptIndex: createReadyIndex(),
+    receiptCoordinator: {
+      claim: async ({ receipt }) => ({ status: 'claimed', receipt, owner_token: 'stale' }),
+      authorizeSend: async () => { throw new Error('authorization denied or response lost') },
+      release: async () => { released = true },
+    }, rawTopic: 'raw', receiptTopic: 'receipts' })
+  await assert.rejects(adapter.accept(event, context), /authorization/)
+  assert.equal(producer.transactions.length, 0)
+  assert.equal(released, false)
+})
+
+test('fenced producer stays unready even when an empty transaction abort succeeds', async () => {
+  for (const error of [Object.assign(new Error('fenced'), { type: 'INVALID_PRODUCER_EPOCH' }),
+    Object.assign(new Error('fenced'), { code: 90 })]) {
+    let transactionCount = 0
+    const producer = { transaction: async () => {
+      transactionCount++
+      return { send: async () => { throw error }, abort: async () => {} }
+    } }
+    const { adapter } = createAdapter(producer)
+    await assert.rejects(adapter.accept(event, context), /fenced/)
+    assert.equal(adapter.isReady(), false)
+    await assert.rejects(adapter.accept(event, context), /not ready/)
+    assert.equal(transactionCount, 1)
+  }
+})
+
+test('revoked generation lowers readiness without opening a Kafka transaction', async () => {
+  const producer = createProducer()
+  const adapter = createKafkaDurableIngress({ producer, receiptIndex: createReadyIndex(),
+    receiptCoordinator: {
+      claim: async ({ receipt }) => ({ status: 'claimed', receipt, owner_token: 'old' }),
+      authorizeSend: async () => { throw Object.assign(new Error('revoked'), { code: 'INGRESS_GENERATION_REVOKED' }) },
+    }, rawTopic: 'raw', receiptTopic: 'receipts' })
+  await assert.rejects(adapter.accept(event, context), /revoked/)
+  assert.equal(adapter.isReady(), false)
+  assert.equal(producer.transactions.length, 0)
 })
 
 test('distinct events cannot overlap transactions on one producer', async () => {

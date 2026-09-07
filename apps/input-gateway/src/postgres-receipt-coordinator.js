@@ -31,8 +31,98 @@ export function createPostgresReceiptCoordinator({
   if (!pool || typeof pool.connect !== "function") throw new Error("PostgreSQL pool is required")
   if (typeof instanceId !== "string" || !instanceId.trim()) throw new Error("instanceId is required")
   if (!Number.isSafeInteger(leaseMs) || leaseMs <= 0) throw new Error("leaseMs must be a positive integer")
+  let producerIdentity
+  let registrationAttempted = false
 
   return Object.freeze({
+    async prepareProducerGeneration({ transactionalId, generationId }) {
+      if (![transactionalId, generationId].every(value => typeof value === 'string' && value.trim())) {
+        throw new Error('transactionalId and generationId are required')
+      }
+      if (registrationAttempted) throw new Error('create a new coordinator for a new generation startup')
+      registrationAttempted = true
+      await pool.query(
+        `INSERT INTO ingress_producer_generations (transactional_id,generation_id,phase)
+         VALUES ($1,$2,'INITIALIZING') ON CONFLICT (transactional_id) DO UPDATE
+         SET generation_id = EXCLUDED.generation_id, phase = 'INITIALIZING', updated_at = NOW()`,
+        [transactionalId, generationId],
+      )
+    },
+    async readyProducerGeneration() {
+      if (!producerIdentity) throw new Error('producer identity must be bound before ready')
+      const updated = await pool.query(
+        `UPDATE ingress_producer_generations SET phase = 'READY', updated_at = NOW()
+         WHERE transactional_id = $1 AND generation_id = $2 AND phase = 'INITIALIZING'
+         RETURNING generation_id`,
+        [producerIdentity.transactionalId, producerIdentity.generationId],
+      )
+      if (updated.rowCount !== 1) throw new Error('producer generation superseded during startup')
+    },
+    // Bound by runtime only after transactional initialization succeeds.
+    bindProducerIdentity({ transactionalId, generationId, kafkaScope = null }) {
+      if (![transactionalId, generationId].every(value => typeof value === 'string' && value.trim())) {
+        throw new Error('transactionalId and generationId are required')
+      }
+      if (kafkaScope !== null && !['clusterId', 'rawTopic', 'receiptTopic'].every(key =>
+        typeof kafkaScope[key] === 'string' && kafkaScope[key].trim())) {
+        throw new Error('complete Kafka recovery scope is required')
+      }
+      const scope = kafkaScope === null ? null : {
+        clusterId: kafkaScope.clusterId, rawTopic: kafkaScope.rawTopic, receiptTopic: kafkaScope.receiptTopic,
+      }
+      if (producerIdentity && (producerIdentity.transactionalId !== transactionalId
+        || producerIdentity.generationId !== generationId
+        || JSON.stringify(producerIdentity.kafkaScope) !== JSON.stringify(scope))) {
+        throw new Error('producer identity cannot change within one coordinator')
+      }
+      producerIdentity = Object.freeze({ transactionalId, generationId, kafkaScope: scope })
+    },
+    // Called only by startup after same-ID fencing and complete read_committed replay.
+    async recoverFencedClaims({ replayOffsets }) {
+      if (!producerIdentity?.kafkaScope) throw new Error('verified Kafka scope is required for recovery')
+      if (!Array.isArray(replayOffsets) || replayOffsets.length === 0
+        || !replayOffsets.every(row => Number.isSafeInteger(row.partition) && row.partition >= 0
+          && typeof row.offset === 'string' && /^\d+$/.test(row.offset))
+        || new Set(replayOffsets.map(row => row.partition)).size !== replayOffsets.length) {
+        throw new Error('valid replay barrier offsets are required')
+      }
+      const { transactionalId, generationId, kafkaScope } = producerIdentity
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        await client.query("SET LOCAL statement_timeout = '5s'")
+        const current = await client.query(
+          `SELECT 1 FROM ingress_producer_generations
+           WHERE transactional_id = $1 AND generation_id = $2 AND phase = 'INITIALIZING' FOR UPDATE`,
+          [transactionalId, generationId])
+        if (current.rowCount !== 1) throw new Error('recovery generation is no longer initializing')
+        const recovered = await client.query(
+          `WITH released AS (
+             UPDATE ingress_receipt_claims claim
+             SET owner_token = 'released', lease_expires_at = NOW(), updated_at = NOW()
+             FROM ingress_send_attempts attempt
+             WHERE claim.source_id = attempt.source_id AND claim.event_id = attempt.event_id
+               AND claim.owner_token = attempt.owner_token AND claim.ingestion_id = attempt.ingestion_id
+               AND claim.send_guard_owner_token = claim.owner_token AND claim.send_authorized = TRUE
+               AND claim.claim_state = 'CLAIMED' AND claim.event_fingerprint IS NOT NULL
+               AND attempt.transactional_id = $1 AND attempt.producer_generation_id <> $2
+               AND attempt.kafka_scope = $3::jsonb
+             RETURNING claim.source_id, claim.event_id, attempt.owner_token, claim.ingestion_id,
+                       attempt.producer_generation_id
+           )
+           INSERT INTO ingress_claim_recoveries
+             (source_id,event_id,owner_token,ingestion_id,transactional_id,previous_generation_id,
+              recovery_generation_id,kafka_scope,replay_offsets)
+           SELECT source_id,event_id,owner_token,ingestion_id,$1,producer_generation_id,$2,$3::jsonb,$4::jsonb
+           FROM released RETURNING event_id`,
+          [transactionalId, generationId, JSON.stringify(kafkaScope), JSON.stringify(replayOffsets)])
+        await client.query('COMMIT')
+        return { recovered: recovered.rowCount }
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {})
+        throw error
+      } finally { client.release() }
+    },
     // Only the read_committed receipt consumer may call this recovery path.
     async confirmReceipt(input) {
       const receipt = validateIngressReceipt(input)
@@ -86,14 +176,14 @@ export function createPostgresReceiptCoordinator({
         await client.query(
           `INSERT INTO ingress_receipt_claims (
              source_id, event_id, event_fingerprint, ingestion_id, receipt_document,
-             claim_state, owner_token, lease_expires_at
-           ) VALUES ($1,$2,$3,$4,$5::jsonb,'CLAIMED',$6,$7)
+             claim_state, owner_token, lease_expires_at, send_authorized, send_guard_owner_token
+           ) VALUES ($1,$2,$3,$4,$5::jsonb,'CLAIMED',$6,$7,FALSE,$6)
            ON CONFLICT (source_id, event_id) DO NOTHING`,
           [event.source_id, event.event_id, fingerprint, validatedReceipt.ingestion_id,
             JSON.stringify(validatedReceipt), ownerToken, leaseExpiresAt.toISOString()],
         )
         const selected = await client.query(
-          `SELECT * FROM ingress_receipt_claims
+          `SELECT *, lease_expires_at <= NOW() AS lease_expired FROM ingress_receipt_claims
             WHERE source_id = $1 AND event_id = $2 FOR UPDATE`,
           [event.source_id, event.event_id],
         )
@@ -114,15 +204,18 @@ export function createPostgresReceiptCoordinator({
           await client.query("COMMIT")
           return result("claimed", row, ownerToken)
         }
-        // Expiration cannot prove the previous Kafka transaction did not commit.
-        // Only an explicit release before commit was attempted permits another send.
-        if (row.owner_token !== 'released') {
+        // An expired lease is insufficient once send permission was granted.
+        // The owner-bound guard also excludes legacy writers without this protocol.
+        const recoverBeforeSend = row.send_authorized === false
+          && row.send_guard_owner_token === row.owner_token && row.lease_expired
+        if (row.owner_token !== 'released' && !recoverBeforeSend) {
           await client.query("COMMIT")
           return result("pending", row)
         }
         const takeover = await client.query(
           `UPDATE ingress_receipt_claims
-              SET owner_token = $3, lease_expires_at = $4, updated_at = NOW()
+              SET owner_token = $3, lease_expires_at = $4, updated_at = NOW(),
+                  send_authorized = FALSE, send_guard_owner_token = $3
             WHERE source_id = $1 AND event_id = $2
             RETURNING *`,
           [event.source_id, event.event_id, ownerToken, leaseExpiresAt.toISOString()],
@@ -134,6 +227,44 @@ export function createPostgresReceiptCoordinator({
         throw error
       } finally {
         client.release()
+      }
+    },
+
+    // Must succeed exactly once before opening a Kafka transaction. This UPDATE
+    // and claim takeover serialize on the same row, fencing a paused old owner.
+    async authorizeSend({ source_id: sourceId, event_id: eventId, owner_token: ownerToken }) {
+      if (!producerIdentity) throw new Error('producer identity must be bound before send authorization')
+      const updated = await pool.query(
+        `WITH active_generation AS (
+           SELECT generation_id FROM ingress_producer_generations
+           WHERE transactional_id = $4 AND generation_id = $5 AND phase = 'READY'
+           FOR SHARE
+         ), authorized AS (
+           UPDATE ingress_receipt_claims SET send_authorized = TRUE, updated_at = NOW()
+           WHERE source_id = $1 AND event_id = $2 AND owner_token = $3
+             AND send_guard_owner_token = $3 AND send_authorized = FALSE AND claim_state = 'CLAIMED'
+             AND EXISTS (SELECT 1 FROM active_generation)
+           RETURNING source_id, event_id, owner_token, ingestion_id
+         )
+         INSERT INTO ingress_send_attempts
+           (source_id,event_id,owner_token,ingestion_id,transactional_id,producer_generation_id,kafka_scope)
+         SELECT source_id,event_id,owner_token,ingestion_id,$4,$5,$6::jsonb FROM authorized
+         RETURNING ingestion_id`,
+        [sourceId, eventId, ownerToken, producerIdentity.transactionalId, producerIdentity.generationId,
+          producerIdentity.kafkaScope === null ? null : JSON.stringify(producerIdentity.kafkaScope)],
+      )
+      if (updated.rowCount !== 1) {
+        const active = await pool.query(
+          `SELECT 1 FROM ingress_producer_generations
+           WHERE transactional_id = $1 AND generation_id = $2 AND phase = 'READY'`,
+          [producerIdentity.transactionalId, producerIdentity.generationId],
+        )
+        if (active.rowCount === 0) {
+          const error = new Error('producer generation is not active')
+          error.code = 'INGRESS_GENERATION_REVOKED'
+          throw error
+        }
+        throw new Error("ingress send authorization denied")
       }
     },
 

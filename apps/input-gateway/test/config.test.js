@@ -59,3 +59,12 @@ test("rejects malformed credentials without exposing their value", () => {
     /^Error: INPUT_GATEWAY_BROWSER_KEYS_JSON must be valid JSON$/,
   )
 })
+
+test('fenced recovery is explicit and requires PostgreSQL', () => {
+  assert.equal(loadConfig(validEnv()).kafka.recoverFencedClaims, false)
+  assert.throws(() => loadConfig({ ...validEnv(), INPUT_GATEWAY_RECOVER_FENCED_CLAIMS: 'yes' }), /true or false/)
+  assert.throws(() => loadConfig({ ...validEnv(), INPUT_GATEWAY_RECOVER_FENCED_CLAIMS: 'true' }), /postgres/)
+  assert.equal(loadConfig({ ...validEnv(), INPUT_GATEWAY_RECOVER_FENCED_CLAIMS: 'true',
+    INPUT_GATEWAY_COORDINATION_MODE: 'postgres', INPUT_GATEWAY_DATABASE_URL: 'test',
+  }).kafka.recoverFencedClaims, true)
+})

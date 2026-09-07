@@ -58,6 +58,11 @@ function coordinationConfig(env) {
 }
 
 export function loadConfig(env = process.env) {
+  const recoveryValue = env.INPUT_GATEWAY_RECOVER_FENCED_CLAIMS?.trim() || 'false'
+  if (!['true', 'false'].includes(recoveryValue)) throw new Error('INPUT_GATEWAY_RECOVER_FENCED_CLAIMS must be true or false')
+  if (recoveryValue === 'true' && env.INPUT_GATEWAY_COORDINATION_MODE?.trim() !== 'postgres') {
+    throw new Error('fenced claim recovery requires postgres coordination')
+  }
   const instanceId = requiredString(env, "INPUT_GATEWAY_INSTANCE_ID")
   if (!/^[A-Za-z0-9._-]+$/.test(instanceId)) {
     throw new Error("INPUT_GATEWAY_INSTANCE_ID contains unsupported characters")
@@ -75,6 +80,7 @@ export function loadConfig(env = process.env) {
     backendKeys: credentialRegistry(env, "INPUT_GATEWAY_BACKEND_KEYS_JSON"),
     coordination: coordinationConfig(env),
     kafka: Object.freeze({
+      recoverFencedClaims: recoveryValue === 'true',
       brokers: Object.freeze(stringList(requiredString(env, "KAFKA_BOOTSTRAP_SERVERS"))),
       clientId: env.INPUT_GATEWAY_KAFKA_CLIENT_ID?.trim() || "funnelmetry-input-gateway",
       instanceId,
