@@ -40,6 +40,8 @@ test("materializes idempotent KPI facts and denominator-safe observed views", { 
       "008_late_conversion.sql", "009_matured_conversion.sql", "010_reconciliation_evidence.sql",
       "011_reconciliation_comparison.sql",
       "012_reconciliation_current_projection.sql",
+      "018_kpi_handoff_evidence.sql",
+      "018_kpi_handoff_evidence.sql",
     ]) {
       await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`, import.meta.url), "utf8"))
     }
@@ -100,6 +102,8 @@ test("materializes idempotent KPI facts and denominator-safe observed views", { 
       triggerEventId: "can_1", sourceId: "source-one", journeyId: "journey_1", instanceIds: ["funnel_1"],
     })
     assert.equal(duplicate.status, "duplicate")
+    assert.deepEqual(duplicate.changed_instances, first.changed_instances)
+    assert.equal(duplicate.applied_at, first.applied_at)
 
     await pool.query(
       `UPDATE funnel_instances SET outcome_status = 'CONVERTED', converted_at = '2026-08-29T01:00:02Z'
@@ -114,10 +118,20 @@ test("materializes idempotent KPI facts and denominator-safe observed views", { 
          '2026-08-29T01:00:02Z','2026-08-29T01:00:02Z',1,'IN_ORDER'
        )`,
     )
+    await pool.query('ALTER TABLE kpi_projection_applications ADD CONSTRAINT test_reject_evidence CHECK (changed_instance_count = 0) NOT VALID')
+    await assert.rejects(repository.project({ triggerEventId: 'can_2', sourceId: 'source-one',
+      journeyId: 'journey_1', instanceIds: ['funnel_1'] }), { code: '23514' })
+    assert.equal((await pool.query('SELECT projection_revision FROM funnel_kpi_instance_facts')).rows[0].projection_revision, '1')
+    assert.equal((await pool.query('SELECT COUNT(*)::int AS count FROM kpi_projection_applications')).rows[0].count, 1)
+    await pool.query('ALTER TABLE kpi_projection_applications DROP CONSTRAINT test_reject_evidence')
     const converted = await repository.project({
       triggerEventId: "can_2", sourceId: "source-one", journeyId: "journey_1", instanceIds: ["funnel_1"],
     })
     assert.equal(converted.changed_instances[0].projection_revision, 2)
+    const replayOld = await repository.project({
+      triggerEventId: "can_1", sourceId: "source-one", journeyId: "journey_1", instanceIds: ["funnel_1"],
+    })
+    assert.deepEqual(replayOld.changed_instances, first.changed_instances)
     const unchanged = await repository.project({
       triggerEventId: "can_3", sourceId: "source-one", journeyId: "journey_1", instanceIds: ["funnel_1"],
     })
@@ -141,6 +155,11 @@ test("materializes idempotent KPI facts and denominator-safe observed views", { 
     assert.equal(fact.rows[0].projection_revision, "2")
     assert.equal(fact.rows[0].latest_projection_kind, "CANONICAL_EVENT")
     assert.equal(fact.rows[0].latest_projection_id, "can_2")
+    await pool.query("UPDATE kpi_projection_applications SET changed_instances = NULL WHERE trigger_event_id IN ('can_1','can_3')")
+    await assert.rejects(repository.project({ triggerEventId: 'can_1', sourceId: 'source-one',
+      journeyId: 'journey_1', instanceIds: ['funnel_1'] }), /Historical KPI handoff evidence/)
+    assert.deepEqual((await repository.project({ triggerEventId: 'can_3', sourceId: 'source-one',
+      journeyId: 'journey_1', instanceIds: ['funnel_1'] })).changed_instances, [])
   } finally {
     await pool.end()
     await admin.query(`DROP SCHEMA ${schema} CASCADE`)

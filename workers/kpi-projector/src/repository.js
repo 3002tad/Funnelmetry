@@ -18,7 +18,7 @@ export function createKpiRepository({ pool, now = () => new Date().toISOString()
       try {
         await client.query("BEGIN")
         const existing = await client.query(
-          `SELECT journey_id, source_id, changed_instance_count, applied_at
+          `SELECT journey_id, source_id, changed_instance_count, changed_instances, applied_at
              FROM kpi_projection_applications WHERE trigger_event_id = $1`,
           [triggerEventId],
         )
@@ -26,10 +26,14 @@ export function createKpiRepository({ pool, now = () => new Date().toISOString()
           if (existing.rows[0].source_id !== sourceId || existing.rows[0].journey_id !== journeyId) {
             throw new Error("KPI trigger event was already applied to a different scope")
           }
+          const changes = existing.rows[0].changed_instances
+          if (changes === null && existing.rows[0].changed_instance_count > 0) {
+            throw new Error('Historical KPI handoff evidence is unavailable; refusing to acknowledge an incomplete handoff')
+          }
           await client.query("COMMIT")
           return Object.freeze({
             status: "duplicate", trigger_event_id: triggerEventId, source_id: sourceId, journey_id: journeyId,
-            changed_instances: Object.freeze([]), applied_at: iso(existing.rows[0].applied_at),
+            changed_instances: Object.freeze(changes ?? []), applied_at: iso(existing.rows[0].applied_at),
           })
         }
 
@@ -119,9 +123,9 @@ export function createKpiRepository({ pool, now = () => new Date().toISOString()
         const appliedAt = now()
         await client.query(
           `INSERT INTO kpi_projection_applications (
-             trigger_event_id, journey_id, source_id, changed_instance_count, applied_at
-           ) VALUES ($1,$2,$3,$4,$5)`,
-          [triggerEventId, journeyId, sourceId, changedInstances.length, appliedAt],
+             trigger_event_id, journey_id, source_id, changed_instance_count, applied_at, changed_instances
+           ) VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
+          [triggerEventId, journeyId, sourceId, changedInstances.length, appliedAt, JSON.stringify(changedInstances)],
         )
         await client.query("COMMIT")
         return Object.freeze({
