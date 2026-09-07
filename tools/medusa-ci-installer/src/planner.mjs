@@ -138,6 +138,17 @@ function requireMarker(content, marker, file) {
   }
 }
 
+function hasFunnelmetryAlias(content, file) {
+  let tsConfig
+  try {
+    tsConfig = JSON.parse(content)
+  } catch {
+    throw new Error(`Pinned Medusa layout has invalid JSON in ${file}`)
+  }
+  const alias = tsConfig.compilerOptions?.paths?.["@funnelmetry/*"]
+  return Array.isArray(alias) && alias.length === 1 && alias[0] === "funnelmetry/*"
+}
+
 function sourceFingerprint(originals) {
   const fingerprint = createHash("sha256")
   for (const relativePath of Object.keys(originals).sort()) {
@@ -169,7 +180,9 @@ async function existingIntegration(projectRoot, originals, manifest) {
     if (!packageHasDependency(originals[paths.storefrontPackage], "@funnelmetry/browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) {
       throw new Error("Existing Funnelmetry browser integration has an unexpected package version")
     }
-    requireMarker(originals[paths.storefrontTsConfig], '"@funnelmetry/*": ["funnelmetry/*"]', paths.storefrontTsConfig)
+    if (!hasFunnelmetryAlias(originals[paths.storefrontTsConfig], paths.storefrontTsConfig)) {
+      throw new Error(`Existing Funnelmetry integration is incomplete or has drifted in ${paths.storefrontTsConfig}`)
+    }
     requireMarker(originals[paths.storefrontLayout], 'import { FunnelmetryBootstrap } from "@funnelmetry/client"', paths.storefrontLayout)
     requireMarker(originals[paths.storefrontLayout], "<FunnelmetryBootstrap />", paths.storefrontLayout)
     requireMarker(originals[paths.productPage], 'import { FunnelmetryProductViewed } from "@funnelmetry/client"', paths.productPage)

@@ -178,6 +178,8 @@ test("planner returns an empty patch when the exact generated binding already ex
 
     assert.deepEqual(rerun.changes, [])
     assert.equal(rerun.patch, "")
+    const tsConfig = JSON.parse(await readFile(path.join(temporaryRoot, "apps/storefront/tsconfig.json"), "utf8"))
+    assert.deepEqual(tsConfig.compilerOptions.paths["@funnelmetry/*"], ["funnelmetry/*"])
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true })
   }
