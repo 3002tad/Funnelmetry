@@ -32,6 +32,14 @@ function secretReference(value, name) {
   return reference
 }
 
+function ingressUrl(value, name) {
+  const raw = requiredString(value, name)
+  let parsed
+  try { parsed = new URL(raw) } catch { throw new Error(`${name} must be an absolute HTTP(S) URL`) }
+  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error(`${name} must use HTTP(S)`)
+  return parsed.toString().replace(/\/$/, "")
+}
+
 export function validateManifest(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Manifest root must be a mapping")
   if (raw.apiVersion !== "funnelmetry.io/v1") throw new Error("apiVersion must be funnelmetry.io/v1")
@@ -44,12 +52,6 @@ export function validateManifest(raw) {
   const source = raw.source ?? {}
   const sourceId = requiredString(source.id, "source.id")
   if (!/^[a-z0-9][a-z0-9-]{2,62}$/.test(sourceId)) throw new Error("source.id must be lowercase kebab-case")
-
-  const ingest = raw.ingest ?? {}
-  const ingestUrl = requiredString(ingest.url, "ingest.url")
-  let parsedUrl
-  try { parsedUrl = new URL(ingestUrl) } catch { throw new Error("ingest.url must be an absolute HTTP(S) URL") }
-  if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error("ingest.url must use HTTP(S)")
 
   const auth = raw.auth ?? {}
   const sourceKeyId = requiredString(auth.source_key_id, "auth.source_key_id")
@@ -66,7 +68,7 @@ export function validateManifest(raw) {
     kind: raw.kind,
     host: { type: host.type, medusaVersion },
     source: { id: sourceId },
-    ingest: { url: parsedUrl.toString().replace(/\/$/, "") },
+    ingest: {},
     auth: { sourceKeyId },
     frontend: { enabled: frontendEnabled, events: [] },
     backend: { enabled: backendEnabled, binding: null },
@@ -84,6 +86,7 @@ export function validateManifest(raw) {
   }
 
   if (frontendEnabled) {
+    normalized.ingest.browserUrl = ingressUrl(raw.ingest?.browser_url, "ingest.browser_url")
     normalized.auth.browserWriteKeyRef = secretReference(auth.browser_write_key_ref, "auth.browser_write_key_ref")
     const events = frontend.events
     if (!Array.isArray(events) || events.length === 0) throw new Error("frontend.events must be a non-empty list")
@@ -94,6 +97,7 @@ export function validateManifest(raw) {
   }
 
   if (backendEnabled) {
+    normalized.ingest.backendUrl = ingressUrl(raw.ingest?.backend_url, "ingest.backend_url")
     normalized.auth.backendSigningKeyRef = secretReference(auth.backend_signing_key_ref, "auth.backend_signing_key_ref")
     if (backend.binding !== "medusa.order_placed") throw new Error("backend.binding must be medusa.order_placed")
     normalized.backend.binding = backend.binding

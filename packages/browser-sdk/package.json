@@ -1,14 +1,27 @@
 {
-  "name": "@funnelmetry/browser-sdk",
+  "name": "@3002tad/funnelmetry-browser-sdk",
   "version": "0.1.0",
-  "private": true,
+  "license": "UNLICENSED",
   "type": "module",
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/3002tad/Funnelmetry.git",
+    "directory": "packages/browser-sdk"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
+  },
   "exports": {
     ".": "./src/index.js"
   },
   "types": "./src/index.d.ts",
   "dependencies": {
-    "@funnelmetry/input-contract": "0.1.0"
+    "@3002tad/funnelmetry-input-contract": "0.1.0"
   },
   "scripts": {
     "test": "node --test test/*.test.js"

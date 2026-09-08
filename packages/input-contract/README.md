@@ -1,4 +1,4 @@
-# @funnelmetry/input-contract
+# @3002tad/funnelmetry-input-contract
 
 Contract machine-readable cho boundary `source → Raw Durable Ingress`.
 

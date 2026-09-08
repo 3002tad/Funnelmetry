@@ -8,8 +8,8 @@ the source checkout:
 - `integration-plan.json`: host/capability report and ownership list.
 - `integration.patch`: a PR-ready patch for the generated Browser SDK hooks and
   Medusa `order.placed` subscriber. Patch chỉ thêm host binding mỏng và hai
-  dependency đã pin: `@funnelmetry/browser-sdk` và
-  `@funnelmetry/backend-integration-kit`; nó không chép runtime SDK/forwarder vào
+  dependency đã pin: `@3002tad/funnelmetry-browser-sdk` và
+  `@3002tad/funnelmetry-backend-integration-kit`; nó không chép runtime SDK/forwarder vào
   source Medusa.
 
 Browser hooks emit only `behavior.product_viewed`, `cart.add_clicked` and `checkout.started` as
@@ -17,6 +17,10 @@ Browser hooks emit only `behavior.product_viewed`, `cart.add_clicked` and `check
 Normalizer mapping owns the conservative conversion to `order.created` as `BUSINESS_FACT`. The plan
 reports persisted cart-item and accepted-order capabilities as `NOT_SUPPORTED`, so this first input
 demo remains `IN_PROGRESS` and is not evidence of Commerce Conversion 4/4.
+
+`ingest.browser_url` is the URL embedded in the Browser SDK and must be reachable from the
+storefront user's browser. `ingest.backend_url` is embedded in the Medusa subscriber and may be
+an internal/container-reachable URL. A binding only requires the endpoint it enables.
 
 There is deliberately no `apply` command. Applying the patch, committing it and
 building a production host image remain explicit customer CI/CD decisions.

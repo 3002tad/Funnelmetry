@@ -799,3 +799,17 @@ Các mô tả takeover/fingerprint và xác nhận E2E bên dưới được tha
   Lượt này không thêm tính năng hoặc thay production code; chỉ kiểm chứng và ghi kết quả.
   Dừng riêng stack E2E, giữ volume evidence. Chưa migrate runtime, commit/push hoặc triển khai;
   chưa claim mọi cửa sổ crash/network partition. AI/Medusa không thay đổi.
+
+## 50. Merge integration package updates from origin/main (2026-09-08)
+
+- Hợp nhất origin/main tới 97cbef6, giữ các commit backend local. Có một conflict import trong
+  apps/input-gateway/src/kafka-runtime.js: giữ default import KafkaJS (ConfigResourceTypes),
+  đồng thời dùng tên package mới @3002tad/funnelmetry-input-contract. Không bỏ recovery logic.
+- Build tất cả image backend từ lockfile sau merge thành công. Installer test 6/6 PASS;
+  package workspace test PASS. Gateway 50 PASS/1 skip, Normalizer 14 PASS, Telemetry 13 PASS,
+  KPI 9 PASS/1 skip. Hai bài Kafka crash process dài không chạy lại ở lượt merge này.
+- E2E PASS: ordered/reverse-arrival CONVERTED 4/4; 24 concurrent retries giữ raw/analytics;
+  telemetry accepted=14, terminal=14, normalized=13, unsupported=1.
+  Ordered run bf785af6-445f-4ede-a5e1-3fcc40b0c174.
+- Chỉ dùng project E2E riêng; không kiểm thử publish thực tế lên GitHub Packages, GitHub Actions
+  hoặc cài vào Medusa đang chạy. Không push. Stack test dừng, volume giữ nguyên.

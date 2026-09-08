@@ -1,5 +1,5 @@
 import { validateCanonicalizationOutcome } from "@funnelmetry/canonical-contract"
-import { validateIngressReceipt } from "@funnelmetry/input-contract"
+import { validateIngressReceipt } from "@3002tad/funnelmetry-input-contract"
 
 export class IngressTelemetryConflictError extends Error {
   constructor(kind, identity) {

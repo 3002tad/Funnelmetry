@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { validateIngressEvent } from "@funnelmetry/input-contract"
+import { validateIngressEvent } from "@3002tad/funnelmetry-input-contract"
 import {
   CANONICAL_EVENT_SPEC_VERSION,
   validateCanonicalEvent,

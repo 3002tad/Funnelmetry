@@ -1,4 +1,4 @@
-# @funnelmetry/browser-sdk
+# @3002tad/funnelmetry-browser-sdk
 
 Browser runtime dùng chung cho các host binding JavaScript/TypeScript.
 

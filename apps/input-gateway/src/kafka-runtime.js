@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import kafkaJs from "kafkajs"
-import { validateIngressReceipt } from "@funnelmetry/input-contract"
+import { validateIngressReceipt } from "@3002tad/funnelmetry-input-contract"
 import { createKafkaDurableIngress, createReceiptIndex } from "./kafka-durable-ingress.js"
 
 const { Kafka, logLevel, Partitioners, ConfigResourceTypes } = kafkaJs

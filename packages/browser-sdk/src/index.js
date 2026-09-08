@@ -1,4 +1,4 @@
-import { createIngressEvent, INGRESS_EVENT_SPEC_VERSION, validateIngressReceipt } from "@funnelmetry/input-contract"
+import { createIngressEvent, INGRESS_EVENT_SPEC_VERSION, validateIngressReceipt } from "@3002tad/funnelmetry-input-contract"
 
 function requiredString(value, name) {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} is required`)
