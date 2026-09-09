@@ -1,97 +1,70 @@
-import { Router } from "express";
-import { query } from "../db.js";
-import { hashPassword } from "../lib/password.js";
-export const usersRouter = Router();
+import { Router } from 'express'
+import { randomUUID } from 'node:crypto'
+import { query, transaction } from '../db.js'
+import { hashPassword } from '../lib/password.js'
+import { ASSIGNABLE_ROLES } from '../lib/roles.js'
+import { accountError, mutateAccount } from '../lib/account-mutation.js'
 
-const ROLES = ["super_admin", "analyst"];
-
-usersRouter.get("/api/users", async (_req, res) => {
-  try {
-    const rows = await query(
-      `SELECT id, email, display_name, role, is_active, last_login_at, created_at, updated_at
-       FROM dashboard_users ORDER BY created_at DESC`
-    );
-    res.json({ users: rows });
-  } catch (err) {
-    console.error("GET /api/users", err.message);
-    res.status(500).json({ error: "query_failed" });
-  }
-});
-
-usersRouter.post("/api/users", async (req, res) => {
-  const { email, password, display_name, role } = req.body || {};
-  if (!email || !password) {
-    return res.status(400).json({ error: "missing_fields", fields: ["email", "password"] });
-  }
-  if (role && !ROLES.includes(role)) {
-    return res.status(400).json({ error: "invalid_role" });
-  }
-  try {
-    const hash = await hashPassword(password);
-    const [row] = await query(
-      `INSERT INTO dashboard_users (email, password_hash, display_name, role)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, email, display_name, role, is_active, created_at`,
-      [email.trim().toLowerCase(), hash, display_name || null, role || "analyst"]
-    );
-    res.status(201).json({ user: row });
-  } catch (err) {
-    if (err.code === "23505") return res.status(409).json({ error: "email_exists" });
-    console.error("POST /api/users", err.message);
-    res.status(500).json({ error: "create_failed" });
-  }
-});
-
-usersRouter.patch("/api/users/:id", async (req, res) => {
-  const { display_name, role, is_active, password } = req.body || {};
-  if (role && !ROLES.includes(role)) {
-    return res.status(400).json({ error: "invalid_role" });
-  }
-  try {
-    if (password) {
-      const hash = await hashPassword(password);
-      await query(
-        `UPDATE dashboard_users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-        [hash, req.params.id]
-      );
+const publicFields = 'id, email, display_name, role, is_active, last_login_at, created_at, updated_at'
+function failure(res, error) {
+  if (error.code === '23505') return res.status(409).json({ error: 'email_exists' })
+  return res.status(error.status ?? 500).json({ error: error.status ? error.message : 'account_mutation_failed' })
+}
+export function createUsersRouter(execute = query, run = transaction) {
+  const router = Router()
+  router.get('/api/users', async (_req, res) => {
+    try { res.json({ users: await execute(`SELECT ${publicFields} FROM dashboard_users ORDER BY created_at DESC`) }) }
+    catch { res.status(500).json({ error: 'query_failed' }) }
+  })
+  router.post('/api/users', async (req, res) => {
+    const { email, password, display_name, role = 'analyst' } = req.body ?? {}
+    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      || typeof password !== 'string' || password.length < 12
+      || (display_name != null && (typeof display_name !== 'string' || display_name.length > 100))) {
+      return res.status(400).json({ error: 'invalid_account' })
     }
-    const [row] = await query(
-      `UPDATE dashboard_users SET
-         display_name = COALESCE($1, display_name),
-         role = COALESCE($2, role),
-         is_active = COALESCE($3, is_active),
-         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4
-       RETURNING id, email, display_name, role, is_active, last_login_at, updated_at`,
-      [
-        display_name ?? null,
-        role ?? null,
-        is_active ?? null,
-        req.params.id,
-      ]
-    );
-    if (!row) return res.status(404).json({ error: "not_found" });
-    res.json({ user: row });
-  } catch (err) {
-    console.error("PATCH /api/users/:id", err.message);
-    res.status(500).json({ error: "update_failed" });
+    if (!ASSIGNABLE_ROLES.includes(role)) return res.status(400).json({ error: 'invalid_role' })
+    try {
+      const id = randomUUID(), hash = await hashPassword(password)
+      const user = await mutateAccount(req.user, id, 'account.created', async sql => {
+        const [user] = await sql(`INSERT INTO dashboard_users(id,email,password_hash,display_name,role)
+          VALUES ($1,$2,$3,$4,$5) RETURNING ${publicFields}`, [id, email.trim().toLowerCase(), hash, display_name ?? null, role])
+        return { user, changes: { role, is_active: true } }
+      }, run)
+      res.status(201).json({ user })
+    } catch (error) { failure(res, error) }
+  })
+  async function update(req, res, disable = false) {
+    const { display_name, role, is_active, password } = disable ? { is_active: false } : req.body ?? {}
+    if (req.params.id === req.user.id && (role !== undefined || is_active !== undefined)) {
+      return res.status(400).json({ error: 'cannot_change_own_access' })
+    }
+    if ((role !== undefined && !ASSIGNABLE_ROLES.includes(role))
+      || (is_active !== undefined && typeof is_active !== 'boolean')
+      || (password !== undefined && (typeof password !== 'string' || password.length < 12))
+      || (display_name !== undefined && (typeof display_name !== 'string' || display_name.length > 100))) {
+      return res.status(400).json({ error: 'invalid_account_update' })
+    }
+    try {
+      const hash = password === undefined ? null : await hashPassword(password)
+      const user = await mutateAccount(req.user, req.params.id, disable ? 'account.disabled' : 'account.updated', async sql => {
+        const [before] = await sql(`SELECT ${publicFields} FROM dashboard_users WHERE id=$1`, [req.params.id])
+        if (!before) throw accountError(404, 'not_found')
+        const [user] = await sql(`UPDATE dashboard_users SET display_name=COALESCE($1,display_name),
+          role=COALESCE($2,role), is_active=COALESCE($3,is_active), password_hash=COALESCE($4,password_hash),
+          updated_at=CURRENT_TIMESTAMP WHERE id=$5 RETURNING ${publicFields}`,
+        [display_name ?? null, role ?? null, is_active ?? null, hash, req.params.id])
+        const changes = { password_changed: hash !== null }
+        for (const field of ['display_name', 'role', 'is_active']) {
+          if (before[field] !== user[field]) changes[field] = { before: before[field], after: user[field] }
+        }
+        return { user, changes }
+      }, run)
+      res.json(disable ? { ok: true } : { user })
+    } catch (error) { failure(res, error) }
   }
-});
-
-usersRouter.delete("/api/users/:id", async (req, res) => {
-  if (req.params.id === req.user.id) {
-    return res.status(400).json({ error: "cannot_disable_self" });
-  }
-  try {
-    const [row] = await query(
-      `UPDATE dashboard_users SET is_active = false, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 RETURNING id`,
-      [req.params.id]
-    );
-    if (!row) return res.status(404).json({ error: "not_found" });
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("DELETE /api/users/:id", err.message);
-    res.status(500).json({ error: "delete_failed" });
-  }
-});
+  router.patch('/api/users/:id', (req, res) => update(req, res))
+  router.delete('/api/users/:id', (req, res) => update(req, res, true))
+  return router
+}
+export const usersRouter = createUsersRouter()

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { query } from "../db.js";
 import { verifyToken } from "../lib/jwt.js";
 import { eventBus } from "../lib/event-bus.js";
+import { attachGuardedSse } from '../lib/guarded-sse.js';
 
 export const eventsRouter = Router();
 
@@ -40,10 +41,12 @@ eventsRouter.get("/api/events/recent", async (req, res) => {
  */
 eventsRouter.get("/api/events/stream", (req, res) => {
   // Auth: query param token (EventSource can't set Authorization header).
-  const token = req.query.token;
+  const token = req.headers.authorization?.startsWith('Bearer ')
+    ? req.headers.authorization.slice(7) : req.query.token;
   if (!token) return res.status(401).json({ error: "unauthorized" });
+  let claims;
   try {
-    verifyToken(token);
+    claims = verifyToken(token);
   } catch {
     return res.status(401).json({ error: "invalid_token" });
   }
@@ -54,22 +57,5 @@ eventsRouter.get("/api/events/stream", (req, res) => {
   res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering
   res.flushHeaders();
 
-  function send(eventName, payload) {
-    res.write(`event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`);
-  }
-
-  function onEvents(rows) { send("events", rows); }
-  function onKpi() { send("kpi", {}); }
-
-  eventBus.on("events", onEvents);
-  eventBus.on("kpi", onKpi);
-
-  // Keepalive every 15s to prevent proxy/browser from closing idle connection.
-  const ping = setInterval(() => send("ping", { ts: new Date().toISOString() }), 15000);
-
-  req.on("close", () => {
-    eventBus.off("events", onEvents);
-    eventBus.off("kpi", onKpi);
-    clearInterval(ping);
-  });
+  attachGuardedSse({ req, res, bus: eventBus, claims, execute: query });
 });

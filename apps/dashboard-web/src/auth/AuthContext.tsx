@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { apiRequest, dashboardApiUrl, TOKEN_KEY, USER_KEY } from "../lib/api"
 
-type User = { id: string; email: string; display_name: string; role: string }
+type User = { id: string; email: string; display_name: string; role: string; permissions?: string[] }
 type AuthValue = {
   token: string | null
   user: User | null

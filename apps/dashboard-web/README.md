@@ -1,5 +1,19 @@
 # Funnelmetry dashboard web
 
+## Admin baseline
+
+Login/me trả capability bundles từ backend. Admin được đưa tới `/admin/pipeline`, analyst tới
+`/overview`; route guard và menu dựa trên permissions. Không tự cấp analytics.read cho System Admin.
+Đăng xuất/đăng nhập lại nếu client cũ chưa nhận permissions.
+
+- `/admin/users`: liệt kê, tạo tài khoản, đổi role, khóa/mở khóa; hiển thị quyền của hai role hiện có.
+- `/admin/pipeline`: số liệu PostgreSQL V2 theo source, tự refresh 15 giây. Trạng thái runtime luôn
+  UNVERIFIED vì chưa đo worker liveness/Kafka lag. Đây không phải health check toàn hệ thống.
+- Settings vẫn là thiết lập cá nhân, không phải System Settings.
+
+Đây là bước đầu của Master §17/§23.5, chưa đủ năm role, custom permission editor, audit log,
+Integrations/Schemas/Mappings hoặc DLQ replay UI. Không có thay đổi Medusa/AI.
+
 Frontend V2 của Funnelmetry. Các màn hình `Overview`, `Funnels`, `Journeys`, `Events` và `Data Health`
 đọc dữ liệu thật từ Dashboard API V2; các màn hình còn lại vẫn là UI demo trong giai đoạn chuyển đổi.
 

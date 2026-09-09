@@ -2,6 +2,7 @@ import pg from "pg";
 import { config } from "./config.js";
 
 const pool = new pg.Pool(config.db);
+export const closeDatabase = () => pool.end();
 
 pool.on("error", (err) => {
   console.error("postgres pool error", err.message);
@@ -10,4 +11,19 @@ pool.on("error", (err) => {
 export async function query(sql, params = []) {
   const { rows } = await pool.query(sql, params);
   return rows;
+}
+
+export async function transaction(work) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SET LOCAL lock_timeout = '5s'");
+    await client.query("SET LOCAL statement_timeout = '15s'");
+    const result = await work(async (sql, params = []) => (await client.query(sql, params)).rows);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
 }

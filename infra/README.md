@@ -2,6 +2,46 @@
 
 ## V2 end-to-end stack
 
+### Medusa reference key registry (SYNC-001)
+
+`compose.v2.yml` keeps `e2e-browser` / `e2e-backend` for the isolated smoke runner.
+For real Medusa input, add `-f infra/compose.medusa.yml` after the base file. This
+override replaces both registries; it does not reuse the E2E credentials.
+
+Supply these environment variables to Compose through your local secret mechanism:
+
+- `MEDUSA_GATEWAY_BROWSER_KEYS_JSON`: JSON object with key `medusa-reference-dev`,
+  value `{ "source_id": "medusa-reference", "secret": "<browser-write-key>" }`.
+- `MEDUSA_GATEWAY_BACKEND_KEYS_JSON`: JSON object with the same key ID and source,
+  but `secret` set to a separate backend HMAC signing key.
+
+The placeholders above are not usable credentials. Use a JSON serializer when
+constructing registries so special characters in credential values are escaped.
+The browser value must match storefront `NEXT_PUBLIC_FUNNELMETRY_BROWSER_WRITE_KEY`;
+the backend value must match backend runtime `FUNNELMETRY_BACKEND_SIGNING_KEY`.
+Browser write keys are public/write-only; backend signing keys are privileged.
+Do not commit either registry containing actual credentials or print rendered Compose
+configuration/logs containing them. Runtime environment values are visible to Docker
+administrators; this local override is not a production secret-store integration.
+
+Validate without printing interpolated values, from the repository root:
+
+```powershell
+docker compose -f infra/compose.v2.yml -f infra/compose.medusa.yml config --quiet
+```
+
+Missing/empty registry variables fail configuration; malformed JSON fails Gateway
+startup. After credentials and the remaining Medusa activation steps are ready,
+use the same two `-f` arguments for `up -d --build`. Do not run the default
+`e2e-smoke` against these replaced registries: it deliberately uses E2E-only IDs.
+Run the original smoke stack separately with its original base configuration.
+
+This override and the Gateway regression tests do not prove a live Medusa handoff.
+SYNC-001 remains OPEN until valid browser/backend requests are checked on the
+configured runtime, with invalid key/source requests rejected before handoff.
+
+### Isolated pipeline smoke stack
+
 The supported local vertical slice uses Docker Compose and is isolated from `infra/.env`:
 
 ```powershell

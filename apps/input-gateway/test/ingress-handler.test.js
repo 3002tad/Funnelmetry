@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { createHmac } from "node:crypto"
 import test from "node:test"
 import { createIngressHandler } from "../src/index.js"
+import { loadConfig } from "../src/config.js"
 
 const receivedAt = "2026-08-27T03:00:00.000Z"
 const baseEvent = {
@@ -15,6 +16,63 @@ const baseEvent = {
   anonymous_id: "anon-1",
   session_id: "session-1",
   source_payload: { product_id: "prod_1" },
+}
+
+for (const producer of ["browser_sdk", "source_bridge"]) {
+  test(`Medusa shared key ID uses isolated credentials for ${producer}`, async () => {
+    const keyId = "medusa-reference-dev"
+    const browserSecret = "test-only-public-write-key"
+    const backendSecret = "test-only-private-signing-key"
+    const config = loadConfig({
+      INPUT_GATEWAY_INSTANCE_ID: "medusa-test",
+      INPUT_GATEWAY_BROWSER_KEYS_JSON: JSON.stringify({
+        [keyId]: { source_id: "medusa-reference", secret: browserSecret },
+      }),
+      INPUT_GATEWAY_BACKEND_KEYS_JSON: JSON.stringify({
+        [keyId]: { source_id: "medusa-reference", secret: backendSecret },
+      }),
+      KAFKA_BOOTSTRAP_SERVERS: "unused:9092",
+      KAFKA_TOPIC_RAW: "test.raw",
+      KAFKA_TOPIC_INGRESS_RECEIPTS: "test.receipts",
+    })
+    const durable = createDurableFake()
+    const handle = createHandler(durable, config)
+    const event = { ...baseEvent, producer,
+      source_event_type: producer === "browser_sdk" ? "behavior.product_viewed" : "medusa.order_placed" }
+    const validSecret = producer === "browser_sdk" ? browserSecret : backendSecret
+    const otherSecret = producer === "browser_sdk" ? backendSecret : browserSecret
+    function request(payload = event, secret = validSecret, id = keyId) {
+      const body = JSON.stringify(payload)
+      const headers = { "x-funnelmetry-source-key-id": id }
+      if (producer === "browser_sdk") headers["x-funnelmetry-write-key"] = secret
+      else Object.assign(headers, {
+        "x-funnelmetry-timestamp": receivedAt,
+        "x-funnelmetry-request-id": "medusa-test-request",
+        "x-funnelmetry-signature": createHmac("sha256", secret)
+          .update(`${receivedAt}.${body}`).digest("hex"),
+      })
+      return { headers, body }
+    }
+    for (const [input, reason] of [
+      [request(event, validSecret, "unknown"), "source_key_unknown"],
+      [request(event, validSecret, "e2e-browser"), "source_key_unknown"],
+      [request(event, validSecret, "e2e-backend"), "source_key_unknown"],
+      [request({ ...event, source_id: "another-source" }), "source_key_mismatch"],
+      [request(event, otherSecret), producer === "browser_sdk" ? "write_key_invalid" : "signature_invalid"],
+    ]) {
+      const result = await handle(input)
+      assert.equal(result.httpStatus, 401)
+      assert.equal(result.body.reason_code, reason)
+      assert.equal(durable.calls.length, 0)
+    }
+    const accepted = await handle(request())
+    assert.equal(accepted.httpStatus, 202)
+    assert.equal(durable.calls.length, 1)
+    assert.equal(durable.calls[0].context.auth.key_id, keyId)
+    const duplicate = await handle(request())
+    assert.equal(duplicate.httpStatus, 200)
+    assert.equal(duplicate.body.ingestion_id, accepted.body.ingestion_id)
+  })
 }
 
 function createDurableFake() {

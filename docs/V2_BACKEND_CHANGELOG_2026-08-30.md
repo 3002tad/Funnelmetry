@@ -813,3 +813,17 @@ Các mô tả takeover/fingerprint và xác nhận E2E bên dưới được tha
   Ordered run bf785af6-445f-4ede-a5e1-3fcc40b0c174.
 - Chỉ dùng project E2E riêng; không kiểm thử publish thực tế lên GitHub Packages, GitHub Actions
   hoặc cài vào Medusa đang chạy. Không push. Stack test dừng, volume giữ nguyên.
+
+## 51. Initial admin navigation, accounts and V2 evidence page (2026-09-08)
+
+- Đối chiếu Master §17 và §23.5: thêm capability bundles cho hai role DB hiện có, trả permissions
+  trong login/me, điều hướng và menu theo quyền. Admin không nhận analytics.read mặc định.
+- Thêm Users/Roles UI nối API thật; tạo tài khoản, đổi role, khóa/mở khóa. Backend kiểm tra quyền
+  admin/analytics từ tài khoản DB hiện tại; chặn admin tự đổi quyền/trạng thái và mật khẩu tạo mới yếu.
+- Thêm `/api/v2/admin/pipeline` và UI dùng retained PostgreSQL V2 evidence theo source, không bảng V1.
+  Runtime status UNVERIFIED; chưa đo Kafka lag/worker liveness và không suy ra loss từ chênh totals.
+- UI production build PASS. Admin HTTP/PG tests + analytics HTTP/query/repository unit tests:
+  15/15 PASS, không skip. Test schema riêng được dọn, PostgreSQL test dừng. Chưa kiểm thử trình duyệt
+  tương tác đầy đủ hoặc audit bảo mật toàn diện. Không chạy AI hoặc thay Medusa/runtime DB.
+- Đây là baseline, chưa full năm role/custom permission editor/audit/System Settings/DLQ UI;
+  JWT password-revocation và last-admin concurrency protection chưa hoàn tất. Chưa commit/push.

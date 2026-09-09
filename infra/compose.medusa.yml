@@ -1,0 +1,7 @@
+# Opt-in Medusa runtime credentials. Does not change the isolated E2E defaults.
+# Supply full JSON registries at runtime; never commit real signing credentials.
+services:
+  input-gateway:
+    environment:
+      INPUT_GATEWAY_BROWSER_KEYS_JSON: ${MEDUSA_GATEWAY_BROWSER_KEYS_JSON:?Set the Medusa browser registry}
+      INPUT_GATEWAY_BACKEND_KEYS_JSON: ${MEDUSA_GATEWAY_BACKEND_KEYS_JSON:?Set the Medusa backend registry}

@@ -10,6 +10,7 @@
     "test:eval": "node scripts/eval-chat.js",
     "test:all": "npm test && npm run test:eval",
     "sync-admin": "node scripts/sync-admin.mjs",
+    "schema:check": "node scripts/check-account-schema.mjs",
     "demo:seed-v2": "node scripts/seed-v2-demo.mjs"
   },
   "dependencies": {

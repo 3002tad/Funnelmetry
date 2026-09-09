@@ -11,7 +11,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  if (token) return <Navigate to={(location.state as { from?: string } | null)?.from || "/overview"} replace />
+  if (token) return <Navigate to={(location.state as { from?: string } | null)?.from || "/"} replace />
 
   async function submit(event: FormEvent) {
     event.preventDefault()

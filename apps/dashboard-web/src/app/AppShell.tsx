@@ -24,6 +24,10 @@ export function AppShell() {
   const [range, setRange] = useState("Last 30 days")
   const workspace = import.meta.env.VITE_ANALYTICS_WORKSPACE_NAME || "Nord Commerce"
   const { user, logout } = useAuth()
+  const visibleNav = user?.permissions?.includes('pipeline.monitor') ? [
+    { to: '/admin/pipeline', label: 'Pipeline Health', icon: Activity },
+    ...(user.permissions.includes('user.manage') ? [{ to: '/admin/users', label: 'Users / Roles', icon: Settings }] : []),
+  ] : user?.permissions?.includes('analytics.read') ? nav : []
   const location = useLocation()
 
   useEffect(() => setMenu(false), [location.pathname])
@@ -43,8 +47,8 @@ export function AppShell() {
           <button className="flex w-full items-center justify-between rounded-lg border bg-background px-3 py-2 text-left"><span><span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Workspace</span><strong className="mt-0.5 block text-xs">{workspace}</strong></span><ChevronDown size={14} className="text-muted-foreground" /></button>
         </div>
         <nav className="scrollbar-thin flex-1 overflow-y-auto px-3 py-2">
-          <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[.15em] text-muted-foreground">Analyze</p>
-          {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => cn("mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground", isActive && "bg-primary/10 font-medium text-primary")}><Icon size={17} />{label}</NavLink>)}
+          <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[.15em] text-muted-foreground">{user?.permissions?.includes('pipeline.monitor') ? 'Administration' : 'Analyze'}</p>
+          {visibleNav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => cn("mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground", isActive && "bg-primary/10 font-medium text-primary")}><Icon size={17} />{label}</NavLink>)}
           <p className="px-3 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-[.15em] text-muted-foreground">Manage</p>
           <NavLink to="/settings" className={({ isActive }) => cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground", isActive && "bg-primary/10 font-medium text-primary")}><Settings size={17} />Settings</NavLink>
         </nav>
@@ -57,7 +61,7 @@ export function AppShell() {
           <div className="relative hidden max-w-sm flex-1 md:block"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input className="h-9 w-full rounded-lg border bg-card pl-9 pr-3 text-xs placeholder:text-muted-foreground" placeholder="Search journeys, sessions, events…" /></div>
           <div className="ml-auto flex items-center gap-2">
             <div className="hidden h-9 items-center rounded-lg border bg-card px-3 text-xs sm:flex">{workspace}</div>
-            <select value={range} onChange={(event) => setRange(event.target.value)} className="h-9 rounded-lg border bg-card px-3 text-xs"><option>Last 7 days</option><option>Last 30 days</option><option>Last 90 days</option></select>
+            {user?.permissions?.includes('analytics.read') && <select value={range} onChange={(event) => setRange(event.target.value)} className="h-9 rounded-lg border bg-card px-3 text-xs"><option>Last 7 days</option><option>Last 30 days</option><option>Last 90 days</option></select>}
             <Button variant="outline" size="icon" onClick={() => setDark(!dark)} aria-label="Toggle theme">{dark ? <Sun size={16} /> : <Moon size={16} />}</Button>
           </div>
         </header>
