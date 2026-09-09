@@ -59,6 +59,7 @@ export function validateManifest(raw) {
   const backend = raw.backend ?? {}
   const reliability = raw.reliability ?? {}
   const retry = reliability.retry ?? {}
+  const circuitBreaker = reliability.circuit_breaker ?? {}
   const frontendEnabled = optionalBoolean(frontend.enabled, "frontend.enabled")
   const backendEnabled = optionalBoolean(backend.enabled, "backend.enabled")
   if (!frontendEnabled && !backendEnabled) throw new Error("Enable frontend, backend, or both")
@@ -78,6 +79,18 @@ export function validateManifest(raw) {
       maxQueueSize: optionalPositiveInteger(reliability.max_queue_size, "reliability.max_queue_size", 200),
       retry: {
         maxAttempts: optionalPositiveInteger(retry.max_attempts, "reliability.retry.max_attempts", 3),
+      },
+      circuitBreaker: {
+        failureThreshold: optionalPositiveInteger(
+          circuitBreaker.failure_threshold,
+          "reliability.circuit_breaker.failure_threshold",
+          3,
+        ),
+        cooldownMs: optionalPositiveInteger(
+          circuitBreaker.cooldown_ms,
+          "reliability.circuit_breaker.cooldown_ms",
+          30000,
+        ),
       },
     },
   }

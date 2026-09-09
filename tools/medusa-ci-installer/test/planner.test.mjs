@@ -67,6 +67,7 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.equal(plan.capabilities.orderAccepted, "NOT_SUPPORTED")
   assert.equal(plan.capabilities.commerceConversion, "IN_PROGRESS")
   assert.match(plan.patch, /apps\/backend\/src\/subscribers\/funnelmetry-order-placed\.ts/)
+  assert.match(plan.patch, /apps\/backend\/src\/funnelmetry\/managed-delivery-dispatcher\.ts/)
   assert.match(plan.patch, /apps\/storefront\/src\/funnelmetry\/client\.tsx/)
   assert.match(plan.patch, /FunnelmetryCheckoutStarted/)
   assert.match(plan.patch, /"behavior\.product_viewed"/)
@@ -81,6 +82,11 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.1\.0"/)
   assert.match(plan.patch, /createBrowserSdk/)
   assert.match(plan.patch, /createBackendForwarder/)
+  assert.match(plan.patch, /createManagedDeliveryDispatcher/)
+  assert.match(plan.patch, /export default async function funnelmetryOrderPlaced/)
+  assert.match(plan.patch, /void enqueueOrderPlaced/)
+  assert.match(plan.patch, /circuitOpened/)
+  assert.match(plan.patch, /droppedQueueFull/)
   assert.match(plan.patch, /@3002tad\/funnelmetry-browser-sdk/)
   assert.match(plan.patch, /@3002tad\/funnelmetry-backend-integration-kit/)
   assert.match(plan.patch, /await import\("@3002tad\/funnelmetry-backend-integration-kit"\)/)
@@ -125,6 +131,25 @@ test("manifest only accepts fail-open reliability settings", () => {
     backend: { enabled: false },
     reliability: { failure_mode: "fail_closed" },
   }), /fail_open/)
+})
+
+test("manifest normalizes a bounded circuit breaker for managed backend delivery", () => {
+  assert.deepEqual(manifest.reliability.circuitBreaker, {
+    failureThreshold: 3,
+    cooldownMs: 30000,
+  })
+
+  assert.throws(() => validateManifest({
+    apiVersion: "funnelmetry.io/v1",
+    kind: "InputIntegration",
+    host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
+    source: { id: "medusa-reference" },
+    ingest: { browser_url: "https://ingest.example.test" },
+    auth: { source_key_id: "source", browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY" },
+    frontend: { enabled: true, events: ["behavior.product_viewed"] },
+    backend: { enabled: false },
+    reliability: { circuit_breaker: { failure_threshold: 0 } },
+  }), /circuit_breaker\.failure_threshold must be a positive integer/)
 })
 
 test("planner emits a static Next.js public-key reference from the manifest", async () => {
@@ -180,6 +205,7 @@ test("planner returns an empty patch when the exact generated binding already ex
     await applyWholeFilePatch(temporaryRoot, initial.patch)
     for (const generatedFile of [
       "apps/storefront/src/funnelmetry/client.tsx",
+      "apps/backend/src/funnelmetry/managed-delivery-dispatcher.ts",
       "apps/backend/src/subscribers/funnelmetry-order-placed.ts",
     ]) {
       const target = path.join(temporaryRoot, generatedFile)

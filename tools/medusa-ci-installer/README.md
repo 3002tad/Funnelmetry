@@ -6,11 +6,19 @@ reads `funnelmetry.integration.yaml`, and writes two review artifacts **outside*
 the source checkout:
 
 - `integration-plan.json`: host/capability report and ownership list.
-- `integration.patch`: a PR-ready patch for the generated Browser SDK hooks and
-  Medusa `order.placed` subscriber. Patch chỉ thêm host binding mỏng và hai
+- `integration.patch`: a PR-ready patch for the generated Browser SDK hooks, a
+  bounded Medusa delivery dispatcher, and the `order.placed` subscriber. Patch chỉ thêm host binding mỏng và hai
   dependency đã pin: `@3002tad/funnelmetry-browser-sdk` và
   `@3002tad/funnelmetry-backend-integration-kit`; nó không chép runtime SDK/forwarder vào
   source Medusa.
+
+The generated backend dispatcher owns only host-process delivery lifecycle: one
+bounded in-memory queue, bounded retry through the backend kit, and a cooldown
+circuit breaker. The Medusa subscriber returns immediately after scheduling its
+work; it never waits for an ingress receipt or changes checkout/order outcome.
+Queue-full, retry-exhausted, and process-restart events are observable
+pre-durable-handoff loss, not a durability claim. Reconciliation remains the
+mechanism for quantifying/repairing the supported current projection later.
 
 Browser hooks emit only `behavior.product_viewed`, `cart.add_clicked` and `checkout.started` as
 `BEHAVIOR_INTENT`. The order subscriber emits source-native `medusa.order_placed`; the versioned

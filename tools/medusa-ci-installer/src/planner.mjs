@@ -16,6 +16,7 @@ const paths = {
 
 const generatedPaths = {
   browserClient: "apps/storefront/src/funnelmetry/client.tsx",
+  managedDeliveryDispatcher: "apps/backend/src/funnelmetry/managed-delivery-dispatcher.ts",
   orderPlacedSubscriber: "apps/backend/src/subscribers/funnelmetry-order-placed.ts",
 }
 
@@ -32,11 +33,191 @@ function generatedClient(manifest) {
   return `"use client"\n\nimport { useEffect } from "react"\nimport { createBrowserSdk } from "@funnelmetry/browser-sdk"\n\nconst sourceId = ${sourceId}\nconst sourceKeyId = ${sourceKeyId}\nconst allowedEventTypes = ${allowedEvents}\nconst reliability = ${reliability}\n\ntype EventPayload = Record<string, unknown>\ntype BrowserSdk = ReturnType<typeof createBrowserSdk>\n\ndeclare global { interface Window { __FUNNELMETRY_CONSENT__?: boolean } }\n\nlet sdk: BrowserSdk | null | undefined\n\nfunction getSdk(): BrowserSdk | null {\n  if (sdk !== undefined) return sdk\n  try {\n    sdk = createBrowserSdk({\n      sourceId,\n      sourceKeyId,\n      endpoint: process.env.NEXT_PUBLIC_FUNNELMETRY_INGEST_URL ?? "",\n      writeKey: process.env.NEXT_PUBLIC_FUNNELMETRY_BROWSER_WRITE_KEY ?? "",\n      allowedEventTypes,\n      maxAttempts: reliability.retry.maxAttempts,\n      maxQueueSize: reliability.maxQueueSize,\n      hasConsent: () => typeof window !== "undefined" && window.__FUNNELMETRY_CONSENT__ === true,\n    })\n  } catch (error) {\n    sdk = null\n    console.warn("Funnelmetry browser integration is inactive", error)\n  }\n  return sdk\n}\n\nfunction track(eventType: string, payload: EventPayload) {\n  const currentSdk = getSdk()\n  return currentSdk ? currentSdk.track(eventType, payload) : Promise.resolve({ status: "inactive" })\n}\n\nexport function FunnelmetryBootstrap() {\n  useEffect(() => getSdk()?.attachLifecycle(), [])\n  return null\n}\n\nexport function FunnelmetryProductViewed({ productId }: { productId: string }) {\n  useEffect(() => { void track("behavior.product_viewed", { product_id: productId }) }, [productId])\n  return null\n}\n\nexport function FunnelmetryCheckoutStarted({ cartId, step }: { cartId: string; step: string }) {\n  useEffect(() => { void track("checkout.started", { cart_id: cartId, step }) }, [cartId, step])\n  return null\n}\n\nexport function trackCartAddClicked(input: { productId: string; variantId: string; quantity: number }) {\n  return track("cart.add_clicked", { product_id: input.productId, variant_id: input.variantId, quantity: input.quantity })\n}\n`
 }
 
+function generatedManagedDeliveryDispatcher() {
+  return `type Logger = { warn: (message: string) => void }
+
+type MappedSourceEvent = {
+  eventId: string
+  sourceEventType: string
+  occurredAt: string
+  aggregate: { type: string; id: string }
+  sourcePayload: Record<string, unknown>
+}
+
+type DeliveryResult = { status: "accepted" | "duplicate" | "rejected" | "retryable_failure" }
+type BackendForwarder = { forward: (event: MappedSourceEvent) => Promise<DeliveryResult> }
+
+type ManagedDeliveryOptions = {
+  sourceId: string
+  sourceKeyId: string
+  endpoint: string
+  signingKey: string
+  timeoutMs: number
+  maxAttempts: number
+  maxQueueSize: number
+  failureThreshold: number
+  cooldownMs: number
+  logger: Logger
+}
+
+type ManagedDeliveryMetrics = {
+  enqueued: number
+  accepted: number
+  duplicate: number
+  rejected: number
+  retryableFailure: number
+  droppedQueueFull: number
+  droppedAfterRetry: number
+  circuitOpened: number
+}
+
+export function createManagedDeliveryDispatcher(options: ManagedDeliveryOptions) {
+  const queue: MappedSourceEvent[] = []
+  const metrics: ManagedDeliveryMetrics = {
+    enqueued: 0,
+    accepted: 0,
+    duplicate: 0,
+    rejected: 0,
+    retryableFailure: 0,
+    droppedQueueFull: 0,
+    droppedAfterRetry: 0,
+    circuitOpened: 0,
+  }
+  let draining = false
+  let wakeTimer: ReturnType<typeof setTimeout> | undefined
+  let circuitOpenUntil = 0
+  let consecutiveRetryableFailures = 0
+  let lastQueueFullLogAt = 0
+  let forwarder: BackendForwarder | undefined
+
+  async function getForwarder() {
+    if (forwarder) return forwarder
+    const kit = await import("@funnelmetry/backend-integration-kit")
+    forwarder = kit.createBackendForwarder({
+      sourceId: options.sourceId,
+      sourceKeyId: options.sourceKeyId,
+      endpoint: options.endpoint,
+      signingKey: options.signingKey,
+      timeoutMs: options.timeoutMs,
+      maxAttempts: options.maxAttempts,
+      logger: { warn: (entry: unknown) => options.logger.warn(JSON.stringify(entry)) },
+    }) as BackendForwarder
+    return forwarder
+  }
+
+  function scheduleDrain(delayMs = 0) {
+    if (draining || wakeTimer) return
+    wakeTimer = setTimeout(() => {
+      wakeTimer = undefined
+      void drain()
+    }, delayMs)
+  }
+
+  function openCircuit() {
+    circuitOpenUntil = Date.now() + options.cooldownMs
+    consecutiveRetryableFailures = 0
+    metrics.circuitOpened += 1
+    options.logger.warn(JSON.stringify({
+      message: "Funnelmetry delivery circuit opened; Medusa business flow remains unaffected",
+      cooldown_ms: options.cooldownMs,
+      queued_events: queue.length,
+    }))
+  }
+
+  async function drain() {
+    if (draining) return
+    const remainingCooldown = circuitOpenUntil - Date.now()
+    if (remainingCooldown > 0) {
+      scheduleDrain(remainingCooldown)
+      return
+    }
+    draining = true
+    try {
+      while (queue.length > 0) {
+        const remainingCooldownDuringDrain = circuitOpenUntil - Date.now()
+        if (remainingCooldownDuringDrain > 0) {
+          scheduleDrain(remainingCooldownDuringDrain)
+          break
+        }
+        const event = queue.shift()
+        if (!event) continue
+        try {
+          const result = await (await getForwarder()).forward(event)
+          if (result.status === "accepted") {
+            metrics.accepted += 1
+            consecutiveRetryableFailures = 0
+          } else if (result.status === "duplicate") {
+            metrics.duplicate += 1
+            consecutiveRetryableFailures = 0
+          } else if (result.status === "rejected") {
+            metrics.rejected += 1
+            consecutiveRetryableFailures = 0
+          } else {
+            metrics.retryableFailure += 1
+            metrics.droppedAfterRetry += 1
+            consecutiveRetryableFailures += 1
+            if (consecutiveRetryableFailures >= options.failureThreshold) {
+              openCircuit()
+              break
+            }
+          }
+        } catch (error) {
+          metrics.retryableFailure += 1
+          metrics.droppedAfterRetry += 1
+          consecutiveRetryableFailures += 1
+          options.logger.warn(JSON.stringify({
+            message: "Funnelmetry managed delivery failed open",
+            error: error instanceof Error ? error.message : "unknown error",
+          }))
+          if (consecutiveRetryableFailures >= options.failureThreshold) {
+            openCircuit()
+            break
+          }
+        }
+      }
+    } finally {
+      draining = false
+      if (queue.length > 0) {
+        scheduleDrain(Math.max(0, circuitOpenUntil - Date.now()))
+      }
+    }
+  }
+
+  function enqueue(event: MappedSourceEvent) {
+    if (queue.length >= options.maxQueueSize) {
+      metrics.droppedQueueFull += 1
+      if (Date.now() - lastQueueFullLogAt >= 60000) {
+        lastQueueFullLogAt = Date.now()
+        options.logger.warn(JSON.stringify({
+          message: "Funnelmetry delivery queue is full; event dropped without affecting Medusa",
+          max_queue_size: options.maxQueueSize,
+        }))
+      }
+      return { status: "dropped_queue_full" as const }
+    }
+    queue.push(event)
+    metrics.enqueued += 1
+    scheduleDrain(Math.max(0, circuitOpenUntil - Date.now()))
+    return { status: "queued" as const }
+  }
+
+  return Object.freeze({
+    enqueue,
+    getMetrics: () => ({
+      ...metrics,
+      queued: queue.length,
+      circuitOpen: circuitOpenUntil > Date.now(),
+    }),
+  })
+}
+`
+}
+
 function generatedSubscriber(manifest) {
   const sourceId = JSON.stringify(manifest.source.id)
   const sourceKeyId = JSON.stringify(manifest.auth.sourceKeyId)
   const reliability = JSON.stringify(manifest.reliability)
-  return `import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"\nimport { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"\n\ntype OrderPlacedData = { id: string }\ntype OrderItem = { product_id?: string; variant_id?: string; quantity?: number; unit_price?: number }\ntype Order = { id: string; created_at?: string; currency_code?: string; total?: number; items?: OrderItem[] }\nconst sourceId = ${sourceId}\nconst sourceKeyId = ${sourceKeyId}\nconst reliability = ${reliability}\n\nexport default async function funnelmetryOrderPlaced({ event, container }: SubscriberArgs<OrderPlacedData>) {\n  const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as { warn: (message: string) => void }\n  try {\n    const { createBackendForwarder } = await import("@funnelmetry/backend-integration-kit")\n    const orderModuleService = container.resolve(Modules.ORDER) as { retrieveOrder: (id: string, options: Record<string, unknown>) => Promise<Order> }\n    const order = await orderModuleService.retrieveOrder(event.data.id, { relations: ["items"] })\n    if (!order.created_at || !order.currency_code) {\n      logger.warn("Funnelmetry order forward skipped: missing authoritative order time/currency")\n      return\n    }\n    const forwarder = createBackendForwarder({\n      sourceId,\n      sourceKeyId,\n      endpoint: process.env.FUNNELMETRY_INGEST_URL ?? "",\n      signingKey: process.env.FUNNELMETRY_BACKEND_SIGNING_KEY ?? "",\n      timeoutMs: reliability.timeoutMs,\n      maxAttempts: reliability.retry.maxAttempts,\n      logger: { warn: (entry: unknown) => logger.warn(JSON.stringify(entry)) },\n    })\n    await forwarder.forward({\n      eventId: \`medusa:order.placed:\${event.data.id}\`,\n      sourceEventType: "medusa.order_placed",\n      occurredAt: order.created_at,\n      aggregate: { type: "order", id: order.id },\n      sourcePayload: { order_id: order.id, currency_code: order.currency_code, total_minor: order.total, items: (order.items ?? []).map((item) => ({ product_id: item.product_id, variant_id: item.variant_id, quantity: item.quantity, unit_price_minor: item.unit_price })) },\n    })\n  } catch (error) {\n    logger.warn(\`Funnelmetry order forward failed open: \${error instanceof Error ? error.message : "unknown error"}\`)\n  }\n}\n\nexport const config: SubscriberConfig = { event: "order.placed" }\n`
+  return `import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"\nimport { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"\nimport { createManagedDeliveryDispatcher } from "../funnelmetry/managed-delivery-dispatcher"\n\ntype OrderPlacedData = { id: string }\ntype OrderItem = { product_id?: string; variant_id?: string; quantity?: number; unit_price?: number }\ntype Order = { id: string; created_at?: string; currency_code?: string; total?: number; items?: OrderItem[] }\ntype Logger = { warn: (message: string) => void }\ntype MedusaContainer = SubscriberArgs<OrderPlacedData>["container"]\n\nconst sourceId = ${sourceId}\nconst sourceKeyId = ${sourceKeyId}\nconst reliability = ${reliability}\nlet dispatcher: ReturnType<typeof createManagedDeliveryDispatcher> | undefined\nlet lastInactiveWarningAt = 0\n\nfunction getDispatcher(logger: Logger) {\n  if (dispatcher) return dispatcher\n  const signingKey = process.env.FUNNELMETRY_BACKEND_SIGNING_KEY ?? ""\n  if (!signingKey) {\n    if (Date.now() - lastInactiveWarningAt >= 60000) {\n      lastInactiveWarningAt = Date.now()\n      logger.warn("Funnelmetry backend integration is inactive: signing key is not configured")\n    }\n    return null\n  }\n  dispatcher = createManagedDeliveryDispatcher({\n    sourceId,\n    sourceKeyId,\n    endpoint: process.env.FUNNELMETRY_INGEST_URL ?? "",\n    signingKey,\n    timeoutMs: reliability.timeoutMs,\n    maxAttempts: reliability.retry.maxAttempts,\n    maxQueueSize: reliability.maxQueueSize,\n    failureThreshold: reliability.circuitBreaker.failureThreshold,\n    cooldownMs: reliability.circuitBreaker.cooldownMs,\n    logger,\n  })\n  return dispatcher\n}\n\nasync function enqueueOrderPlaced(orderId: string, container: MedusaContainer, logger: Logger) {\n  try {\n    const orderModuleService = container.resolve(Modules.ORDER) as { retrieveOrder: (id: string, options: Record<string, unknown>) => Promise<Order> }\n    const order = await orderModuleService.retrieveOrder(orderId, { relations: ["items"] })\n    if (!order.created_at || !order.currency_code) {\n      logger.warn("Funnelmetry order forward skipped: missing authoritative order time/currency")\n      return\n    }\n    getDispatcher(logger)?.enqueue({\n      eventId: \`medusa:order.placed:\${orderId}\`,\n      sourceEventType: "medusa.order_placed",\n      occurredAt: order.created_at,\n      aggregate: { type: "order", id: order.id },\n      sourcePayload: { order_id: order.id, currency_code: order.currency_code, total_minor: order.total, items: (order.items ?? []).map((item) => ({ product_id: item.product_id, variant_id: item.variant_id, quantity: item.quantity, unit_price_minor: item.unit_price })) },\n    })\n  } catch (error) {\n    logger.warn(\`Funnelmetry order enqueue failed open: \${error instanceof Error ? error.message : "unknown error"}\`)\n  }\n}\n\nexport default function funnelmetryOrderPlaced({ event, container }: SubscriberArgs<OrderPlacedData>) {\n  const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger\n  void enqueueOrderPlaced(event.data.id, container, logger)\n}\n\nexport const config: SubscriberConfig = { event: "order.placed" }\n`
 }
 
 function configureGeneratedClient(content, manifest) {
@@ -58,6 +239,10 @@ function configureGeneratedSubscriber(content, manifest) {
   return content
     .replace("@funnelmetry/backend-integration-kit", "@3002tad/funnelmetry-backend-integration-kit")
     .replace(
+      "export default function funnelmetryOrderPlaced",
+      "export default async function funnelmetryOrderPlaced",
+    )
+    .replace(
       'endpoint: process.env.FUNNELMETRY_INGEST_URL ?? "",',
       `endpoint: ${JSON.stringify(manifest.ingest.backendUrl)},`,
     )
@@ -65,6 +250,10 @@ function configureGeneratedSubscriber(content, manifest) {
       'signingKey: process.env.FUNNELMETRY_BACKEND_SIGNING_KEY ?? "",',
       `signingKey: process.env.${manifest.auth.backendSigningKeyRef} ?? "",`,
     )
+}
+
+function configureGeneratedManagedDeliveryDispatcher(content) {
+  return content.replace("@funnelmetry/backend-integration-kit", "@3002tad/funnelmetry-backend-integration-kit")
 }
 
 function replaceOnce(content, search, replacement, file) {
@@ -174,8 +363,9 @@ function sourceFingerprint(originals) {
 }
 
 async function existingIntegration(projectRoot, originals, manifest) {
-  const [browserClient, orderPlacedSubscriber] = await Promise.all([
+  const [browserClient, managedDeliveryDispatcher, orderPlacedSubscriber] = await Promise.all([
     readOptionalProjectFile(projectRoot, generatedPaths.browserClient),
+    readOptionalProjectFile(projectRoot, generatedPaths.managedDeliveryDispatcher),
     readOptionalProjectFile(projectRoot, generatedPaths.orderPlacedSubscriber),
   ])
   const expectedBrowserClient = manifest.frontend.enabled
@@ -184,7 +374,10 @@ async function existingIntegration(projectRoot, originals, manifest) {
   const expectedOrderPlacedSubscriber = manifest.backend.enabled
     ? configureGeneratedSubscriber(generatedSubscriber(manifest), manifest)
     : null
-  const detected = browserClient !== null || orderPlacedSubscriber !== null ||
+  const expectedManagedDeliveryDispatcher = manifest.backend.enabled
+    ? configureGeneratedManagedDeliveryDispatcher(generatedManagedDeliveryDispatcher(manifest), manifest)
+    : null
+  const detected = browserClient !== null || managedDeliveryDispatcher !== null || orderPlacedSubscriber !== null ||
     originals[paths.storefrontPackage].includes("@3002tad/funnelmetry-browser-sdk") ||
     originals[paths.backendPackage].includes("@3002tad/funnelmetry-backend-integration-kit")
 
@@ -194,6 +387,9 @@ async function existingIntegration(projectRoot, originals, manifest) {
   }
   if (normalizedText(orderPlacedSubscriber) !== normalizedText(expectedOrderPlacedSubscriber)) {
     throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.orderPlacedSubscriber} differs at line ${firstDifferentLine(orderPlacedSubscriber, expectedOrderPlacedSubscriber)}`)
+  }
+  if (normalizedText(managedDeliveryDispatcher) !== normalizedText(expectedManagedDeliveryDispatcher)) {
+    throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.managedDeliveryDispatcher} differs at line ${firstDifferentLine(managedDeliveryDispatcher, expectedManagedDeliveryDispatcher)}`)
   }
   if (manifest.frontend.enabled) {
     if (!packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) {
@@ -332,6 +528,10 @@ export async function createPlan(projectRoot, manifest) {
   }
   if (manifest.backend.enabled) {
     const subscriber = configureGeneratedSubscriber(generatedSubscriber(manifest), manifest)
+    const managedDeliveryDispatcher = configureGeneratedManagedDeliveryDispatcher(
+      generatedManagedDeliveryDispatcher(manifest),
+      manifest,
+    )
     const backendPackage = addDependency(
       originals[paths.backendPackage],
       "@3002tad/funnelmetry-backend-integration-kit",
@@ -340,6 +540,7 @@ export async function createPlan(projectRoot, manifest) {
     )
     changes.push(
       { path: paths.backendPackage, before: originals[paths.backendPackage], after: backendPackage },
+      { path: generatedPaths.managedDeliveryDispatcher, before: null, after: managedDeliveryDispatcher },
       { path: generatedPaths.orderPlacedSubscriber, before: null, after: subscriber },
     )
   }
