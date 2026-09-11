@@ -1,0 +1,17 @@
+{
+  "name": "@funnelmetry/edge-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=../../infra/.env src/main.js",
+    "dev": "node --watch --env-file=../../infra/.env src/main.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@3002tad/funnelmetry-input-contract": "file:../../packages/input-contract"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,4 +1,9 @@
-import { createIngressEvent, INGRESS_EVENT_SPEC_VERSION, validateIngressReceipt } from "@3002tad/funnelmetry-input-contract"
+import {
+  createIngressEvent,
+  INGRESS_EVENT_SPEC_VERSION,
+  validateIngressReceipt,
+  validateRelayReceipt,
+} from "@3002tad/funnelmetry-input-contract"
 
 function requiredString(value, name) {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} is required`)
@@ -38,7 +43,11 @@ function parseReceipt(responseBody) {
   try {
     return validateIngressReceipt(JSON.parse(responseBody))
   } catch {
-    return null
+    try {
+      return validateRelayReceipt(JSON.parse(responseBody))
+    } catch {
+      return null
+    }
   }
 }
 
@@ -69,7 +78,7 @@ export function createBrowserSdk(options) {
   if (!Number.isInteger(maxQueueSize) || maxQueueSize < 1) throw new Error("maxQueueSize must be a positive integer")
 
   const queue = parseStoredQueue(storage, storageKey)
-  const metrics = { accepted: 0, duplicate: 0, rejected: 0, retryableFailure: 0, queueDropped: 0 }
+  const metrics = { accepted: 0, duplicate: 0, relayQueued: 0, rejected: 0, retryableFailure: 0, queueDropped: 0 }
   let flushing = false
 
   function persistQueue() {
@@ -97,7 +106,7 @@ export function createBrowserSdk(options) {
         })
         const receipt = parseReceipt(await response.text())
         if (receipt && receipt.source_id === event.source_id && receipt.event_id === event.event_id) {
-          if (receipt.status === "accepted" || receipt.status === "duplicate" || receipt.status === "rejected") return receipt
+          if (receipt.status === "accepted" || receipt.status === "duplicate" || receipt.status === "relay_queued" || receipt.status === "rejected") return receipt
         }
         if (response.status >= 400 && response.status < 500) {
           return { status: "rejected", source_id: event.source_id, event_id: event.event_id, received_at: now(), reason_code: "invalid_receipt_or_request" }
@@ -117,9 +126,10 @@ export function createBrowserSdk(options) {
       while (queue.length > 0) {
         const event = queue[0]
         const receipt = await deliver(event)
-        if (receipt.status === "accepted" || receipt.status === "duplicate") {
+        if (receipt.status === "accepted" || receipt.status === "duplicate" || receipt.status === "relay_queued") {
           queue.shift()
-          metrics[receipt.status] += 1
+          if (receipt.status === "relay_queued") metrics.relayQueued += 1
+          else metrics[receipt.status] += 1
           persistQueue()
           continue
         }

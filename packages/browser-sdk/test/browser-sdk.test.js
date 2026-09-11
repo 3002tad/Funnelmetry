@@ -75,3 +75,32 @@ test("retains a retryable event for a later flush instead of silently dropping i
   await sdk.flush()
   assert.equal(sdk.getMetrics().queued, 0)
 })
+
+test("removes an event after a durable Relay receipt without counting it as Pipeline accepted", async () => {
+  const sdk = createBrowserSdk({
+    sourceId: "medusa-reference",
+    sourceKeyId: "medusa-reference-relay",
+    endpoint: "https://relay.example.test/v1/ingress/events",
+    writeKey: "public-write-key",
+    allowedEventTypes: ["behavior.product_viewed"],
+    hasConsent: () => true,
+    createEventId: () => "browser:relay-stable-1",
+    now: () => "2026-09-11T00:00:00.000Z",
+    fetch: async () => ({
+      status: 202,
+      text: async () => JSON.stringify({
+        specversion: "relay-receipt.v1",
+        status: "relay_queued",
+        relay_id: "rel_1",
+        source_id: "medusa-reference",
+        event_id: "browser:relay-stable-1",
+        relay_received_at: "2026-09-11T00:00:00.000Z",
+      }),
+    }),
+  })
+
+  await sdk.track("behavior.product_viewed", { product_id: "prod_1" })
+  assert.equal(sdk.getMetrics().queued, 0)
+  assert.equal(sdk.getMetrics().relayQueued, 1)
+  assert.equal(sdk.getMetrics().accepted, 0)
+})

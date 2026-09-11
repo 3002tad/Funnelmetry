@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://funnelmetry.io/schemas/relay-receipt.v1.schema.json",
+  "title": "Funnelmetry Relay Receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["specversion", "status", "relay_id", "source_id", "event_id", "relay_received_at"],
+  "properties": {
+    "specversion": { "const": "relay-receipt.v1" },
+    "status": { "const": "relay_queued" },
+    "relay_id": { "type": "string", "minLength": 1 },
+    "source_id": { "type": "string", "minLength": 3 },
+    "event_id": { "type": "string", "minLength": 3 },
+    "relay_received_at": { "type": "string", "format": "date-time" }
+  }
+}

@@ -9,6 +9,7 @@ apps/
   dashboard-web/       UI analytics V2; một số màn hình chưa có contract vẫn dùng mock data
   dashboard-api/       API analytics hiện có, đang được chuyển dần sang V2
   input-gateway/       HTTP/security + KafkaJS durable-ingress runtime
+  edge-relay/          public durable browser relay; SQLite/WAL → private Input Gateway
 workers/                Canonical normalizer/ledger, journey và capability tiếp theo
 packages/               Input/canonical contract, Browser SDK và Backend Integration Kit
 integrations/medusa/    Ranh giới tích hợp Medusa; không chứa core pipeline

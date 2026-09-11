@@ -21,7 +21,7 @@
   },
   "types": "./src/index.d.ts",
   "dependencies": {
-    "@3002tad/funnelmetry-input-contract": "0.1.0"
+    "@3002tad/funnelmetry-input-contract": "^0.1.0"
   },
   "scripts": {
     "test": "node --test test/*.test.js"

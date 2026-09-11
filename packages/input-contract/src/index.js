@@ -1,4 +1,5 @@
 export const INGRESS_EVENT_SPEC_VERSION = "ingress-event.v1"
+export const RELAY_RECEIPT_SPEC_VERSION = "relay-receipt.v1"
 
 export const RECEIPT_STATUSES = Object.freeze([
   "accepted",
@@ -6,6 +7,8 @@ export const RECEIPT_STATUSES = Object.freeze([
   "rejected",
   "retryable_failure",
 ])
+
+export const RELAY_RECEIPT_STATUSES = Object.freeze(["relay_queued"])
 
 const sourceIdPattern = /^[a-z0-9][a-z0-9-]{2,62}$/
 const eventIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$/
@@ -157,6 +160,33 @@ export function validateIngressReceipt(input) {
     throw new Error(`receipt.ingestion_id is required for ${status}`)
   }
   return Object.freeze(result)
+}
+
+/**
+ * Relay durability is deliberately separate from Pipeline/Kafka durability.
+ */
+export function validateRelayReceipt(input) {
+  if (!isPlainObject(input)) throw new Error("Relay receipt must be an object")
+  if (input.specversion !== RELAY_RECEIPT_SPEC_VERSION) {
+    throw new Error(`relay receipt.specversion must be ${RELAY_RECEIPT_SPEC_VERSION}`)
+  }
+  const status = requiredString(input.status, "relay receipt.status")
+  if (!RELAY_RECEIPT_STATUSES.includes(status)) throw new Error("relay receipt.status is unsupported")
+  const relayId = requiredString(input.relay_id, "relay receipt.relay_id")
+  const sourceId = requiredString(input.source_id, "relay receipt.source_id")
+  const eventId = requiredString(input.event_id, "relay receipt.event_id")
+  const receivedAt = optionalTimestamp(input.relay_received_at, "relay receipt.relay_received_at")
+  if (!sourceIdPattern.test(sourceId)) throw new Error("relay receipt.source_id must be lowercase kebab-case")
+  if (!eventIdPattern.test(eventId)) throw new Error("relay receipt.event_id has unsupported characters or length")
+  if (receivedAt === undefined) throw new Error("relay receipt.relay_received_at is required")
+  return Object.freeze({
+    specversion: RELAY_RECEIPT_SPEC_VERSION,
+    status,
+    relay_id: relayId,
+    source_id: sourceId,
+    event_id: eventId,
+    relay_received_at: receivedAt,
+  })
 }
 
 export function isTerminalReceipt(status) {
