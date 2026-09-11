@@ -21,8 +21,8 @@ const generatedPaths = {
 }
 
 const packageVersions = {
-  browserSdk: "0.1.0",
-  backendIntegrationKit: "0.1.0",
+  browserSdk: "0.1.1",
+  backendIntegrationKit: "0.1.1",
 }
 
 function generatedClient(manifest) {
@@ -333,6 +333,36 @@ function normalizedText(content) {
   return String(content ?? "").replace(/\r\n/g, "\n")
 }
 
+function normalizeManagedBrowserClient(content) {
+  return normalizedText(content)
+    .replace(/^const sourceId = .+$/m, "const sourceId = __MANAGED__")
+    .replace(/^const sourceKeyId = .+$/m, "const sourceKeyId = __MANAGED__")
+    .replace(/^const allowedEventTypes = .+$/m, "const allowedEventTypes = __MANAGED__")
+    .replace(/^const reliability = .+$/m, "const reliability = __MANAGED__")
+    .replace(/^      endpoint: .+,$/m, "      endpoint: __MANAGED__,")
+    .replace(/^      writeKey: .+,$/m, "      writeKey: __MANAGED__,")
+}
+
+function normalizeManagedOrderPlacedSubscriber(content) {
+  return normalizedText(content)
+    .replace(/^const sourceId = .+$/m, "const sourceId = __MANAGED__")
+    .replace(/^const sourceKeyId = .+$/m, "const sourceKeyId = __MANAGED__")
+    .replace(/^const reliability = .+$/m, "const reliability = __MANAGED__")
+    .replace(/^    endpoint: .+,$/m, "    endpoint: __MANAGED__,")
+    .replace(/^    signingKey: .+,$/m, "    signingKey: __MANAGED__,")
+}
+
+function isKnownManagedPackageVersion(content, dependency, targetVersion, file) {
+  let packageJson
+  try {
+    packageJson = JSON.parse(content)
+  } catch {
+    throw new Error(`Pinned Medusa layout has invalid JSON in ${file}`)
+  }
+  const version = packageJson.dependencies?.[dependency]
+  return version === targetVersion || version === "0.1.0"
+}
+
 function firstDifferentLine(actual, expected) {
   const actualLines = normalizedText(actual).split("\n")
   const expectedLines = normalizedText(expected).split("\n")
@@ -381,18 +411,18 @@ async function existingIntegration(projectRoot, originals, manifest) {
     originals[paths.storefrontPackage].includes("@3002tad/funnelmetry-browser-sdk") ||
     originals[paths.backendPackage].includes("@3002tad/funnelmetry-backend-integration-kit")
 
-  if (!detected) return false
-  if (normalizedText(browserClient) !== normalizedText(expectedBrowserClient)) {
+  if (!detected) return "absent"
+  if (normalizeManagedBrowserClient(browserClient) !== normalizeManagedBrowserClient(expectedBrowserClient)) {
     throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.browserClient} differs at line ${firstDifferentLine(browserClient, expectedBrowserClient)}`)
   }
-  if (normalizedText(orderPlacedSubscriber) !== normalizedText(expectedOrderPlacedSubscriber)) {
+  if (normalizeManagedOrderPlacedSubscriber(orderPlacedSubscriber) !== normalizeManagedOrderPlacedSubscriber(expectedOrderPlacedSubscriber)) {
     throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.orderPlacedSubscriber} differs at line ${firstDifferentLine(orderPlacedSubscriber, expectedOrderPlacedSubscriber)}`)
   }
   if (normalizedText(managedDeliveryDispatcher) !== normalizedText(expectedManagedDeliveryDispatcher)) {
     throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.managedDeliveryDispatcher} differs at line ${firstDifferentLine(managedDeliveryDispatcher, expectedManagedDeliveryDispatcher)}`)
   }
   if (manifest.frontend.enabled) {
-    if (!packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) {
+    if (!isKnownManagedPackageVersion(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) {
       throw new Error("Existing Funnelmetry browser integration has an unexpected package version")
     }
     if (!hasFunnelmetryAlias(originals[paths.storefrontTsConfig], paths.storefrontTsConfig)) {
@@ -407,10 +437,15 @@ async function existingIntegration(projectRoot, originals, manifest) {
     requireMarker(originals[paths.checkoutPage], 'import { FunnelmetryCheckoutStarted } from "@funnelmetry/client"', paths.checkoutPage)
     requireMarker(originals[paths.checkoutPage], "<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />", paths.checkoutPage)
   }
-  if (manifest.backend.enabled && !packageHasDependency(originals[paths.backendPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage)) {
+  if (manifest.backend.enabled && !isKnownManagedPackageVersion(originals[paths.backendPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage)) {
     throw new Error("Existing Funnelmetry backend integration has an unexpected package version")
   }
-  return true
+  const exact = normalizedText(browserClient) === normalizedText(expectedBrowserClient) &&
+    normalizedText(orderPlacedSubscriber) === normalizedText(expectedOrderPlacedSubscriber) &&
+    normalizedText(managedDeliveryDispatcher) === normalizedText(expectedManagedDeliveryDispatcher) &&
+    (!manifest.frontend.enabled || packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) &&
+    (!manifest.backend.enabled || packageHasDependency(originals[paths.backendPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage))
+  return exact ? "exact" : "managed"
 }
 
 export async function inspectMedusa(projectRoot, manifest) {
@@ -439,7 +474,8 @@ export async function createPlan(projectRoot, manifest) {
     originals[relativePath] = await readProjectFile(projectRoot, relativePath)
   }
 
-  if (await existingIntegration(projectRoot, originals, manifest)) {
+  const existing = await existingIntegration(projectRoot, originals, manifest)
+  if (existing === "exact") {
     return {
       schemaVersion: "funnelmetry-ci-plan.v1",
       mode: "plan-only",
@@ -457,6 +493,15 @@ export async function createPlan(projectRoot, manifest) {
       patch: "",
     }
   }
+
+  const refreshManagedBinding = existing === "managed"
+  const [currentBrowserClient, currentManagedDeliveryDispatcher, currentOrderPlacedSubscriber] = refreshManagedBinding
+    ? await Promise.all([
+      readProjectFile(projectRoot, generatedPaths.browserClient),
+      readProjectFile(projectRoot, generatedPaths.managedDeliveryDispatcher),
+      readProjectFile(projectRoot, generatedPaths.orderPlacedSubscriber),
+    ])
+    : [null, null, null]
 
   const changes = []
   if (manifest.frontend.enabled) {
@@ -516,15 +561,22 @@ export async function createPlan(projectRoot, manifest) {
       '    </div>\n  )\n}',
       '      </div>\n    </>\n  )\n}',
     )
-    changes.push(
-      { path: paths.storefrontTsConfig, before: originals[paths.storefrontTsConfig], after: storefrontTsConfig },
-      { path: paths.storefrontPackage, before: originals[paths.storefrontPackage], after: storefrontPackage },
-      { path: generatedPaths.browserClient, before: null, after: client },
-      { path: paths.storefrontLayout, before: originals[paths.storefrontLayout], after: layout },
-      { path: paths.productPage, before: originals[paths.productPage], after: productPage },
-      { path: paths.productActions, before: originals[paths.productActions], after: actions },
-      { path: paths.checkoutPage, before: originals[paths.checkoutPage], after: checkout },
-    )
+    if (refreshManagedBinding) {
+      changes.push(
+        { path: paths.storefrontPackage, before: originals[paths.storefrontPackage], after: storefrontPackage },
+        { path: generatedPaths.browserClient, before: currentBrowserClient, after: client },
+      )
+    } else {
+      changes.push(
+        { path: paths.storefrontTsConfig, before: originals[paths.storefrontTsConfig], after: storefrontTsConfig },
+        { path: paths.storefrontPackage, before: originals[paths.storefrontPackage], after: storefrontPackage },
+        { path: generatedPaths.browserClient, before: null, after: client },
+        { path: paths.storefrontLayout, before: originals[paths.storefrontLayout], after: layout },
+        { path: paths.productPage, before: originals[paths.productPage], after: productPage },
+        { path: paths.productActions, before: originals[paths.productActions], after: actions },
+        { path: paths.checkoutPage, before: originals[paths.checkoutPage], after: checkout },
+      )
+    }
   }
   if (manifest.backend.enabled) {
     const subscriber = configureGeneratedSubscriber(generatedSubscriber(manifest), manifest)
@@ -540,8 +592,8 @@ export async function createPlan(projectRoot, manifest) {
     )
     changes.push(
       { path: paths.backendPackage, before: originals[paths.backendPackage], after: backendPackage },
-      { path: generatedPaths.managedDeliveryDispatcher, before: null, after: managedDeliveryDispatcher },
-      { path: generatedPaths.orderPlacedSubscriber, before: null, after: subscriber },
+      { path: generatedPaths.managedDeliveryDispatcher, before: refreshManagedBinding ? currentManagedDeliveryDispatcher : null, after: managedDeliveryDispatcher },
+      { path: generatedPaths.orderPlacedSubscriber, before: refreshManagedBinding ? currentOrderPlacedSubscriber : null, after: subscriber },
     )
   }
 
