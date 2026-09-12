@@ -6,6 +6,16 @@ function receipt(status, eventId, extra = {}) {
   return JSON.stringify({ status, source_id: "medusa-reference", event_id: eventId, received_at: "2026-08-22T09:00:00.000Z", ...extra })
 }
 
+test("rejects event types outside the approved behavior catalog", () => {
+  assert.throws(() => createBrowserSdk({
+    sourceId: "medusa-reference",
+    sourceKeyId: "medusa-reference-dev",
+    endpoint: "https://ingest.example.test",
+    writeKey: "public-write-key",
+    allowedEventTypes: ["behavior.raw_dom_captured"],
+  }), /Behavior Event Catalog v1/)
+})
+
 test("keeps the same event in the queue until a durable receipt arrives", async () => {
   const sent = []
   let attempts = 0

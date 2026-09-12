@@ -4,6 +4,7 @@ import {
   validateIngressReceipt,
   validateRelayReceipt,
 } from "@3002tad/funnelmetry-input-contract"
+import { isBehaviorEventType } from "@3002tad/funnelmetry-behavior-event-catalog"
 
 function requiredString(value, name) {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} is required`)
@@ -61,6 +62,11 @@ export function createBrowserSdk(options) {
   const endpoint = requiredString(options.endpoint, "endpoint").replace(/\/$/, "")
   const writeKey = requiredString(options.writeKey, "writeKey")
   const allowedEventTypes = new Set(options.allowedEventTypes ?? [])
+  for (const eventType of allowedEventTypes) {
+    if (!isBehaviorEventType(eventType)) {
+      throw new Error(`Event '${eventType}' is not part of Behavior Event Catalog v1`)
+    }
+  }
   if (allowedEventTypes.size === 0) throw new Error("allowedEventTypes must not be empty")
   const fetchImpl = options.fetch ?? globalThis.fetch
   if (typeof fetchImpl !== "function") throw new Error("fetch is required")

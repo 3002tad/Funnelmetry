@@ -1,7 +1,10 @@
+import {
+  BEHAVIOR_EVENT_DEFINITIONS,
+  validateBehaviorPayload,
+} from "@3002tad/funnelmetry-behavior-event-catalog"
+
 const BASELINE_SEMANTICS = Object.freeze({
-  "behavior.product_viewed": "BEHAVIOR_INTENT",
-  "cart.add_clicked": "BEHAVIOR_INTENT",
-  "checkout.started": "BEHAVIOR_INTENT",
+  ...Object.fromEntries(Object.entries(BEHAVIOR_EVENT_DEFINITIONS).map(([eventType, definition]) => [eventType, definition.event_class])),
   "payment.submit_clicked": "BEHAVIOR_INTENT",
   "cart.item_added": "BUSINESS_FACT",
   "order.created": "BUSINESS_FACT",
@@ -14,7 +17,7 @@ const BASELINE_SEMANTICS = Object.freeze({
   "refund.completed": "BUSINESS_FACT",
 })
 
-export function createPassthroughMappings(mappingVersion = "canonical-passthrough-v1") {
+export function createPassthroughMappings(mappingVersion = "canonical-passthrough-v2") {
   return Object.entries(BASELINE_SEMANTICS).map(([eventType, eventClass]) => Object.freeze({
     source_id: "*",
     source_event_type: eventType,
@@ -22,7 +25,11 @@ export function createPassthroughMappings(mappingVersion = "canonical-passthroug
     event_type: eventType,
     event_class: eventClass,
     mapping_version: mappingVersion,
-    map_data: (event) => event.source_payload,
+    map_data: (event) => (
+      Object.hasOwn(BEHAVIOR_EVENT_DEFINITIONS, eventType)
+        ? validateBehaviorPayload(eventType, event.source_payload)
+        : event.source_payload
+    ),
   }))
 }
 
