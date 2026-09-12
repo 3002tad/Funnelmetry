@@ -21,6 +21,25 @@ Chat mới/đăng xuất xóa lịch sử; đây không phải lịch sử serve
 
 ## Admin baseline
 
+### Integrations / Sources
+
+Database demo cũ cần `infra/postgres/v2/013_ingress_coordination.sql` sau các migration
+phụ thuộc 001/005 để có `ingress_receipt_claims`. Ngày 2026-09-12 đã áp dụng 013 vào
+`funnelmetry-v2-demo-postgres` (không phải private-ingress): API Admin trả 200, kiểm tra
+exact filter, empty result và cursor đều thành công. Đây là kiểm tra API, chưa thay thế
+kiểm thử thao tác trên trình duyệt. Không suy ra tất cả migration V2 đã được áp dụng.
+
+`/admin/sources` yêu cầu `integration.read`, gọi `GET /api/v2/admin/sources`.
+Danh sách chỉ phản ánh nguồn có retained evidence, không phải configuration registry.
+Có lọc source_id chính xác, cursor pagination 25 nguồn/trang, refresh và trạng thái
+loading/empty/error. Counts giữ dạng chuỗi PostgreSQL bigint. Kết nối luôn chưa xác minh;
+không suy ra online, delivery loss hoặc DLQ size từ các count. Chưa hỗ trợ thêm/sửa nguồn,
+key, connector, network probe hay replay. Trang chỉ đọc, không thay đổi AI hoặc Relay.
+
+Kiểm tra UI: Admin thấy menu và dữ liệu/empty/error đúng response; Analyst không có menu
+và bị chặn route; filter reset về trang đầu; next/previous giữ filter, không giữ dữ liệu
+trang cũ như kết quả trang mới khi request lỗi. Chưa coi build là browser interaction test.
+
 Login/me trả capability bundles từ backend. Admin được đưa tới `/admin/pipeline`, analyst tới
 `/overview`; route guard và menu dựa trên permissions. Không tự cấp analytics.read cho System Admin.
 Đăng xuất/đăng nhập lại nếu client cũ chưa nhận permissions.

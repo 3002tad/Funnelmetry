@@ -15,6 +15,7 @@ const InsightsPage = lazy(() => import("../features/insights/InsightsPage").then
 const SettingsPage = lazy(() => import("../features/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })))
 const AdminUsersPage = lazy(() => import('../features/admin/AdminUsersPage'))
 const PipelineHealthPage = lazy(() => import('../features/admin/PipelineHealthPage'))
+const SourcesPage = lazy(() => import('../features/admin/SourcesPage'))
 const ChatPage = lazy(() => import('../features/chat/ChatPage').then(module => ({ default: module.ChatPage })))
 
 function Landing() {
@@ -67,6 +68,9 @@ export function App() {
           </Route>
           <Route element={<PermissionGate permission="user.manage" />}>
             <Route path="/admin/users" element={<AdminUsersPage />} />
+          </Route>
+          <Route element={<PermissionGate permission="integration.read" />}>
+            <Route path="/admin/sources" element={<SourcesPage />} />
           </Route>
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

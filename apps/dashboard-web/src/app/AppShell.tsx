@@ -26,6 +26,7 @@ export function AppShell() {
   const { user, logout } = useAuth()
   const visibleNav = user?.permissions?.includes('pipeline.monitor') ? [
     { to: '/admin/pipeline', label: 'Pipeline Health', icon: Activity },
+    ...(user.permissions.includes('integration.read') ? [{ to: '/admin/sources', label: 'Integrations / Sources', icon: DatabaseZap }] : []),
     ...(user.permissions.includes('user.manage') ? [{ to: '/admin/users', label: 'Users / Roles', icon: Settings }] : []),
   ] : user?.permissions?.includes('analytics.read') ? [...nav,
     ...(user.permissions.includes('chat.use') ? [{ to: '/chat', label: 'AI Chat', icon: MessageSquare }] : []),
