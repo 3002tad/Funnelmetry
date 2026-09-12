@@ -504,6 +504,11 @@ build của Dashboard UI đã chạy thành công, không có lỗi TypeScript h
 
 ## 32. Master-aligned Medusa input semantics
 
+> **Ghi chú 2026-09-12:** Ba event dưới đây hiện là transport-smoke subset. DEC-073 đã
+> chốt catalog behavior rộng hơn gồm page/scroll/banner/search/filter, nhưng changelog này
+> không chứng minh các event mới đã được SDK/Normalizer/analytics triển khai. Trạng thái rollout
+> được theo dõi tại `System_Backbone/docs/implementation/BEHAVIOR_EVENT_CATALOG_V1_ROLLOUT.md`.
+
 - Đồng bộ Browser SDK installer với manifest reference mới: `behavior.product_viewed`,
   `cart.add_clicked`, `checkout.started`; loại namespace `commerce.*` cũ khỏi generated binding.
 - Add-to-cart browser hook phát intent trước business request. Nó không được đổi tên hoặc diễn giải thành
