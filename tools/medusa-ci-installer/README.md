@@ -20,8 +20,13 @@ Queue-full, retry-exhausted, and process-restart events are observable
 pre-durable-handoff loss, not a durability claim. Reconciliation remains the
 mechanism for quantifying/repairing the supported current projection later.
 
-Browser hooks emit only `behavior.product_viewed`, `cart.add_clicked` and `checkout.started` as
-`BEHAVIOR_INTENT`. The order subscriber emits source-native `medusa.order_placed`; the versioned
+The currently published installer emits `behavior.product_viewed`, `cart.add_clicked` and
+`checkout.started` as the transport-smoke subset. DEC-073 has approved a wider Browser behavior
+catalog covering page, scroll, banner, search and filter signals with separate
+`CLIENT_OBSERVATION`/`BEHAVIOR_INTENT` authority. That catalog is not implemented by this installer
+yet; track rollout status in
+`System_Backbone/docs/implementation/BEHAVIOR_EVENT_CATALOG_V1_ROLLOUT.md`. The order subscriber
+emits source-native `medusa.order_placed`; the versioned
 Normalizer mapping owns the conservative conversion to `order.created` as `BUSINESS_FACT`. The plan
 reports persisted cart-item and accepted-order capabilities as `NOT_SUPPORTED`, so this first input
 demo remains `IN_PROGRESS` and is not evidence of Commerce Conversion 4/4.
