@@ -49,15 +49,31 @@ Health is not a signed event test or proof of downstream workers being ready.
 
 ## After private health passes
 
+The private Gateway has two distinct machine-to-machine producer paths. A browser
+never calls this endpoint directly:
+
+- **Edge Relay -> Gateway:** Relay forwards previously durable `browser_sdk`
+  events through Tailnet. Keep `INPUT_GATEWAY_CORS_ORIGINS` empty. Before enabling
+  Relay upstream, set one source-scoped Relay credential in
+  `PRIVATE_GATEWAY_RELAY_BROWSER_KEYS_JSON` in the ignored runtime env and the
+  same key ID/source/secret in Relay's `RELAY_UPSTREAM_BROWSER_KEYS_JSON`. This
+  credential is separate from the Browser -> Relay write key and from backend HMAC.
+- **Medusa backend -> Gateway:** the signed `source_bridge` path below is a
+  separate activation and uses the backend HMAC registry.
+
+At bootstrap, `PRIVATE_GATEWAY_RELAY_BROWSER_KEYS_JSON={}` deliberately rejects
+Relay forwarding. Do not enable public browser CORS or publish the Gateway port to
+work around that gate.
+
 Coordinate one activation with the Medusa owner: install the matching source/key ID
 and HMAC secret in PRIVATE_GATEWAY_BACKEND_KEYS_JSON and Medusa backend secret store,
 update `ingest.backend_url` to the verified private HTTPS URL, regenerate binding and
 rebuild backend. Do not print or commit the registry. Start the remaining V2 workers
 with the same Compose project/files before the signed event end-to-end test.
 
-Browser input remains disabled on this profile. The public Edge Relay branch still
-needs review/merge and its own upstream authorization/connectivity acceptance; do not
-send a browser directly to Tailnet ingress or assume Relay integration is completed.
+Direct browser input remains disabled on this profile. Edge Relay needs its own
+upstream authorization/connectivity acceptance before it forwards; do not send a
+browser directly to Tailnet ingress or assume Relay integration is completed.
 
 ## Evidence and limitations
 
