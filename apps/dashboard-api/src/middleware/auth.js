@@ -58,7 +58,7 @@ export function requireChatRole(req, res, next) {
   if (canAccessChat(req.user?.role)) return next();
   return res.status(403).json({
     error: "forbidden",
-    hint: "chat_requires_admin_or_analyst",
+    hint: "chat_use_required",
     role: req.user?.role || null,
   });
 }

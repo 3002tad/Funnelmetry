@@ -4,9 +4,18 @@ import { requireAuth } from '../middleware/auth.js'
 import { requireLivePermission } from '../middleware/live-permission.js'
 import { ROLE_PERMISSIONS } from '../lib/roles.js'
 import { listAccountAudit, parseAuditQuery } from '../lib/account-audit.js'
+import { listObservedSources, parseSourcesQuery } from '../lib/admin-sources.js'
 
 export function createAdminV2Router(execute = query) {
   const router = Router()
+  router.get('/api/v2/admin/sources', requireAuth, requireLivePermission('integration.read', execute), async (req, res) => {
+    res.set('Cache-Control', 'no-store')
+    let filters
+    try { filters = parseSourcesQuery(req.query) }
+    catch { return res.status(400).json({ error: 'invalid_sources_query' }) }
+    try { return res.json(await listObservedSources(execute, filters)) }
+    catch { return res.status(503).json({ error: 'sources_evidence_unavailable' }) }
+  })
   router.get('/api/v2/admin/audit', requireAuth, requireLivePermission('audit.read', execute), async (req, res) => {
     let filters
     try { filters = parseAuditQuery(req.query) }

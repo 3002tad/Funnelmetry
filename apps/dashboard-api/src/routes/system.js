@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { config } from "../config.js";
-import { getOllamaHealth, getQdrantStore, listRecentInsights } from "../lib/chat/chat.service.js";
 import { query } from "../db.js";
+// Legacy status may be enabled independently of AI.
+const chatService = config.features.ai ? await import('../lib/chat/chat.service.js') : null;
+const getOllamaHealth = () => chatService ? chatService.getOllamaHealth() : Promise.resolve({ status: 'disabled' });
+const getQdrantHealth = () => chatService ? chatService.getQdrantStore().health() : Promise.resolve({ status: 'disabled' });
 
 export const systemRouter = Router();
 
@@ -64,7 +67,7 @@ systemRouter.get("/api/system/pipeline", async (_req, res) => {
           probeHttp("dashboard-api", "http://127.0.0.1:3000/health"),
           probeHttp("commerce-backend", commerceHealthUrl),
         ]),
-        getQdrantStore().health(),
+        getQdrantHealth(),
         getOllamaHealth(),
         query(
           `SELECT
@@ -168,7 +171,7 @@ systemRouter.get("/api/system/pipeline", async (_req, res) => {
         url: qdrantHealth.url || config.qdrant.url || "—",
         detail:
           qdrantHealth.status === "disabled"
-            ? "QDRANT_URL not set"
+            ? "AI module disabled"
             : `collection ${config.qdrant.collection}`,
       },
       {
@@ -179,7 +182,7 @@ systemRouter.get("/api/system/pipeline", async (_req, res) => {
           ollamaHealth.status === "ok"
             ? `model ${config.ollama.model} · ${(ollamaHealth.models || []).join(", ")}`
             : ollamaHealth.status === "disabled"
-              ? "OLLAMA_URL not set"
+              ? "AI module disabled"
               : ollamaHealth.error || "unreachable",
       },
     ];
@@ -256,15 +259,4 @@ systemRouter.get("/api/system/setup", async (_req, res) => {
     },
     docs: ["README.md", "docs/REPOSITORY_LAYOUT.md", "docs/README.md"],
   });
-});
-
-systemRouter.get("/api/chat/insights", async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit, 10) || 12, 30);
-  try {
-    const result = await listRecentInsights(limit);
-    res.json(result);
-  } catch (err) {
-    console.error("GET /api/chat/insights", err.message);
-    res.status(500).json({ error: "insights_failed" });
-  }
 });

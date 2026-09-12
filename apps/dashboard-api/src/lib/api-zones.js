@@ -1,10 +1,12 @@
 /** Path belongs to manager (analytic) APIs — not admin/system/users. */
 /** POST /api/chat and session history — shared analytics (not shop-only). */
 export function isChatApiPath(path) {
+  path = path.toLowerCase().replace(/\/$/, '');
   return path === "/api/chat" || path.startsWith("/api/chat/sessions");
 }
 
 export function isShopApiPath(path) {
+  path = path.toLowerCase();
   if (isChatApiPath(path)) return false;
   return (
     path.startsWith("/api/v2/analytics")
@@ -20,10 +22,10 @@ export function isShopApiPath(path) {
 
 /** Path belongs to admin APIs. */
 export function isAdminApiPath(path) {
+  path = path.toLowerCase();
   return (
     path.startsWith("/api/system")
     || path.startsWith("/api/users")
-    || path.startsWith("/api/chat/insights")
   );
 }
 

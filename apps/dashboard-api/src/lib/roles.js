@@ -11,9 +11,9 @@ export const SHOP_ROLES = [ROLE_ANALYST, ROLE_STAFF, ROLE_VIEWER];
 
 // Initial capability bundles for the currently supported database roles.
 export const ROLE_PERMISSIONS = Object.freeze({
-  super_admin: Object.freeze(['pipeline.monitor', 'user.manage', 'role.manage', 'audit.read']),
-  analyst: Object.freeze(['analytics.read', 'analytics.workspace.use']),
-  staff: Object.freeze(['analytics.read']),
+  super_admin: Object.freeze(['pipeline.monitor', 'integration.read', 'user.manage', 'role.manage', 'audit.read']),
+  analyst: Object.freeze(['analytics.read', 'analytics.workspace.use', 'chat.use', 'insight.read']),
+  staff: Object.freeze(['analytics.read', 'chat.use', 'insight.read']),
   viewer: Object.freeze(['analytics.read', 'analytics.workspace.use']),
 });
 export function permissionsFor(role) { return ROLE_PERMISSIONS[role] ?? []; }
@@ -27,7 +27,7 @@ export function canAccessAdmin(role) {
   return hasPermission(role, 'user.manage');
 }
 
-/** Chat analytics — both admin and analyst UIs. */
+/** Capability authorization is independent of module activation. */
 export function canAccessChat(role) {
-  return canAccessShop(role) || canAccessAdmin(role);
+  return hasPermission(role, 'chat.use');
 }

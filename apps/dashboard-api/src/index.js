@@ -1,11 +1,12 @@
 import { createApp } from './app.js'
 import { config } from './config.js'
-import { startEventPoller } from './lib/event-poller.js'
 import { seedAdminUser } from './seed.js'
 import { query, closeDatabase } from './db.js'
 import { AccountSchemaError, prepareAccountStartup } from './lib/account-schema.js'
 
 const app = createApp()
+const startEventPoller = config.features.legacy
+  ? (await import('./lib/event-poller.js')).startEventPoller : () => {}
 
 prepareAccountStartup({
   execute: query,

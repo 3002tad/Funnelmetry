@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ASSIGNABLE_ROLES, permissionsFor } from '../src/lib/roles.js'
+import { ASSIGNABLE_ROLES, permissionsFor, canAccessChat } from '../src/lib/roles.js'
 import { requireAnalyticsCapability } from '../src/middleware/analytics-capability.js'
 
 test('three assignable roles with separate admin and business permissions', () => {
@@ -9,6 +9,11 @@ test('three assignable roles with separate admin and business permissions', () =
   assert.equal(permissionsFor('staff').includes('user.manage'), false)
   assert.equal(permissionsFor('staff').includes('analytics.workspace.use'), false)
   assert.deepEqual(permissionsFor('unknown'), [])
+  for (const role of ['super_admin', 'analyst', 'staff', 'viewer', 'unknown']) {
+    const business = role === 'analyst' || role === 'staff'
+    assert.equal(canAccessChat(role), business)
+    assert.equal(permissionsFor(role).includes('insight.read'), business)
+  }
 })
 
 test('staff reads summaries but cannot access workspace or mutations', () => {

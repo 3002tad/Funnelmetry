@@ -1,5 +1,5 @@
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const actions = ['account.created', 'account.updated', 'account.disabled', 'password.changed', 'account.bootstrapped', 'sessions.revoked']
+const actions = ['account.created', 'account.updated', 'account.disabled', 'password.changed', 'account.bootstrapped', 'sessions.revoked', 'preferences.updated']
 
 export function parseAuditQuery(query) {
   const allowed = ['limit', 'cursor', 'actor_id', 'target_id', 'action']
@@ -50,6 +50,7 @@ export async function listAccountAudit(execute, filters) {
       'role', changes->'role', 'is_active', changes->'is_active',
       'password_changed', changes->'password_changed',
       'sessions_revoked', changes->'sessions_revoked',
+      'preferences_updated', CASE WHEN action='preferences.updated' THEN true ELSE NULL END,
       'display_name_changed', CASE WHEN changes ? 'display_name' THEN true ELSE NULL END
     )) AS changes
     FROM dashboard_account_audit ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}

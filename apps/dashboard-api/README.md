@@ -1,6 +1,122 @@
 # dashboard-api
 
+Qwen Flash Singapore via `POST /api/v2/chat` (offline-tested, disabled by default):
+[AI backend notes](src/lib/ai/README.md). Do not enable legacy AI to activate Qwen.
+
+## Core V2 và module tùy chọn (2026-09-11)
+
+Mặc định `DASHBOARD_ENABLE_LEGACY=false` và `DASHBOARD_ENABLE_AI=false`.
+Auth/account, Admin V2 và analytics V2 không cần cấu hình AI hoặc tracking API V1.
+Core vẫn cần PostgreSQL, account migrations, schema analytics tương ứng, JWT, CORS,
+PORT và bootstrap credentials như bên dưới; đây không phải chế độ bỏ kiểm tra schema.
+
+- `DASHBOARD_ENABLE_LEGACY=true`: nạp các route analytics V1, `/api/system/pipeline`
+  và khởi động event poller/SSE V1. Bắt buộc `PIPELINE_TRACKING_API_URL`; cần schema V1.
+- `DASHBOARD_ENABLE_AI=true`: nạp Chat/Insights cũ. Bắt buộc `QDRANT_URL`,
+  `QDRANT_COLLECTION`, `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_MS`.
+  Cần các schema/dịch vụ AI cũ; không có nghĩa AI đã được nâng cấp theo Master V2.
+- Hai cờ độc lập, chỉ nhận `true`/`false`; URL tồn tại không tự bật module.
+  Module tắt không import service/router hay khởi động poller của module đó.
+- API module tắt trả `503 {"error":"module_disabled","module":"ai|legacy"}`
+  sau kiểm tra quyền. Chưa đăng nhập trả 401, không đủ quyền trả 403.
+
+Theo Master §17, Admin không có `chat.use`/`insight.read`; Analyst và Staff có hai
+capability này. `/api/chat/insights` không còn thuộc quản lý users/system.
+Capability và module activation là hai điều kiện riêng. Legacy viewer không có quyền Chat.
+
+Khi nâng cấp bản demo cũ, phải truyền cờ tương ứng vào environment của **process/container
+dashboard-api** nếu muốn tiếp tục dùng V1; chỉ sửa file env không được runtime nạp sẽ không có tác dụng.
+UI cũ chưa được đồng bộ trong đợt backend này nên menu cũ có thể nhận 403/503.
+
+Kiểm thử: `test/feature-config.test.js` kiểm tra import ứng dụng cho bốn tổ hợp cờ;
+`test/auth-flow.integration.test.js` dùng PostgreSQL cô lập, có thể chạy lại với từng
+tổ hợp `DASHBOARD_ENABLE_LEGACY`/`DASHBOARD_ENABLE_AI`. Khi bật AI, test chỉ kiểm tra
+authorization/validation, không gọi model hay phát sinh event Medusa.
+
+## Account settings API — Master §23.6 (2026-09-11)
+
+Áp dụng migration riêng `infra/postgres/010_dashboard_preferences.sql` **sau**
+003/006–009 bằng tài khoản migration, trước khi sử dụng preferences. Không tự chạy
+migration khi API start. Account schema preflight hiện chỉ kiểm tra nền security;
+READY không chứng minh bảng preferences đã tồn tại. Thiếu bảng/DB lỗi: endpoint
+preferences trả 503, không giả lập đã lưu thành công. Chưa áp 010 vào DB runtime.
+
+Mọi role đã đăng nhập với phiên còn hiệu lực đều dùng được:
+
+- `GET /api/account/preferences`: `{preferences, updated_at}`; chưa từng lưu thì
+  trả defaults và `updated_at: null`, không tạo bản ghi qua GET.
+- `PATCH /api/account/preferences`: gửi một hoặc nhiều trường bên dưới; merge
+  các trường đã gửi, giữ nguyên trường khác. Không nhận user_id/profile/role.
+- `GET /api/account/activity?limit=25&cursor=...&action=...`: lịch sử account audit
+  có `target_id` bằng tài khoản hiện tại; không phải toàn bộ hoạt động nghiệp vụ.
+  Response `{items, limit, next_cursor}`; item chỉ có id/action/created_at/changes,
+  không trả actor_id, target_id, credential hoặc giá trị preferences đã lưu.
+  Filter action dùng cùng allowlist với Admin audit, có thêm `preferences.updated`.
+  Limit 1–100; không nhận actor_id/target_id. Cursor không cho phép đổi phạm vi tài khoản.
+
+Contract triển khai ban đầu (giá trị mặc định do backend chọn, không phải chi tiết
+được Master quy định):
+
+| Trường | Giá trị | Mặc định |
+|---|---|---|
+| theme | light / dark / system | system |
+| language | vi / en | vi |
+| timezone | timezone được Intl runtime hỗ trợ, ví dụ UTC, Asia/Ho_Chi_Minh | Asia/Ho_Chi_Minh |
+| date_format | locale / iso | locale |
+| number_format | locale / plain | locale |
+| notifications_enabled | boolean | true |
+| analytics_default_days | 7 / 30 / 90 (number) | 30 |
+
+PATCH sai/không có trường hoặc query lạ trả 400. Session hết hạn/thu hồi trả 401;
+DB/audit lỗi trả 503. Cả ba endpoint đặt Cache-Control: no-store. PATCH khóa account
+row, kiểm tra lại phiên trong transaction, merge JSON và ghi audit nguyên tử.
+Hai PATCH khác trường không ghi đè nhau; cùng trường thì lần ghi sau thắng.
+Audit ghi tên trường yêu cầu thay đổi, không ghi giá trị; PATCH lặp lại vẫn có audit.
+Preferences không đổi session_version, không thay quyền hoặc mật khẩu.
+
+Personal activity hiện bao gồm các account mutation đã audit (tạo/sửa/khóa,
+đổi mật khẩu, thu hồi phiên, preferences); chưa có lịch sử login/read/click hay
+workflow nghiệp vụ. Không tự suy diễn các hoạt động chưa được ghi nhận.
+Thông báo và analytics defaults mới được **lưu**, chưa có delivery hoặc UI tiêu thụ;
+không làm thay đổi timezone dữ liệu canonical, cửa sổ KPI hay cấp thêm quyền analytics.
+UI settings, đổi mật khẩu và sign-out UI chưa thay đổi trong đợt này.
+
+Kiểm thử hồi quy đợt này: 32/32 bằng Node 22 và PostgreSQL 15 cô lập, không skip.
+Gồm validator và full-app kiểm tra cách ly account, merge đồng thời, audit rollback,
+phân trang, lưu qua phiên đăng nhập khác, thiếu schema và token bị thu hồi.
+
 ## Admin V2 baseline
+
+### Observed source inventory (2026-09-11)
+
+`GET /api/v2/admin/sources?limit=25&after=...&source_id=...` yêu cầu `integration.read`
+của Admin, kiểm tra quyền hiện tại trong DB. Analyst/Staff không được truy cập.
+Không có mutation, không cấp `integration.manage` và không cấu hình nguồn/secret.
+
+Response gồm `items`, `limit`, `next_after`, `checked_at`, `evidence=postgres_v2`,
+`scope=retained_observed_sources` và danh sách khả năng chưa xác minh. Mỗi item:
+source_id, accepted_receipts, pending_claims, canonical_events, quarantined_outcomes,
+unsupported_outcomes, last_received_at, last_canonical_at, connection_status.
+Counts là chuỗi số thập phân để giữ chính xác PostgreSQL bigint; timestamps có thể null.
+
+- Đây là nguồn **đã quan sát**, lấy hợp của receipts, claims, canonical ledger và
+  canonicalization outcomes V2. Nguồn cấu hình nhưng chưa có evidence không xuất hiện.
+- `connection_status=UNVERIFIED`: không suy ra online/offline từ timestamp hoặc count.
+  Không probe Medusa, Tailscale, Relay; không chứng nhận private ingress đã sẵn sàng.
+- Claim `CLAIMED` không phải accepted receipt. Kết quả unsupported/quarantined tính
+  theo latest outcome mỗi source event, không phải tổng số lần retry hay kích thước DLQ.
+- Không cộng/trừ các count để suy ra delivery guarantee hoặc mất dữ liệu.
+  Count chỉ phản ánh retained records, không phải lifetime totals.
+- Limit 1–100, `after` là source_id cuối trang trước (URL-encode), thứ tự PostgreSQL
+  collation C. `source_id` lọc khớp chính xác; filter lạ/lặp/sai trả 400.
+  Pagination không đóng băng snapshot giữa các request khi dữ liệu thay đổi.
+- Không trả payload/receipt_document/owner_token/secret. Thiếu schema hoặc query lỗi
+  trả 503 `sources_evidence_unavailable`, không dựng danh sách rỗng.
+- Dùng migrations V2 hiện có (bao gồm 001/005/013 và phụ thuộc), không thêm migration
+  riêng. Query discovery/count cần quét retained evidence; chưa benchmark dữ liệu lớn,
+  chưa thay thế source registry hoặc index/materialized inventory cho production scale.
+
+Route có Cache-Control: no-store. UI integrations chưa nối vào API này.
 
 - `GET /api/v2/admin/roles`: ba capability bundles hiện có (không phải trình sửa permission).
 - `GET /api/v2/admin/audit`: account audit read-only, yêu cầu `audit.read` của Admin.

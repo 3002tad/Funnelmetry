@@ -1,0 +1,42 @@
+# Always use after compose.v2.yml. Never use this overlay with E2E credentials.
+services:
+  ts-pipeline:
+    image: ${TAILSCALE_IMAGE:-tailscale/tailscale:stable}
+    hostname: funnelmetry-pipeline
+    profiles: [private-ingress]
+    restart: unless-stopped
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?Set TS_AUTHKEY in ignored runtime/private-ingress.env}
+      TS_AUTH_ONCE: "true"
+      TS_USERSPACE: "false"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+    cap_add: [NET_ADMIN]
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./tailscale:/config:ro
+
+  input-gateway:
+    profiles: [private-ingress]
+    network_mode: service:ts-pipeline
+    ports: !reset []
+    environment:
+      INPUT_GATEWAY_HOST: 127.0.0.1
+      INPUT_GATEWAY_CORS_ORIGINS: ""
+      # Explicit empty maps remove inherited E2E credentials during bootstrap.
+      INPUT_GATEWAY_BROWSER_KEYS_JSON: '{}'
+      INPUT_GATEWAY_BACKEND_KEYS_JSON: ${PRIVATE_GATEWAY_BACKEND_KEYS_JSON:-{}}
+    depends_on:
+      ts-pipeline:
+        condition: service_started
+
+  postgres:
+    ports: !reset []
+    healthcheck:
+      # The initdb temporary server accepts Unix sockets before TCP is ready.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U funnelmetry -d funnelmetry"]
+
+volumes:
+  tailscale-state:

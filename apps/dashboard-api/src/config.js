@@ -12,7 +12,19 @@ function envOptional(name, fallback = "") {
   return String(value).trim();
 }
 
+function featureFlag(name) {
+  const value = envOptional(name, 'false');
+  if (!['true', 'false'].includes(value)) throw new Error(`${name} must be true or false`);
+  return value === 'true';
+}
+const features = Object.freeze({
+  legacy: featureFlag('DASHBOARD_ENABLE_LEGACY'),
+  ai: featureFlag('DASHBOARD_ENABLE_AI'),
+});
+const aiEnv = name => features.ai ? requireEnv(name) : '';
+
 export const config = {
+  features,
   port: Number(requireEnv("PORT")),
   corsOrigins: requireEnv("CORS_ORIGIN_DASHBOARD")
     .split(",")
@@ -23,7 +35,7 @@ export const config = {
   adminEmail: requireEnv("DASHBOARD_ADMIN_EMAIL"),
   adminPassword: requireEnv("DASHBOARD_ADMIN_PASSWORD"),
   pipeline: {
-    trackingApi: requireEnv("PIPELINE_TRACKING_API_URL"),
+    trackingApi: features.legacy ? requireEnv("PIPELINE_TRACKING_API_URL") : '',
     commerceBackend: envOptional("PIPELINE_COMMERCE_BACKEND_URL", "http://commerce-backend:3000"),
     rabbitmqMgmt: envOptional("PIPELINE_RABBITMQ_MGMT_URL", "http://rabbitmq:15672"),
     rabbitmqUser: envOptional("RABBITMQ_MGMT_USER", "app"),
@@ -39,13 +51,13 @@ export const config = {
     idleTimeoutMillis: 30000,
   },
   qdrant: {
-    url: requireEnv("QDRANT_URL"),
-    collection: requireEnv("QDRANT_COLLECTION"),
+    url: aiEnv("QDRANT_URL"),
+    collection: aiEnv("QDRANT_COLLECTION"),
   },
   ollama: {
-    url: requireEnv("OLLAMA_URL"),
-    model: requireEnv("OLLAMA_MODEL"),
-    timeout: Number(requireEnv("OLLAMA_TIMEOUT_MS")),
+    url: aiEnv("OLLAMA_URL"),
+    model: aiEnv("OLLAMA_MODEL"),
+    timeout: features.ai ? Number(requireEnv("OLLAMA_TIMEOUT_MS")) : 0,
     temperature: Number(envOptional("OLLAMA_TEMPERATURE", "0.65")),
     numPredict: Number(envOptional("OLLAMA_NUM_PREDICT", "768")),
   },

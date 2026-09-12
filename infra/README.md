@@ -1,5 +1,9 @@
 # Local infrastructure
 
+Private Tailscale ingress (opt-in, separate from E2E): see [PRIVATE_INGRESS.md](PRIVATE_INGRESS.md).
+Configuration regression check: `powershell -File infra/test-private-ingress.ps1`
+from the repository root; no real auth keys or container startup required.
+
 ## V2 end-to-end stack
 
 ### Medusa reference key registry (SYNC-001)
