@@ -8,9 +8,9 @@ The catalog is based on DEC-073. Use `validateBehaviorEvent(eventType, payload)`
 semantic boundary before treating a Browser source event as canonical. `IngressEvent`
 remains a generic source envelope.
 
-The Browser SDK consumes `isBehaviorEventType` to keep its configured allowlist inside
-the approved vocabulary. Full payload validation in SDK hooks is a later SDK gate because
-the existing Medusa binding has not yet been regenerated with `page_instance_id`.
+The Browser SDK consumes this catalog for both configured allowlist and payload validation.
+Medusa instrumentation remains a separate host/installer gate because its generated binding
+has not yet been regenerated with the required page and behavior context.
 
 See `System_Backbone/docs/implementation/BEHAVIOR_EVENT_CATALOG_V1_ROLLOUT.md` for the
 cross-repository rollout and acceptance gates.

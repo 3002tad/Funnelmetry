@@ -93,6 +93,10 @@ function parseReceipt(responseBody) {
   }
 }
 
+function enteredDeliveryQueue(result) {
+  return result?.status !== "skipped_no_consent" && result?.status !== "dropped_queue_full"
+}
+
 /**
  * Browser runtime only handles explicit semantic events supplied by the host binding.
  * It never reads form values, the DOM, URL query/fragment, or raw IP data.
@@ -126,6 +130,10 @@ export function createBrowserSdk(options) {
   if (!Number.isInteger(maxQueueSize) || maxQueueSize < 1) throw new Error("maxQueueSize must be a positive integer")
 
   const queue = parseStoredQueue(storage, storageKey)
+  const queuedPageInstances = new Set(queue
+    .filter((event) => event?.source_event_type === "behavior.page_viewed")
+    .map((event) => event?.source_payload?.page_instance_id)
+    .filter((pageInstanceId) => typeof pageInstanceId === "string"))
   const metrics = { accepted: 0, duplicate: 0, relayQueued: 0, rejected: 0, retryableFailure: 0, queueDropped: 0 }
   let flushing = false
 
@@ -200,7 +208,14 @@ export function createBrowserSdk(options) {
 
   function track(sourceEventType, sourcePayload, context = {}) {
     if (!allowedEventTypes.has(sourceEventType)) throw new Error(`Event '${sourceEventType}' is not allowed by this integration`) 
+    const validatedSourcePayload = validateBehaviorPayload(sourceEventType, sourcePayload)
     if (!hasConsent()) return Promise.resolve({ status: "skipped_no_consent" })
+    const pageInstanceId = sourceEventType === "behavior.page_viewed"
+      ? validatedSourcePayload.page_instance_id
+      : null
+    if (pageInstanceId && queuedPageInstances.has(pageInstanceId)) {
+      return Promise.resolve({ status: "skipped_duplicate_page_view" })
+    }
     if (queue.length >= maxQueueSize) {
       const dropped = { sourceEventType, reason: "queue_full" }
       metrics.queueDropped += 1
@@ -215,13 +230,14 @@ export function createBrowserSdk(options) {
       source_schema_version: "1.0",
       occurred_at: context.occurredAt ?? now(),
       producer: "browser_sdk",
-      source_payload: sourcePayload,
+      source_payload: validatedSourcePayload,
       anonymous_id: context.anonymousId,
       session_id: context.sessionId,
       correlation_id: context.correlationId,
       source_metadata: context.metadata,
     })
     queue.push(event)
+    if (pageInstanceId) queuedPageInstances.add(pageInstanceId)
     persistQueue()
     return flush()
   }
@@ -231,7 +247,7 @@ export function createBrowserSdk(options) {
    * Use this for explicit application hooks such as product, search, filter and banner clicks.
    */
   function trackBehavior(sourceEventType, sourcePayload, context = {}) {
-    return track(sourceEventType, validateBehaviorPayload(sourceEventType, sourcePayload), context)
+    return track(sourceEventType, sourcePayload, context)
   }
 
   function createPageContext(page) {
@@ -271,12 +287,18 @@ export function createBrowserSdk(options) {
       validateBehaviorPayload("behavior.scroll_depth_reached", { ...page, depth_percent: milestone })
     }
     const reached = new Set()
+    const pending = new Set()
     const onScroll = () => {
       const depthPercent = browserScrollPercent(browserWindow, documentImpl)
       for (const milestone of orderedMilestones) {
-        if (depthPercent < milestone || reached.has(milestone)) continue
-        reached.add(milestone)
-        void trackScrollDepth(page, milestone, options?.context)
+        if (depthPercent < milestone || reached.has(milestone) || pending.has(milestone)) continue
+        pending.add(milestone)
+        void trackScrollDepth(page, milestone, options?.context).then((result) => {
+          pending.delete(milestone)
+          if (enteredDeliveryQueue(result)) reached.add(milestone)
+        }, () => {
+          pending.delete(milestone)
+        })
       }
     }
     browserWindow.addEventListener("scroll", onScroll, { passive: true })
@@ -325,6 +347,7 @@ export function createBrowserSdk(options) {
     let visibleSince = null
     let lastVisiblePercent = 50
     let emitted = false
+    let deliveryPending = false
     let observer
 
     const cancelTimer = () => {
@@ -334,19 +357,29 @@ export function createBrowserSdk(options) {
     }
     const emitIfStillVisible = () => {
       timer = null
-      if (emitted || visibleSince === null) return
+      if (emitted || deliveryPending || visibleSince === null) return
       const visibleMs = Math.floor(clock() - visibleSince)
       if (visibleMs < dwellMs) {
         timer = setTimer(emitIfStillVisible, dwellMs - visibleMs)
         return
       }
-      emitted = true
-      observer?.unobserve?.(element)
+      deliveryPending = true
       void trackBehavior("promotion.banner_impression", {
         ...validated,
         visible_percent: lastVisiblePercent,
         visible_ms: visibleMs,
-      }, value.context)
+      }, value.context).then((result) => {
+        deliveryPending = false
+        if (enteredDeliveryQueue(result)) {
+          emitted = true
+          observer?.unobserve?.(element)
+        } else {
+          visibleSince = null
+        }
+      }, () => {
+        deliveryPending = false
+        visibleSince = null
+      })
     }
     observer = new Observer((entries) => {
       if (emitted) return
