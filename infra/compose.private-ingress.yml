@@ -25,8 +25,10 @@ services:
     environment:
       INPUT_GATEWAY_HOST: 127.0.0.1
       INPUT_GATEWAY_CORS_ORIGINS: ""
-      # Explicit empty maps remove inherited E2E credentials during bootstrap.
-      INPUT_GATEWAY_BROWSER_KEYS_JSON: '{}'
+      # This registry authenticates only the private Edge Relay hop.  It does
+      # not expose a browser route: Gateway has no published port and CORS stays empty.
+      # An explicit value in ignored runtime/private-ingress.env prevents inherited E2E keys.
+      INPUT_GATEWAY_BROWSER_KEYS_JSON: ${PRIVATE_GATEWAY_RELAY_BROWSER_KEYS_JSON:?Set PRIVATE_GATEWAY_RELAY_BROWSER_KEYS_JSON in ignored runtime/private-ingress.env}
       INPUT_GATEWAY_BACKEND_KEYS_JSON: ${PRIVATE_GATEWAY_BACKEND_KEYS_JSON:-{}}
     depends_on:
       ts-pipeline:
