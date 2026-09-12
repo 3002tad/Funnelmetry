@@ -1,5 +1,24 @@
 # Funnelmetry dashboard web
 
+## AI Chat V2
+
+Lịch sử UI hiện giữ tối đa 50 lượt text trong `sessionStorage`, tách theo tài khoản,
+ghi scope từng câu hỏi và khôi phục qua F5. Không lưu token hoặc evidence chi tiết vào
+lịch sử. Câu đang chờ khi rời trang được đánh dấu gián đoạn, không tự gửi lại tới model.
+Chat mới/đăng xuất xóa lịch sử; đây không phải lịch sử server hoặc multi-turn model memory.
+
+- `/chat` yêu cầu cả `chat.use` và `analytics.read`; menu không cấp Chat cho System Admin.
+- Gửi câu hỏi độc lập tới `POST /api/v2/chat`, với source và cohort 7/30/90 ngày từ thanh trên.
+- Hiển thị câu trả lời dưới dạng text an toàn, evidence PostgreSQL và nhãn chưa xác minh.
+  `profile-N` ánh xạ theo thứ tự bảng evidence. Pending không phải final drop-off.
+- Có trạng thái đang chờ, dừng chờ, thiếu evidence, module tắt, giới hạn yêu cầu và lỗi kết nối.
+- Không lưu hội thoại trên server, không có Qdrant retrieval hoặc recommendation-linked chat ở bước này.
+- Qwen phải được bật/cấu hình riêng trên **backend** theo `runtime/qwen.env.example`.
+  Không đưa DashScope API key vào biến `VITE_*`. Không tự bật model hay gọi trả phí khi mở trang.
+- Kiểm tra thủ công: Analyst/Staff mở Chat; Admin không thấy menu và bị chặn route;
+  gửi khi module tắt nhận thông báo; với backend có evidence, kiểm tra bảng nguồn/thời gian;
+  đổi source/range hoặc rời trang khi đang chờ không được hiển thị kết quả cũ.
+
 ## Admin baseline
 
 Login/me trả capability bundles từ backend. Admin được đưa tới `/admin/pipeline`, analyst tới

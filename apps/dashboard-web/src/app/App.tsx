@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react"
-import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom"
-import { AppShell } from "./AppShell"
+import { Navigate, Outlet, Route, Routes, useLocation, useOutletContext } from "react-router-dom"
+import { AppShell, type ShellContext } from "./AppShell"
 import { LoginPage } from "../features/auth/LoginPage"
 import { useAuth } from "../auth/AuthContext"
 
@@ -15,6 +15,7 @@ const InsightsPage = lazy(() => import("../features/insights/InsightsPage").then
 const SettingsPage = lazy(() => import("../features/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })))
 const AdminUsersPage = lazy(() => import('../features/admin/AdminUsersPage'))
 const PipelineHealthPage = lazy(() => import('../features/admin/PipelineHealthPage'))
+const ChatPage = lazy(() => import('../features/chat/ChatPage').then(module => ({ default: module.ChatPage })))
 
 function Landing() {
   const { user } = useAuth()
@@ -26,8 +27,9 @@ function Landing() {
 
 function PermissionGate({ permission }: { permission: string }) {
   const { user } = useAuth()
+  const context = useOutletContext<ShellContext>()
   if (!user) return <PageFallback />
-  return user.permissions?.includes(permission) ? <Outlet /> : <Navigate to="/" replace />
+  return user.permissions?.includes(permission) ? <Outlet context={context} /> : <Navigate to="/" replace />
 }
 
 function PageFallback() {
@@ -56,6 +58,9 @@ export function App() {
           <Route path="/events" element={<EventsPage />} />
           <Route path="/data-health" element={<DataHealthPage />} />
           <Route path="/insights" element={<InsightsPage />} />
+          <Route element={<PermissionGate permission="chat.use" />}>
+            <Route path="/chat" element={<ChatPage />} />
+          </Route>
           </Route>
           <Route element={<PermissionGate permission="pipeline.monitor" />}>
             <Route path="/admin/pipeline" element={<PipelineHealthPage />} />

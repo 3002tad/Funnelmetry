@@ -19,8 +19,9 @@ for the current contract; earlier stages below describe historical state.
 
 ### Later progress: private bootstrap and AI foundation
 
-Private Tailscale enrollment and Gateway loopback health now work; Tailnet HTTPS
-certificates still require owner action. See infra/PRIVATE_INGRESS.md for runtime evidence.
+Private Tailscale enrollment, Gateway loopback health and local TLS/Serve validation
+now work. Remote health/ACL verification from the Medusa host remains pending.
+See infra/PRIVATE_INGRESS.md for runtime evidence and limitations.
 
 Added standalone DashScope transport and permission-checked V2 Overview evidence helper.
 Seven offline tests pass: config, request bounds, sanitized errors, no retry, response

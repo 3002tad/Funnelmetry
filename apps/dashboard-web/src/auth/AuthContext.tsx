@@ -25,6 +25,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(storedUser)
 
   const logout = () => {
+    try {
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i)
+        if (key?.startsWith('funnelmetry:chat:')) sessionStorage.removeItem(key)
+      }
+    } catch { /* Storage can be blocked by browser policy. */ }
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     setToken(null)

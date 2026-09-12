@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { NavLink, Outlet, useLocation } from "react-router-dom"
-import { Activity, BarChart3, Box, ChevronDown, DatabaseZap, Filter, Lightbulb, LogOut, Menu, Moon, Network, Search, Settings, Sun, X } from "lucide-react"
+import { Activity, BarChart3, Box, ChevronDown, DatabaseZap, Filter, Lightbulb, LogOut, Menu, MessageSquare, Moon, Network, Search, Settings, Sun, X } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { cn } from "../lib/utils"
 import { useAuth } from "../auth/AuthContext"
@@ -27,7 +27,9 @@ export function AppShell() {
   const visibleNav = user?.permissions?.includes('pipeline.monitor') ? [
     { to: '/admin/pipeline', label: 'Pipeline Health', icon: Activity },
     ...(user.permissions.includes('user.manage') ? [{ to: '/admin/users', label: 'Users / Roles', icon: Settings }] : []),
-  ] : user?.permissions?.includes('analytics.read') ? nav : []
+  ] : user?.permissions?.includes('analytics.read') ? [...nav,
+    ...(user.permissions.includes('chat.use') ? [{ to: '/chat', label: 'AI Chat', icon: MessageSquare }] : []),
+  ] : []
   const location = useLocation()
 
   useEffect(() => setMenu(false), [location.pathname])

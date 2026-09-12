@@ -73,10 +73,14 @@ Unix socket checks before TCP was open. The private overlay now checks pg_isread
 127.0.0.1 TCP; configuration regression test covers this. Retry completed successfully
 without deleting volumes.
 
-HTTPS remains blocked: sidecar reports it cannot issue TLS certificates and
-`tailscale serve status` shows no serve config. The Tailnet owner must enable HTTPS
-certificates in the DNS console and verify MagicDNS/ACLs. No remote HTTPS health or
-Medusa signed-event handoff has passed. Keep credential registries empty until then.
+The Tailnet owner enabled HTTPS certificates later on 2026-09-12. After restarting
+the sidecar, Serve exposed the actual tailnet-only MagicDNS name and a TLS request
+with hostname verification returned Gateway `/health` 200/ready. Docker-internal DNS
+did not resolve the node's own MagicDNS name, so the local self-check connected to its
+Tailnet IPv4 while retaining the MagicDNS hostname/SNI; certificate authorization passed.
+This is a local same-node TLS/Serve check, not evidence that the Ubuntu/Medusa host is
+allowed by ACL or can resolve/reach it. No Medusa signed-event handoff has passed.
+Keep credential registries empty until remote health and denial checks pass.
 
 Configuration validation is possible without real keys or enrollment. Live Tailnet
 tests require a locally supplied auth key, ACL setup and access to the Medusa host.
