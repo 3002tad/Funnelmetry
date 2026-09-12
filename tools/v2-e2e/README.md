@@ -4,7 +4,7 @@ This runner verifies independent paths through the public Input Gateway:
 
 - a strict four-step Commerce Conversion pipeline self-test delivered in order;
 - the same journey delivered in reverse arrival order but rebuilt by canonical event time;
-- the bounded Medusa input demo: `behavior.product_viewed`, `cart.add_clicked`, `checkout.started`,
+- the bounded Medusa transport-smoke demo: `behavior.product_viewed`, `cart.add_clicked`, `checkout.started`,
   and source-native `medusa.order_placed` conservatively mapped to `order.created`;
 - an unsupported semantic that must produce both a terminal `unsupported` outcome and quarantine
   record without creating a canonical ledger row;
@@ -59,3 +59,7 @@ Keep the UI demo and its database on their separate project/network throughout t
 Run it with the local V2 Compose stack documented in [`../../infra/README.md`](../../infra/README.md).
 The credentials and generated commerce identifiers are local test values only; the runner does not
 execute Medusa itself or mutate `Medusa_Reference`.
+
+This runner does not yet cover the full DEC-073 Browser behavior catalog. Page, scroll, banner,
+search and filter coverage requires the cross-repository rollout tracked in
+`System_Backbone/docs/implementation/BEHAVIOR_EVENT_CATALOG_V1_ROLLOUT.md`.

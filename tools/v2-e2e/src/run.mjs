@@ -215,7 +215,10 @@ function commerceEvents(context, baseTime) {
       eventType: "behavior.product_viewed",
       producer: "browser_sdk",
       occurredAt: new Date(baseTime).toISOString(),
-      sourcePayload: { product_id: `product-${context.runId}` },
+      sourcePayload: {
+        product_id: `product-${context.runId}`,
+        page_instance_id: `page:${context.runId}:product`,
+      },
     }),
     ingressEvent(context, {
       suffix: "cart",
@@ -231,7 +234,11 @@ function commerceEvents(context, baseTime) {
       producer: "browser_sdk",
       occurredAt: new Date(baseTime + 2_000).toISOString(),
       aggregate: { type: "checkout", id: `checkout-${context.runId}`, version: "1" },
-      sourcePayload: { cart_id: `cart-${context.runId}` },
+      sourcePayload: {
+        cart_id: `cart-${context.runId}`,
+        step: "address",
+        page_instance_id: `page:${context.runId}:checkout`,
+      },
     }),
     ingressEvent(context, {
       suffix: "order",
@@ -251,7 +258,10 @@ function medusaInputEvents(context, baseTime) {
       eventType: "behavior.product_viewed",
       producer: "browser_sdk",
       occurredAt: new Date(baseTime).toISOString(),
-      sourcePayload: { product_id: `product-${context.runId}` },
+      sourcePayload: {
+        product_id: `product-${context.runId}`,
+        page_instance_id: `page:${context.runId}:product`,
+      },
     }),
     ingressEvent(context, {
       suffix: "add-clicked",
@@ -265,7 +275,11 @@ function medusaInputEvents(context, baseTime) {
       eventType: "checkout.started",
       producer: "browser_sdk",
       occurredAt: new Date(baseTime + 2_000).toISOString(),
-      sourcePayload: { cart_id: `cart-${context.runId}` },
+      sourcePayload: {
+        cart_id: `cart-${context.runId}`,
+        step: "address",
+        page_instance_id: `page:${context.runId}:checkout`,
+      },
     }),
     ingressEvent(context, {
       suffix: "order-placed",
@@ -412,7 +426,10 @@ try {
     eventType: "behavior.product_viewed",
     producer: "browser_sdk",
     occurredAt: null,
-    sourcePayload: { product_id: `product-${fallback.runId}` },
+    sourcePayload: {
+      product_id: `product-${fallback.runId}`,
+      page_instance_id: `page:${fallback.runId}:product`,
+    },
   })
   const fallbackReceipt = await post(fallbackEvent)
   if (fallbackReceipt.status !== "accepted") throw new Error("expected accepted fallback-time receipt")

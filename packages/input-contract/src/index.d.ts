@@ -1,7 +1,10 @@
 export const INGRESS_EVENT_SPEC_VERSION: "ingress-event.v1"
+export const RELAY_RECEIPT_SPEC_VERSION: "relay-receipt.v1"
 export const RECEIPT_STATUSES: readonly ["accepted", "duplicate", "rejected", "retryable_failure"]
+export const RELAY_RECEIPT_STATUSES: readonly ["relay_queued"]
 
 export type ReceiptStatus = (typeof RECEIPT_STATUSES)[number]
+export type RelayReceiptStatus = (typeof RELAY_RECEIPT_STATUSES)[number]
 
 export interface IngressEvent {
   specversion: "ingress-event.v1"
@@ -30,7 +33,17 @@ export interface IngressReceipt {
   reason_code?: string
 }
 
+export interface RelayReceipt {
+  specversion: "relay-receipt.v1"
+  status: RelayReceiptStatus
+  relay_id: string
+  source_id: string
+  event_id: string
+  relay_received_at: string
+}
+
 export function validateIngressEvent(input: unknown, options?: { maxPayloadBytes?: number; requireOccurredAt?: boolean }): Readonly<IngressEvent>
 export function createIngressEvent(input: unknown, options?: { maxPayloadBytes?: number; requireOccurredAt?: boolean }): Readonly<IngressEvent>
 export function validateIngressReceipt(input: unknown): Readonly<IngressReceipt>
+export function validateRelayReceipt(input: unknown): Readonly<RelayReceipt>
 export function isTerminalReceipt(status: ReceiptStatus): boolean

@@ -35,3 +35,6 @@ reliability:
   max_queue_size: 200
   retry:
     max_attempts: 3
+  circuit_breaker:
+    failure_threshold: 3
+    cooldown_ms: 30000

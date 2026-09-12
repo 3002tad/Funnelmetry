@@ -1,6 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { createMappingRegistry, createNormalizer, loadMappingRegistry } from "../src/index.js"
+import { BEHAVIOR_EVENT_DEFINITIONS } from "@3002tad/funnelmetry-behavior-event-catalog"
 
 const receivedAt = "2026-08-29T03:00:00.000Z"
 const normalizedAt = "2026-08-29T03:00:01.000Z"
@@ -16,7 +17,7 @@ function ingressEvent(overrides = {}) {
     producer: "browser_sdk",
     anonymous_id: "anon-1",
     session_id: "session-1",
-    source_payload: { product_id: "prod_1" },
+    source_payload: { product_id: "prod_1", page_instance_id: "page:session-1:product-1" },
     ...overrides,
   }
 }
@@ -87,6 +88,42 @@ test("quarantines a semantic mapping failure instead of dropping the accepted ra
   assert.equal(result.status, "quarantined")
   assert.equal(result.outcome.reason_code, "mapping_failed")
   assert.match(result.quarantine.detail, /missing product mapping/)
+})
+
+test("quarantines a known browser event whose payload violates the behavior catalog", () => {
+  const result = createNormalizer({ now: () => normalizedAt }).normalize(rawInput(ingressEvent({
+    source_event_type: "behavior.scroll_depth_reached",
+    source_payload: { page_type: "product", page_instance_id: "page:session-1:product-1", depth_percent: 40 },
+  })))
+
+  assert.equal(result.status, "quarantined")
+  assert.equal(result.outcome.reason_code, "mapping_failed")
+  assert.match(result.quarantine.detail, /depth_percent/)
+})
+
+test("maps every behavior catalog event to its approved authority class", () => {
+  const payloads = {
+    "behavior.page_viewed": { page_type: "home", path_template: "/{countryCode}", page_instance_id: "page:session-1:home-1" },
+    "behavior.scroll_depth_reached": { page_type: "home", page_instance_id: "page:session-1:home-1", depth_percent: 25 },
+    "promotion.banner_impression": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: "page:session-1:home-1", visible_percent: 50, visible_ms: 1000 },
+    "promotion.banner_clicked": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: "page:session-1:home-1" },
+    "behavior.search_submitted": { page_instance_id: "page:session-1:home-1", query_length_bucket: "3-5", result_count: 5 },
+    "behavior.filter_applied": { page_instance_id: "page:session-1:home-1", filter_keys: ["category"], active_filter_count: 1 },
+    "behavior.product_viewed": { product_id: "prod_1", page_instance_id: "page:session-1:product-1" },
+    "cart.add_clicked": { product_id: "prod_1", quantity: 1, page_instance_id: "page:session-1:product-1" },
+    "checkout.started": { cart_id: "cart_1", step: "address", page_instance_id: "page:session-1:checkout-1" },
+  }
+  const normalizer = createNormalizer({ now: () => normalizedAt })
+
+  for (const [eventType, definition] of Object.entries(BEHAVIOR_EVENT_DEFINITIONS)) {
+    const result = normalizer.normalize(rawInput(ingressEvent({
+      source_event_type: eventType,
+      source_payload: payloads[eventType],
+    })))
+    assert.equal(result.status, "normalized", eventType)
+    assert.equal(result.canonicalEvent.event_type, eventType)
+    assert.equal(result.canonicalEvent.event_class, definition.event_class)
+  }
 })
 
 test("creates a stable canonical identity across raw redelivery", () => {

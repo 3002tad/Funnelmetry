@@ -1,0 +1,25 @@
+name: funnelmetry_edge_relay
+
+services:
+  edge-relay:
+    build:
+      context: ../../..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: apps/edge-relay
+    restart: unless-stopped
+    env_file:
+      - path: ./edge-relay.server.env
+        required: true
+    ports:
+      - "127.0.0.1:32000:32000"
+    volumes:
+      - edge-relay-data:/var/lib/funnelmetry-relay
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:32000/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  edge-relay-data:
