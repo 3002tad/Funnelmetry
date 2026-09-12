@@ -4,7 +4,11 @@ import {
   validateIngressReceipt,
   validateRelayReceipt,
 } from "@3002tad/funnelmetry-input-contract"
-import { isBehaviorEventType } from "@3002tad/funnelmetry-behavior-event-catalog"
+import {
+  isBehaviorEventType,
+  SCROLL_DEPTH_MILESTONES,
+  validateBehaviorPayload,
+} from "@3002tad/funnelmetry-behavior-event-catalog"
 
 function requiredString(value, name) {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} is required`)
@@ -27,6 +31,43 @@ function defaultEventId() {
 
 function defaultNow() {
   return new Date().toISOString()
+}
+
+function defaultPageInstanceId() {
+  if (globalThis.crypto?.randomUUID) return `page:${globalThis.crypto.randomUUID()}`
+  throw new Error("Browser crypto.randomUUID is required to create a page_instance_id")
+}
+
+function requiredPlainObject(value, name) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${name} is required`)
+  return value
+}
+
+function requiredFunction(value, name) {
+  if (typeof value !== "function") throw new Error(`${name} is required`)
+  return value
+}
+
+function pageIdentity(page) {
+  const value = requiredPlainObject(page, "page")
+  return {
+    page_type: value.page_type,
+    page_instance_id: value.page_instance_id,
+  }
+}
+
+function browserScrollPercent(browserWindow, documentImpl) {
+  const root = documentImpl.documentElement ?? {}
+  const body = documentImpl.body ?? {}
+  const viewportHeight = Number(browserWindow.innerHeight ?? root.clientHeight ?? 0)
+  const scrollTop = Number(browserWindow.scrollY ?? root.scrollTop ?? body.scrollTop ?? 0)
+  const contentHeight = Math.max(
+    Number(root.scrollHeight ?? 0),
+    Number(body.scrollHeight ?? 0),
+    viewportHeight,
+  )
+  if (contentHeight <= viewportHeight) return 100
+  return Math.max(0, Math.min(100, ((scrollTop + viewportHeight) / contentHeight) * 100))
 }
 
 function parseStoredQueue(storage, storageKey) {
@@ -74,6 +115,7 @@ export function createBrowserSdk(options) {
   const storage = options.storage ?? defaultStorage()
   const storageKey = options.storageKey ?? `funnelmetry.browser.queue.v1.${sourceId}`
   const createEventId = options.createEventId ?? defaultEventId
+  const createPageInstanceId = options.createPageInstanceId ?? defaultPageInstanceId
   const now = options.now ?? defaultNow
   const sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)))
   const maxAttempts = options.maxAttempts ?? 3
@@ -184,6 +226,150 @@ export function createBrowserSdk(options) {
     return flush()
   }
 
+  /**
+   * Validates an approved behavior payload before it enters the generic track primitive.
+   * Use this for explicit application hooks such as product, search, filter and banner clicks.
+   */
+  function trackBehavior(sourceEventType, sourcePayload, context = {}) {
+    return track(sourceEventType, validateBehaviorPayload(sourceEventType, sourcePayload), context)
+  }
+
+  function createPageContext(page) {
+    const value = requiredPlainObject(page, "page")
+    return validateBehaviorPayload("behavior.page_viewed", {
+      page_type: value.page_type,
+      path_template: value.path_template,
+      page_instance_id: value.page_instance_id ?? createPageInstanceId(),
+    })
+  }
+
+  function trackPageView(page, context = {}) {
+    return trackBehavior("behavior.page_viewed", createPageContext(page), context)
+  }
+
+  function trackScrollDepth(page, depthPercent, context = {}) {
+    const identity = pageIdentity(page)
+    return trackBehavior("behavior.scroll_depth_reached", {
+      ...identity,
+      depth_percent: depthPercent,
+    }, context)
+  }
+
+  /**
+   * Emits each catalog milestone once for an explicit page context. It never infers route
+   * templates or identities from the browser URL.
+   */
+  function attachScrollDepthObserver(options) {
+    const browserWindow = options?.window ?? (typeof window === "undefined" ? null : window)
+    const documentImpl = options?.document ?? browserWindow?.document
+    if (!browserWindow || !documentImpl || typeof browserWindow.addEventListener !== "function") return () => {}
+    const page = pageIdentity(options?.page)
+    const milestones = options?.milestones ?? SCROLL_DEPTH_MILESTONES
+    if (!Array.isArray(milestones) || milestones.length === 0) throw new Error("milestones must not be empty")
+    const orderedMilestones = [...new Set(milestones)].sort((left, right) => left - right)
+    for (const milestone of orderedMilestones) {
+      validateBehaviorPayload("behavior.scroll_depth_reached", { ...page, depth_percent: milestone })
+    }
+    const reached = new Set()
+    const onScroll = () => {
+      const depthPercent = browserScrollPercent(browserWindow, documentImpl)
+      for (const milestone of orderedMilestones) {
+        if (depthPercent < milestone || reached.has(milestone)) continue
+        reached.add(milestone)
+        void trackScrollDepth(page, milestone, options?.context)
+      }
+    }
+    browserWindow.addEventListener("scroll", onScroll, { passive: true })
+    browserWindow.addEventListener("resize", onScroll)
+    if (options?.emitInitial !== false) onScroll()
+    return () => {
+      browserWindow.removeEventListener("scroll", onScroll)
+      browserWindow.removeEventListener("resize", onScroll)
+    }
+  }
+
+  function trackBannerClick(payload, context = {}) {
+    return trackBehavior("promotion.banner_clicked", payload, context)
+  }
+
+  /**
+   * Emits one impression only after an element is continuously at least 50% visible for 1s.
+   * A host must supply stable banner/placement identifiers; this helper never derives them from DOM text.
+   */
+  function attachBannerImpressionObserver(options) {
+    const value = requiredPlainObject(options, "banner observer options")
+    const element = value.element
+    if (!element || typeof element !== "object") throw new Error("banner observer element is required")
+    const browserWindow = value.window ?? (typeof window === "undefined" ? null : window)
+    const Observer = value.IntersectionObserver ?? browserWindow?.IntersectionObserver
+    if (typeof Observer !== "function") return () => {}
+    const dwellMs = value.dwellMs ?? 1_000
+    if (!Number.isSafeInteger(dwellMs) || dwellMs < 1_000) throw new Error("dwellMs must be an integer of at least 1000")
+    const setTimer = value.setTimeout ?? globalThis.setTimeout
+    const clearTimer = value.clearTimeout ?? globalThis.clearTimeout
+    const clock = value.clock ?? (() => Date.now())
+    requiredFunction(setTimer, "setTimeout")
+    requiredFunction(clearTimer, "clearTimeout")
+    requiredFunction(clock, "clock")
+
+    const payload = {
+      banner_id: value.bannerId,
+      placement_id: value.placementId,
+      page_instance_id: value.pageInstanceId,
+      visible_percent: 50,
+      visible_ms: dwellMs,
+    }
+    if (value.campaignId !== undefined) payload.campaign_id = value.campaignId
+    const validated = validateBehaviorPayload("promotion.banner_impression", payload)
+    let timer = null
+    let visibleSince = null
+    let lastVisiblePercent = 50
+    let emitted = false
+    let observer
+
+    const cancelTimer = () => {
+      if (timer === null) return
+      clearTimer(timer)
+      timer = null
+    }
+    const emitIfStillVisible = () => {
+      timer = null
+      if (emitted || visibleSince === null) return
+      const visibleMs = Math.floor(clock() - visibleSince)
+      if (visibleMs < dwellMs) {
+        timer = setTimer(emitIfStillVisible, dwellMs - visibleMs)
+        return
+      }
+      emitted = true
+      observer?.unobserve?.(element)
+      void trackBehavior("promotion.banner_impression", {
+        ...validated,
+        visible_percent: lastVisiblePercent,
+        visible_ms: visibleMs,
+      }, value.context)
+    }
+    observer = new Observer((entries) => {
+      if (emitted) return
+      const entry = entries.find((candidate) => candidate.target === element)
+      if (!entry) return
+      const visiblePercent = Math.max(0, Math.min(100, Number(entry.intersectionRatio ?? 0) * 100))
+      if (!entry.isIntersecting || visiblePercent < 50) {
+        visibleSince = null
+        cancelTimer()
+        return
+      }
+      lastVisiblePercent = visiblePercent
+      if (visibleSince !== null) return
+      visibleSince = clock()
+      timer = setTimer(emitIfStillVisible, dwellMs)
+    }, { threshold: [0, 0.5, 1] })
+    observer.observe(element)
+    return () => {
+      cancelTimer()
+      observer.disconnect?.()
+    }
+  }
+
   function attachLifecycle() {
     if (typeof window === "undefined") return () => {}
     const onPageHide = () => { void flush() }
@@ -193,6 +379,13 @@ export function createBrowserSdk(options) {
 
   return Object.freeze({
     track,
+    trackBehavior,
+    createPageContext,
+    trackPageView,
+    trackScrollDepth,
+    attachScrollDepthObserver,
+    trackBannerClick,
+    attachBannerImpressionObserver,
     flush,
     attachLifecycle,
     getMetrics: () => ({ ...metrics, queued: queue.length }),
