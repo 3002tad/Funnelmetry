@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises"
 import { parseManifestYaml } from "./yaml.mjs"
 
 const eventTypes = new Set([
+  "behavior.page_viewed",
+  "behavior.scroll_depth_reached",
+  "promotion.banner_impression",
+  "promotion.banner_clicked",
+  "behavior.search_submitted",
+  "behavior.filter_applied",
   "behavior.product_viewed",
   "cart.add_clicked",
   "checkout.started",

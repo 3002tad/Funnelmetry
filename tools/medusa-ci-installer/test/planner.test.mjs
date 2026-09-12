@@ -21,7 +21,20 @@ const manifest = validateManifest({
     browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY",
     backend_signing_key_ref: "FUNNELMETRY_BACKEND_SIGNING_KEY",
   },
-  frontend: { enabled: true, events: ["behavior.product_viewed", "cart.add_clicked", "checkout.started"] },
+  frontend: {
+    enabled: true,
+    events: [
+      "behavior.page_viewed",
+      "behavior.scroll_depth_reached",
+      "promotion.banner_impression",
+      "promotion.banner_clicked",
+      "behavior.search_submitted",
+      "behavior.filter_applied",
+      "behavior.product_viewed",
+      "cart.add_clicked",
+      "checkout.started",
+    ],
+  },
   backend: { enabled: true, binding: "medusa.order_placed" },
 })
 
@@ -71,15 +84,21 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /apps\/storefront\/src\/funnelmetry\/client\.tsx/)
   assert.match(plan.patch, /FunnelmetryCheckoutStarted/)
   assert.match(plan.patch, /"behavior\.product_viewed"/)
+  assert.match(plan.patch, /"behavior\.page_viewed"/)
+  assert.match(plan.patch, /"behavior\.scroll_depth_reached"/)
+  assert.match(plan.patch, /"promotion\.banner_impression"/)
+  assert.match(plan.patch, /"promotion\.banner_clicked"/)
+  assert.match(plan.patch, /"behavior\.search_submitted"/)
+  assert.match(plan.patch, /"behavior\.filter_applied"/)
   assert.match(plan.patch, /"cart\.add_clicked"/)
   assert.match(plan.patch, /"checkout\.started"/)
   assert.match(plan.patch, /sourceEventType: "medusa\.order_placed"/)
   assert.match(plan.patch, /void trackCartAddClicked\([\s\S]*?await addToCart/)
   assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
-  assert.match(plan.patch, /"@3002tad\/funnelmetry-browser-sdk": "0\.1\.1"/)
+  assert.match(plan.patch, /"@3002tad\/funnelmetry-browser-sdk": "0\.1\.4"/)
   assert.match(plan.patch, /"@funnelmetry\/\*"/)
   assert.match(plan.patch, /"funnelmetry\/\*"/)
-  assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.1\.1"/)
+  assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.1\.4"/)
   assert.match(plan.patch, /createBrowserSdk/)
   assert.match(plan.patch, /createBackendForwarder/)
   assert.match(plan.patch, /createManagedDeliveryDispatcher/)
@@ -93,6 +112,11 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /ContainerRegistrationKeys\.LOGGER/)
   assert.match(plan.patch, /Modules\.ORDER/)
   assert.match(plan.patch, /track\("behavior\.product_viewed"/)
+  assert.match(plan.patch, /trackPageView/)
+  assert.match(plan.patch, /attachScrollDepthObserver/)
+  assert.match(plan.patch, /FunnelmetryPromotionBanner/)
+  assert.match(plan.patch, /trackSearchSubmitted/)
+  assert.match(plan.patch, /trackFilterApplied/)
   assert.match(plan.patch, /track\("cart\.add_clicked"/)
   assert.match(plan.patch, /track\("checkout\.started"/)
   assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)

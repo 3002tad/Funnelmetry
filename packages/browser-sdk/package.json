@@ -21,8 +21,8 @@
   },
   "types": "./src/index.d.ts",
   "dependencies": {
-    "@3002tad/funnelmetry-behavior-event-catalog": "0.1.0",
-    "@3002tad/funnelmetry-input-contract": "0.1.1"
+    "@3002tad/funnelmetry-behavior-event-catalog": "0.1.4",
+    "@3002tad/funnelmetry-input-contract": "0.1.4"
   },
   "scripts": {
     "test": "node --test test/*.test.js"

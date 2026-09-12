@@ -34,7 +34,7 @@ jobs:
           node - <<'NODE'
           const fs = require("node:fs")
           const expected = process.env.RELEASE_TAG.replace(/^integration-kit-v/, "")
-          const directories = ["input-contract", "browser-sdk", "backend-integration-kit"]
+          const directories = ["input-contract", "behavior-event-catalog", "browser-sdk", "backend-integration-kit"]
           for (const directory of directories) {
             const pkg = JSON.parse(fs.readFileSync(`${directory}/package.json`, "utf8"))
             if (pkg.version !== expected) {
@@ -52,6 +52,12 @@ jobs:
       - name: Publish input contract
         working-directory: packages
         run: npm publish --workspace input-contract
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Behavior Event Catalog
+        working-directory: packages
+        run: npm publish --workspace behavior-event-catalog
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
