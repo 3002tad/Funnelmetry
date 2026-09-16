@@ -29,7 +29,7 @@ apps/
   dashboard-api/
   dashboard-web/
   input-gateway/             # runnable HTTP + Kafka durable-ingress boundary
-  edge-relay/                # public SQLite/WAL store-and-forward browser boundary
+  edge-relay/                # Source Ingress + Event Log + authenticated pull Event Feed (migration path name)
 workers/
   canonical-normalizer/      # runnable raw → canonical/quarantine worker
   ingress-telemetry-writer/  # accepted/outcome Kafka → durable Data Health evidence

@@ -25,14 +25,11 @@ export function createMetrics() {
         .join(",")
       lines.push(`${counter.name}${labels ? `{${labels}}` : ""} ${counter.value}`)
     }
-    lines.push(`funnelmetry_relay_spool_bytes ${status.spool.spool_bytes}`)
-    lines.push(`funnelmetry_relay_event_count ${status.spool.event_count}`)
-    lines.push(`funnelmetry_relay_oldest_queued_age_seconds ${status.spool.oldest_queued_age_seconds}`)
-    for (const [state, count] of Object.entries(status.spool.state_counts)) {
-      lines.push(`funnelmetry_relay_spool_depth{state="${escapeLabel(state)}"} ${count}`)
-    }
-    lines.push(`funnelmetry_relay_upstream_enabled ${status.upstream.enabled ? 1 : 0}`)
-    lines.push(`funnelmetry_relay_upstream_connected ${status.upstream.connected ? 1 : 0}`)
+    lines.push(`funnelmetry_source_event_log_bytes ${status.event_log.event_log_bytes}`)
+    lines.push(`funnelmetry_source_event_log_records ${status.event_log.event_count}`)
+    lines.push(`funnelmetry_source_event_log_oldest_event_age_seconds ${status.event_log.oldest_event_age_seconds}`)
+    lines.push(`funnelmetry_source_event_log_latest_ingress_seq ${status.event_log.latest_ingress_seq}`)
+    lines.push(`funnelmetry_source_event_log_retention_floor_seq ${status.event_log.retention_floor_seq}`)
     return `${lines.join("\n")}\n`
   }
 

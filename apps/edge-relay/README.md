@@ -1,12 +1,16 @@
-# @funnelmetry/edge-relay
+# @funnelmetry/source-ingress
 
-Edge Relay là public, durable store-and-forward boundary cho Browser behavior event. Nó không canonicalize
-event và không thay Pipeline Input Gateway/Kafka. Browser nhận `relay_queued` sau SQLite/WAL commit; chỉ
-Input Gateway mới trả `accepted` khi raw event đã durable tại Pipeline.
+Thư mục này giữ source code migration của Edge Relay cũ, nhưng runtime hiện là
+**Source Ingress + Durable Event Log + Authenticated Event Feed API**. Nó không
+canonicalize event, không biết Pipeline host và tuyệt đối không push/retry POST
+sang Pipeline. Browser SDK và Medusa Backend Adapter chỉ nhận `accepted` sau
+khi event đã được durable-persist cùng Source-owned `event_feed_id` và
+`ingress_seq`.
 
 ## Runtime tối thiểu
 
-Relay yêu cầu Node 22+ vì dùng `node:sqlite`. Chạy local với biến môi trường trong `infra/.env`:
+Source Ingress yêu cầu Node 22+ vì dùng `node:sqlite`. Chạy local với biến môi
+trường trong `infra/.env`:
 
 ```powershell
 cd apps/edge-relay
@@ -17,15 +21,29 @@ npm start
 Ví dụ cấu hình development không chứa secret thật:
 
 ```env
-RELAY_BROWSER_KEYS_JSON={"relay-browser":{"source_id":"medusa-reference","secret":"change-me","allowed_origins":["http://localhost:8000"]}}
-RELAY_UPSTREAM_ENABLED=false
-RELAY_DATABASE_PATH=./data/funnelmetry-edge-relay.sqlite
+SOURCE_INGRESS_BROWSER_KEYS_JSON={"medusa-reference-source":{"source_id":"medusa-reference","secret":"change-me","allowed_origins":["http://localhost:8000"]}}
+SOURCE_INGRESS_BACKEND_KEYS_JSON={"medusa-reference-source":{"source_id":"medusa-reference","secret":"change-me-backend"}}
+SOURCE_INGRESS_EVENT_FEED_TOKENS_JSON={"local-connector":"change-me-read-token"}
+SOURCE_INGRESS_DATABASE_PATH=./data/funnelmetry-source-event-log.sqlite
 ```
 
-Khi Pipeline/Tailscale sẵn sàng, bật `RELAY_UPSTREAM_ENABLED=true`, điền
-`RELAY_UPSTREAM_INGRESS_URL=http://<tailscale-host>:31000/v1/ingress/events` và đăng ký một upstream browser
-credential riêng trong cả Relay và Input Gateway. Relay giữ nguyên `IngressEvent v1`, `source_id` và
-`event_id` khi forward.
+Producer endpoint giữ tương thích trong giai đoạn migration:
 
-`/healthz` và `/readyz` có thể public qua health check. `/status` và `/metrics` chỉ bật khi
-`RELAY_ADMIN_TOKEN` được cấu hình, với header `x-funnelmetry-admin-token`.
+```text
+POST /v1/ingress/events
+```
+
+Pipeline pull endpoint:
+
+```text
+GET /v1/events?after_seq=<N>&limit=<BATCH>&wait=<SECONDS>
+Authorization: Bearer <SOURCE_EVENT_FEED_TOKEN>
+```
+
+`after_seq` chỉ thuộc `event_feed_id` được trả trong response. Event Feed trả
+record theo `ingress_seq` tăng dần, có thể có integer gap; `next_after_seq` là
+sequence của record cuối response, không phải `after_seq + count`.
+
+`/healthz` và `/readyz` có thể public qua health check. `/status` và
+`/metrics` chỉ bật khi `SOURCE_INGRESS_ADMIN_TOKEN` được cấu hình, với header
+`x-funnelmetry-admin-token`. Event Feed không được public anonymously.

@@ -156,6 +156,19 @@ export function validateIngressReceipt(input) {
   if (input.ingestion_id !== undefined) result.ingestion_id = requiredString(input.ingestion_id, "receipt.ingestion_id")
   if (input.ingestion_attempt_id !== undefined) result.ingestion_attempt_id = requiredString(input.ingestion_attempt_id, "receipt.ingestion_attempt_id")
   if (input.reason_code !== undefined) result.reason_code = requiredString(input.reason_code, "receipt.reason_code")
+  if (input.ingress_seq !== undefined) {
+    const ingressSeq = Number(input.ingress_seq)
+    if (!Number.isSafeInteger(ingressSeq) || ingressSeq <= 0) throw new Error("receipt.ingress_seq must be a positive safe integer")
+    result.ingress_seq = ingressSeq
+  }
+  if (input.accepted_at !== undefined) {
+    const acceptedAt = optionalTimestamp(input.accepted_at, "receipt.accepted_at")
+    if (acceptedAt === undefined) throw new Error("receipt.accepted_at must be an ISO-8601 timestamp")
+    result.accepted_at = acceptedAt
+  }
+  if (result.ingress_seq !== undefined && result.accepted_at === undefined) {
+    throw new Error("receipt.accepted_at is required when receipt.ingress_seq is present")
+  }
   if ((status === "accepted" || status === "duplicate") && !result.ingestion_id) {
     throw new Error(`receipt.ingestion_id is required for ${status}`)
   }
