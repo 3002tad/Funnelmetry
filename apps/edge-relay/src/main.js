@@ -42,7 +42,6 @@ function shutdown(signal) {
 }
 
 server.listen(config.port, config.host, () => {
-  worker.start()
   console.info(JSON.stringify({
     message: "Funnelmetry Source Ingress listening",
     host: config.host,
