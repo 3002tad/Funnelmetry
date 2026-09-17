@@ -115,7 +115,7 @@ services:
       INPUT_GATEWAY_CLAIM_LEASE_MS: "30000"
       INPUT_GATEWAY_RECOVER_FENCED_CLAIMS: "false"
       INPUT_GATEWAY_CORS_ORIGINS: http://localhost:8000
-      INPUT_GATEWAY_BROWSER_KEYS_JSON: '{"e2e-browser":{"source_id":"medusa-reference","secret":"local-browser-secret"},"relay-upstream":{"source_id":"medusa-reference","secret":"local-relay-upstream-secret"}}'
+      INPUT_GATEWAY_BROWSER_KEYS_JSON: '{"e2e-browser":{"source_id":"medusa-reference","secret":"local-browser-secret"}}'
       INPUT_GATEWAY_BACKEND_KEYS_JSON: '{"e2e-backend":{"source_id":"medusa-reference","secret":"local-backend-secret"}}'
     depends_on:
       kafka-topics:
@@ -130,38 +130,30 @@ services:
       timeout: 3s
       retries: 30
 
-  edge-relay:
-    image: funnelmetry/edge-relay:local
+  source-ingress:
+    image: funnelmetry/source-ingress:local
     build:
       context: ..
       dockerfile: infra/docker/node-service.Dockerfile
       args:
         SERVICE_PATH: apps/edge-relay
     environment:
-      RELAY_HOST: 0.0.0.0
-      RELAY_PORT: "32000"
-      RELAY_INSTANCE_ID: edge-relay-local-1
-      RELAY_DATABASE_PATH: /var/lib/funnelmetry-relay/relay.sqlite
-      RELAY_BROWSER_KEYS_JSON: '{"relay-browser":{"source_id":"medusa-reference","secret":"local-relay-browser-secret","allowed_origins":["http://localhost:8000"]}}'
-      RELAY_UPSTREAM_ENABLED: "true"
-      RELAY_UPSTREAM_INGRESS_URL: http://input-gateway:31000/v1/ingress/events
-      RELAY_UPSTREAM_BROWSER_KEYS_JSON: '{"relay-upstream":{"source_id":"medusa-reference","secret":"local-relay-upstream-secret"}}'
-      RELAY_MAX_SPOOL_EVENTS: "100000"
-      RELAY_MAX_SPOOL_BYTES: "1073741824"
-      RELAY_MIN_FREE_DISK_BYTES: "268435456"
-      RELAY_DELIVERY_LEASE_MS: "30000"
-      RELAY_DELIVERY_INTERVAL_MS: "1000"
-      RELAY_DELIVERY_BATCH_SIZE: "20"
-      RELAY_RETRY_MIN_MS: "1000"
-      RELAY_RETRY_MAX_MS: "60000"
-      RELAY_UPSTREAM_REQUEST_TIMEOUT_MS: "3000"
-    depends_on:
-      input-gateway:
-        condition: service_healthy
+      SOURCE_INGRESS_HOST: 0.0.0.0
+      SOURCE_INGRESS_PORT: "32000"
+      SOURCE_INGRESS_DATABASE_PATH: /var/lib/funnelmetry-source-event-log/source-event-log.sqlite
+      SOURCE_INGRESS_BROWSER_KEYS_JSON: '{"medusa-reference-source":{"source_id":"medusa-reference","secret":"local-source-browser-secret","allowed_origins":["http://localhost:8000"]}}'
+      SOURCE_INGRESS_BACKEND_KEYS_JSON: '{"medusa-reference-source":{"source_id":"medusa-reference","secret":"local-source-backend-secret"}}'
+      SOURCE_INGRESS_EVENT_FEED_TOKENS_JSON: '{"local-pipeline-connector":"local-source-feed-token"}'
+      SOURCE_INGRESS_MAX_EVENT_LOG_EVENTS: "100000"
+      SOURCE_INGRESS_MAX_EVENT_LOG_BYTES: "1073741824"
+      SOURCE_INGRESS_MIN_FREE_DISK_BYTES: "268435456"
+      SOURCE_INGRESS_MAX_CLOCK_SKEW_MS: "300000"
+      SOURCE_INGRESS_EVENT_FEED_MAX_LIMIT: "100"
+      SOURCE_INGRESS_EVENT_FEED_MAX_WAIT_SECONDS: "25"
     ports:
       - "32001:32000"
     volumes:
-      - edge-relay-data:/var/lib/funnelmetry-relay
+      - source-event-log-data:/var/lib/funnelmetry-source-event-log
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:32000/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 3s
@@ -334,4 +326,4 @@ services:
 volumes:
   kafka-data:
   postgres-data:
-  edge-relay-data:
+  source-event-log-data:

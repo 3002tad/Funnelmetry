@@ -1,4 +1,8 @@
-# Private ingress — implementation stage 1
+# Superseded private Pipeline ingress — historical only
+
+> Superseded by the Source Ingress + authenticated Event Feed pull topology.
+> Do not deploy this overlay as the Funnelmetry baseline. It is retained only
+> to explain the prior Relay → Pipeline Gateway experiment.
 
 Implements Master remote `6e444f9` §4.11.1.1. This is an opt-in Compose overlay,
 not proof that Tailnet, Medusa binding or end-to-end delivery is working.

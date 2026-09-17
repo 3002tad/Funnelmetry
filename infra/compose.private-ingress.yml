@@ -1,4 +1,5 @@
-# Always use after compose.v2.yml. Never use this overlay with E2E credentials.
+# Historical Relay → Pipeline push overlay. Superseded by Source Event Feed pull;
+# do not use as the current deployment baseline.
 services:
   ts-pipeline:
     image: ${TAILSCALE_IMAGE:-tailscale/tailscale:stable}

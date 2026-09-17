@@ -38,6 +38,21 @@ test("requires a durable record identity for accepted and duplicate receipts", (
   assert.equal(validateIngressReceipt({ status: "duplicate", source_id: event.source_id, event_id: event.event_id, received_at: event.occurred_at, ingestion_id: "ing_1" }).status, "duplicate")
 })
 
+test("validates Source Ingress sequence evidence without conflating it with Pipeline handoff", () => {
+  const receipt = validateIngressReceipt({
+    status: "accepted",
+    source_id: event.source_id,
+    event_id: event.event_id,
+    received_at: event.occurred_at,
+    ingestion_id: "source:feed_1:42",
+    ingress_seq: 42,
+    accepted_at: event.occurred_at,
+  })
+  assert.equal(receipt.ingress_seq, 42)
+  assert.equal(receipt.accepted_at, event.occurred_at)
+  assert.throws(() => validateIngressReceipt({ ...receipt, accepted_at: undefined }), /accepted_at is required/)
+})
+
 test("validates a Relay receipt without treating it as an Ingress receipt", () => {
   const receipt = validateRelayReceipt({
     specversion: RELAY_RECEIPT_SPEC_VERSION,

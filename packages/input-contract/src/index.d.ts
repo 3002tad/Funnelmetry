@@ -31,6 +31,8 @@ export interface IngressReceipt {
   ingestion_id?: string
   ingestion_attempt_id?: string
   reason_code?: string
+  ingress_seq?: number
+  accepted_at?: string
 }
 
 export interface RelayReceipt {

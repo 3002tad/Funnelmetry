@@ -1,48 +1,31 @@
-import { createRelayHttpServer } from "./http-server.js"
+import { createSourceIngressHttpServer } from "./http-server.js"
 import { loadConfig } from "./config.js"
-import { createDeliveryWorker } from "./delivery-worker.js"
 import { createMetrics } from "./metrics.js"
-import { createRelayHandler } from "./relay-handler.js"
-import { RelayRepository } from "./relay-repository.js"
-import { createUpstreamClient } from "./upstream-client.js"
+import { createSourceIngressHandler } from "./relay-handler.js"
+import { SourceEventStore } from "./relay-repository.js"
 
 const config = loadConfig()
-const repository = new RelayRepository(config)
+const repository = new SourceEventStore(config)
 const metrics = createMetrics()
-const upstream = config.upstream.enabled
-  ? createUpstreamClient({
-    ingressUrl: config.upstream.ingressUrl,
-    upstreamBrowserKeys: config.upstreamBrowserKeys,
-    requestTimeoutMs: config.requestTimeoutMs,
-  })
-  : null
-const worker = createDeliveryWorker({
-  repository,
-  upstream,
-  upstreamEnabled: config.upstream.enabled,
-  instanceId: config.instanceId,
-  leaseMs: config.leaseMs,
-  intervalMs: config.deliveryIntervalMs,
-  batchSize: config.deliveryBatchSize,
-  retryMinMs: config.retryMinMs,
-  retryMaxMs: config.retryMaxMs,
-  metrics,
-})
-const handleRelay = createRelayHandler({
+const handleSourceIngress = createSourceIngressHandler({
   repository,
   browserKeys: config.browserKeys,
+  backendKeys: config.backendKeys,
   metrics,
   maxBodyBytes: config.maxBodyBytes,
   maxPayloadBytes: config.maxPayloadBytes,
+  maxClockSkewMs: config.maxClockSkewMs,
 })
-const server = createRelayHttpServer({
-  handleRelay,
+const server = createSourceIngressHttpServer({
+  handleSourceIngress,
   repository,
-  worker,
   metrics,
   browserKeys: config.browserKeys,
   maxBodyBytes: config.maxBodyBytes,
   adminToken: config.adminToken,
+  eventFeedTokens: config.eventFeedTokens,
+  eventFeedMaxLimit: config.eventFeedMaxLimit,
+  eventFeedMaxWaitSeconds: config.eventFeedMaxWaitSeconds,
 })
 
 let closing = false
@@ -50,22 +33,20 @@ let closing = false
 function shutdown(signal) {
   if (closing) return
   closing = true
-  worker.stop()
   server.close(() => {
     repository.close()
     process.exit(0)
   })
   setTimeout(() => process.exit(1), 10000).unref()
-  console.info(JSON.stringify({ message: "Funnelmetry Edge Relay stopping", signal }))
+  console.info(JSON.stringify({ message: "Funnelmetry Source Ingress stopping", signal }))
 }
 
 server.listen(config.port, config.host, () => {
-  worker.start()
   console.info(JSON.stringify({
-    message: "Funnelmetry Edge Relay listening",
+    message: "Funnelmetry Source Ingress listening",
     host: config.host,
     port: config.port,
-    upstream_state: worker.getStatus().state,
+    event_feed_id: repository.eventFeedId,
   }))
 })
 
