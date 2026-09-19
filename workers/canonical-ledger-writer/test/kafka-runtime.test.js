@@ -84,7 +84,7 @@ test("commits Kafka offset only after PostgreSQL persistence", async () => {
   const worker = runtime(kafka, {
     persist: async () => {
       persisted = true
-      return { status: "inserted", persisted_at: "2026-08-29T01:00:03.000Z" }
+      return { status: "inserted", persisted_at: "2026-08-29T01:00:03.000Z", canonical_event: canonicalEvent }
     },
   })
   await worker.start()
@@ -126,7 +126,7 @@ test("rejects a Kafka key that does not match canonical identity", async () => {
 test("aborts persisted handoff when its Kafka transaction fails", async () => {
   const kafka = fakeKafka({ failTransactionCommit: true })
   const worker = runtime(kafka, {
-    persist: async () => ({ status: "inserted", persisted_at: "2026-08-29T01:00:03.000Z" }),
+    persist: async () => ({ status: "inserted", persisted_at: "2026-08-29T01:00:03.000Z", canonical_event: canonicalEvent }),
   })
   await worker.start()
 

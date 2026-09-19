@@ -90,7 +90,9 @@ export function createKafkaNormalizerRuntime({
       try {
         await producer.connect()
         await consumer.connect()
-        await consumer.subscribe({ topic: rawTopic, fromBeginning: false })
+        // A new group must not skip records already durably accepted by Connector.
+        // Existing groups still resume their committed offsets.
+        await consumer.subscribe({ topic: rawTopic, fromBeginning: true })
         runPromise = consumer.run({
           autoCommit: false,
           partitionsConsumedConcurrently: 1,

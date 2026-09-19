@@ -10,8 +10,12 @@ canonical Kafka topic
   → Kafka transaction: canonical-persisted handoff + canonical offset
 ```
 
-`canonical_event_id` là primary key. Physical redelivery có document giống hệt là no-op;
-cùng ID nhưng document khác gây conflict/rollback và không commit Kafka offset. Vì vậy crash
+`canonical_event_id` là primary key. Redelivery/re-normalization có nội dung giống nhau,
+ngoại trừ `ingested_at`/`normalized_at` do xử lý lại, là no-op. Bản ghi đầu tiên và các
+mốc thời gian gốc được giữ nguyên; persisted handoff luôn dùng document đã lưu, không
+dùng document của lần retry. Những field khác (kể cả event-time, raw hash/reference,
+identity, quality và dữ liệu nghiệp vụ) vẫn phải trùng khớp.
+Cùng ID nhưng nội dung khác gây conflict/rollback và không commit Kafka offset. Vì vậy crash
 sau database commit nhưng trước offset commit không tạo row thứ hai khi message được đọc lại.
 
 Nếu Kafka transaction lỗi sau database commit, canonical offset chưa commit; lần retry xem

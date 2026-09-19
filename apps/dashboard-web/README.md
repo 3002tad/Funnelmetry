@@ -1,5 +1,18 @@
 # Funnelmetry dashboard web
 
+## Events auto-refresh
+
+Events mặc định polling mỗi 5 giây khi tab đang hiển thị; có checkbox bật/tắt và
+Refresh thủ công (khóa khi request đang chạy). Dừng polling nền, không retry tự động
+trong cùng request; lỗi 401/403 dừng interval. Request nhận AbortSignal khi rời trang
+hoặc đổi bộ lọc. Cache tách theo tài khoản, source, range và event class.
+UI ghi thời điểm lần tải thành công; lỗi không cập nhật mốc này. Polling không tăng
+tốc SDK/Relay/Gateway, không phải SSE và không bảo đảm latency end-to-end dưới 5 giây.
+Giữ giới hạn 200 dòng và filter occurred_at; quarantine không nằm trong Events.
+
+Kiểm tra thủ công: bật/tắt polling, ẩn/hiện tab, đổi filter, Refresh khi đang tải,
+API lỗi rồi phục hồi, 403, rời trang khi request chậm. Không cần gửi event giả để thử UI.
+
 ## AI Chat V2
 
 Lịch sử UI hiện giữ tối đa 50 lượt text trong `sessionStorage`, tách theo tài khoản,

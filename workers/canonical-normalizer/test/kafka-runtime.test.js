@@ -47,7 +47,7 @@ function fakeKafka({ failCommit = false } = {}) {
     on: (_event, handler) => { crashHandler = handler },
     connect: async () => calls.push("consumer.connect"),
     disconnect: async () => calls.push("consumer.disconnect"),
-    subscribe: async () => calls.push("consumer.subscribe"),
+    subscribe: async (options) => { assert.equal(options.fromBeginning, true); calls.push("consumer.subscribe") },
     run: (options) => {
       eachMessage = options.eachMessage
       calls.push(`consumer.run:autoCommit=${options.autoCommit}`)

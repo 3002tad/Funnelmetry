@@ -72,11 +72,14 @@ export function createCanonicalLedgerRepository({ pool } = {}) {
             status: "inserted",
             canonical_event_id: event.canonical_event_id,
             persisted_at: new Date(inserted.rows[0].persisted_at).toISOString(),
+            canonical_event: event,
           })
         }
 
         const existing = await client.query(
-          `SELECT canonical_document = $2::jsonb AS identical, persisted_at
+          `SELECT (canonical_document - 'ingested_at' - 'normalized_at')
+                    = ($2::jsonb - 'ingested_at' - 'normalized_at') AS identical,
+                  persisted_at, canonical_document
              FROM canonical_events
             WHERE canonical_event_id = $1`,
           [event.canonical_event_id, document],
@@ -89,6 +92,7 @@ export function createCanonicalLedgerRepository({ pool } = {}) {
           status: "duplicate",
           canonical_event_id: event.canonical_event_id,
           persisted_at: new Date(existing.rows[0].persisted_at).toISOString(),
+          canonical_event: validateCanonicalEvent(existing.rows[0].canonical_document),
         })
       } catch (error) {
         await client.query("ROLLBACK").catch(() => {})

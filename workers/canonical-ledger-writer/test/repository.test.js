@@ -17,9 +17,9 @@ function fakePool({ insertRowCount = 1, identical = true } = {}) {
         rowCount: insertRowCount,
         rows: insertRowCount ? [{ canonical_event_id: "can_1", persisted_at: new Date("2026-08-29T01:00:03.000Z") }] : [],
       }
-      if (text.startsWith("SELECT canonical_document")) return {
+      if (text.startsWith("SELECT (canonical_document")) return {
         rowCount: 1,
-        rows: [{ identical, persisted_at: new Date("2026-08-29T01:00:03.000Z") }],
+        rows: [{ identical, persisted_at: new Date("2026-08-29T01:00:03.000Z"), canonical_document: canonicalEvent }],
       }
       return { rowCount: 0, rows: [] }
     },
@@ -69,4 +69,14 @@ test("validates the canonical contract before opening a database connection", as
   })
   await assert.rejects(() => repository.persist({ canonical_event_id: "invalid" }), /canonical_schema_version/)
   assert.equal(connected, false)
+})
+
+test("replay returns first persisted document and compares all non-processing fields", async () => {
+  const pool = fakePool({ insertRowCount: 0 })
+  const replay = { ...canonicalEvent, ingested_at: '2026-09-19T01:00:00.000Z', normalized_at: '2026-09-19T01:00:01.000Z' }
+  const result = await createCanonicalLedgerRepository({ pool }).persist(replay)
+  assert.deepEqual(result.canonical_event, canonicalEvent)
+  const query = pool.calls.find(call => call.text.startsWith('SELECT'))
+  assert.match(query.text, /canonical_document - 'ingested_at' - 'normalized_at'/)
+  assert.match(query.text, /\$2::jsonb - 'ingested_at' - 'normalized_at'/)
 })

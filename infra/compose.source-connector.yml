@@ -1,0 +1,22 @@
+# Opt-in overlay after compose.v2.yml. Does not start the legacy Input Gateway.
+services:
+  source-connector:
+    profiles: [source-connector]
+    image: funnelmetry/source-connector:local
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: workers/source-connector
+    env_file: ../runtime/source-connector.env
+    restart: 'on-failure:3'
+    depends_on:
+      postgres-migrations: {condition: service_completed_successfully}
+      kafka-topics: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:'+(process.env.SOURCE_CONNECTOR_HEALTH_PORT||32100)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+    stop_grace_period: 50s

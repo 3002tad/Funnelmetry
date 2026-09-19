@@ -50,7 +50,7 @@ export function createKafkaLedgerRuntime({
             status: "canonical_persisted",
             canonical_event_id: event.canonical_event_id,
             persisted_at: persisted.persisted_at,
-            canonical_event: event,
+            canonical_event: persisted.canonical_event,
           }),
         }],
       })

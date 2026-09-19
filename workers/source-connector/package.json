@@ -1,0 +1,9 @@
+{
+  "name": "@funnelmetry/source-connector",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node src/main.js", "test": "node --test test/*.test.js" },
+  "dependencies": { "@3002tad/funnelmetry-input-contract": "file:../../packages/input-contract", "kafkajs": "^2.2.4", "pg": "^8.13.1" },
+  "engines": { "node": ">=22" }
+}

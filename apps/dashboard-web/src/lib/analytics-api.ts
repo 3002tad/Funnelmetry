@@ -281,7 +281,7 @@ export function fetchV2Journey(journeyId: string) {
   )
 }
 
-export async function fetchV2Events(range: string, eventClass?: string) {
+export async function fetchV2Events(range: string, eventClass?: string, signal?: AbortSignal) {
   const params = scopeParams(range)
   params.set("limit", "200")
   if (eventClass) params.set("event_class", eventClass)
@@ -290,7 +290,7 @@ export async function fetchV2Events(range: string, eventClass?: string) {
     window: { basis: "occurred_at"; from: string | null; to: string | null }
     limit: number
     events: CanonicalEventItem[]
-  }>(`/api/v2/analytics/events?${params}`)
+  }>(`/api/v2/analytics/events?${params}`, { signal })
   return response.events
 }
 

@@ -8,6 +8,8 @@ import { Button } from "../../components/ui/button"
 import { Drawer } from "../../components/ui/drawer"
 import { EmptyState, PageHeader } from "../../components/ui/page"
 import { fetchV2Events, type CanonicalEventItem } from "../../lib/analytics-api"
+import { ApiError } from "../../lib/api"
+import { useAuth } from "../../auth/AuthContext"
 
 const classes = [
   { label: "All classes", value: "" },
@@ -29,12 +31,20 @@ function eventTone(eventClass?: CanonicalEventItem["event_class"]) {
 
 export function EventsPage() {
   const { range, sourceId } = useOutletContext<ShellContext>()
+  const { user } = useAuth()
+  const [autoRefresh, setAutoRefresh] = useState(true)
   const [query, setQuery] = useState("")
   const [eventClass, setEventClass] = useState("")
   const [selected, setSelected] = useState<CanonicalEventItem | null>(null)
   const events = useQuery({
-    queryKey: ["v2-events", sourceId, range, eventClass],
-    queryFn: () => fetchV2Events(range, eventClass || undefined),
+    queryKey: ["v2-events", user?.id, sourceId, range, eventClass],
+    queryFn: ({ signal }) => fetchV2Events(range, eventClass || undefined, signal),
+    refetchInterval: (query) => autoRefresh && !(query.state.error instanceof ApiError && [401, 403].includes(query.state.error.status)) ? 5000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: autoRefresh,
+    refetchOnReconnect: autoRefresh,
+    retry: false,
+    gcTime: 0,
   })
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -45,7 +55,12 @@ export function EventsPage() {
   }, [events.data, query])
 
   return <>
-    <PageHeader title="Canonical events" description="Privacy-safe canonical metadata persisted by Pipeline V2. This is a bounded event browser, not a live raw-payload stream." badge={<Badge tone="primary">Ledger V2</Badge>} actions={<Button variant="outline" onClick={() => events.refetch()}><RefreshCw size={14} /> Refresh</Button>} />
+    <PageHeader title="Canonical events" description="Privacy-safe canonical metadata persisted by Pipeline V2. This is a bounded event browser, not a live raw-payload stream." badge={<Badge tone="primary">Ledger V2</Badge>} actions={<Button variant="outline" disabled={events.isFetching} onClick={() => void events.refetch()}><RefreshCw size={14} className={events.isFetching ? 'animate-spin' : ''} /> Refresh</Button>} />
+    <div className="panel mb-4 flex flex-wrap items-center justify-between gap-3 p-3 text-xs">
+      <label className="flex cursor-pointer items-center gap-2"><input type="checkbox" checked={autoRefresh} onChange={event => setAutoRefresh(event.target.checked)} className="accent-blue-600" />Tự làm mới mỗi 5 giây</label>
+      <p role="status" aria-live="polite" className="text-muted-foreground">{events.isFetching ? 'Đang tải… · ' : events.isError ? 'Lần cập nhật gần nhất thất bại · ' : ''}Cập nhật thành công: {events.dataUpdatedAt ? new Date(events.dataUpdatedAt).toLocaleTimeString() : 'Chưa có'}</p>
+      <p className="w-full text-muted-foreground">Tạm ngừng polling khi tab bị ẩn. Đây là thời điểm UI đọc dữ liệu, không phải thời điểm event tới Gateway. Event ngoài bộ lọc hoặc bị quarantine không xuất hiện ở đây.</p>
+    </div>
     <div className="mb-4 flex flex-wrap gap-2 text-xs"><Badge>{sourceId}</Badge><Badge>{range}</Badge><Badge tone="primary">occurred_at window</Badge><Badge>Maximum 200 rows</Badge></div>
     <div className="panel mb-4 flex flex-wrap gap-2 p-3"><div className="relative min-w-[230px] flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search event, canonical ID or journey" className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-xs" /></div><select value={eventClass} onChange={(event) => setEventClass(event.target.value)} className="h-9 rounded-lg border bg-background px-3 text-xs">{classes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
     {events.isLoading && <div className="skeleton h-[520px]" />}
