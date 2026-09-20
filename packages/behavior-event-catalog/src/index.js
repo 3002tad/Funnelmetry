@@ -1,15 +1,14 @@
-export const BEHAVIOR_EVENT_CATALOG_VERSION = "behavior-event-catalog.v1"
+export const BEHAVIOR_EVENT_CATALOG_VERSION = "behavior-event-catalog.v2"
 
 export const BEHAVIOR_EVENT_DEFINITIONS = Object.freeze({
-  "behavior.page_viewed": Object.freeze({ event_class: "CLIENT_OBSERVATION" }),
-  "behavior.scroll_depth_reached": Object.freeze({ event_class: "CLIENT_OBSERVATION" }),
-  "promotion.banner_impression": Object.freeze({ event_class: "CLIENT_OBSERVATION" }),
-  "promotion.banner_clicked": Object.freeze({ event_class: "BEHAVIOR_INTENT" }),
-  "behavior.search_submitted": Object.freeze({ event_class: "BEHAVIOR_INTENT" }),
-  "behavior.filter_applied": Object.freeze({ event_class: "BEHAVIOR_INTENT" }),
-  "behavior.product_viewed": Object.freeze({ event_class: "BEHAVIOR_INTENT" }),
-  "cart.add_clicked": Object.freeze({ event_class: "BEHAVIOR_INTENT" }),
-  "checkout.started": Object.freeze({ event_class: "BEHAVIOR_INTENT" }),
+  "behavior.page_viewed": Object.freeze({ event_class: "CLIENT_OBSERVATION", producer: "browser" }),
+  "behavior.scroll_depth_reached": Object.freeze({ event_class: "CLIENT_OBSERVATION", producer: "browser" }),
+  "promotion.banner_impression": Object.freeze({ event_class: "CLIENT_OBSERVATION", producer: "browser" }),
+  "promotion.banner_clicked": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
+  "behavior.search_submitted": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "source_server" }),
+  "behavior.filter_applied": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
+  "behavior.product_viewed": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
+  "checkout.started": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
 })
 
 export const BEHAVIOR_EVENT_TYPES = Object.freeze(Object.keys(BEHAVIOR_EVENT_DEFINITIONS))
@@ -37,7 +36,8 @@ const forbiddenPayloadKeys = new Set([
 const pageInstancePattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 const filterKeyPattern = /^[a-z][a-z0-9_]{0,63}$/
-const queryLengthBuckets = new Set(["empty", "1-2", "3-5", "6-10", "11-20", "21+"])
+const searchOutcomes = new Set(["succeeded", "failed"])
+const normalizedSearchQueryMaxLength = 160
 
 function plainObject(value, field) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${field} must be an object`)
@@ -58,11 +58,6 @@ function optionalString(value, field, options) {
 
 function nonNegativeInteger(value, field) {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${field} must be a non-negative integer`)
-  return value
-}
-
-function positiveInteger(value, field) {
-  if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${field} must be a positive integer`)
   return value
 }
 
@@ -103,6 +98,28 @@ function id(value, field) {
 
 function optionalId(value, field) {
   return optionalString(value, field)
+}
+
+function normalizedSearchQuery(value) {
+  if (typeof value !== "string") throw new Error("query_normalized must be a string")
+  const normalized = value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase()
+  if (!normalized) throw new Error("query_normalized must be non-empty")
+  if (normalized.length > normalizedSearchQueryMaxLength) {
+    throw new Error(`query_normalized exceeds ${normalizedSearchQueryMaxLength} characters`)
+  }
+  if (normalized !== value) {
+    throw new Error("query_normalized must be normalized with NFKC, trim, collapsed whitespace, and lowercase")
+  }
+  if (/\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b/iu.test(normalized)) {
+    throw new Error("query_normalized must not contain an email address")
+  }
+  if (/(?:\+?\d[\s().-]*){8,}/u.test(normalized)) {
+    throw new Error("query_normalized must not contain a phone or payment number")
+  }
+  if (/\b(?:password|passcode|otp|cvv|cvc|card(?:\s*number)?|token|secret)\b/iu.test(normalized)) {
+    throw new Error("query_normalized must not contain credential or payment data")
+  }
+  return normalized
 }
 
 function normalizeFilterKeys(value) {
@@ -167,16 +184,19 @@ function bannerClicked(payload) {
 }
 
 function searchSubmitted(payload) {
-  assertKnownFields(payload, new Set(["page_instance_id", "query_length_bucket", "result_count", "query_category"]), "behavior.search_submitted")
-  const queryLengthBucket = requiredString(payload.query_length_bucket, "query_length_bucket", { pattern: null, maxLength: 8 })
-  if (!queryLengthBuckets.has(queryLengthBucket)) throw new Error("query_length_bucket is unsupported")
+  assertKnownFields(payload, new Set(["search_interaction_id", "query_normalized", "outcome", "result_count"]), "behavior.search_submitted")
+  const outcome = requiredString(payload.outcome, "outcome", { pattern: null, maxLength: 16 })
+  if (!searchOutcomes.has(outcome)) throw new Error("outcome is unsupported")
   const result = {
-    page_instance_id: pageInstanceId(payload.page_instance_id),
-    query_length_bucket: queryLengthBucket,
+    search_interaction_id: id(payload.search_interaction_id, "search_interaction_id"),
+    query_normalized: normalizedSearchQuery(payload.query_normalized),
+    outcome,
   }
-  if (payload.result_count !== undefined) result.result_count = nonNegativeInteger(payload.result_count, "result_count")
-  const queryCategory = optionalString(payload.query_category, "query_category", { pattern: /^[a-z][a-z0-9_]{0,63}$/, maxLength: 64 })
-  if (queryCategory) result.query_category = queryCategory
+  if (outcome === "succeeded") {
+    result.result_count = nonNegativeInteger(payload.result_count, "result_count")
+  } else if (payload.result_count !== undefined) {
+    throw new Error("result_count is only allowed when outcome is succeeded")
+  }
   return Object.freeze(result)
 }
 
@@ -205,21 +225,6 @@ function productViewed(payload) {
   return Object.freeze(result)
 }
 
-function cartAddClicked(payload) {
-  assertKnownFields(payload, new Set(["product_id", "quantity", "variant_id", "cart_id", "page_instance_id"]), "cart.add_clicked")
-  const result = {
-    product_id: id(payload.product_id, "product_id"),
-    quantity: positiveInteger(payload.quantity, "quantity"),
-  }
-  for (const field of ["variant_id", "cart_id", "page_instance_id"]) {
-    const value = field === "page_instance_id"
-      ? optionalString(payload[field], field, { pattern: pageInstancePattern })
-      : optionalId(payload[field], field)
-    if (value) result[field] = value
-  }
-  return Object.freeze(result)
-}
-
 function checkoutStarted(payload) {
   assertKnownFields(payload, new Set(["cart_id", "step", "page_instance_id"]), "checkout.started")
   const result = {
@@ -239,7 +244,6 @@ const payloadValidators = Object.freeze({
   "behavior.search_submitted": searchSubmitted,
   "behavior.filter_applied": filterApplied,
   "behavior.product_viewed": productViewed,
-  "cart.add_clicked": cartAddClicked,
   "checkout.started": checkoutStarted,
 })
 

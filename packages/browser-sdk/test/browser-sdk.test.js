@@ -13,7 +13,7 @@ test("rejects event types outside the approved behavior catalog", () => {
     endpoint: "https://ingest.example.test",
     writeKey: "public-write-key",
     allowedEventTypes: ["behavior.raw_dom_captured"],
-  }), /Behavior Event Catalog v1/)
+  }), /browser-producible in Behavior Event Catalog v2/)
 })
 
 test("keeps the same event in the queue until a durable receipt arrives", async () => {
@@ -121,31 +121,14 @@ test("removes an event after a durable Relay receipt without counting it as Pipe
   assert.equal(sdk.getMetrics().accepted, 0)
 })
 
-test("both track APIs enforce catalog payload and privacy validation", async () => {
-  const sdk = createBrowserSdk({
+test("browser SDK cannot be configured to queue server-side search events", () => {
+  assert.throws(() => createBrowserSdk({
     sourceId: "medusa-reference",
     sourceKeyId: "medusa-reference-dev",
     endpoint: "https://ingest.example.test",
     writeKey: "public-write-key",
     allowedEventTypes: ["behavior.search_submitted"],
-    hasConsent: () => true,
-    fetch: async () => ({ status: 202, text: async () => receipt("accepted", "browser:semantic-1", { ingestion_id: "ing_semantic_1" }) }),
-    createEventId: () => "browser:semantic-1",
-  })
-
-  const unsafePayload = {
-    page_instance_id: "page:search-1",
-    query_length_bucket: "3-5",
-    raw_query: "sensitive text",
-  }
-  assert.throws(() => sdk.track("behavior.search_submitted", unsafePayload), /privacy-restricted/)
-  assert.throws(() => sdk.trackBehavior("behavior.search_submitted", unsafePayload), /privacy-restricted/)
-  await sdk.trackBehavior("behavior.search_submitted", {
-    page_instance_id: "page:search-1",
-    query_length_bucket: "3-5",
-    result_count: 4,
-  })
-  assert.equal(sdk.getMetrics().accepted, 1)
+  }), /browser-producible in Behavior Event Catalog v2/)
 })
 
 test("page helper creates a stable page context and emits a validated page view", async () => {

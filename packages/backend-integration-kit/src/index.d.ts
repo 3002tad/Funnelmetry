@@ -26,3 +26,24 @@ export function createBackendForwarder(options: {
   maxAttempts?: number
   logger?: { warn(entry: unknown): void }
 }): BackendForwarder
+
+export interface ManagedDeliveryDispatcher {
+  enqueue(event: MappedSourceEvent): { status: "queued" | "dropped_queue_full" }
+  getMetrics(): Record<string, number | boolean>
+}
+
+export function createManagedDeliveryDispatcher(options: {
+  sourceId?: string
+  sourceKeyId?: string
+  endpoint?: string
+  signingKey?: string
+  timeoutMs?: number
+  maxAttempts?: number
+  maxQueueSize?: number
+  failureThreshold?: number
+  cooldownMs?: number
+  logger?: { warn(entry: unknown): void }
+  forwarder?: Pick<BackendForwarder, "forward">
+  clock?: () => number
+  setTimeout?: (callback: () => void, delay: number) => unknown
+}): ManagedDeliveryDispatcher

@@ -14,15 +14,14 @@ const validPayloads = Object.freeze({
   "behavior.scroll_depth_reached": { page_type: "product", page_instance_id: pageInstanceId, depth_percent: 50 },
   "promotion.banner_impression": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: pageInstanceId, visible_percent: 50, visible_ms: 1000 },
   "promotion.banner_clicked": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: pageInstanceId, campaign_id: "spring_2026" },
-  "behavior.search_submitted": { page_instance_id: pageInstanceId, query_length_bucket: "6-10", result_count: 12, query_category: "apparel" },
+  "behavior.search_submitted": { search_interaction_id: "search:interaction-1", query_normalized: "running shoes", outcome: "succeeded", result_count: 12 },
   "behavior.filter_applied": { page_instance_id: pageInstanceId, filter_keys: ["category", "size"], active_filter_count: 2 },
   "behavior.product_viewed": { product_id: "prod_1", page_instance_id: pageInstanceId, variant_id: "variant_1" },
-  "cart.add_clicked": { product_id: "prod_1", variant_id: "variant_1", quantity: 1, cart_id: "cart_1", page_instance_id: pageInstanceId },
   "checkout.started": { cart_id: "cart_1", step: "address", page_instance_id: pageInstanceId },
 })
 
 test("catalog validates every approved behavior event with its authority class", () => {
-  assert.equal(BEHAVIOR_EVENT_TYPES.length, 9)
+  assert.equal(BEHAVIOR_EVENT_TYPES.length, 8)
   for (const eventType of BEHAVIOR_EVENT_TYPES) {
     const result = validateBehaviorEvent(eventType, validPayloads[eventType])
     assert.equal(result.catalog_version, BEHAVIOR_EVENT_CATALOG_VERSION)
@@ -56,6 +55,23 @@ test("catalog rejects raw query, URL and unapproved payload fields", () => {
   assert.throws(() => validateBehaviorEvent("behavior.product_viewed", {
     ...validPayloads["behavior.product_viewed"], name: "Medusa Sweatshirt",
   }), /unsupported field/)
+})
+
+test("search requires a normalized, sanitized query and authoritative outcome", () => {
+  assert.throws(() => validateBehaviorEvent("behavior.search_submitted", {
+    ...validPayloads["behavior.search_submitted"], query_normalized: "  Running   Shoes ",
+  }), /normalized/)
+  assert.throws(() => validateBehaviorEvent("behavior.search_submitted", {
+    ...validPayloads["behavior.search_submitted"], query_normalized: "contact test@example.com",
+  }), /email/)
+  assert.throws(() => validateBehaviorEvent("behavior.search_submitted", {
+    ...validPayloads["behavior.search_submitted"], outcome: "failed", result_count: 0,
+  }), /result_count/)
+  assert.deepEqual(validateBehaviorEvent("behavior.search_submitted", {
+    search_interaction_id: "search:interaction-2", query_normalized: "running shoes", outcome: "failed",
+  }).data, {
+    search_interaction_id: "search:interaction-2", query_normalized: "running shoes", outcome: "failed",
+  })
 })
 
 test("filter state keeps keys allowlisted and internally consistent", () => {

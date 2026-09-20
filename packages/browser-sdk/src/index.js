@@ -6,6 +6,7 @@ import {
 } from "@3002tad/funnelmetry-input-contract"
 import {
   isBehaviorEventType,
+  getBehaviorEventDefinition,
   SCROLL_DEPTH_MILESTONES,
   validateBehaviorPayload,
 } from "@3002tad/funnelmetry-behavior-event-catalog"
@@ -108,8 +109,8 @@ export function createBrowserSdk(options) {
   const writeKey = requiredString(options.writeKey, "writeKey")
   const allowedEventTypes = new Set(options.allowedEventTypes ?? [])
   for (const eventType of allowedEventTypes) {
-    if (!isBehaviorEventType(eventType)) {
-      throw new Error(`Event '${eventType}' is not part of Behavior Event Catalog v1`)
+    if (!isBehaviorEventType(eventType) || getBehaviorEventDefinition(eventType).producer !== "browser") {
+      throw new Error(`Event '${eventType}' is not browser-producible in Behavior Event Catalog v2`)
     }
   }
   if (allowedEventTypes.size === 0) throw new Error("allowedEventTypes must not be empty")

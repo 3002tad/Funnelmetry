@@ -1,17 +1,18 @@
 # Medusa integration
 
-Thư mục này dành cho tài liệu/binding đặc thù Medusa. Runtime dùng chung vẫn nằm ở
-`packages/browser-sdk` và `packages/backend-integration-kit`; core pipeline không
-được import Medusa hoặc đọc storage nội bộ của Medusa.
+Binding Medusa hiện theo **Behavior Event Catalog v2 / DEC-115**. Core Pipeline không import
+Medusa hoặc đọc storage nội bộ Medusa; mọi source event đi qua Source Ingress và Canonical
+Normalizer nạp catalog/mapping versioned.
 
-`canonical-mappings.v1.json` là artifact semantic versioned của integration. Runtime normalizer nạp
-artifact qua generic config path; core không hard-code Medusa. Baseline hiện chỉ chốt
-`medusa.order_placed → order.created` (`BUSINESS_FACT`). `cart.add_clicked` vẫn là browser intent;
-không được đổi thành `cart.item_added`, và không tạo `order.accepted` khi source chưa có transition
-authoritative tương ứng.
+- Browser chỉ phát các observation/intent được phép của Catalog v2; không được phát
+  `cart.add_clicked` hoặc `behavior.search_submitted`.
+- `cart.item_added` chỉ được source-side hook phát sau khi Medusa xác nhận `createLineItem`.
+  Không map add-click thành business fact.
+- Search hook chạy tại storefront server sau Search API: normalize/sanitize query, quan sát
+  outcome/result count rồi enqueue non-blocking. Tracking outage không làm thay đổi Search API.
+- `medusa.order_placed → order.created` vẫn là native mapping bảo thủ; không suy diễn
+  `order.accepted`, payment hoặc refund khi chưa có authoritative transition.
 
-DEC-073 đã chốt Browser behavior catalog v1 gồm thêm page view, bounded scroll milestone,
-banner impression/click và privacy-safe search/filter. Đây là target cross-repo chưa được
-implementation hiện tại hỗ trợ đầy đủ. Không thêm các event này vào Medusa manifest trước khi
-Browser SDK, installer, Normalizer mapping và analytics V2 đã được version/test đồng bộ; theo dõi
-`System_Backbone/docs/implementation/BEHAVIOR_EVENT_CATALOG_V1_ROLLOUT.md`.
+`canonical-mappings.v1.json` chỉ chứa source-native mapping cần thiết. Catalog v2 passthrough
+mapping validate behavior payload theo package version; producer/consumer phải pin cùng version
+trong rollout.

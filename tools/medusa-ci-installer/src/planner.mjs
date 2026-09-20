@@ -21,8 +21,8 @@ const generatedPaths = {
 }
 
 const packageVersions = {
-  browserSdk: "0.1.4",
-  backendIntegrationKit: "0.1.4",
+  browserSdk: "0.2.0",
+  backendIntegrationKit: "0.2.0",
 }
 
 function generatedClient(manifest) {
@@ -432,8 +432,6 @@ async function existingIntegration(projectRoot, originals, manifest) {
     requireMarker(originals[paths.storefrontLayout], "<FunnelmetryBootstrap />", paths.storefrontLayout)
     requireMarker(originals[paths.productPage], 'import { FunnelmetryProductViewed } from "@funnelmetry/client"', paths.productPage)
     requireMarker(originals[paths.productPage], "<FunnelmetryProductViewed productId={pricedProduct.id} />", paths.productPage)
-    requireMarker(originals[paths.productActions], 'import { trackCartAddClicked } from "@funnelmetry/client"', paths.productActions)
-    requireMarker(originals[paths.productActions], "void trackCartAddClicked(", paths.productActions)
     requireMarker(originals[paths.checkoutPage], 'import { FunnelmetryCheckoutStarted } from "@funnelmetry/client"', paths.checkoutPage)
     requireMarker(originals[paths.checkoutPage], "<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />", paths.checkoutPage)
   }
@@ -540,15 +538,6 @@ export async function createPlan(projectRoot, manifest) {
       '    />\n  )\n}',
       '      />\n    </>\n  )\n}',
     )
-    const actions = replaceOnce(
-      originals[paths.productActions],
-      'import { addToCart } from "@lib/data/cart"',
-      'import { addToCart } from "@lib/data/cart"\nimport { trackCartAddClicked } from "@funnelmetry/client"',
-      paths.productActions,
-    ).replace(
-      '    await addToCart({\n      variantId: selectedVariant.id,\n      quantity: 1,\n      countryCode,\n    })',
-      '    void trackCartAddClicked({ productId: product.id, variantId: selectedVariant.id, quantity: 1 })\n\n    await addToCart({\n      variantId: selectedVariant.id,\n      quantity: 1,\n      countryCode,\n    })',
-    )
     const checkout = replaceOnce(
       originals[paths.checkoutPage],
       'import CheckoutProgress from "@modules/checkout/components/checkout-progress"',
@@ -573,7 +562,6 @@ export async function createPlan(projectRoot, manifest) {
         { path: generatedPaths.browserClient, before: null, after: client },
         { path: paths.storefrontLayout, before: originals[paths.storefrontLayout], after: layout },
         { path: paths.productPage, before: originals[paths.productPage], after: productPage },
-        { path: paths.productActions, before: originals[paths.productActions], after: actions },
         { path: paths.checkoutPage, before: originals[paths.checkoutPage], after: checkout },
       )
     }
