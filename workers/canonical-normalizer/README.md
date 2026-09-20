@@ -24,9 +24,10 @@ host vào streaming/KPI core.
 Mapping source-native được nạp tùy chọn qua `CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH`.
 Reference Medusa dùng artifact versioned trong `integrations/medusa` cho
 `medusa.order_placed -> order.created`; core normalizer không hard-code host. Ingress vẫn
-giữ native event type và `mapping_version` là provenance của canonical semantics. Không có
-mapping mặc định cho `cart.item_added`, `order.accepted` hay payment: chỉ bật sau khi có
-native hook và conformance test chứng minh đúng business semantics.
+giữ native event type và `mapping_version` là provenance của canonical semantics. `cart.item_added`
+chỉ được passthrough khi source-side hook phát sau source-confirmed line-item result; không đổi
+browser add-click thành business fact. `order.accepted`, payment và refund chỉ bật sau native hook
+và conformance test chứng minh authoritative transition.
 
 ## Chạy
 

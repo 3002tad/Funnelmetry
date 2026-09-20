@@ -112,3 +112,128 @@ export function createBackendForwarder(options) {
 
   return Object.freeze({ forward, getMetrics: () => ({ ...metrics }) })
 }
+
+/**
+ * Host bindings enqueue source-confirmed events after their business response is known.
+ * Delivery occurs out of band; a full queue, invalid local event, or unavailable
+ * Funnelmetry dependency must never alter the host request result.
+ */
+export function createManagedDeliveryDispatcher(options) {
+  const maxQueueSize = options.maxQueueSize ?? 200
+  const failureThreshold = options.failureThreshold ?? 3
+  const cooldownMs = options.cooldownMs ?? 30_000
+  const logger = options.logger ?? { warn: () => {} }
+  const clock = options.clock ?? Date.now
+  const setTimer = options.setTimeout ?? setTimeout
+  const forwarder = options.forwarder ?? createBackendForwarder(options)
+  if (!Number.isInteger(maxQueueSize) || maxQueueSize < 1) throw new Error("maxQueueSize must be a positive integer")
+  if (!Number.isInteger(failureThreshold) || failureThreshold < 1) throw new Error("failureThreshold must be a positive integer")
+  if (!Number.isInteger(cooldownMs) || cooldownMs < 1) throw new Error("cooldownMs must be a positive integer")
+
+  const queue = []
+  const metrics = {
+    enqueued: 0,
+    accepted: 0,
+    duplicate: 0,
+    rejected: 0,
+    retryableFailure: 0,
+    droppedQueueFull: 0,
+    droppedAfterRetry: 0,
+    circuitOpened: 0,
+  }
+  let draining = false
+  let wakeTimer
+  let circuitOpenUntil = 0
+  let consecutiveRetryableFailures = 0
+  let lastQueueFullLogAt = 0
+
+  function scheduleDrain(delayMs = 0) {
+    if (draining || wakeTimer) return
+    wakeTimer = setTimer(() => {
+      wakeTimer = undefined
+      void drain()
+    }, delayMs)
+  }
+
+  function openCircuit() {
+    circuitOpenUntil = clock() + cooldownMs
+    consecutiveRetryableFailures = 0
+    metrics.circuitOpened += 1
+    logger.warn({
+      message: "Funnelmetry delivery circuit opened; host business flow remains unaffected",
+      cooldown_ms: cooldownMs,
+      queued_events: queue.length,
+    })
+  }
+
+  async function drain() {
+    if (draining) return
+    const remainingCooldown = circuitOpenUntil - clock()
+    if (remainingCooldown > 0) {
+      scheduleDrain(remainingCooldown)
+      return
+    }
+    draining = true
+    try {
+      while (queue.length > 0) {
+        const remainingCooldownDuringDrain = circuitOpenUntil - clock()
+        if (remainingCooldownDuringDrain > 0) {
+          scheduleDrain(remainingCooldownDuringDrain)
+          break
+        }
+        const event = queue.shift()
+        if (!event) continue
+        let result
+        try {
+          result = await forwarder.forward(event)
+        } catch {
+          result = { status: "retryable_failure" }
+        }
+        if (result.status === "accepted") {
+          metrics.accepted += 1
+          consecutiveRetryableFailures = 0
+        } else if (result.status === "duplicate") {
+          metrics.duplicate += 1
+          consecutiveRetryableFailures = 0
+        } else if (result.status === "rejected") {
+          metrics.rejected += 1
+          consecutiveRetryableFailures = 0
+        } else {
+          metrics.retryableFailure += 1
+          metrics.droppedAfterRetry += 1
+          consecutiveRetryableFailures += 1
+          if (consecutiveRetryableFailures >= failureThreshold) {
+            openCircuit()
+            break
+          }
+        }
+      }
+    } finally {
+      draining = false
+      if (queue.length > 0) scheduleDrain(Math.max(0, circuitOpenUntil - clock()))
+    }
+  }
+
+  function enqueue(event) {
+    if (queue.length >= maxQueueSize) {
+      metrics.droppedQueueFull += 1
+      if (clock() - lastQueueFullLogAt >= 60_000) {
+        lastQueueFullLogAt = clock()
+        logger.warn({
+          message: "Funnelmetry delivery queue is full; event dropped without affecting the host",
+          max_queue_size: maxQueueSize,
+        })
+      }
+      return { status: "dropped_queue_full" }
+    }
+    queue.push(event)
+    metrics.enqueued += 1
+    scheduleDrain(Math.max(0, circuitOpenUntil - clock()))
+    return { status: "queued" }
+  }
+
+  return Object.freeze({
+    enqueue,
+    getMetrics: () => ({ ...metrics, queued: queue.length, circuitOpen: circuitOpenUntil > clock() }),
+  })
+}

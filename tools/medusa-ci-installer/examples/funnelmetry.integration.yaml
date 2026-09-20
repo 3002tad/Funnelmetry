@@ -22,7 +22,6 @@ frontend:
   enabled: true
   events:
     - behavior.product_viewed
-    - cart.add_clicked
     - checkout.started
 
 backend:

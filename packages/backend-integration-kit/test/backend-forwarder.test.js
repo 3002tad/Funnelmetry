@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { createBackendForwarder } from "../src/index.js"
+import { createBackendForwarder, createManagedDeliveryDispatcher } from "../src/index.js"
 
 const mappedEvent = {
   eventId: "medusa:order.placed:order_1",
@@ -54,4 +54,27 @@ test("fails open after bounded retries instead of throwing into the host lifecyc
   const result = await forwarder.forward(mappedEvent)
   assert.equal(result.status, "retryable_failure")
   assert.equal(warnings.length, 1)
+})
+
+test("managed dispatcher returns before asynchronous delivery and drops safely when full", async () => {
+  let resolveForward
+  const forwarded = []
+  const dispatcher = createManagedDeliveryDispatcher({
+    maxQueueSize: 1,
+    forwarder: {
+      forward: (event) => {
+        forwarded.push(event)
+        return new Promise((resolve) => { resolveForward = resolve })
+      },
+    },
+  })
+
+  assert.deepEqual(dispatcher.enqueue(mappedEvent), { status: "queued" })
+  assert.deepEqual(dispatcher.enqueue({ ...mappedEvent, eventId: "medusa:order.placed:order_2" }), { status: "dropped_queue_full" })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(forwarded.length, 1)
+  resolveForward({ status: "accepted" })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(dispatcher.getMetrics().accepted, 1)
+  assert.equal(dispatcher.getMetrics().droppedQueueFull, 1)
 })

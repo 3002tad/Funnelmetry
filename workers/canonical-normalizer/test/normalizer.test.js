@@ -107,10 +107,9 @@ test("maps every behavior catalog event to its approved authority class", () => 
     "behavior.scroll_depth_reached": { page_type: "home", page_instance_id: "page:session-1:home-1", depth_percent: 25 },
     "promotion.banner_impression": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: "page:session-1:home-1", visible_percent: 50, visible_ms: 1000 },
     "promotion.banner_clicked": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: "page:session-1:home-1" },
-    "behavior.search_submitted": { page_instance_id: "page:session-1:home-1", query_length_bucket: "3-5", result_count: 5 },
+    "behavior.search_submitted": { search_interaction_id: "search:interaction-1", query_normalized: "running shoes", outcome: "succeeded", result_count: 5 },
     "behavior.filter_applied": { page_instance_id: "page:session-1:home-1", filter_keys: ["category"], active_filter_count: 1 },
     "behavior.product_viewed": { product_id: "prod_1", page_instance_id: "page:session-1:product-1" },
-    "cart.add_clicked": { product_id: "prod_1", quantity: 1, page_instance_id: "page:session-1:product-1" },
     "checkout.started": { cart_id: "cart_1", step: "address", page_instance_id: "page:session-1:checkout-1" },
   }
   const normalizer = createNormalizer({ now: () => normalizedAt })

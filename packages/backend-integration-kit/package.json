@@ -1,6 +1,6 @@
 {
   "name": "@3002tad/funnelmetry-backend-integration-kit",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "license": "UNLICENSED",
   "type": "module",
   "files": [

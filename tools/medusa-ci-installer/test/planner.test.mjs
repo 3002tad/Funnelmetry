@@ -28,10 +28,8 @@ const manifest = validateManifest({
       "behavior.scroll_depth_reached",
       "promotion.banner_impression",
       "promotion.banner_clicked",
-      "behavior.search_submitted",
       "behavior.filter_applied",
       "behavior.product_viewed",
-      "cart.add_clicked",
       "checkout.started",
     ],
   },
@@ -88,17 +86,14 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /"behavior\.scroll_depth_reached"/)
   assert.match(plan.patch, /"promotion\.banner_impression"/)
   assert.match(plan.patch, /"promotion\.banner_clicked"/)
-  assert.match(plan.patch, /"behavior\.search_submitted"/)
   assert.match(plan.patch, /"behavior\.filter_applied"/)
-  assert.match(plan.patch, /"cart\.add_clicked"/)
   assert.match(plan.patch, /"checkout\.started"/)
   assert.match(plan.patch, /sourceEventType: "medusa\.order_placed"/)
-  assert.match(plan.patch, /void trackCartAddClicked\([\s\S]*?await addToCart/)
   assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
-  assert.match(plan.patch, /"@3002tad\/funnelmetry-browser-sdk": "0\.1\.4"/)
+  assert.match(plan.patch, /"@3002tad\/funnelmetry-browser-sdk": "0\.2\.0"/)
   assert.match(plan.patch, /"@funnelmetry\/\*"/)
   assert.match(plan.patch, /"funnelmetry\/\*"/)
-  assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.1\.4"/)
+  assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.2\.0"/)
   assert.match(plan.patch, /createBrowserSdk/)
   assert.match(plan.patch, /createBackendForwarder/)
   assert.match(plan.patch, /createManagedDeliveryDispatcher/)
@@ -115,10 +110,13 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /trackPageView/)
   assert.match(plan.patch, /attachScrollDepthObserver/)
   assert.match(plan.patch, /FunnelmetryPromotionBanner/)
-  assert.match(plan.patch, /trackSearchSubmitted/)
   assert.match(plan.patch, /trackFilterApplied/)
-  assert.match(plan.patch, /track\("cart\.add_clicked"/)
   assert.match(plan.patch, /track\("checkout\.started"/)
+  assert.doesNotMatch(plan.patch, /cart\.add_clicked/)
+  assert.doesNotMatch(plan.patch, /trackCartAddClicked/)
+  assert.doesNotMatch(plan.patch, /behavior\.search_submitted/)
+  assert.doesNotMatch(plan.patch, /trackSearchSubmitted/)
+  assert.doesNotMatch(plan.patch, /query_length_bucket/)
   assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
   assert.match(plan.patch, /endpoint: "https:\/\/browser-ingest\.example\.test\/v1\/ingress\/events"/)
   assert.match(plan.patch, /endpoint: "https:\/\/backend-ingest\.example\.test\/v1\/ingress\/events"/)

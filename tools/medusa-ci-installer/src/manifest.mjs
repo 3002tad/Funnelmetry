@@ -6,10 +6,8 @@ const eventTypes = new Set([
   "behavior.scroll_depth_reached",
   "promotion.banner_impression",
   "promotion.banner_clicked",
-  "behavior.search_submitted",
   "behavior.filter_applied",
   "behavior.product_viewed",
-  "cart.add_clicked",
   "checkout.started",
 ])
 

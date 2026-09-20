@@ -21,8 +21,8 @@ const generatedPaths = {
 }
 
 const packageVersions = {
-  browserSdk: "0.1.4",
-  backendIntegrationKit: "0.1.4",
+  browserSdk: "0.2.0",
+  backendIntegrationKit: "0.2.0",
 }
 
 function generatedClient(manifest) {
@@ -220,8 +220,14 @@ function generatedSubscriber(manifest) {
   return `import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"\nimport { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"\nimport { createManagedDeliveryDispatcher } from "../funnelmetry/managed-delivery-dispatcher"\n\ntype OrderPlacedData = { id: string }\ntype OrderItem = { product_id?: string; variant_id?: string; quantity?: number; unit_price?: number }\ntype Order = { id: string; created_at?: string; currency_code?: string; total?: number; items?: OrderItem[] }\ntype Logger = { warn: (message: string) => void }\ntype MedusaContainer = SubscriberArgs<OrderPlacedData>["container"]\n\nconst sourceId = ${sourceId}\nconst sourceKeyId = ${sourceKeyId}\nconst reliability = ${reliability}\nlet dispatcher: ReturnType<typeof createManagedDeliveryDispatcher> | undefined\nlet lastInactiveWarningAt = 0\n\nfunction getDispatcher(logger: Logger) {\n  if (dispatcher) return dispatcher\n  const signingKey = process.env.FUNNELMETRY_BACKEND_SIGNING_KEY ?? ""\n  if (!signingKey) {\n    if (Date.now() - lastInactiveWarningAt >= 60000) {\n      lastInactiveWarningAt = Date.now()\n      logger.warn("Funnelmetry backend integration is inactive: signing key is not configured")\n    }\n    return null\n  }\n  dispatcher = createManagedDeliveryDispatcher({\n    sourceId,\n    sourceKeyId,\n    endpoint: process.env.FUNNELMETRY_INGEST_URL ?? "",\n    signingKey,\n    timeoutMs: reliability.timeoutMs,\n    maxAttempts: reliability.retry.maxAttempts,\n    maxQueueSize: reliability.maxQueueSize,\n    failureThreshold: reliability.circuitBreaker.failureThreshold,\n    cooldownMs: reliability.circuitBreaker.cooldownMs,\n    logger,\n  })\n  return dispatcher\n}\n\nasync function enqueueOrderPlaced(orderId: string, container: MedusaContainer, logger: Logger) {\n  try {\n    const orderModuleService = container.resolve(Modules.ORDER) as { retrieveOrder: (id: string, options: Record<string, unknown>) => Promise<Order> }\n    const order = await orderModuleService.retrieveOrder(orderId, { relations: ["items"] })\n    if (!order.created_at || !order.currency_code) {\n      logger.warn("Funnelmetry order forward skipped: missing authoritative order time/currency")\n      return\n    }\n    getDispatcher(logger)?.enqueue({\n      eventId: \`medusa:order.placed:\${orderId}\`,\n      sourceEventType: "medusa.order_placed",\n      occurredAt: order.created_at,\n      aggregate: { type: "order", id: order.id },\n      sourcePayload: { order_id: order.id, currency_code: order.currency_code, total_minor: order.total, items: (order.items ?? []).map((item) => ({ product_id: item.product_id, variant_id: item.variant_id, quantity: item.quantity, unit_price_minor: item.unit_price })) },\n    })\n  } catch (error) {\n    logger.warn(\`Funnelmetry order enqueue failed open: \${error instanceof Error ? error.message : "unknown error"}\`)\n  }\n}\n\nexport default function funnelmetryOrderPlaced({ event, container }: SubscriberArgs<OrderPlacedData>) {\n  const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger\n  void enqueueOrderPlaced(event.data.id, container, logger)\n}\n\nexport const config: SubscriberConfig = { event: "order.placed" }\n`
 }
 
-function configureGeneratedClient(content, manifest) {
+function stripSupersededBrowserHooks(content) {
   return content
+    .replace(/\nfunction queryLengthBucket\(length: number\) \{[\s\S]*?\n\}\n/g, "\n")
+    .replace(/\nexport function trackCartAddClicked\([\s\S]*?\n\}\n\nexport function trackSearchSubmitted\([\s\S]*?\n\}\n/g, "\n")
+}
+
+function configureGeneratedClient(content, manifest) {
+  return stripSupersededBrowserHooks(content)
     .replace("@funnelmetry/browser-sdk", "@3002tad/funnelmetry-browser-sdk")
     .replace(
       'endpoint: process.env.NEXT_PUBLIC_FUNNELMETRY_INGEST_URL ?? "",',
@@ -432,8 +438,6 @@ async function existingIntegration(projectRoot, originals, manifest) {
     requireMarker(originals[paths.storefrontLayout], "<FunnelmetryBootstrap />", paths.storefrontLayout)
     requireMarker(originals[paths.productPage], 'import { FunnelmetryProductViewed } from "@funnelmetry/client"', paths.productPage)
     requireMarker(originals[paths.productPage], "<FunnelmetryProductViewed productId={pricedProduct.id} />", paths.productPage)
-    requireMarker(originals[paths.productActions], 'import { trackCartAddClicked } from "@funnelmetry/client"', paths.productActions)
-    requireMarker(originals[paths.productActions], "void trackCartAddClicked(", paths.productActions)
     requireMarker(originals[paths.checkoutPage], 'import { FunnelmetryCheckoutStarted } from "@funnelmetry/client"', paths.checkoutPage)
     requireMarker(originals[paths.checkoutPage], "<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />", paths.checkoutPage)
   }
@@ -540,15 +544,6 @@ export async function createPlan(projectRoot, manifest) {
       '    />\n  )\n}',
       '      />\n    </>\n  )\n}',
     )
-    const actions = replaceOnce(
-      originals[paths.productActions],
-      'import { addToCart } from "@lib/data/cart"',
-      'import { addToCart } from "@lib/data/cart"\nimport { trackCartAddClicked } from "@funnelmetry/client"',
-      paths.productActions,
-    ).replace(
-      '    await addToCart({\n      variantId: selectedVariant.id,\n      quantity: 1,\n      countryCode,\n    })',
-      '    void trackCartAddClicked({ productId: product.id, variantId: selectedVariant.id, quantity: 1 })\n\n    await addToCart({\n      variantId: selectedVariant.id,\n      quantity: 1,\n      countryCode,\n    })',
-    )
     const checkout = replaceOnce(
       originals[paths.checkoutPage],
       'import CheckoutProgress from "@modules/checkout/components/checkout-progress"',
@@ -573,7 +568,6 @@ export async function createPlan(projectRoot, manifest) {
         { path: generatedPaths.browserClient, before: null, after: client },
         { path: paths.storefrontLayout, before: originals[paths.storefrontLayout], after: layout },
         { path: paths.productPage, before: originals[paths.productPage], after: productPage },
-        { path: paths.productActions, before: originals[paths.productActions], after: actions },
         { path: paths.checkoutPage, before: originals[paths.checkoutPage], after: checkout },
       )
     }
