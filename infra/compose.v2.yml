@@ -24,6 +24,8 @@ services:
     image: apache/kafka:3.9.1
     environment:
       KAFKA_NODE_ID: "1"
+      # Match the named volume; image default /tmp/kraft-combined-logs is ephemeral.
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092

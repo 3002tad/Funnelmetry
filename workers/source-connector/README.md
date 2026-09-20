@@ -111,12 +111,40 @@ Supply approved feed identity, separate Bearer token, URL and initial cursor. Ne
 silently start at the latest sequence. `NORMAL` is only safe with the original Kafka
 cluster; `RESTORE_REPLAY` deliberately fails until safe-checkpoint recovery exists.
 
+Operator-only exception: `src/recover-retained-prefix.mjs` can rehydrate a fully
+retained prefix whose PostgreSQL projections are already complete, without changing
+the cursor. See `docs/KAFKA_RECOVERY_2026-09-20.md` at repository root for scope and
+the isolated/live verification evidence. It is not a general restore-mode implementation.
+
 Use `infra/compose.source-connector.yml` after `infra/compose.v2.yml`, selecting
 profile/service `source-connector`. This overlay does not publish any connector port.
 Review base PostgreSQL host-port exposure before deployment, or retain the existing
 private overlay. Do not run the entire default Compose stack unintentionally.
-The existing demo launcher is unchanged; it still starts legacy containers.
+The demo launcher now resumes the existing Source Connector and downstream workers
+without starting the legacy Gateway/Tailscale services. It does not bootstrap or
+recreate containers; see `runtime/START_PRIVATE_DEMO.md`.
 
 Next: real-service integration tests through the
 normalizer/ledger, explicit initial cursor choice and authenticated reference-path
 long-poll tests. Keep actual tokens in ignored runtime env/secret storage.
+
+## Local HTTPS conformance
+
+```powershell
+# Once, install the Source service's local dependency as well.
+npm ci --prefix ../../apps/edge-relay --ignore-scripts
+npm run test:https
+```
+
+Requires OpenSSL (`TEST_OPENSSL` can select its executable; Windows default uses
+Git for Windows). Runner creates one-day test certificates in a new OS temporary
+directory and trusts only the test CA via child-process `NODE_EXTRA_CA_CERTS`.
+It never changes system trust or disables TLS verification. Keys and the temporary
+SQLite Source log are removed when the runner finishes.
+
+Uses the actual Source Ingress/Event Store/Feed implementation behind a local
+HTTPS reverse proxy, with distinct test-only browser/feed credentials. Covers
+wrong Bearer token, untrusted certificate, redirect rejection, stalled response
+timeout, empty 25-second long poll and wake-up on a durable browser event with
+duplicate sequence retention. This is local transport conformance, NOT evidence
+for the real Cloudflare/DNS/Tailscale path. No production URL/token is loaded.

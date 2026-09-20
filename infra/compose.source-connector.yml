@@ -1,5 +1,10 @@
 # Opt-in overlay after compose.v2.yml. Does not start the legacy Input Gateway.
 services:
+  postgres:
+    # Pull deployment has no reason to expose the database on the host/LAN.
+    ports: !reset []
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U funnelmetry -d funnelmetry']
   source-connector:
     profiles: [source-connector]
     image: funnelmetry/source-connector:local

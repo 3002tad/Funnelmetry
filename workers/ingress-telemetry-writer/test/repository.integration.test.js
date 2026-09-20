@@ -44,6 +44,10 @@ test("persists immutable receipts and versioned outcomes in PostgreSQL", { skip:
     assert.equal((await repository.persistReceipt(receipt)).status, "duplicate")
     assert.equal((await repository.persistOutcome(normalized)).status, "inserted")
     assert.equal((await repository.persistOutcome(normalized)).status, "duplicate")
+    assert.equal((await repository.persistOutcome({ ...normalized, processed_at: '2026-09-20T00:00:00.000Z' })).status, 'duplicate')
+    const original = await pool.query('SELECT outcome_document FROM canonicalization_outcomes WHERE source_id=$1 AND source_event_id=$2', [sourceId, eventId])
+    assert.equal(original.rows[0].outcome_document.processed_at, normalized.processed_at)
+    await assert.rejects(() => repository.persistOutcome({ ...normalized, raw_record_id: 'different-raw' }), IngressTelemetryConflictError)
     assert.equal((await repository.persistOutcome(reprocessed)).status, "inserted")
 
     await assert.rejects(

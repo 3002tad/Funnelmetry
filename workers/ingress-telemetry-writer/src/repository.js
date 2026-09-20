@@ -76,7 +76,9 @@ export function createIngressTelemetryRepository({ pool } = {}) {
           return Object.freeze({ status: "inserted", recorded_at: recorded(inserted) })
         }
         const existing = await client.query(
-          `SELECT outcome_document = $4::jsonb AS identical, recorded_at
+          // Re-normalization during replay changes processing time, not event semantics.
+          // Preserve the first outcome; every other field still participates in equality.
+          `SELECT (outcome_document - 'processed_at') = ($4::jsonb - 'processed_at') AS identical, recorded_at
              FROM canonicalization_outcomes
             WHERE source_id = $1 AND source_event_id = $2 AND mapping_version = $3`,
           [outcome.source_id, outcome.source_event_id, outcome.mapping_version, document],
