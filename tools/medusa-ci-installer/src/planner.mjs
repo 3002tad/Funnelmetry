@@ -222,7 +222,6 @@ function generatedSubscriber(manifest) {
 
 function stripSupersededBrowserHooks(content) {
   return content
-    .replace(/\nfunction activePageContext\(\) \{\n  return pageContext\(typeof window === "undefined" \? null : window\.location\.pathname\)\n\}\n/g, "\n")
     .replace(/\nfunction queryLengthBucket\(length: number\) \{[\s\S]*?\n\}\n/g, "\n")
     .replace(/\nexport function trackCartAddClicked\([\s\S]*?\n\}\n\nexport function trackSearchSubmitted\([\s\S]*?\n\}\n/g, "\n")
 }
