@@ -1,4 +1,4 @@
-# Funnelmetry Medusa CI Installer (plan-only prototype)
+# Funnelmetry Medusa CI Installer V2 (plan-only)
 
 This package implements the CI stage of the input-only integration plan without
 writing to the Medusa checkout. It validates a pinned Medusa v2 DTC Starter,
@@ -20,15 +20,21 @@ Queue-full, retry-exhausted, and process-restart events are observable
 pre-durable-handoff loss, not a durability claim. Reconciliation remains the
 mechanism for quantifying/repairing the supported current projection later.
 
-The installer validates the Browser behavior catalog v1: page, scroll, banner, search, filter,
-product view, add-to-cart, and checkout signals. Its generated client provides page/scroll lifecycle
-helpers and host-facing semantic helpers for banner, search and filter. The pinned Medusa reference
-host owns the corresponding UI hooks; a manifest must not declare an event until that hook exists.
-All behavior signals retain separate `CLIENT_OBSERVATION`/`BEHAVIOR_INTENT` authority. The order subscriber
-emits source-native `medusa.order_placed`; the versioned
-Normalizer mapping owns the conservative conversion to `order.created` as `BUSINESS_FACT`. The plan
-reports persisted cart-item and accepted-order capabilities as `NOT_SUPPORTED`, so this first input
-demo remains `IN_PROGRESS` and is not evidence of Commerce Conversion 4/4.
+The installer implements behavior catalog V2. Browser hooks emit only consented browser observations
+(page, scroll, banner, filter, product view, checkout). It deliberately does **not** generate
+`cart.add_clicked` or a browser-side search event. The source-owned storefront boundary instead emits
+`cart.item_added` only after a successful line-item mutation. An intentional search receives an opaque
+interaction id, and the server-side result wrapper sanitizes/normalizes the query before recording its
+outcome. These hooks enqueue asynchronously and fail open, so neither cart nor Search API behavior
+depends on Funnelmetry. The generated consent notice enables browser tracking only after the user
+closes it. The order subscriber emits source-native `medusa.order_placed`; the versioned Normalizer
+owns the conservative conversion to `order.created` as `BUSINESS_FACT`.
+
+V2 preserves the reference-validation fixes: bounded queued delivery and circuit breaker; lazy package
+loading; TypeScript-compatible query sanitization; non-negative integer validation for successful search
+result counts; and `Date`/string normalization for authoritative order timestamps. The plan reports
+`cartItemPersisted` and `searchSubmitted` as enabled only when the pinned host exposes every required
+semantic-hook file.
 
 `ingest.browser_url` is the URL embedded in the Browser SDK and must be reachable from the
 storefront user's browser. `ingest.backend_url` is embedded in the Medusa subscriber and may be
@@ -36,6 +42,11 @@ an internal/container-reachable URL. A binding only requires the endpoint it ena
 
 There is deliberately no `apply` command. Applying the patch, committing it and
 building a production host image remain explicit customer CI/CD decisions.
+
+Runtime network topology is intentionally outside the source patch. On a Linux Docker host where Source
+Ingress is a separate Compose project, storefront and backend must join the Source Ingress external
+network and `FUNNELMETRY_INGEST_URL` must use its service DNS. Do not rely on `host.docker.internal` to
+reach an ingress port bound only to host loopback.
 
 ## Commands
 

@@ -21,7 +21,9 @@ function git(args, input) {
 
 const statusBefore = git(["status", "--porcelain"])
 const plan = await createPlan(project, manifest)
-git(["apply", "--check", "--whitespace=nowarn", "-"], plan.patch)
+if (plan.patch) {
+  git(["apply", "--check", "--whitespace=nowarn", "-"], plan.patch)
+}
 const statusAfter = git(["status", "--porcelain"])
 
 if (statusAfter !== statusBefore) {
@@ -31,7 +33,7 @@ if (statusAfter !== statusBefore) {
 process.stdout.write(JSON.stringify({
   status: "pass",
   sourceMutation: false,
-  patchApplies: true,
+  patchApplies: plan.patch ? true : "not-needed",
   changes: plan.changes.length,
   sourceFingerprint: plan.sourceFingerprint,
 }, null, 2) + "\n")
