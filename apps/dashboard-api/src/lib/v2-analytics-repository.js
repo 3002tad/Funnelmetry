@@ -1,3 +1,5 @@
+import { eventBusinessDetails } from './event-business-details.js'
+
 function number(value) {
   return Number(value ?? 0)
 }
@@ -379,6 +381,7 @@ export function createV2AnalyticsRepository({ query } = {}) {
       params.push(filters.limit)
       const rows = await query(
         `SELECT c.canonical_event_id, c.event_type, c.event_class, c.occurred_at,
+                c.data AS private_business_data,
                 c.produced_at, c.ingested_at, c.normalized_at, c.persisted_at,
                 c.canonical_schema_version, c.mapping_version, c.aggregate_type,
                 c.quality->>'time_basis' AS time_basis,
@@ -391,7 +394,9 @@ export function createV2AnalyticsRepository({ query } = {}) {
           LIMIT $${params.length}`,
         params,
       )
-      return Object.freeze(rows)
+      return Object.freeze(rows.map(({ private_business_data, ...event }) => ({
+        ...event, business_details: eventBusinessDetails(event.event_type, private_business_data),
+      })))
     },
 
     async getDataHealth(scope) {

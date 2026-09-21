@@ -99,13 +99,14 @@ test("journey detail exposes evidence summaries but never entity keys or canonic
   assert.doesNotMatch(calls[3], /matched_entity_key|late_conversion_document/)
 })
 
-test("event browser returns canonical metadata but not payload, identity or aggregate IDs", async () => {
+test("event browser returns allowlisted business details but not raw payload or identity", async () => {
   const calls = []
   const repository = createV2AnalyticsRepository({ query: async (sql, params) => {
     calls.push({ sql, params })
     return [{
       canonical_event_id: "can_1", event_type: "order.accepted", event_class: "BUSINESS_FACT",
       time_basis: "source_occurred", authoritative_event_time: true, journey_id: "journey_1",
+      private_business_data: { order_id: 'order_1', total_minor: 1200, currency_code: 'usd', email: 'secret@example.test', items: [{ product_id: 'prod_1', unit_price_minor: 1200, quantity: 1, customer_email: 'secret@example.test' }] },
     }]
   } })
   const events = await repository.listEvents(
@@ -114,7 +115,10 @@ test("event browser returns canonical metadata but not payload, identity or aggr
   )
   assert.equal(events[0].event_type, "order.accepted")
   assert.equal("data" in events[0], false)
-  assert.doesNotMatch(calls[0].sql, /c\.data|c\.identity|aggregate_id|canonical_document/)
+  assert.equal('private_business_data' in events[0], false)
+  assert.equal(events[0].business_details.total_minor, 1200)
+  assert.equal(JSON.stringify(events).includes('secret@example.test'), false)
+  assert.doesNotMatch(calls[0].sql, /c\.identity|aggregate_id|canonical_document/)
   assert.deepEqual(calls[0].params, ["medusa-reference", "BUSINESS_FACT", 25])
 })
 

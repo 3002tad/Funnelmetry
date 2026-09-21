@@ -131,6 +131,12 @@ export type JourneyDetail = {
 }
 
 export type CanonicalEventItem = {
+  business_details?: {
+    product_id?: string; variant_id?: string; cart_id?: string; order_id?: string; line_item_id?: string
+    quantity?: number; unit_price_minor?: number; total_minor?: number; currency_code?: string
+    items?: Array<{ product_id?: string; variant_id?: string; quantity?: number; unit_price_minor?: number }>
+    items_truncated?: boolean
+  } | null
   canonical_event_id: string
   event_type: string
   event_class: "BEHAVIOR_INTENT" | "CLIENT_OBSERVATION" | "BUSINESS_FACT"
