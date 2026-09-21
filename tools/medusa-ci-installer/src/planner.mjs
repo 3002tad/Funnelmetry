@@ -639,8 +639,8 @@ async function existingIntegration(projectRoot, originals, manifest) {
     throw new Error("Existing Funnelmetry backend integration has an unexpected package version")
   }
   if (checkoutStartNeedsUpgrade) return "upgradeable"
-  const exact = normalizeManagedBrowserClient(browserClient) === normalizeManagedBrowserClient(expectedBrowserClient) &&
-    normalizeManagedOrderPlacedSubscriber(orderPlacedSubscriber) === normalizeManagedOrderPlacedSubscriber(expectedOrderPlacedSubscriber) &&
+  const exact = normalizedText(browserClient) === normalizedText(expectedBrowserClient) &&
+    normalizedText(orderPlacedSubscriber) === normalizedText(expectedOrderPlacedSubscriber) &&
     normalizedText(managedDeliveryDispatcher) === normalizedText(expectedManagedDeliveryDispatcher) &&
     normalizedText(consentNotice) === normalizedText(generatedConsentNotice(manifest)) &&
     normalizedText(storefrontDelivery) === normalizedText(generatedStorefrontDelivery(manifest)) &&
@@ -684,7 +684,10 @@ export async function createPlan(projectRoot, manifest) {
 
   const semanticSupported = [originals[paths.cartData], originals[paths.storeSearch], originals[paths.storePage], originals[paths.storeTemplate], originals[paths.paginatedProducts]].every((value) => value !== null)
   const existing = await existingIntegration(projectRoot, originals, manifest)
-  if (existing === "exact" || existing === "v2-compatible") {
+  const cartItemDeclared = manifest.bindings.storefrontServer.includes("cart.item_added")
+  const searchDeclared = manifest.bindings.storefrontServer.includes("behavior.search_submitted")
+  const orderPlacedDeclared = manifest.bindings.medusaBackend.includes("medusa.order_placed")
+  if (existing === "exact") {
     return {
       schemaVersion: "funnelmetry-ci-plan.v2",
       mode: "plan-only",
@@ -695,10 +698,10 @@ export async function createPlan(projectRoot, manifest) {
       sourceFingerprint: sourceFingerprint(originals),
       capabilities: {
         behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
-        orderPlaced: manifest.backend.enabled ? "ENABLED" : "DISABLED",
-        cartItemPersisted: semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
-        searchSubmitted: semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
-        orderCreated: manifest.backend.enabled ? "ENABLED" : "DISABLED",
+        orderPlaced: orderPlacedDeclared ? "ENABLED" : "DISABLED",
+        cartItemPersisted: cartItemDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
+        searchSubmitted: searchDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
+        orderCreated: orderPlacedDeclared ? "ENABLED" : "DISABLED",
         // The V2 reference has authoritative cart persistence and order.created,
         // but does not yet prove order.accepted/payment settlement.
         commerceConversion: "IN_PROGRESS",
@@ -710,7 +713,7 @@ export async function createPlan(projectRoot, manifest) {
     }
   }
 
-  const refreshManagedBinding = existing === "managed" || existing === "upgradeable"
+  const refreshManagedBinding = existing === "managed" || existing === "upgradeable" || existing === "v2-compatible"
   const [currentBrowserClient, currentConsentNotice, currentStorefrontDelivery, currentManagedDeliveryDispatcher, currentOccurredAt, currentOrderPlacedSubscriber] = refreshManagedBinding
     ? await Promise.all([
       readProjectFile(projectRoot, generatedPaths.browserClient),
@@ -836,6 +839,7 @@ export async function createPlan(projectRoot, manifest) {
     )
   }
 
+  const effectiveChanges = changes.filter(({ before, after }) => before === null || normalizedText(before) !== normalizedText(after))
   return {
     schemaVersion: "funnelmetry-ci-plan.v2",
     mode: "plan-only",
@@ -846,16 +850,16 @@ export async function createPlan(projectRoot, manifest) {
     sourceFingerprint: sourceFingerprint(originals),
     capabilities: {
       behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
-      orderPlaced: manifest.backend.enabled ? "ENABLED" : "DISABLED",
-      cartItemPersisted: semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
-      searchSubmitted: semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
-      orderCreated: manifest.backend.enabled ? "ENABLED" : "DISABLED",
+      orderPlaced: orderPlacedDeclared ? "ENABLED" : "DISABLED",
+      cartItemPersisted: cartItemDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
+      searchSubmitted: searchDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
+      orderCreated: orderPlacedDeclared ? "ENABLED" : "DISABLED",
       orderAccepted: "NOT_SUPPORTED",
       commerceConversion: "IN_PROGRESS",
       payment: "NOT_REQUESTED",
       refund: "NOT_REQUESTED",
     },
-    changes: changes.map(({ path: file }) => ({ path: file, ownership: "funnelmetry-installer" })),
-    patch: changes.map(({ path: file, before, after }) => wholeFilePatch(file, before, after)).join(""),
+    changes: effectiveChanges.map(({ path: file }) => ({ path: file, ownership: "funnelmetry-installer" })),
+    patch: effectiveChanges.map(({ path: file, before, after }) => wholeFilePatch(file, before, after)).join(""),
   }
 }

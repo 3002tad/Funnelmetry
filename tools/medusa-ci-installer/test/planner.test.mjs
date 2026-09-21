@@ -7,8 +7,8 @@ import test from "node:test"
 import { validateManifest } from "../src/manifest.mjs"
 import { createPlan } from "../src/planner.mjs"
 
-const manifest = validateManifest({
-  apiVersion: "funnelmetry.io/v1",
+const rawManifest = {
+  apiVersion: "funnelmetry.io/v2",
   kind: "InputIntegration",
   host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
   source: { id: "medusa-reference" },
@@ -21,9 +21,8 @@ const manifest = validateManifest({
     browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY",
     backend_signing_key_ref: "FUNNELMETRY_BACKEND_SIGNING_KEY",
   },
-  frontend: {
-    enabled: true,
-    events: [
+  bindings: {
+    browser: [
       "behavior.page_viewed",
       "behavior.scroll_depth_reached",
       "promotion.banner_impression",
@@ -32,9 +31,11 @@ const manifest = validateManifest({
       "behavior.product_viewed",
       "checkout.started",
     ],
+    storefront_server: ["behavior.search_submitted", "cart.item_added"],
+    medusa_backend: ["medusa.order_placed"],
   },
-  backend: { enabled: true, binding: "medusa.order_placed" },
-})
+}
+const manifest = validateManifest(rawManifest)
 
 const fixtureRoot = fileURLToPath(new URL("./fixtures/medusa-dtc/", import.meta.url))
 const fixtureFiles = [
@@ -71,6 +72,8 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.deepEqual(after, before)
   assert.equal(plan.sourceMutation, false)
   assert.equal(plan.mode, "plan-only")
+  assert.deepEqual(plan.manifest.bindings.storefrontServer, ["behavior.search_submitted", "cart.item_added"])
+  assert.deepEqual(plan.manifest.bindings.medusaBackend, ["medusa.order_placed"])
   assert.equal(plan.capabilities.behavior, "ENABLED")
   assert.equal(plan.capabilities.orderPlaced, "ENABLED")
   assert.equal(plan.capabilities.orderCreated, "ENABLED")
@@ -136,32 +139,15 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
 })
 
 test("manifest rejects a browser secret reference that looks like a secret value", () => {
-  const bad = structuredClone(manifest)
-  bad.auth.browserWriteKeyRef = undefined
-  assert.throws(() => validateManifest({
-    apiVersion: "funnelmetry.io/v1",
-    kind: "InputIntegration",
-    host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
-    source: { id: "medusa-reference" },
-    ingest: { browser_url: "https://ingest.example.test" },
-    auth: { source_key_id: "source", browser_write_key_ref: "not-a-secret-reference" },
-    frontend: { enabled: true, events: ["behavior.product_viewed"] },
-    backend: { enabled: false },
-}), /environment\/secret reference/)
+  const bad = structuredClone(rawManifest)
+  bad.auth.browser_write_key_ref = "not-a-secret-reference"
+  assert.throws(() => validateManifest(bad), /environment\/secret reference/)
 })
 
 test("manifest only accepts fail-open reliability settings", () => {
-  assert.throws(() => validateManifest({
-    apiVersion: "funnelmetry.io/v1",
-    kind: "InputIntegration",
-    host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
-    source: { id: "medusa-reference" },
-    ingest: { browser_url: "https://ingest.example.test" },
-    auth: { source_key_id: "source", browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY" },
-    frontend: { enabled: true, events: ["behavior.product_viewed"] },
-    backend: { enabled: false },
-    reliability: { failure_mode: "fail_closed" },
-  }), /fail_open/)
+  const bad = structuredClone(rawManifest)
+  bad.reliability = { failure_mode: "fail_closed" }
+  assert.throws(() => validateManifest(bad), /fail_open/)
 })
 
 test("manifest normalizes a bounded circuit breaker for managed backend delivery", () => {
@@ -170,17 +156,9 @@ test("manifest normalizes a bounded circuit breaker for managed backend delivery
     cooldownMs: 30000,
   })
 
-  assert.throws(() => validateManifest({
-    apiVersion: "funnelmetry.io/v1",
-    kind: "InputIntegration",
-    host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
-    source: { id: "medusa-reference" },
-    ingest: { browser_url: "https://ingest.example.test" },
-    auth: { source_key_id: "source", browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY" },
-    frontend: { enabled: true, events: ["behavior.product_viewed"] },
-    backend: { enabled: false },
-    reliability: { circuit_breaker: { failure_threshold: 0 } },
-  }), /circuit_breaker\.failure_threshold must be a positive integer/)
+  const bad = structuredClone(rawManifest)
+  bad.reliability = { circuit_breaker: { failure_threshold: 0 } }
+  assert.throws(() => validateManifest(bad), /circuit_breaker\.failure_threshold must be a positive integer/)
 })
 
 test("planner emits a static Next.js public-key reference from the manifest", async () => {
@@ -193,30 +171,18 @@ test("planner emits a static Next.js public-key reference from the manifest", as
   assert.doesNotMatch(plan.patch, /process\.env\[/)
 })
 
-test("manifest requires only the endpoint used by each enabled binding", () => {
-  const browserOnly = validateManifest({
-    apiVersion: "funnelmetry.io/v1",
-    kind: "InputIntegration",
-    host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
-    source: { id: "medusa-reference" },
-    ingest: { browser_url: "https://browser-ingest.example.test" },
-    auth: { source_key_id: "source", browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY" },
-    frontend: { enabled: true, events: ["behavior.product_viewed"] },
-    backend: { enabled: false },
-  })
-  assert.equal(browserOnly.ingest.browserUrl, "https://browser-ingest.example.test")
-  assert.equal(browserOnly.ingest.backendUrl, undefined)
+test("manifest requires every explicit Medusa V2 binding and endpoint", () => {
+  const missingCart = structuredClone(rawManifest)
+  missingCart.bindings.storefront_server = ["behavior.search_submitted"]
+  assert.throws(() => validateManifest(missingCart), /missing required binding\(s\): cart\.item_added/)
 
-  assert.throws(() => validateManifest({
-    apiVersion: "funnelmetry.io/v1",
-    kind: "InputIntegration",
-    host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
-    source: { id: "medusa-reference" },
-    ingest: { browser_url: "https://browser-ingest.example.test" },
-    auth: { source_key_id: "source", backend_signing_key_ref: "FUNNELMETRY_BACKEND_SIGNING_KEY" },
-    frontend: { enabled: false },
-    backend: { enabled: true, binding: "medusa.order_placed" },
-  }), /ingest\.backend_url is required/)
+  const missingBackendUrl = structuredClone(rawManifest)
+  delete missingBackendUrl.ingest.backend_url
+  assert.throws(() => validateManifest(missingBackendUrl), /ingest\.backend_url is required/)
+
+  const unknownBackend = structuredClone(rawManifest)
+  unknownBackend.bindings.medusa_backend = ["payment.captured"]
+  assert.throws(() => validateManifest(unknownBackend), /Unsupported bindings\.medusa_backend binding/)
 })
 
 test("planner returns an empty patch when the exact generated binding already exists", async (t) => {
@@ -249,6 +215,39 @@ test("planner returns an empty patch when the exact generated binding already ex
     assert.equal(rerun.patch, "")
     const tsConfig = JSON.parse(await readFile(path.join(temporaryRoot, "apps/storefront/tsconfig.json"), "utf8"))
     assert.deepEqual(tsConfig.compilerOptions.paths["@funnelmetry/*"], ["funnelmetry/*"])
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true })
+  }
+})
+
+test("planner refreshes managed files when manifest configuration changes", async (t) => {
+  let temporaryRoot
+  try {
+    temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-medusa-config-refresh-"))
+  } catch (error) {
+    if (error?.code === "EPERM") {
+      t.skip("The sandbox does not permit temporary-directory writes")
+      return
+    }
+    throw error
+  }
+
+  try {
+    await cp(fixtureRoot, temporaryRoot, { recursive: true })
+    const initial = await createPlan(temporaryRoot, manifest)
+    await applyWholeFilePatch(temporaryRoot, initial.patch)
+
+    const changedRaw = structuredClone(rawManifest)
+    changedRaw.ingest.backend_url = "http://source-ingress:32000/v1/ingress/events"
+    changedRaw.bindings.browser = changedRaw.bindings.browser.filter((event) => event !== "promotion.banner_clicked")
+    const refresh = await createPlan(temporaryRoot, validateManifest(changedRaw))
+
+    assert.equal(refresh.integrationState, "v2-compatible")
+    assert.ok(refresh.changes.some((change) => change.path === "apps/storefront/src/funnelmetry/client.tsx"))
+    assert.ok(refresh.changes.some((change) => change.path === "apps/backend/src/subscribers/funnelmetry-order-placed.ts"))
+    assert.match(refresh.patch, /http:\/\/source-ingress:32000\/v1\/ingress\/events/)
+    assert.match(refresh.patch, /^\+const allowedEventTypes = \["behavior\.page_viewed","behavior\.scroll_depth_reached","promotion\.banner_impression","behavior\.filter_applied"/m)
+    assert.ok(!refresh.changes.some((change) => change.path === "apps/storefront/src/lib/data/cart.ts"))
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true })
   }

@@ -1,4 +1,4 @@
-# Funnelmetry Medusa CI Installer V2 (plan-only)
+# Funnelmetry Medusa CI Installer V2
 
 This package implements the CI stage of the input-only integration plan without
 writing to the Medusa checkout. It validates a pinned Medusa v2 DTC Starter,
@@ -30,7 +30,7 @@ depends on Funnelmetry. The generated consent notice enables browser tracking on
 closes it. The order subscriber emits source-native `medusa.order_placed`; the versioned Normalizer
 owns the conservative conversion to `order.created` as `BUSINESS_FACT`.
 
-Installer/package V2.2 emits `checkout.started` once for each cart in a browser
+The pinned V2.2 runtime packages emit `checkout.started` once for each cart in a browser
 session, at the initial address stage. Delivery, payment, and review route
 transitions do not produce more `checkout.started` events. The installer
 recognizes the prior V2 checkout binding and produces a reviewable upgrade patch;
@@ -42,12 +42,21 @@ result counts; and `Date`/string normalization for authoritative order timestamp
 `cartItemPersisted` and `searchSubmitted` as enabled only when the pinned host exposes every required
 semantic-hook file.
 
+The `bindings` block in `funnelmetry.integration.yaml` is the authoritative
+binding allowlist. The current pinned Medusa profile requires the two
+source-owned storefront bindings (`behavior.search_submitted` and
+`cart.item_added`) and the backend binding (`medusa.order_placed`) to be listed
+explicitly; browser bindings remain an explicit non-empty subset of the
+supported catalog. The planner must not silently enable a binding that is absent
+from this manifest.
+
 `ingest.browser_url` is the URL embedded in the Browser SDK and must be reachable from the
 storefront user's browser. `ingest.backend_url` is embedded in the Medusa subscriber and may be
 an internal/container-reachable URL. A binding only requires the endpoint it enables.
 
-There is deliberately no `apply` command. Applying the patch, committing it and
-building a production host image remain explicit customer CI/CD decisions.
+There is deliberately no local `apply` command. The customer workflow owns patch
+validation/application, package resolution, host validation, and committing back
+to the same pre-created integration branch.
 
 Runtime network topology is intentionally outside the source patch. On a Linux Docker host where Source
 Ingress is a separate Compose project, storefront and backend must join the Source Ingress external
@@ -74,11 +83,14 @@ the invariant is enforced both by Docker and by the CLI.
 
 ## CI flow
 
-1. The Medusa repository commits a non-secret `funnelmetry.integration.yaml`.
-2. CI runs `plan` and publishes review artifacts.
-3. A developer reviews the generated patch and opens/merges a separate PR if it
-   is acceptable.
-4. The normal host CI builds/deploys the resulting Medusa image. Runtime secrets
+1. The source owner creates `funnelmetry/integration/<name>` and commits the
+   non-secret `funnelmetry.integration.yaml` on that branch.
+2. The read-only plan workflow records/checks the generated plan and patch so the
+   owner can inspect the exact files affected.
+3. The propose workflow independently regenerates the same patch from the YAML,
+   validates its ownership allowlist, applies it, validates the host, and commits
+   back to that same branch. It does not create a branch or merge/deploy it.
+4. The normal host CI builds/deploys the resulting integration branch. Runtime secrets
    are injected by the customer's secret manager; they never appear in the
    manifest or plan artifact.
 
