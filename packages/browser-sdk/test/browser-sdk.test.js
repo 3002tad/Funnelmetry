@@ -60,6 +60,43 @@ test("does not enqueue browser data without explicit consent", async () => {
   }), { status: "skipped_no_consent" })
 })
 
+test("tracks checkout start once per cart for the current browser session", async () => {
+  const onceValues = new Map()
+  const onceStorage = { getItem: (key) => onceValues.get(key) ?? null, setItem: (key, value) => onceValues.set(key, value) }
+  const sent = []
+  let sequence = 0
+  const options = {
+    sourceId: "medusa-reference",
+    sourceKeyId: "medusa-reference-dev",
+    endpoint: "https://ingest.example.test",
+    writeKey: "public-write-key",
+    allowedEventTypes: ["checkout.started"],
+    hasConsent: () => true,
+    onceStorage,
+    createEventId: () => `browser:checkout-${++sequence}`,
+    fetch: async (_url, request) => {
+      const event = JSON.parse(request.body)
+      sent.push(event)
+      return { status: 202, text: async () => receipt("accepted", event.event_id, { ingestion_id: `ing_${event.event_id}` }) }
+    },
+  }
+  const checkoutPayload = { cart_id: "cart_1", step: "address", page_instance_id: "page:checkout-1" }
+  const sdk = createBrowserSdk(options)
+
+  assert.equal((await sdk.trackBehaviorOnce("checkout.started:cart_1", "checkout.started", checkoutPayload)).status, "drained")
+  assert.deepEqual(
+    await sdk.trackBehaviorOnce("checkout.started:cart_1", "checkout.started", { ...checkoutPayload, page_instance_id: "page:checkout-2" }),
+    { status: "skipped_duplicate_once" },
+  )
+  const recreatedSdk = createBrowserSdk(options)
+  assert.deepEqual(
+    await recreatedSdk.trackBehaviorOnce("checkout.started:cart_1", "checkout.started", { ...checkoutPayload, page_instance_id: "page:checkout-3" }),
+    { status: "skipped_duplicate_once" },
+  )
+  assert.equal(sent.length, 1)
+  assert.deepEqual(sent[0].source_payload, checkoutPayload)
+})
+
 test("retains a retryable event for a later flush instead of silently dropping it", async () => {
   const storageValues = new Map()
   const storage = { getItem: (key) => storageValues.get(key) ?? null, setItem: (key, value) => storageValues.set(key, value) }

@@ -17,5 +17,14 @@ filter và banner click vẫn là semantic hook explicit của host.
 load/route transition và giữ lại context đó qua các lần component render; SDK không deduplicate
 theo URL vì hai lần truy cập cùng route là hai page instance khác nhau.
 
+`trackBehaviorOnce(onceKey, sourceEventType, sourcePayload)` is available for a
+host action that has one semantic occurrence in a browser session, such as the
+start of a checkout for a cart. The caller supplies a non-sensitive stable key;
+the SDK keeps only that key in session storage and suppresses later calls with
+the same key. A key is persisted only after the event has entered the delivery
+path (accepted, duplicate, relay-queued, or retryable queued). Consent denial
+and a full queue do not consume the key, so a later explicit call may retry.
+The method never reads form values, URL query/fragment, or DOM text.
+
 `accepted`/`duplicate` mới loại event khỏi queue. `retryable_failure` giữ event
 cho lần flush sau; queue overflow phải được quan sát qua `onDrop`.

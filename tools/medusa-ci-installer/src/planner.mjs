@@ -29,16 +29,39 @@ const generatedPaths = {
 }
 
 const packageVersions = {
-  browserSdk: "0.2.0",
-  backendIntegrationKit: "0.2.0",
+  browserSdk: "0.2.1",
+  backendIntegrationKit: "0.2.1",
 }
 
-function generatedClient(manifest) {
+function legacyGeneratedClient(manifest) {
   const sourceId = JSON.stringify(manifest.source.id)
   const sourceKeyId = JSON.stringify(manifest.auth.sourceKeyId)
   const allowedEvents = JSON.stringify(manifest.frontend.events)
   const reliability = JSON.stringify(manifest.reliability)
   return `"use client"\n\nimport { useEffect, useRef, type ReactNode } from "react"\nimport { usePathname } from "next/navigation"\nimport { createBrowserSdk } from "@funnelmetry/browser-sdk"\n\nconst sourceId = ${sourceId}\nconst sourceKeyId = ${sourceKeyId}\nconst allowedEventTypes = ${allowedEvents}\nconst reliability = ${reliability}\n\ntype EventPayload = Record<string, unknown>\ntype BrowserSdk = ReturnType<typeof createBrowserSdk>\ntype PageContext = { page_type: string; path_template: string; page_instance_id: string }\n\ndeclare global { interface Window { __FUNNELMETRY_CONSENT__?: boolean } }\n\nlet sdk: BrowserSdk | null | undefined\nlet activePage: { pathname: string; context: PageContext } | undefined\n\nfunction enabled(eventType: string) {\n  return allowedEventTypes.includes(eventType)\n}\n\nfunction getSdk(): BrowserSdk | null {\n  if (sdk !== undefined) return sdk\n  try {\n    sdk = createBrowserSdk({\n      sourceId,\n      sourceKeyId,\n      endpoint: process.env.NEXT_PUBLIC_FUNNELMETRY_INGEST_URL ?? "",\n      writeKey: process.env.NEXT_PUBLIC_FUNNELMETRY_BROWSER_WRITE_KEY ?? "",\n      allowedEventTypes,\n      maxAttempts: reliability.retry.maxAttempts,\n      maxQueueSize: reliability.maxQueueSize,\n      hasConsent: () => typeof window !== "undefined" && window.__FUNNELMETRY_CONSENT__ === true,\n    })\n  } catch (error) {\n    sdk = null\n    console.warn("Funnelmetry browser integration is inactive", error)\n  }\n  return sdk\n}\n\nfunction pageDescriptor(pathname: string | null) {\n  const safePathname = pathname || "/"\n  const segments = safePathname.split("/").filter(Boolean)\n  const route = segments.length > 0 ? segments.slice(1) : []\n  if (route.length === 0) return { page_type: "home", path_template: "/{countryCode}" }\n  if (route[0] === "store") return { page_type: "catalog", path_template: "/{countryCode}/store" }\n  if (route[0] === "products") return { page_type: "product", path_template: "/{countryCode}/products/{handle}" }\n  if (route[0] === "checkout") return { page_type: "checkout", path_template: "/{countryCode}/checkout" }\n  if (route[0] === "categories") return { page_type: "category", path_template: "/{countryCode}/categories/{category}" }\n  if (route[0] === "collections") return { page_type: "collection", path_template: "/{countryCode}/collections/{handle}" }\n  if (route[0] === "cart") return { page_type: "cart", path_template: "/{countryCode}/cart" }\n  if (route[0] === "account") return { page_type: "account", path_template: "/{countryCode}/account" }\n  return { page_type: "other", path_template: "/{countryCode}/other" }\n}\n\nfunction pageContext(pathname: string | null): PageContext | null {\n  const key = pathname || "/"\n  if (activePage?.pathname === key) return activePage.context\n  const currentSdk = getSdk()\n  if (!currentSdk) return null\n  activePage = { pathname: key, context: currentSdk.createPageContext(pageDescriptor(pathname)) }\n  return activePage.context\n}\n\nfunction activePageContext() {\n  return pageContext(typeof window === "undefined" ? null : window.location.pathname)\n}\n\nfunction track(eventType: string, payload: EventPayload) {\n  if (!enabled(eventType)) return Promise.resolve({ status: "disabled_by_manifest" })\n  const currentSdk = getSdk()\n  return currentSdk ? currentSdk.trackBehavior(eventType, payload) : Promise.resolve({ status: "inactive" })\n}\n\nfunction queryLengthBucket(length: number) {\n  if (length === 0) return "empty"\n  if (length <= 2) return "1-2"\n  if (length <= 5) return "3-5"\n  if (length <= 10) return "6-10"\n  if (length <= 20) return "11-20"\n  return "21+"\n}\n\nexport function FunnelmetryBootstrap() {\n  const pathname = usePathname()\n\n  useEffect(() => getSdk()?.attachLifecycle(), [])\n\n  useEffect(() => {\n    const currentSdk = getSdk()\n    const page = pageContext(pathname)\n    if (!currentSdk || !page) return\n    if (enabled("behavior.page_viewed")) void currentSdk.trackPageView(page)\n    if (!enabled("behavior.scroll_depth_reached")) return\n    return currentSdk.attachScrollDepthObserver({ page })\n  }, [pathname])\n\n  return null\n}\n\nexport function FunnelmetryProductViewed({ productId, variantId }: { productId: string; variantId?: string }) {\n  const pathname = usePathname()\n  useEffect(() => {\n    const page = pageContext(pathname)\n    if (!page) return\n    void track("behavior.product_viewed", { product_id: productId, ...(variantId ? { variant_id: variantId } : {}), page_instance_id: page.page_instance_id })\n  }, [pathname, productId, variantId])\n  return null\n}\n\nexport function FunnelmetryCheckoutStarted({ cartId, step }: { cartId: string; step: string }) {\n  const pathname = usePathname()\n  useEffect(() => {\n    const page = pageContext(pathname)\n    void track("checkout.started", { cart_id: cartId, step, ...(page ? { page_instance_id: page.page_instance_id } : {}) })\n  }, [cartId, pathname, step])\n  return null\n}\n\nexport function trackCartAddClicked(input: { productId: string; variantId: string; quantity: number; cartId?: string }) {\n  const page = activePageContext()\n  return track("cart.add_clicked", { product_id: input.productId, variant_id: input.variantId, quantity: input.quantity, ...(input.cartId ? { cart_id: input.cartId } : {}), ...(page ? { page_instance_id: page.page_instance_id } : {}) })\n}\n\nexport function trackSearchSubmitted(queryLength: number) {\n  const page = activePageContext()\n  if (!page) return Promise.resolve({ status: "inactive" })\n  return track("behavior.search_submitted", { page_instance_id: page.page_instance_id, query_length_bucket: queryLengthBucket(queryLength) })\n}\n\nexport function trackFilterApplied(input: { filterKeys: string[]; activeFilterCount: number }) {\n  const page = activePageContext()\n  if (!page) return Promise.resolve({ status: "inactive" })\n  return track("behavior.filter_applied", { page_instance_id: page.page_instance_id, filter_keys: input.filterKeys, active_filter_count: input.activeFilterCount })\n}\n\nexport function FunnelmetryPromotionBanner({ bannerId, placementId, campaignId, children }: { bannerId: string; placementId: string; campaignId?: string; children: ReactNode }) {\n  const pathname = usePathname()\n  const element = useRef<HTMLDivElement>(null)\n\n  useEffect(() => {\n    const currentSdk = getSdk()\n    const page = pageContext(pathname)\n    if (!currentSdk || !page || !element.current || !enabled("promotion.banner_impression")) return\n    return currentSdk.attachBannerImpressionObserver({ element: element.current, bannerId, placementId, pageInstanceId: page.page_instance_id, ...(campaignId ? { campaignId } : {}) })\n  }, [bannerId, campaignId, pathname, placementId])\n\n  return <div ref={element} onClick={() => {\n    const page = pageContext(pathname)\n    if (page) void track("promotion.banner_clicked", { banner_id: bannerId, placement_id: placementId, page_instance_id: page.page_instance_id, ...(campaignId ? { campaign_id: campaignId } : {}) })\n  }}>{children}</div>\n}\n`
+}
+
+function generatedClient(manifest) {
+  return legacyGeneratedClient(manifest).replace(
+    `export function FunnelmetryCheckoutStarted({ cartId, step }: { cartId: string; step: string }) {
+  const pathname = usePathname()
+  useEffect(() => {
+    const page = pageContext(pathname)
+    void track("checkout.started", { cart_id: cartId, step, ...(page ? { page_instance_id: page.page_instance_id } : {}) })
+  }, [cartId, pathname, step])
+  return null
+}`,
+    `export function FunnelmetryCheckoutStarted({ cartId }: { cartId: string }) {
+  const pathname = usePathname()
+  useEffect(() => {
+    const page = pageContext(pathname)
+    const currentSdk = getSdk()
+    if (!currentSdk || !page || !enabled("checkout.started")) return
+    void currentSdk.trackBehaviorOnce(\`checkout.started:\${cartId}\`, "checkout.started", { cart_id: cartId, step: "address", page_instance_id: page.page_instance_id })
+  }, [cartId, pathname])
+  return null
+}`,
+  )
 }
 
 function generatedManagedDeliveryDispatcherHeader() {
@@ -468,6 +491,21 @@ function normalizeManagedBrowserClient(content) {
     .replace(/^      writeKey: .+,$/m, "      writeKey: __MANAGED__,")
 }
 
+function hasLegacyCheckoutStartedBinding(browserClient, checkoutPage) {
+  return normalizedText(browserClient).includes('export function FunnelmetryCheckoutStarted({ cartId, step }: { cartId: string; step: string })') &&
+    normalizedText(browserClient).includes('void track("checkout.started", { cart_id: cartId, step,') &&
+    normalizedText(checkoutPage).includes('<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />')
+}
+
+function upgradeCheckoutStartedBinding(content, file) {
+  return replaceOnce(
+    content,
+    '<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />',
+    '<FunnelmetryCheckoutStarted cartId={cart.id} />',
+    file,
+  )
+}
+
 function normalizeManagedOrderPlacedSubscriber(content) {
   return normalizedText(content)
     .replace(/^const sourceId = .+$/m, "const sourceId = __MANAGED__")
@@ -485,7 +523,7 @@ function isKnownManagedPackageVersion(content, dependency, targetVersion, file) 
     throw new Error(`Pinned Medusa layout has invalid JSON in ${file}`)
   }
   const version = packageJson.dependencies?.[dependency]
-  return version === targetVersion || version === "0.1.1" || version === "0.1.0"
+  return version === targetVersion || version === "0.2.0" || version === "0.1.1" || version === "0.1.0"
 }
 
 function firstDifferentLine(actual, expected) {
@@ -548,7 +586,8 @@ async function existingIntegration(projectRoot, originals, manifest) {
   const semantic = { available: semanticCount === semanticFiles.length }
   const v2GeneratedFilesPresent = consentNotice !== null && storefrontDelivery !== null && occurredAt !== null
   if (!v2GeneratedFilesPresent) return "legacy"
-  if (normalizeManagedBrowserClient(browserClient) !== normalizeManagedBrowserClient(expectedBrowserClient)) {
+  const checkoutStartNeedsUpgrade = manifest.frontend.enabled && hasLegacyCheckoutStartedBinding(browserClient, originals[paths.checkoutPage])
+  if (normalizeManagedBrowserClient(browserClient) !== normalizeManagedBrowserClient(expectedBrowserClient) && !checkoutStartNeedsUpgrade) {
     throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.browserClient} differs at line ${firstDifferentLine(browserClient, expectedBrowserClient)}`)
   }
   if (normalizeManagedOrderPlacedSubscriber(orderPlacedSubscriber) !== normalizeManagedOrderPlacedSubscriber(expectedOrderPlacedSubscriber)) {
@@ -583,7 +622,13 @@ async function existingIntegration(projectRoot, originals, manifest) {
     requireMarker(originals[paths.productPage], 'import { FunnelmetryProductViewed } from "@funnelmetry/client"', paths.productPage)
     requireMarker(originals[paths.productPage], "<FunnelmetryProductViewed productId={pricedProduct.id} />", paths.productPage)
     requireMarker(originals[paths.checkoutPage], 'import { FunnelmetryCheckoutStarted } from "@funnelmetry/client"', paths.checkoutPage)
-    requireMarker(originals[paths.checkoutPage], "<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />", paths.checkoutPage)
+    requireMarker(
+      originals[paths.checkoutPage],
+      checkoutStartNeedsUpgrade
+        ? "<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />"
+        : "<FunnelmetryCheckoutStarted cartId={cart.id} />",
+      paths.checkoutPage,
+    )
   }
   if (semantic.available) {
     requireMarker(originals[paths.cartData], "enqueueCartItemAdded", paths.cartData)
@@ -593,6 +638,7 @@ async function existingIntegration(projectRoot, originals, manifest) {
   if (manifest.backend.enabled && !isKnownManagedPackageVersion(originals[paths.backendPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage)) {
     throw new Error("Existing Funnelmetry backend integration has an unexpected package version")
   }
+  if (checkoutStartNeedsUpgrade) return "upgradeable"
   const exact = normalizeManagedBrowserClient(browserClient) === normalizeManagedBrowserClient(expectedBrowserClient) &&
     normalizeManagedOrderPlacedSubscriber(orderPlacedSubscriber) === normalizeManagedOrderPlacedSubscriber(expectedOrderPlacedSubscriber) &&
     normalizedText(managedDeliveryDispatcher) === normalizedText(expectedManagedDeliveryDispatcher) &&
@@ -664,7 +710,7 @@ export async function createPlan(projectRoot, manifest) {
     }
   }
 
-  const refreshManagedBinding = existing === "managed"
+  const refreshManagedBinding = existing === "managed" || existing === "upgradeable"
   const [currentBrowserClient, currentConsentNotice, currentStorefrontDelivery, currentManagedDeliveryDispatcher, currentOccurredAt, currentOrderPlacedSubscriber] = refreshManagedBinding
     ? await Promise.all([
       readProjectFile(projectRoot, generatedPaths.browserClient),
@@ -719,19 +765,21 @@ export async function createPlan(projectRoot, manifest) {
       '    />\n  )\n}',
       '      />\n    </>\n  )\n}',
     )
-    const checkout = replaceOnce(
-      originals[paths.checkoutPage],
-      'import CheckoutProgress from "@modules/checkout/components/checkout-progress"',
-      'import CheckoutProgress from "@modules/checkout/components/checkout-progress"\nimport { FunnelmetryCheckoutStarted } from "@funnelmetry/client"',
-      paths.checkoutPage,
-    ).replace(
-      '  return (\n    <div className="content-container py-10 small:py-14">',
-      '  return (\n    <>\n      <FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />\n      <div className="content-container py-10 small:py-14">',
-    ).replace(
-      '    </div>\n  )\n}',
-      '      </div>\n    </>\n  )\n}',
-    )
-    const semanticBindings = v2SemanticBindings(originals)
+    const checkout = existing === "upgradeable"
+      ? upgradeCheckoutStartedBinding(originals[paths.checkoutPage], paths.checkoutPage)
+      : replaceOnce(
+        originals[paths.checkoutPage],
+        'import CheckoutProgress from "@modules/checkout/components/checkout-progress"',
+        'import CheckoutProgress from "@modules/checkout/components/checkout-progress"\nimport { FunnelmetryCheckoutStarted } from "@funnelmetry/client"',
+        paths.checkoutPage,
+      ).replace(
+        '  return (\n    <div className="content-container py-10 small:py-14">',
+        '  return (\n    <>\n      <FunnelmetryCheckoutStarted cartId={cart.id} />\n      <div className="content-container py-10 small:py-14">',
+      ).replace(
+        '    </div>\n  )\n}',
+        '      </div>\n    </>\n  )\n}',
+      )
+    const semanticBindings = refreshManagedBinding ? { available: false } : v2SemanticBindings(originals)
     const productActions = originals[paths.productActions]
       .replace('import { trackCartAddClicked } from "@funnelmetry/client"\n', "")
       .replace('    void trackCartAddClicked({ productId: product.id, variantId: selectedVariant.id, quantity: 1 })\n\n', "")
@@ -742,6 +790,9 @@ export async function createPlan(projectRoot, manifest) {
         { path: generatedPaths.consentNotice, before: currentConsentNotice, after: generatedConsentNotice(manifest) },
         { path: generatedPaths.storefrontDelivery, before: currentStorefrontDelivery, after: generatedStorefrontDelivery(manifest) },
       )
+      if (existing === "upgradeable") {
+        changes.push({ path: paths.checkoutPage, before: originals[paths.checkoutPage], after: checkout })
+      }
     } else {
       changes.push(
         { path: paths.storefrontTsConfig, before: originals[paths.storefrontTsConfig], after: storefrontTsConfig },

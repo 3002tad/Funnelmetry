@@ -25,6 +25,15 @@ function defaultStorage() {
   }
 }
 
+function defaultSessionStorage() {
+  if (typeof window === "undefined") return null
+  try {
+    return window.sessionStorage
+  } catch {
+    return null
+  }
+}
+
 function defaultEventId() {
   if (globalThis.crypto?.randomUUID) return `browser:${globalThis.crypto.randomUUID()}`
   throw new Error("Browser crypto.randomUUID is required to create a stable event_id")
@@ -82,6 +91,24 @@ function parseStoredQueue(storage, storageKey) {
   }
 }
 
+function parseStoredOnceKeys(storage, storageKey) {
+  if (!storage) return []
+  try {
+    const raw = storage.getItem(storageKey)
+    const parsed = raw ? JSON.parse(raw) : []
+    if (!Array.isArray(parsed)) return []
+    return [...new Set(parsed.filter((key) => typeof key === "string" && key.length > 0 && key.length <= 256))].slice(-200)
+  } catch {
+    return []
+  }
+}
+
+function requiredOnceKey(value) {
+  const key = requiredString(value, "onceKey")
+  if (key.length > 256) throw new Error("onceKey must be at most 256 characters")
+  return key
+}
+
 function parseReceipt(responseBody) {
   try {
     return validateIngressReceipt(JSON.parse(responseBody))
@@ -119,6 +146,8 @@ export function createBrowserSdk(options) {
   const hasConsent = options.hasConsent ?? (() => false)
   const storage = options.storage ?? defaultStorage()
   const storageKey = options.storageKey ?? `funnelmetry.browser.queue.v1.${sourceId}`
+  const onceStorage = options.onceStorage ?? defaultSessionStorage()
+  const onceStorageKey = options.onceStorageKey ?? `funnelmetry.browser.once.v1.${sourceId}`
   const createEventId = options.createEventId ?? defaultEventId
   const createPageInstanceId = options.createPageInstanceId ?? defaultPageInstanceId
   const now = options.now ?? defaultNow
@@ -131,6 +160,8 @@ export function createBrowserSdk(options) {
   if (!Number.isInteger(maxQueueSize) || maxQueueSize < 1) throw new Error("maxQueueSize must be a positive integer")
 
   const queue = parseStoredQueue(storage, storageKey)
+  const onceKeys = new Set(parseStoredOnceKeys(onceStorage, onceStorageKey))
+  const pendingOnceKeys = new Set()
   const queuedPageInstances = new Set(queue
     .filter((event) => event?.source_event_type === "behavior.page_viewed")
     .map((event) => event?.source_payload?.page_instance_id)
@@ -144,6 +175,15 @@ export function createBrowserSdk(options) {
       storage.setItem(storageKey, JSON.stringify(queue))
     } catch {
       // The event remains in memory; callers can observe delivery on this page only.
+    }
+  }
+
+  function persistOnceKeys() {
+    if (!onceStorage) return
+    try {
+      onceStorage.setItem(onceStorageKey, JSON.stringify([...onceKeys].slice(-200)))
+    } catch {
+      // The in-memory guard still prevents duplicate emissions until this tab closes.
     }
   }
 
@@ -249,6 +289,27 @@ export function createBrowserSdk(options) {
    */
   function trackBehavior(sourceEventType, sourcePayload, context = {}) {
     return track(sourceEventType, sourcePayload, context)
+  }
+
+  /**
+   * Emits a behavior event at most once for a caller-owned key in the current browser tab.
+   * A retryable event already retained in the delivery queue counts as emitted, while lack of
+   * consent or queue capacity leaves the key eligible for a later explicit host hook.
+   */
+  async function trackBehaviorOnce(onceKey, sourceEventType, sourcePayload, context = {}) {
+    const key = requiredOnceKey(onceKey)
+    if (onceKeys.has(key) || pendingOnceKeys.has(key)) return { status: "skipped_duplicate_once" }
+    pendingOnceKeys.add(key)
+    try {
+      const result = await trackBehavior(sourceEventType, sourcePayload, context)
+      if (enteredDeliveryQueue(result)) {
+        onceKeys.add(key)
+        persistOnceKeys()
+      }
+      return result
+    } finally {
+      pendingOnceKeys.delete(key)
+    }
   }
 
   function createPageContext(page) {
@@ -414,6 +475,7 @@ export function createBrowserSdk(options) {
   return Object.freeze({
     track,
     trackBehavior,
+    trackBehaviorOnce,
     createPageContext,
     trackPageView,
     trackScrollDepth,

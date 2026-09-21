@@ -30,6 +30,12 @@ depends on Funnelmetry. The generated consent notice enables browser tracking on
 closes it. The order subscriber emits source-native `medusa.order_placed`; the versioned Normalizer
 owns the conservative conversion to `order.created` as `BUSINESS_FACT`.
 
+Installer/package V2.1 emits `checkout.started` once for each cart in a browser
+session, at the initial address stage. Delivery, payment, and review route
+transitions do not produce more `checkout.started` events. The installer
+recognizes the prior V2 checkout binding and produces a reviewable upgrade patch;
+it does not require a hand edit of Medusa source.
+
 V2 preserves the reference-validation fixes: bounded queued delivery and circuit breaker; lazy package
 loading; TypeScript-compatible query sanitization; non-negative integer validation for successful search
 result counts; and `Date`/string normalization for authoritative order timestamps. The plan reports
