@@ -53,7 +53,8 @@ export function createBackendForwarder(options) {
         source_id: sourceId,
         event_id: mappedEvent.eventId,
         source_event_type: mappedEvent.sourceEventType,
-        source_schema_version: mappedEvent.sourceSchemaVersion ?? "1.0",
+        // Catalog v2 search is server-produced; commerce source schemas stay independent.
+        source_schema_version: mappedEvent.sourceSchemaVersion ?? (mappedEvent.sourceEventType === 'behavior.search_submitted' ? '2.0' : '1.0'),
         occurred_at: mappedEvent.occurredAt,
         produced_at: mappedEvent.producedAt,
         producer: "source_bridge",

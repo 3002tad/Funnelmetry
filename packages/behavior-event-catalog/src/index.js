@@ -1,4 +1,5 @@
 export const BEHAVIOR_EVENT_CATALOG_VERSION = "behavior-event-catalog.v2"
+export const BEHAVIOR_SOURCE_SCHEMA_VERSION = "2.0"
 
 export const BEHAVIOR_EVENT_DEFINITIONS = Object.freeze({
   "behavior.page_viewed": Object.freeze({ event_class: "CLIENT_OBSERVATION", producer: "browser" }),

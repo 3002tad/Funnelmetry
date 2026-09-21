@@ -36,6 +36,11 @@ test("retries a stable signed event and returns the durable receipt", async () =
   assert.equal(result.status, "accepted")
   assert.equal(new Set(bodies).size, 1)
   assert.equal(forwarder.getMetrics().accepted, 1)
+  assert.equal(JSON.parse(bodies[0]).source_schema_version, '1.0')
+  await forwarder.forward({ ...mappedEvent, sourceEventType: 'behavior.search_submitted',
+    sourcePayload: { search_interaction_id: 'search:1', query_normalized: 'shoes', outcome: 'succeeded', result_count: 1 } })
+  assert.equal(JSON.parse(bodies.at(-1)).source_schema_version, '2.0')
+  assert.equal(JSON.parse(bodies.at(-1)).producer, 'source_bridge')
 })
 
 test("fails open after bounded retries instead of throwing into the host lifecycle", async () => {

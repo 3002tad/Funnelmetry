@@ -33,7 +33,7 @@ try {
   const publish = createKafkaPublisher({ producer, rawTopic: 'test-raw', receiptTopic: 'test-receipts' })
   const records = [1, 3, 5].map(seq => ({ event_feed_id: initialCursor.event_feed_id, ingress_seq: seq, accepted_at: '2026-09-18T00:00:00Z',
     specversion: INGRESS_EVENT_SPEC_VERSION, source_id: 'integration-test', event_id: `test:${seq}`,
-    source_event_type: seq === 5 ? 'unknown.event' : 'behavior.page_viewed', source_schema_version: '1.0', producer: 'browser_sdk',
+    source_event_type: seq === 5 ? 'unknown.event' : 'behavior.page_viewed', source_schema_version: '2.0', producer: 'browser_sdk',
     occurred_at: '2026-09-18T00:00:00Z', source_payload: { page_type: 'home', path_template: '/', page_instance_id: `page-${seq}` } }))
   const feedClient = { read: async c => ({ event_feed_id: 'test-feed', events: records.filter(r => r.ingress_seq > c.after_seq),
     next_after_seq: 5, latest_available_seq: 5, retention_floor_seq: 0 }) }

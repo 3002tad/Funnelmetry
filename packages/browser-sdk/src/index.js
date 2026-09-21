@@ -6,6 +6,7 @@ import {
 } from "@3002tad/funnelmetry-input-contract"
 import {
   isBehaviorEventType,
+  BEHAVIOR_SOURCE_SCHEMA_VERSION,
   getBehaviorEventDefinition,
   SCROLL_DEPTH_MILESTONES,
   validateBehaviorPayload,
@@ -118,7 +119,7 @@ export function createBrowserSdk(options) {
   if (typeof fetchImpl !== "function") throw new Error("fetch is required")
   const hasConsent = options.hasConsent ?? (() => false)
   const storage = options.storage ?? defaultStorage()
-  const storageKey = options.storageKey ?? `funnelmetry.browser.queue.v1.${sourceId}`
+  const storageKey = options.storageKey ?? `funnelmetry.browser.queue.v2.${sourceId}`
   const createEventId = options.createEventId ?? defaultEventId
   const createPageInstanceId = options.createPageInstanceId ?? defaultPageInstanceId
   const now = options.now ?? defaultNow
@@ -130,7 +131,16 @@ export function createBrowserSdk(options) {
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new Error("maxAttempts must be a positive integer")
   if (!Number.isInteger(maxQueueSize) || maxQueueSize < 1) throw new Error("maxQueueSize must be a positive integer")
 
-  const queue = parseStoredQueue(storage, storageKey)
+  // Never upgrade/relabel persisted v1 envelopes, including custom storage keys.
+  const queue = parseStoredQueue(storage, storageKey).filter(event => {
+    try {
+      if (event?.source_id !== sourceId || event.producer !== 'browser_sdk'
+        || event.source_schema_version !== BEHAVIOR_SOURCE_SCHEMA_VERSION
+        || !allowedEventTypes.has(event.source_event_type)) return false
+      validateBehaviorPayload(event.source_event_type, event.source_payload)
+      return true
+    } catch { return false }
+  })
   const queuedPageInstances = new Set(queue
     .filter((event) => event?.source_event_type === "behavior.page_viewed")
     .map((event) => event?.source_payload?.page_instance_id)
@@ -228,7 +238,7 @@ export function createBrowserSdk(options) {
       source_id: sourceId,
       event_id: createEventId(),
       source_event_type: sourceEventType,
-      source_schema_version: "1.0",
+      source_schema_version: BEHAVIOR_SOURCE_SCHEMA_VERSION,
       occurred_at: context.occurredAt ?? now(),
       producer: "browser_sdk",
       source_payload: validatedSourcePayload,

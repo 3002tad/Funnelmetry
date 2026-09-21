@@ -1,4 +1,5 @@
 export const BEHAVIOR_EVENT_CATALOG_VERSION: "behavior-event-catalog.v2"
+export const BEHAVIOR_SOURCE_SCHEMA_VERSION: "2.0"
 export const BEHAVIOR_EVENT_TYPES: readonly BehaviorEventType[]
 export const SCROLL_DEPTH_MILESTONES: readonly [25, 50, 75, 100]
 

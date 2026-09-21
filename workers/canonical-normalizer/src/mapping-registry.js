@@ -1,5 +1,6 @@
 import {
   BEHAVIOR_EVENT_DEFINITIONS,
+  BEHAVIOR_SOURCE_SCHEMA_VERSION,
   validateBehaviorPayload,
 } from "@3002tad/funnelmetry-behavior-event-catalog"
 
@@ -18,19 +19,28 @@ const BASELINE_SEMANTICS = Object.freeze({
 })
 
 export function createPassthroughMappings(mappingVersion = "canonical-passthrough-v2") {
-  return Object.entries(BASELINE_SEMANTICS).map(([eventType, eventClass]) => Object.freeze({
+  const mappings = Object.entries(BASELINE_SEMANTICS).map(([eventType, eventClass]) => Object.freeze({
     source_id: "*",
     source_event_type: eventType,
-    source_schema_version: "*",
+    source_schema_version: Object.hasOwn(BEHAVIOR_EVENT_DEFINITIONS, eventType) ? BEHAVIOR_SOURCE_SCHEMA_VERSION : "*",
     event_type: eventType,
     event_class: eventClass,
-    mapping_version: mappingVersion,
-    map_data: (event) => (
-      Object.hasOwn(BEHAVIOR_EVENT_DEFINITIONS, eventType)
-        ? validateBehaviorPayload(eventType, event.source_payload)
-        : event.source_payload
-    ),
+    mapping_version: Object.hasOwn(BEHAVIOR_EVENT_DEFINITIONS, eventType) ? 'canonical-behavior-v2' : mappingVersion,
+    map_data: (event) => {
+      const definition = BEHAVIOR_EVENT_DEFINITIONS[eventType]
+      if (!definition) return event.source_payload
+      const producer = definition.producer === 'source_server' ? 'source_bridge' : 'browser_sdk'
+      if (event.producer !== producer) throw new Error('Behavior producer does not match Catalog v2')
+      return validateBehaviorPayload(eventType, event.source_payload)
+    },
   }))
+  // The deployed reference browser still labels unchanged payloads as schema 1.0.
+  // Source-scoped binding only: never restore retired add-click or browser search.
+  const referenceBrowserMappings = mappings
+    .filter(mapping => BEHAVIOR_EVENT_DEFINITIONS[mapping.event_type]?.producer === 'browser')
+    .map(mapping => Object.freeze({ ...mapping, source_id: 'medusa-reference',
+      source_schema_version: '1.0', mapping_version: 'medusa-browser-schema1-catalog-v2' }))
+  return [...mappings, ...referenceBrowserMappings]
 }
 
 function score(mapping, event) {

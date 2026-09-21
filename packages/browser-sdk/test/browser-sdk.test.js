@@ -40,6 +40,20 @@ test("keeps the same event in the queue until a durable receipt arrives", async 
   await sdk.track("behavior.product_viewed", { product_id: "prod_1", page_instance_id: "page:product-1" })
   assert.equal(sent.length, 3)
   assert.equal(new Set(sent.map((event) => event.event_id)).size, 1)
+  assert.ok(sent.every(event => event.source_schema_version === '2.0'))
+  assert.equal(sdk.getMetrics().queued, 0)
+})
+
+test('restored custom queue cannot send v1 envelopes or retired events', async () => {
+  let sends = 0
+  const sdk = createBrowserSdk({
+    sourceId: 'medusa-reference', sourceKeyId: 'browser', endpoint: 'https://example.test', writeKey: 'public',
+    allowedEventTypes: ['behavior.product_viewed'], hasConsent: () => true, storageKey: 'custom-old-queue',
+    storage: { getItem: () => JSON.stringify([{ source_id: 'medusa-reference', producer: 'browser_sdk', source_schema_version: '1.0', source_event_type: 'behavior.product_viewed', source_payload: { product_id: 'p1', page_instance_id: 'page:1' } }]), setItem() {} },
+    fetch: async () => { sends++; throw new Error('Must not send stale queue') },
+  })
+  await sdk.flush()
+  assert.equal(sends, 0)
   assert.equal(sdk.getMetrics().queued, 0)
 })
 
