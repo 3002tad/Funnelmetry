@@ -14,7 +14,7 @@ type ChatResponse = {
   evidence: Array<{
     evidence_id: string; origin: string; retrieved_at: string
     scope: { sourceId: string; from: string; to: string }
-    data: OverviewResponse; limitations: string[]
+    data: Partial<OverviewResponse> & { total_events?: number; counts?: Array<{ event_type: string; count: number }> }; limitations: string[]
   }>
 }
 
@@ -38,6 +38,8 @@ function restoreHistory(key: string): Turn[] {
 
 function errorMessage(error: unknown) {
   if (error instanceof ApiError) {
+    if (error.message === 'tool_row_budget_exceeded') return 'Phạm vi vượt 10.000 event. Hãy thu hẹp khoảng thời gian.'
+    if (error.message === 'tool_scope_outside_window') return 'Khoảng thời gian trong câu hỏi vượt phạm vi UI. Hãy mở rộng bộ lọc thời gian rồi thử lại.'
     if (error.message === 'module_disabled') return 'Qwen chưa được bật trên backend. Quản trị viên cần cấu hình DashScope; không nhập API key vào giao diện này.'
     if (error.status === 401) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
     if (error.status === 403) return 'Tài khoản không có quyền sử dụng Chat và dữ liệu analytics.'
@@ -186,13 +188,14 @@ function Evidence({ result }: { result: ChatResponse }) {
         <summary className="cursor-pointer text-primary">Evidence [{item.evidence_id}] · {item.origin}</summary>
         <div className="mt-3 space-y-3 text-sm">
           <p>Nguồn: {item.scope.sourceId}. Khoảng UTC: {item.scope.from} → {item.scope.to}</p>
-          <p>Truy xuất: {item.retrieved_at}. Số liệu OBSERVED, chưa phải KPI cuối cùng.</p>
-          <div className="overflow-x-auto"><table className="w-full text-left"><caption className="pb-2 text-left">profile-N tương ứng thứ tự evidence được gửi cho Qwen.</caption>
+          <p>Truy xuất: {item.retrieved_at}. Số liệu quan sát, chưa phải KPI cuối cùng.</p>
+          {item.data.counts && <div><p>Polars · Tổng {item.data.total_events} dòng event canonical</p><table className="w-full text-left"><thead><tr><th>Loại event</th><th>Số lượng</th></tr></thead><tbody>{item.data.counts.map(row => <tr key={row.event_type}><td>{row.event_type}</td><td>{row.count}</td></tr>)}</tbody></table></div>}
+          {item.data.profiles && <div className="overflow-x-auto"><table className="w-full text-left"><caption className="pb-2 text-left">profile-N tương ứng thứ tự evidence được gửi cho Qwen.</caption>
             <thead><tr>{['Profile', 'Entrants', 'Converted (observed)', 'Pending', 'Dropped'].map(label => <th key={label} className="p-2">{label}</th>)}</tr></thead>
             <tbody>{item.data.profiles.map((profile, index) => <tr key={`${profile.funnel_profile_id}:${profile.profile_version}`} className="border-t">
               <td className="p-2">profile-{index + 1}: {profile.display_name} ({profile.profile_version})</td>
               <td className="p-2">{profile.entrants}</td><td className="p-2">{profile.observed_converted}</td><td className="p-2">{profile.pending}</td><td className="p-2">{profile.dropped}</td>
-            </tr>)}</tbody></table></div>
+            </tr>)}</tbody></table></div>}
           <ul className="list-disc pl-5">{item.limitations.map(text => <li key={text}>{text}</li>)}</ul>
         </div>
       </details>)}</>

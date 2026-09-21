@@ -11,6 +11,44 @@ Object.assign(process.env, { PORT: '32000', CORS_ORIGIN_DASHBOARD: 'http://local
 const { createChatV2Router } = await import('../src/routes/chat-v2.js')
 const body = { message: 'Phân tích giúp mình', source_id: 'medusa-reference', from: '2026-09-01', to: '2026-09-02' }
 
+test('Polars chat selects one bounded tool, exposes evidence, and fails closed', async () => {
+  let calls = 0, toolReads = 0, version = 0, revoke = false, overflow = false
+  const provider = { enabled: true, complete: async messages => {
+    calls++
+    if (messages[0].content.startsWith('Select')) return { text: '{"tool":"event_counts","last_hours":12}' }
+    assert.match(messages[1].content, /event-counts-v1/)
+    return { text: 'Có 2 event [event-counts-v1]', model: 'test' }
+  } }
+  const router = createChatV2Router({ provider, toolsEnabled: true,
+    execute: async () => [{ role: 'analyst', is_active: true, session_version: version }],
+    eventCountLoader: async ({ scope }) => {
+      toolReads++
+      assert.equal(scope.from, '2026-09-01T12:00:00.000Z')
+      if (revoke) version++
+      if (overflow) throw Error('tool_row_budget_exceeded')
+      return { evidence_id: 'event-counts-v1', scope, data: { total_events: 2, counts: [{ event_type: 'order.created', count: 2 }] } }
+    },
+  })
+  const app = express(); app.use(express.json(), router)
+  const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve))
+  const token = jwt.sign({ sub: 'tool-user', role: 'analyst', session_version: 0 }, process.env.JWT_SECRET, { expiresIn: '1h' })
+  const request = () => fetch(`http://127.0.0.1:${server.address().port}/api/v2/chat`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body),
+  })
+  try {
+    const response = await request()
+    assert.equal(response.status, 200)
+    assert.equal((await response.json()).evidence[0].data.total_events, 2)
+    assert.equal(calls, 2); assert.equal(toolReads, 1)
+    revoke = true
+    assert.equal((await request()).status, 401)
+    assert.equal(calls, 3) // no summary egress after revocation
+    revoke = false; version = 0; overflow = true
+    assert.equal((await request()).status, 422)
+    assert.equal(calls, 4)
+  } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
+})
+
 test('Chat V2 HTTP: live authorization, validation, egress allowlist, references and limits', async () => {
   let role = 'analyst', version = 0, count = 0, reads = 0, empty = false, revokeAtRead = false, revokeAtReply = false, failure = false, clock = 0
   const provider = { enabled: true, complete: async messages => {

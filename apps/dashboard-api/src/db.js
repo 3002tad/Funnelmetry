@@ -27,3 +27,15 @@ export async function transaction(work) {
     throw error;
   } finally { client.release(); }
 }
+
+export async function readOnlyTransaction(work) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN READ ONLY');
+    await client.query("SET LOCAL statement_timeout = '10s'");
+    await client.query("SET LOCAL lock_timeout = '2s'");
+    return await work(async (sql, params = []) => (await client.query(sql, params)).rows);
+  } finally {
+    try { await client.query('ROLLBACK'); } finally { client.release(); }
+  }
+}

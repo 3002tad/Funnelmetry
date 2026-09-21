@@ -1,0 +1,9 @@
+ARG POLARS_BASE=python:3.12-slim-bookworm
+FROM node:22-bookworm-slim AS node
+FROM ${POLARS_BASE}
+RUN python -c "import polars; assert polars.__version__ == '1.34.0'" || pip install --no-cache-dir --timeout 60 --retries 2 polars==1.34.0
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+# Private demo mounts the workspace (including existing Node dependencies) read-only.
+WORKDIR /workspace/apps/dashboard-api
+ENTRYPOINT []
+CMD ["node", "--env-file=/workspace/runtime/dashboard-private.env", "--env-file=/workspace/runtime/qwen.env", "src/index.js"]

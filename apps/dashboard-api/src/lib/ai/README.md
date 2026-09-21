@@ -1,5 +1,8 @@
 # Qwen foundation — 2026-09-12
 
+Optional bounded Polars chat prototype: [POLARS_CHAT.md](POLARS_CHAT.md).
+The overview-only descriptions below apply when `DASHBOARD_ENABLE_POLARS=false`.
+
 User-approved provider: Qwen Flash, Alibaba Cloud Model Studio/DashScope directly,
 Singapore. This supersedes the provisional local model candidate in Master §16.4,
 not §16/§17 evidence, language or authorization rules.
