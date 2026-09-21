@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 import { parseManifestYaml } from "./yaml.mjs"
 
-const eventTypes = new Set([
+const browserBindings = new Set([
   "behavior.page_viewed",
   "behavior.scroll_depth_reached",
   "promotion.banner_impression",
@@ -10,22 +10,39 @@ const eventTypes = new Set([
   "behavior.product_viewed",
   "checkout.started",
 ])
+const storefrontServerBindings = new Set([
+  "behavior.search_submitted",
+  "cart.item_added",
+])
+const medusaBackendBindings = new Set(["medusa.order_placed"])
 
 function requiredString(value, name) {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} is required`)
   return value.trim()
 }
 
-function optionalBoolean(value, name) {
-  if (value === undefined) return false
-  if (typeof value !== "boolean") throw new Error(`${name} must be boolean`)
-  return value
-}
-
 function optionalPositiveInteger(value, name, fallback) {
   if (value === undefined) return fallback
   if (!Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer`)
   return value
+}
+
+function bindingList(value, name, supported) {
+  if (!Array.isArray(value) || value.length === 0) throw new Error(`${name} must be a non-empty list`)
+  const result = []
+  for (const binding of value) {
+    if (typeof binding !== "string" || !supported.has(binding)) {
+      throw new Error(`Unsupported ${name} binding '${binding}'`)
+    }
+    if (result.includes(binding)) throw new Error(`${name} contains duplicate binding '${binding}'`)
+    result.push(binding)
+  }
+  return result
+}
+
+function requireCompleteProfile(actual, required, name) {
+  const missing = [...required].filter((binding) => !actual.includes(binding))
+  if (missing.length > 0) throw new Error(`${name} is missing required binding(s): ${missing.join(", ")}`)
 }
 
 function secretReference(value, name) {
@@ -46,7 +63,7 @@ function ingressUrl(value, name) {
 
 export function validateManifest(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Manifest root must be a mapping")
-  if (raw.apiVersion !== "funnelmetry.io/v1") throw new Error("apiVersion must be funnelmetry.io/v1")
+  if (raw.apiVersion !== "funnelmetry.io/v2") throw new Error("apiVersion must be funnelmetry.io/v2")
   if (raw.kind !== "InputIntegration") throw new Error("kind must be InputIntegration")
 
   const host = raw.host ?? {}
@@ -57,26 +74,40 @@ export function validateManifest(raw) {
   const sourceId = requiredString(source.id, "source.id")
   if (!/^[a-z0-9][a-z0-9-]{2,62}$/.test(sourceId)) throw new Error("source.id must be lowercase kebab-case")
 
+  if (raw.frontend !== undefined || raw.backend !== undefined) {
+    throw new Error("frontend/backend are V1 fields; declare every integration under bindings")
+  }
   const auth = raw.auth ?? {}
   const sourceKeyId = requiredString(auth.source_key_id, "auth.source_key_id")
-  const frontend = raw.frontend ?? {}
-  const backend = raw.backend ?? {}
+  const bindings = raw.bindings ?? {}
+  const browser = bindingList(bindings.browser, "bindings.browser", browserBindings)
+  const storefrontServer = bindingList(bindings.storefront_server, "bindings.storefront_server", storefrontServerBindings)
+  const medusaBackend = bindingList(bindings.medusa_backend, "bindings.medusa_backend", medusaBackendBindings)
+  requireCompleteProfile(storefrontServer, storefrontServerBindings, "bindings.storefront_server")
+  requireCompleteProfile(medusaBackend, medusaBackendBindings, "bindings.medusa_backend")
   const reliability = raw.reliability ?? {}
   const retry = reliability.retry ?? {}
   const circuitBreaker = reliability.circuit_breaker ?? {}
-  const frontendEnabled = optionalBoolean(frontend.enabled, "frontend.enabled")
-  const backendEnabled = optionalBoolean(backend.enabled, "backend.enabled")
-  if (!frontendEnabled && !backendEnabled) throw new Error("Enable frontend, backend, or both")
 
   const normalized = {
     apiVersion: raw.apiVersion,
     kind: raw.kind,
     host: { type: host.type, medusaVersion },
     source: { id: sourceId },
-    ingest: {},
-    auth: { sourceKeyId },
-    frontend: { enabled: frontendEnabled, events: [] },
-    backend: { enabled: backendEnabled, binding: null },
+    ingest: {
+      browserUrl: ingressUrl(raw.ingest?.browser_url, "ingest.browser_url"),
+      backendUrl: ingressUrl(raw.ingest?.backend_url, "ingest.backend_url"),
+    },
+    auth: {
+      sourceKeyId,
+      browserWriteKeyRef: secretReference(auth.browser_write_key_ref, "auth.browser_write_key_ref"),
+      backendSigningKeyRef: secretReference(auth.backend_signing_key_ref, "auth.backend_signing_key_ref"),
+    },
+    bindings: { browser, storefrontServer, medusaBackend },
+    // Internal compatibility for the current generator. The public manifest
+    // source of truth is the explicit bindings block above.
+    frontend: { enabled: true, events: browser },
+    backend: { enabled: true, binding: medusaBackend[0] },
     reliability: {
       failureMode: reliability.failure_mode ?? "fail_open",
       timeoutMs: optionalPositiveInteger(reliability.timeout_ms, "reliability.timeout_ms", 800),
@@ -100,24 +131,6 @@ export function validateManifest(raw) {
   }
   if (normalized.reliability.failureMode !== "fail_open") {
     throw new Error("reliability.failure_mode must be fail_open")
-  }
-
-  if (frontendEnabled) {
-    normalized.ingest.browserUrl = ingressUrl(raw.ingest?.browser_url, "ingest.browser_url")
-    normalized.auth.browserWriteKeyRef = secretReference(auth.browser_write_key_ref, "auth.browser_write_key_ref")
-    const events = frontend.events
-    if (!Array.isArray(events) || events.length === 0) throw new Error("frontend.events must be a non-empty list")
-    for (const event of events) {
-      if (!eventTypes.has(event)) throw new Error(`Unsupported frontend event '${event}'`)
-    }
-    normalized.frontend.events = [...new Set(events)]
-  }
-
-  if (backendEnabled) {
-    normalized.ingest.backendUrl = ingressUrl(raw.ingest?.backend_url, "ingest.backend_url")
-    normalized.auth.backendSigningKeyRef = secretReference(auth.backend_signing_key_ref, "auth.backend_signing_key_ref")
-    if (backend.binding !== "medusa.order_placed") throw new Error("backend.binding must be medusa.order_placed")
-    normalized.backend.binding = backend.binding
   }
 
   return normalized

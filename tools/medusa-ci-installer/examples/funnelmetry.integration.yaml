@@ -1,4 +1,4 @@
-apiVersion: funnelmetry.io/v1
+apiVersion: funnelmetry.io/v2
 kind: InputIntegration
 
 host:
@@ -18,15 +18,15 @@ auth:
   browser_write_key_ref: FUNNELMETRY_BROWSER_WRITE_KEY
   backend_signing_key_ref: FUNNELMETRY_BACKEND_SIGNING_KEY
 
-frontend:
-  enabled: true
-  events:
+bindings:
+  browser:
     - behavior.product_viewed
     - checkout.started
-
-backend:
-  enabled: true
-  binding: medusa.order_placed
+  storefront_server:
+    - behavior.search_submitted
+    - cart.item_added
+  medusa_backend:
+    - medusa.order_placed
 
 reliability:
   failure_mode: fail_open
