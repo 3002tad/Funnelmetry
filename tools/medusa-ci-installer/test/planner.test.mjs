@@ -79,7 +79,10 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.equal(plan.capabilities.commerceConversion, "IN_PROGRESS")
   assert.match(plan.patch, /apps\/backend\/src\/subscribers\/funnelmetry-order-placed\.ts/)
   assert.match(plan.patch, /apps\/backend\/src\/funnelmetry\/managed-delivery-dispatcher\.ts/)
+  assert.match(plan.patch, /apps\/backend\/src\/funnelmetry\/occurred-at\.ts/)
   assert.match(plan.patch, /apps\/storefront\/src\/funnelmetry\/client\.tsx/)
+  assert.match(plan.patch, /apps\/storefront\/src\/funnelmetry\/consent-notice\.tsx/)
+  assert.match(plan.patch, /apps\/storefront\/src\/funnelmetry\/server-delivery\.ts/)
   assert.match(plan.patch, /FunnelmetryCheckoutStarted/)
   assert.match(plan.patch, /"behavior\.product_viewed"/)
   assert.match(plan.patch, /"behavior\.page_viewed"/)
@@ -90,10 +93,10 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /"checkout\.started"/)
   assert.match(plan.patch, /sourceEventType: "medusa\.order_placed"/)
   assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
-  assert.match(plan.patch, /"@3002tad\/funnelmetry-browser-sdk": "0\.2\.0"/)
+  assert.match(plan.patch, /"@3002tad\/funnelmetry-browser-sdk": "0\.2\.2"/)
   assert.match(plan.patch, /"@funnelmetry\/\*"/)
   assert.match(plan.patch, /"funnelmetry\/\*"/)
-  assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.2\.0"/)
+  assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.2\.2"/)
   assert.match(plan.patch, /createBrowserSdk/)
   assert.match(plan.patch, /createBackendForwarder/)
   assert.match(plan.patch, /createManagedDeliveryDispatcher/)
@@ -111,12 +114,18 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /attachScrollDepthObserver/)
   assert.match(plan.patch, /FunnelmetryPromotionBanner/)
   assert.match(plan.patch, /trackFilterApplied/)
-  assert.match(plan.patch, /track\("checkout\.started"/)
+  assert.match(plan.patch, /trackBehaviorOnce\(`checkout\.started:\$\{cartId\}`/)
+  assert.match(plan.patch, /step: "address"/)
+  assert.doesNotMatch(plan.patch, /step=\{currentStep\}/)
   assert.doesNotMatch(plan.patch, /cart\.add_clicked/)
   assert.doesNotMatch(plan.patch, /trackCartAddClicked/)
-  assert.doesNotMatch(plan.patch, /behavior\.search_submitted/)
+  assert.match(plan.patch, /sourceEventType: "behavior\.search_submitted"/)
   assert.doesNotMatch(plan.patch, /trackSearchSubmitted/)
   assert.doesNotMatch(plan.patch, /query_length_bucket/)
+  assert.match(plan.patch, /sourceEventType: "cart\.item_added"/)
+  assert.match(plan.patch, /normalizeSearchQuery/)
+  assert.match(plan.patch, /FunnelmetryConsentNotice/)
+  assert.match(plan.patch, /normalizeOccurredAt/)
   assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
   assert.match(plan.patch, /endpoint: "https:\/\/browser-ingest\.example\.test\/v1\/ingress\/events"/)
   assert.match(plan.patch, /endpoint: "https:\/\/backend-ingest\.example\.test\/v1\/ingress\/events"/)
@@ -240,6 +249,73 @@ test("planner returns an empty patch when the exact generated binding already ex
     assert.equal(rerun.patch, "")
     const tsConfig = JSON.parse(await readFile(path.join(temporaryRoot, "apps/storefront/tsconfig.json"), "utf8"))
     assert.deepEqual(tsConfig.compilerOptions.paths["@funnelmetry/*"], ["funnelmetry/*"])
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true })
+  }
+})
+
+test("planner upgrades the prior V2 checkout binding without reapplying host hooks", async (t) => {
+  let temporaryRoot
+  try {
+    temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-medusa-checkout-upgrade-"))
+  } catch (error) {
+    if (error?.code === "EPERM") {
+      t.skip("The sandbox does not permit temporary-directory writes")
+      return
+    }
+    throw error
+  }
+
+  try {
+    await cp(fixtureRoot, temporaryRoot, { recursive: true })
+    const initial = await createPlan(temporaryRoot, manifest)
+    await applyWholeFilePatch(temporaryRoot, initial.patch)
+
+    const browserClientPath = path.join(temporaryRoot, "apps/storefront/src/funnelmetry/client.tsx")
+    const browserClient = await readFile(browserClientPath, "utf8")
+    const modernCheckoutBinding = `export function FunnelmetryCheckoutStarted({ cartId }: { cartId: string }) {
+  const pathname = usePathname()
+  useEffect(() => {
+    const page = pageContext(pathname)
+    const currentSdk = getSdk()
+    if (!currentSdk || !page || !enabled("checkout.started")) return
+    void currentSdk.trackBehaviorOnce(\`checkout.started:\${cartId}\`, "checkout.started", { cart_id: cartId, step: "address", page_instance_id: page.page_instance_id })
+  }, [cartId, pathname])
+  return null
+}`
+    const legacyCheckoutBinding = `export function FunnelmetryCheckoutStarted({ cartId, step }: { cartId: string; step: string }) {
+  const pathname = usePathname()
+  useEffect(() => {
+    const page = pageContext(pathname)
+    void track("checkout.started", { cart_id: cartId, step, ...(page ? { page_instance_id: page.page_instance_id } : {}) })
+  }, [cartId, pathname, step])
+  return null
+}`
+    assert.ok(browserClient.includes(modernCheckoutBinding))
+    await writeFile(browserClientPath, browserClient.replace(modernCheckoutBinding, legacyCheckoutBinding))
+
+    const checkoutPath = path.join(temporaryRoot, "apps/storefront/src/app/[countryCode]/(checkout)/checkout/page.tsx")
+    await writeFile(
+      checkoutPath,
+      (await readFile(checkoutPath, "utf8")).replace(
+        "<FunnelmetryCheckoutStarted cartId={cart.id} />",
+        "<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />",
+      ),
+    )
+    const storefrontPackagePath = path.join(temporaryRoot, "apps/storefront/package.json")
+    await writeFile(
+      storefrontPackagePath,
+      (await readFile(storefrontPackagePath, "utf8")).replace('"@3002tad/funnelmetry-browser-sdk": "0.2.2"', '"@3002tad/funnelmetry-browser-sdk": "0.2.0"'),
+    )
+
+    const upgrade = await createPlan(temporaryRoot, manifest)
+
+    assert.equal(upgrade.integrationState, "upgradeable")
+    assert.ok(upgrade.changes.some((change) => change.path.endsWith("checkout/page.tsx")))
+    assert.match(upgrade.patch, /trackBehaviorOnce\(`checkout\.started:\$\{cartId\}`/)
+    assert.match(upgrade.patch, /<FunnelmetryCheckoutStarted cartId=\{cart\.id\} \/>/)
+    assert.doesNotMatch(upgrade.patch, /^\+.*step=\{currentStep\}/m)
+    assert.ok(!upgrade.changes.some((change) => change.path === "apps/storefront/src/lib/data/cart.ts"))
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true })
   }

@@ -1,6 +1,6 @@
 {
   "name": "@3002tad/funnelmetry-backend-integration-kit",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "license": "UNLICENSED",
   "type": "module",
   "files": [
@@ -21,7 +21,7 @@
   },
   "types": "./src/index.d.ts",
   "dependencies": {
-    "@3002tad/funnelmetry-input-contract": "0.1.4"
+    "@3002tad/funnelmetry-input-contract": "0.2.2"
   },
   "scripts": {
     "test": "node --test test/*.test.js"

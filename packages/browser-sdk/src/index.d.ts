@@ -8,6 +8,8 @@ export interface BrowserSdkOptions {
   maxQueueSize?: number
   hasConsent?: () => boolean
   createPageInstanceId?: () => string
+  onceStorage?: Pick<Storage, "getItem" | "setItem">
+  onceStorageKey?: string
 }
 
 export interface BrowserEventContext {
@@ -38,6 +40,7 @@ export interface ScrollPageIdentity {
 export interface BrowserSdk {
   track(sourceEventType: string, sourcePayload: Record<string, unknown>, context?: BrowserEventContext): Promise<{ status: string }>
   trackBehavior(sourceEventType: string, sourcePayload: Record<string, unknown>, context?: BrowserEventContext): Promise<{ status: string }>
+  trackBehaviorOnce(onceKey: string, sourceEventType: string, sourcePayload: Record<string, unknown>, context?: BrowserEventContext): Promise<{ status: string }>
   createPageContext(page: PageContextInput): PageContext
   trackPageView(page: PageContextInput, context?: BrowserEventContext): Promise<{ status: string }>
   trackScrollDepth(page: ScrollPageIdentity, depthPercent: 25 | 50 | 75 | 100, context?: BrowserEventContext): Promise<{ status: string }>
