@@ -93,10 +93,10 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /"checkout\.started"/)
   assert.match(plan.patch, /sourceEventType: "medusa\.order_placed"/)
   assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
-  assert.match(plan.patch, /"@3002tad\/funnelmetry-browser-sdk": "0\.2\.1"/)
+  assert.match(plan.patch, /"@3002tad\/funnelmetry-browser-sdk": "0\.2\.2"/)
   assert.match(plan.patch, /"@funnelmetry\/\*"/)
   assert.match(plan.patch, /"funnelmetry\/\*"/)
-  assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.2\.1"/)
+  assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.2\.2"/)
   assert.match(plan.patch, /createBrowserSdk/)
   assert.match(plan.patch, /createBackendForwarder/)
   assert.match(plan.patch, /createManagedDeliveryDispatcher/)
@@ -305,7 +305,7 @@ test("planner upgrades the prior V2 checkout binding without reapplying host hoo
     const storefrontPackagePath = path.join(temporaryRoot, "apps/storefront/package.json")
     await writeFile(
       storefrontPackagePath,
-      (await readFile(storefrontPackagePath, "utf8")).replace('"@3002tad/funnelmetry-browser-sdk": "0.2.1"', '"@3002tad/funnelmetry-browser-sdk": "0.2.0"'),
+      (await readFile(storefrontPackagePath, "utf8")).replace('"@3002tad/funnelmetry-browser-sdk": "0.2.2"', '"@3002tad/funnelmetry-browser-sdk": "0.2.0"'),
     )
 
     const upgrade = await createPlan(temporaryRoot, manifest)

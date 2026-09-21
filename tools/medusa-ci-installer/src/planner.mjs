@@ -29,8 +29,8 @@ const generatedPaths = {
 }
 
 const packageVersions = {
-  browserSdk: "0.2.1",
-  backendIntegrationKit: "0.2.1",
+  browserSdk: "0.2.2",
+  backendIntegrationKit: "0.2.2",
 }
 
 function legacyGeneratedClient(manifest) {

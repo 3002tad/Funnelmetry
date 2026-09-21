@@ -58,9 +58,14 @@ test("fails open after bounded retries instead of throwing into the host lifecyc
 
 test("managed dispatcher returns before asynchronous delivery and drops safely when full", async () => {
   let resolveForward
+  let startDrain
   const forwarded = []
   const dispatcher = createManagedDeliveryDispatcher({
     maxQueueSize: 1,
+    setTimeout: (callback) => {
+      startDrain = callback
+      return callback
+    },
     forwarder: {
       forward: (event) => {
         forwarded.push(event)
@@ -71,10 +76,14 @@ test("managed dispatcher returns before asynchronous delivery and drops safely w
 
   assert.deepEqual(dispatcher.enqueue(mappedEvent), { status: "queued" })
   assert.deepEqual(dispatcher.enqueue({ ...mappedEvent, eventId: "medusa:order.placed:order_2" }), { status: "dropped_queue_full" })
-  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(typeof startDrain, "function")
+  startDrain()
+  await Promise.resolve()
   assert.equal(forwarded.length, 1)
   resolveForward({ status: "accepted" })
-  await new Promise((resolve) => setImmediate(resolve))
+  for (let attempt = 0; attempt < 4 && dispatcher.getMetrics().accepted === 0; attempt += 1) {
+    await Promise.resolve()
+  }
   assert.equal(dispatcher.getMetrics().accepted, 1)
   assert.equal(dispatcher.getMetrics().droppedQueueFull, 1)
 })
