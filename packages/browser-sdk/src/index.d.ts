@@ -7,9 +7,20 @@ export interface BrowserSdkOptions {
   maxAttempts?: number
   maxQueueSize?: number
   hasConsent?: () => boolean
+  storage?: Pick<Storage, "getItem" | "setItem">
+  storageKey?: string
   createPageInstanceId?: () => string
   onceStorage?: Pick<Storage, "getItem" | "setItem">
   onceStorageKey?: string
+  anonymousIdStorage?: Pick<Storage, "getItem" | "setItem">
+  anonymousIdStorageKey?: string
+  sessionIdStorage?: Pick<Storage, "getItem" | "setItem">
+  sessionIdStorageKey?: string
+  attributionStorage?: Pick<Storage, "getItem" | "setItem">
+  attributionStorageKey?: string
+  locationSearch?: string
+  createAnonymousId?: () => string
+  createSessionId?: () => string
 }
 
 export interface BrowserEventContext {
@@ -62,6 +73,8 @@ export interface BrowserSdk {
     dwellMs?: number
     context?: BrowserEventContext
   }): () => void
+  getIdentity(): Readonly<{ anonymousId: string; sessionId: string }> | null
+  getSessionContext(): Readonly<{ utm_source?: string }> | null
   flush(): Promise<{ status: string }>
   attachLifecycle(): () => void
   getMetrics(): Record<string, number>

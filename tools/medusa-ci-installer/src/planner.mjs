@@ -29,8 +29,8 @@ const generatedPaths = {
 }
 
 const packageVersions = {
-  browserSdk: "0.2.2",
-  backendIntegrationKit: "0.2.2",
+  browserSdk: "0.2.3",
+  backendIntegrationKit: "0.2.3",
 }
 
 function legacyGeneratedClient(manifest) {
@@ -42,6 +42,8 @@ function legacyGeneratedClient(manifest) {
 }
 
 function generatedClient(manifest) {
+  const anonymousIdentityCookie = JSON.stringify(`funnelmetry_anonymous_id_${manifest.source.id}`)
+  const sessionIdentityCookie = JSON.stringify(`funnelmetry_session_id_${manifest.source.id}`)
   return legacyGeneratedClient(manifest).replace(
     `export function FunnelmetryCheckoutStarted({ cartId, step }: { cartId: string; step: string }) {
   const pathname = usePathname()
@@ -57,11 +59,51 @@ function generatedClient(manifest) {
     const page = pageContext(pathname)
     const currentSdk = getSdk()
     if (!currentSdk || !page || !enabled("checkout.started")) return
-    void currentSdk.trackBehaviorOnce(\`checkout.started:\${cartId}\`, "checkout.started", { cart_id: cartId, step: "address", page_instance_id: page.page_instance_id })
+    void currentSdk.trackBehaviorOnce(\`checkout.started:\${cartId}\`, "checkout.started", { cart_id: cartId, step: "address", page_instance_id: page.page_instance_id }, { correlationId: cartCorrelationId(cartId) })
   }, [cartId, pathname])
   return null
 }`,
   )
+    .replace(
+      "type EventPayload = Record<string, unknown>",
+      `const anonymousIdentityCookie = ${anonymousIdentityCookie}\nconst sessionIdentityCookie = ${sessionIdentityCookie}\n\ntype EventPayload = Record<string, unknown>`,
+    )
+    .replace(
+      `function track(eventType: string, payload: EventPayload) {
+  if (!enabled(eventType)) return Promise.resolve({ status: "disabled_by_manifest" })
+  const currentSdk = getSdk()
+  return currentSdk ? currentSdk.trackBehavior(eventType, payload) : Promise.resolve({ status: "inactive" })
+}`,
+      `function cartCorrelationId(cartId: string) {
+  return \`cart:\${cartId}\`
+}
+
+function syncServerIdentity(currentSdk: BrowserSdk) {
+  const identity = currentSdk.getIdentity()
+  if (typeof document === "undefined") return
+  const secure = window.location.protocol === "https:" ? "; Secure" : ""
+  if (!identity) {
+    document.cookie = \`\${anonymousIdentityCookie}=; Path=/; Max-Age=0; SameSite=Lax\${secure}\`
+    document.cookie = \`\${sessionIdentityCookie}=; Path=/; Max-Age=0; SameSite=Lax\${secure}\`
+    return
+  }
+  document.cookie = \`\${anonymousIdentityCookie}=\${encodeURIComponent(identity.anonymousId)}; Path=/; Max-Age=31536000; SameSite=Lax\${secure}\`
+  document.cookie = \`\${sessionIdentityCookie}=\${encodeURIComponent(identity.sessionId)}; Path=/; SameSite=Lax\${secure}\`
+}
+
+function track(eventType: string, payload: EventPayload, context: { correlationId?: string } = {}) {
+  if (!enabled(eventType)) return Promise.resolve({ status: "disabled_by_manifest" })
+  const currentSdk = getSdk()
+  return currentSdk ? currentSdk.trackBehavior(eventType, payload, context) : Promise.resolve({ status: "inactive" })
+}`,
+    )
+    .replace(
+      `    if (!currentSdk || !page) return
+    if (enabled("behavior.page_viewed")) void currentSdk.trackPageView(page)`,
+      `    if (!currentSdk || !page) return
+    syncServerIdentity(currentSdk)
+    if (enabled("behavior.page_viewed")) void currentSdk.trackPageView(page)`,
+    )
 }
 
 function generatedManagedDeliveryDispatcherHeader() {
@@ -70,8 +112,12 @@ function generatedManagedDeliveryDispatcherHeader() {
 type MappedSourceEvent = {
   eventId: string
   sourceEventType: string
+  sourceSchemaVersion?: string
   occurredAt: string
   aggregate: { type: string; id: string }
+  anonymousId?: string
+  sessionId?: string
+  correlationId?: string
   sourcePayload: Record<string, unknown>
 }
 `
@@ -94,6 +140,74 @@ function generatedStorefrontDelivery(manifest) {
     cooldownMs: manifest.reliability.circuitBreaker.cooldownMs,
   }, null, 2)
   return `import "server-only"\n\nimport { randomUUID } from "node:crypto"\nimport { createManagedDeliveryDispatcher } from "@3002tad/funnelmetry-backend-integration-kit"\n\nconst sourceId = ${sourceId}\nconst sourceKeyId = ${sourceKeyId}\nconst reliability = ${reliability}\nconst opaqueIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{2,99}$/\nconst normalizedQueryMaxLength = 160\n\ntype CartItemAdded = {\n  cartId: string\n  lineItemId: string\n  variantId: string\n  quantity: number\n  productId?: string\n}\n\nlet dispatcher: ReturnType<typeof createManagedDeliveryDispatcher> | null | undefined\nlet lastInactiveWarningAt = 0\n\nfunction warnSafe(message: string) {\n  console.warn(JSON.stringify({ message }))\n}\n\nfunction getDispatcher() {\n  if (dispatcher !== undefined) return dispatcher\n  const signingKey = process.env.FUNNELMETRY_BACKEND_SIGNING_KEY ?? ""\n  const endpoint = process.env.FUNNELMETRY_INGEST_URL ?? ""\n  if (!signingKey || !endpoint) {\n    if (Date.now() - lastInactiveWarningAt >= 60_000) {\n      lastInactiveWarningAt = Date.now()\n      warnSafe("Funnelmetry server tracking is inactive: delivery configuration is missing")\n    }\n    dispatcher = null\n    return dispatcher\n  }\n\n  try {\n    dispatcher = createManagedDeliveryDispatcher({\n      sourceId,\n      sourceKeyId,\n      endpoint,\n      signingKey,\n      timeoutMs: reliability.timeoutMs,\n      maxAttempts: reliability.maxAttempts,\n      maxQueueSize: reliability.maxQueueSize,\n      failureThreshold: reliability.failureThreshold,\n      cooldownMs: reliability.cooldownMs,\n      logger: { warn: (entry) => console.warn(JSON.stringify(entry)) },\n    })\n  } catch {\n    dispatcher = null\n    warnSafe("Funnelmetry server tracking is inactive: delivery dispatcher could not initialize")\n  }\n  return dispatcher\n}\n\nfunction normalizeSearchQuery(query: string) {\n  const normalized = query.normalize("NFKC").trim().replace(/\\s+/g, " ").toLowerCase()\n  if (!normalized || normalized.length > normalizedQueryMaxLength) return null\n  if (/\\b[\\w.+-]+@[\\w.-]+\\.[a-z]{2,}\\b/i.test(normalized)) return null\n  if (/(?:\\+?\\d[\\s().-]*){8,}/.test(normalized)) return null\n  if (/\\b(?:password|passcode|otp|cvv|cvc|card(?:\\s*number)?|token|secret)\\b/i.test(normalized)) return null\n  return normalized\n}\n\nfunction isNonNegativeSafeInteger(value: unknown): value is number {\n  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0\n}\n\nexport function enqueueSearchOutcome(input: {\n  searchInteractionId: string\n  query: string\n  outcome: "succeeded" | "failed"\n  resultCount?: number\n}) {\n  try {\n    if (!opaqueIdPattern.test(input.searchInteractionId)) return\n    const queryNormalized = normalizeSearchQuery(input.query)\n    if (!queryNormalized) return\n    const resultCount = input.resultCount\n    if (input.outcome === "succeeded") {\n      if (!isNonNegativeSafeInteger(resultCount)) return\n      getDispatcher()?.enqueue({\n        eventId: \`medusa:search:\${input.searchInteractionId}\`,\n        sourceEventType: "behavior.search_submitted",\n        sourceSchemaVersion: "2.0",\n        occurredAt: new Date().toISOString(),\n        aggregate: { type: "search_interaction", id: input.searchInteractionId },\n        sourcePayload: { search_interaction_id: input.searchInteractionId, query_normalized: queryNormalized, outcome: input.outcome, result_count: resultCount },\n      })\n      return\n    }\n\n    if (resultCount !== undefined) return\n    getDispatcher()?.enqueue({\n      eventId: \`medusa:search:\${input.searchInteractionId}\`,\n      sourceEventType: "behavior.search_submitted",\n      sourceSchemaVersion: "2.0",\n      occurredAt: new Date().toISOString(),\n      aggregate: { type: "search_interaction", id: input.searchInteractionId },\n      sourcePayload: { search_interaction_id: input.searchInteractionId, query_normalized: queryNormalized, outcome: input.outcome },\n    })\n  } catch {\n    warnSafe("Funnelmetry search tracking dropped without affecting the Search API")\n  }\n}\n\nexport function enqueueCartItemAdded(input: CartItemAdded) {\n  try {\n    if (!input.cartId || !input.lineItemId || !input.variantId || !Number.isSafeInteger(input.quantity) || input.quantity < 1) return\n    getDispatcher()?.enqueue({\n      eventId: \`medusa:cart.item_added:\${input.cartId}:\${input.lineItemId}:\${randomUUID()}\`,\n      sourceEventType: "cart.item_added",\n      sourceSchemaVersion: "2.0",\n      occurredAt: new Date().toISOString(),\n      aggregate: { type: "cart", id: input.cartId },\n      sourcePayload: { cart_id: input.cartId, line_item_id: input.lineItemId, variant_id: input.variantId, quantity: input.quantity, ...(input.productId ? { product_id: input.productId } : {}) },\n    })\n  } catch {\n    warnSafe("Funnelmetry cart tracking dropped without affecting the cart operation")\n  }\n}\n`
+}
+
+function configuredStorefrontDelivery(manifest) {
+  const anonymousIdentityCookie = JSON.stringify(`funnelmetry_anonymous_id_${manifest.source.id}`)
+  const sessionIdentityCookie = JSON.stringify(`funnelmetry_session_id_${manifest.source.id}`)
+  return generatedStorefrontDelivery(manifest)
+    .replace(
+      'import { randomUUID } from "node:crypto"',
+      'import { randomUUID } from "node:crypto"\nimport { cookies } from "next/headers"',
+    )
+    .replace(
+      "const normalizedQueryMaxLength = 160",
+      `const normalizedQueryMaxLength = 160\nconst anonymousIdentityCookie = ${anonymousIdentityCookie}\nconst sessionIdentityCookie = ${sessionIdentityCookie}`,
+    )
+    .replace(
+      "function normalizeSearchQuery(query: string) {",
+      `function identityValue(value: string | undefined) {
+  if (!value) return undefined
+  try {
+    const decoded = decodeURIComponent(value)
+    return /^[A-Za-z0-9][A-Za-z0-9._:-]{2,255}$/.test(decoded) ? decoded : undefined
+  } catch {
+    return undefined
+  }
+}
+
+async function readBrowserIdentity() {
+  const cookieStore = await cookies()
+  return {
+    anonymousId: identityValue(cookieStore.get(anonymousIdentityCookie)?.value),
+    sessionId: identityValue(cookieStore.get(sessionIdentityCookie)?.value),
+  }
+}
+
+function normalizeSearchQuery(query: string) {`,
+    )
+    .replace("export function enqueueSearchOutcome", "export async function enqueueSearchOutcome")
+    .replace(
+      `  try {
+    if (!opaqueIdPattern.test(input.searchInteractionId)) return`,
+      `  try {
+    if (!opaqueIdPattern.test(input.searchInteractionId)) return
+    const identity = await readBrowserIdentity()`,
+    )
+    .replaceAll(
+      '        aggregate: { type: "search_interaction", id: input.searchInteractionId },\n        sourcePayload:',
+      '        aggregate: { type: "search_interaction", id: input.searchInteractionId },\n        anonymousId: identity.anonymousId,\n        sessionId: identity.sessionId,\n        correlationId: `search:${input.searchInteractionId}`,\n        sourcePayload:',
+    )
+    .replace(
+      '      aggregate: { type: "search_interaction", id: input.searchInteractionId },\n      sourcePayload:',
+      '      aggregate: { type: "search_interaction", id: input.searchInteractionId },\n      anonymousId: identity.anonymousId,\n      sessionId: identity.sessionId,\n      correlationId: `search:${input.searchInteractionId}`,\n      sourcePayload:',
+    )
+    .replace("export function enqueueCartItemAdded", "export async function enqueueCartItemAdded")
+    .replace(
+      `  try {
+    if (!input.cartId || !input.lineItemId || !input.variantId || !Number.isSafeInteger(input.quantity) || input.quantity < 1) return
+    getDispatcher()?.enqueue({
+      eventId: \`medusa:cart.item_added:\${input.cartId}:\${input.lineItemId}:\${randomUUID()}\`,`,
+      `  try {
+    if (!input.cartId || !input.lineItemId || !input.variantId || !Number.isSafeInteger(input.quantity) || input.quantity < 1) return
+    const identity = await readBrowserIdentity()
+    getDispatcher()?.enqueue({
+      eventId: \`medusa:cart.item_added:\${input.cartId}:\${input.lineItemId}:\${randomUUID()}\`,`,
+    )
+    .replace(
+      '      aggregate: { type: "cart", id: input.cartId },\n      sourcePayload:',
+      '      aggregate: { type: "cart", id: input.cartId },\n      anonymousId: identity.anonymousId,\n      sessionId: identity.sessionId,\n      correlationId: `cart:${input.cartId}`,\n      sourcePayload:',
+    )
 }
 
 function generatedOccurredAt() {
@@ -306,19 +420,41 @@ function configureGeneratedClient(content, manifest) {
 function configureGeneratedSubscriber(content, manifest) {
   return content
     .replace("@funnelmetry/backend-integration-kit", "@3002tad/funnelmetry-backend-integration-kit")
+    .replace("ContainerRegistrationKeys, Modules", "ContainerRegistrationKeys")
     .replace(
       'import { createManagedDeliveryDispatcher } from "../funnelmetry/managed-delivery-dispatcher"\n',
-      'import { createManagedDeliveryDispatcher } from "../funnelmetry/managed-delivery-dispatcher"\nimport { normalizeOccurredAt } from "../funnelmetry/occurred-at"\n',
+      'import { normalizeCurrencyCode, normalizeMajorAmount } from "@3002tad/funnelmetry-backend-integration-kit"\nimport { createManagedDeliveryDispatcher } from "../funnelmetry/managed-delivery-dispatcher"\nimport { normalizeOccurredAt } from "../funnelmetry/occurred-at"\n',
     )
     .replace(
-      'created_at?: string; currency_code?: string;',
-      'created_at?: string | Date; currency_code?: string;',
+      'type OrderItem = { product_id?: string; variant_id?: string; quantity?: number; unit_price?: number }\ntype Order = { id: string; created_at?: string; currency_code?: string; total?: number; items?: OrderItem[] }',
+      'type OrderItem = { product_id?: string; variant_id?: string; quantity?: number; unit_price?: unknown }\ntype LinkedCart = { id?: string }\ntype Order = { id: string; created_at?: string | Date; currency_code?: string; total?: unknown; items?: OrderItem[]; cart?: LinkedCart | LinkedCart[] }\ntype Query = { graph: (input: Record<string, unknown>) => Promise<{ data: Order[] }> }',
+    )
+    .replace(
+      "let lastInactiveWarningAt = 0",
+      `let lastInactiveWarningAt = 0
+
+function linkedCartId(order: Order) {
+  const cart = Array.isArray(order.cart) ? order.cart[0] : order.cart
+  return typeof cart?.id === "string" && cart.id.length > 0 ? cart.id : null
+}`,
+    )
+    .replace(
+      '    const orderModuleService = container.resolve(Modules.ORDER) as { retrieveOrder: (id: string, options: Record<string, unknown>) => Promise<Order> }\n    const order = await orderModuleService.retrieveOrder(orderId, { relations: ["items"] })',
+      '    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Query\n    const { data } = await query.graph({ entity: "order", fields: ["id", "created_at", "currency_code", "total", "items.product_id", "items.variant_id", "items.quantity", "items.unit_price", "cart.id"], filters: { id: orderId } })\n    const order = data[0]',
     )
     .replace(
       '    if (!order.created_at || !order.currency_code) {',
-      '    const occurredAt = normalizeOccurredAt(order.created_at)\n    if (!occurredAt || !order.currency_code) {',
+      '    const occurredAt = normalizeOccurredAt(order?.created_at)\n    const currencyCode = normalizeCurrencyCode(order?.currency_code)\n    const totalAmount = normalizeMajorAmount(order?.total)\n    const cartId = order ? linkedCartId(order) : null\n    if (!order || !occurredAt || !currencyCode || !totalAmount || !cartId) {',
+    )
+    .replace(
+      'logger.warn("Funnelmetry order forward skipped: missing authoritative order time/currency")',
+      'logger.warn("Funnelmetry order forward skipped: missing authoritative order/cart/time/amount/currency")',
     )
     .replace('occurredAt: order.created_at,', 'occurredAt,')
+    .replace(
+      '      aggregate: { type: "order", id: order.id },\n      sourcePayload: { order_id: order.id, currency_code: order.currency_code, total_minor: order.total, items: (order.items ?? []).map((item) => ({ product_id: item.product_id, variant_id: item.variant_id, quantity: item.quantity, unit_price_minor: item.unit_price })) },',
+      '      sourceSchemaVersion: "2.0",\n      aggregate: { type: "order", id: order.id },\n      correlationId: `cart:${cartId}`,\n      sourcePayload: { order_id: order.id, cart_id: cartId, currency_code: currencyCode, total_amount: totalAmount, amount_unit: "major", amount_semantics: "medusa.order.total", items: (order.items ?? []).map((item) => { const unitPriceAmount = normalizeMajorAmount(item.unit_price); return { product_id: item.product_id, variant_id: item.variant_id, quantity: item.quantity, ...(unitPriceAmount ? { unit_price_amount: unitPriceAmount } : {}) } }) },',
+    )
     .replace(
       "export default function funnelmetryOrderPlaced",
       "export default async function funnelmetryOrderPlaced",
@@ -523,7 +659,7 @@ function isKnownManagedPackageVersion(content, dependency, targetVersion, file) 
     throw new Error(`Pinned Medusa layout has invalid JSON in ${file}`)
   }
   const version = packageJson.dependencies?.[dependency]
-  return version === targetVersion || version === "0.2.0" || version === "0.1.1" || version === "0.1.0"
+  return version === targetVersion || version === "0.2.2" || version === "0.2.1" || version === "0.2.0" || version === "0.1.4" || version === "0.1.1" || version === "0.1.0"
 }
 
 function firstDifferentLine(actual, expected) {
@@ -587,13 +723,18 @@ async function existingIntegration(projectRoot, originals, manifest) {
   const v2GeneratedFilesPresent = consentNotice !== null && storefrontDelivery !== null && occurredAt !== null
   if (!v2GeneratedFilesPresent) return "legacy"
   const checkoutStartNeedsUpgrade = manifest.frontend.enabled && hasLegacyCheckoutStartedBinding(browserClient, originals[paths.checkoutPage])
-  if (normalizeManagedBrowserClient(browserClient) !== normalizeManagedBrowserClient(expectedBrowserClient) && !checkoutStartNeedsUpgrade) {
+  const packageUpgradeNeeded =
+    (manifest.frontend.enabled && !packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) ||
+    (manifest.frontend.enabled && !packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.storefrontPackage)) ||
+    (manifest.backend.enabled && !packageHasDependency(originals[paths.backendPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage))
+  const managedUpgradeNeeded = checkoutStartNeedsUpgrade || packageUpgradeNeeded
+  if (normalizeManagedBrowserClient(browserClient) !== normalizeManagedBrowserClient(expectedBrowserClient) && !managedUpgradeNeeded) {
     throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.browserClient} differs at line ${firstDifferentLine(browserClient, expectedBrowserClient)}`)
   }
-  if (normalizeManagedOrderPlacedSubscriber(orderPlacedSubscriber) !== normalizeManagedOrderPlacedSubscriber(expectedOrderPlacedSubscriber)) {
+  if (normalizeManagedOrderPlacedSubscriber(orderPlacedSubscriber) !== normalizeManagedOrderPlacedSubscriber(expectedOrderPlacedSubscriber) && !managedUpgradeNeeded) {
     throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.orderPlacedSubscriber} differs at line ${firstDifferentLine(orderPlacedSubscriber, expectedOrderPlacedSubscriber)}`)
   }
-  if (normalizedText(managedDeliveryDispatcher) !== normalizedText(expectedManagedDeliveryDispatcher)) {
+  if (normalizedText(managedDeliveryDispatcher) !== normalizedText(expectedManagedDeliveryDispatcher) && !managedUpgradeNeeded) {
     throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.managedDeliveryDispatcher} differs at line ${firstDifferentLine(managedDeliveryDispatcher, expectedManagedDeliveryDispatcher)}`)
   }
   if (!normalizedText(consentNotice).includes(`const consentStorageKey = ${JSON.stringify(`funnelmetry.browser.consent.v1.${manifest.source.id}`)}`) ||
@@ -611,6 +752,9 @@ async function existingIntegration(projectRoot, originals, manifest) {
   if (manifest.frontend.enabled) {
     if (!isKnownManagedPackageVersion(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) {
       throw new Error("Existing Funnelmetry browser integration has an unexpected package version")
+    }
+    if (!isKnownManagedPackageVersion(originals[paths.storefrontPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.storefrontPackage)) {
+      throw new Error("Existing Funnelmetry storefront server integration has an unexpected package version")
     }
     if (!hasFunnelmetryAlias(originals[paths.storefrontTsConfig], paths.storefrontTsConfig)) {
       throw new Error(`Existing Funnelmetry integration is incomplete or has drifted in ${paths.storefrontTsConfig}`)
@@ -638,14 +782,14 @@ async function existingIntegration(projectRoot, originals, manifest) {
   if (manifest.backend.enabled && !isKnownManagedPackageVersion(originals[paths.backendPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage)) {
     throw new Error("Existing Funnelmetry backend integration has an unexpected package version")
   }
-  if (checkoutStartNeedsUpgrade) return "upgradeable"
+  if (managedUpgradeNeeded) return "upgradeable"
   const exact = normalizedText(browserClient) === normalizedText(expectedBrowserClient) &&
     normalizedText(orderPlacedSubscriber) === normalizedText(expectedOrderPlacedSubscriber) &&
     normalizedText(managedDeliveryDispatcher) === normalizedText(expectedManagedDeliveryDispatcher) &&
     normalizedText(consentNotice) === normalizedText(generatedConsentNotice(manifest)) &&
-    normalizedText(storefrontDelivery) === normalizedText(generatedStorefrontDelivery(manifest)) &&
+    normalizedText(storefrontDelivery) === normalizedText(configuredStorefrontDelivery(manifest)) &&
     normalizedText(occurredAt) === normalizedText(generatedOccurredAt()) &&
-    (!manifest.frontend.enabled || packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) &&
+    (!manifest.frontend.enabled || (packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage) && packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.storefrontPackage))) &&
     (!manifest.backend.enabled || packageHasDependency(originals[paths.backendPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage))
   // V2 sources created before installer 0.2.0 are accepted only when every
   // semantic marker is present. They are compatible, but not claimed byte-for-byte
@@ -701,10 +845,9 @@ export async function createPlan(projectRoot, manifest) {
         orderPlaced: orderPlacedDeclared ? "ENABLED" : "DISABLED",
         cartItemPersisted: cartItemDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
         searchSubmitted: searchDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
-        orderCreated: orderPlacedDeclared ? "ENABLED" : "DISABLED",
-        // The V2 reference has authoritative cart persistence and order.created,
-        // but does not yet prove order.accepted/payment settlement.
-        commerceConversion: "IN_PROGRESS",
+        orderCreated: "NOT_EMITTED",
+        orderAccepted: "NOT_SUPPORTED",
+        commerceConversion: orderPlacedDeclared ? "SOURCE_READY" : "DISABLED",
         payment: "NOT_REQUESTED",
         refund: "NOT_REQUESTED",
       },
@@ -724,6 +867,7 @@ export async function createPlan(projectRoot, manifest) {
       readProjectFile(projectRoot, generatedPaths.orderPlacedSubscriber),
     ])
     : [null, null, null, null, null, null]
+  const checkoutStartNeedsUpgrade = manifest.frontend.enabled && refreshManagedBinding && hasLegacyCheckoutStartedBinding(currentBrowserClient, originals[paths.checkoutPage])
 
   const changes = []
   if (manifest.frontend.enabled) {
@@ -733,9 +877,14 @@ export async function createPlan(projectRoot, manifest) {
       paths.storefrontTsConfig,
     )
     const storefrontPackage = addDependency(
-      originals[paths.storefrontPackage],
-      "@3002tad/funnelmetry-browser-sdk",
-      packageVersions.browserSdk,
+      addDependency(
+        originals[paths.storefrontPackage],
+        "@3002tad/funnelmetry-browser-sdk",
+        packageVersions.browserSdk,
+        paths.storefrontPackage,
+      ),
+      "@3002tad/funnelmetry-backend-integration-kit",
+      packageVersions.backendIntegrationKit,
       paths.storefrontPackage,
     )
     const layoutWithImport = replaceOnce(
@@ -768,8 +917,10 @@ export async function createPlan(projectRoot, manifest) {
       '    />\n  )\n}',
       '      />\n    </>\n  )\n}',
     )
-    const checkout = existing === "upgradeable"
-      ? upgradeCheckoutStartedBinding(originals[paths.checkoutPage], paths.checkoutPage)
+    const checkout = refreshManagedBinding
+      ? checkoutStartNeedsUpgrade
+        ? upgradeCheckoutStartedBinding(originals[paths.checkoutPage], paths.checkoutPage)
+        : originals[paths.checkoutPage]
       : replaceOnce(
         originals[paths.checkoutPage],
         'import CheckoutProgress from "@modules/checkout/components/checkout-progress"',
@@ -791,9 +942,9 @@ export async function createPlan(projectRoot, manifest) {
         { path: paths.storefrontPackage, before: originals[paths.storefrontPackage], after: storefrontPackage },
         { path: generatedPaths.browserClient, before: currentBrowserClient, after: client },
         { path: generatedPaths.consentNotice, before: currentConsentNotice, after: generatedConsentNotice(manifest) },
-        { path: generatedPaths.storefrontDelivery, before: currentStorefrontDelivery, after: generatedStorefrontDelivery(manifest) },
+        { path: generatedPaths.storefrontDelivery, before: currentStorefrontDelivery, after: configuredStorefrontDelivery(manifest) },
       )
-      if (existing === "upgradeable") {
+      if (checkoutStartNeedsUpgrade) {
         changes.push({ path: paths.checkoutPage, before: originals[paths.checkoutPage], after: checkout })
       }
     } else {
@@ -802,7 +953,7 @@ export async function createPlan(projectRoot, manifest) {
         { path: paths.storefrontPackage, before: originals[paths.storefrontPackage], after: storefrontPackage },
         { path: generatedPaths.browserClient, before: null, after: client },
         { path: generatedPaths.consentNotice, before: null, after: generatedConsentNotice(manifest) },
-        { path: generatedPaths.storefrontDelivery, before: null, after: generatedStorefrontDelivery(manifest) },
+        { path: generatedPaths.storefrontDelivery, before: null, after: configuredStorefrontDelivery(manifest) },
         { path: paths.storefrontLayout, before: originals[paths.storefrontLayout], after: layout },
         { path: paths.productPage, before: originals[paths.productPage], after: productPage },
         { path: paths.productActions, before: originals[paths.productActions], after: productActions },
@@ -853,9 +1004,9 @@ export async function createPlan(projectRoot, manifest) {
       orderPlaced: orderPlacedDeclared ? "ENABLED" : "DISABLED",
       cartItemPersisted: cartItemDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
       searchSubmitted: searchDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
-      orderCreated: orderPlacedDeclared ? "ENABLED" : "DISABLED",
+      orderCreated: "NOT_EMITTED",
       orderAccepted: "NOT_SUPPORTED",
-      commerceConversion: "IN_PROGRESS",
+      commerceConversion: orderPlacedDeclared ? "SOURCE_READY" : "DISABLED",
       payment: "NOT_REQUESTED",
       refund: "NOT_REQUESTED",
     },

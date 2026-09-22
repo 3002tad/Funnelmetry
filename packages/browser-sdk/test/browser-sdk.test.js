@@ -58,6 +58,7 @@ test('restored custom queue cannot send v1 envelopes or retired events', async (
 })
 
 test("does not enqueue browser data without explicit consent", async () => {
+  let attributionWrites = 0
   const sdk = createBrowserSdk({
     sourceId: "medusa-reference",
     sourceKeyId: "medusa-reference-dev",
@@ -65,6 +66,8 @@ test("does not enqueue browser data without explicit consent", async () => {
     writeKey: "public-write-key",
     allowedEventTypes: ["behavior.product_viewed"],
     hasConsent: () => false,
+    locationSearch: "?utm_source=MustNotPersist",
+    attributionStorage: { getItem: () => null, setItem: () => { attributionWrites += 1 } },
     fetch: async () => { throw new Error("must not send") },
   })
 
@@ -72,6 +75,130 @@ test("does not enqueue browser data without explicit consent", async () => {
     product_id: "prod_1",
     page_instance_id: "page:product-1",
   }), { status: "skipped_no_consent" })
+  assert.equal(sdk.getIdentity(), null)
+  assert.equal(sdk.getSessionContext(), null)
+  assert.equal(attributionWrites, 0)
+})
+
+test("persists consented browser identity and uses session correlation by default", async () => {
+  const localValues = new Map()
+  const sessionValues = new Map()
+  const storage = (values) => ({
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+  })
+  const sent = []
+  let sequence = 0
+  const options = {
+    sourceId: "medusa-reference",
+    sourceKeyId: "medusa-reference-dev",
+    endpoint: "https://ingest.example.test",
+    writeKey: "public-write-key",
+    allowedEventTypes: ["behavior.product_viewed"],
+    hasConsent: () => true,
+    anonymousIdStorage: storage(localValues),
+    sessionIdStorage: storage(sessionValues),
+    createAnonymousId: () => "anonymous:stable-1",
+    createSessionId: () => "session:stable-1",
+    createEventId: () => `browser:identity-${++sequence}`,
+    fetch: async (_url, request) => {
+      const event = JSON.parse(request.body)
+      sent.push(event)
+      return { status: 202, text: async () => receipt("accepted", event.event_id, { ingestion_id: `ing_${event.event_id}` }) }
+    },
+  }
+
+  const sdk = createBrowserSdk(options)
+  await sdk.track("behavior.product_viewed", { product_id: "prod_1", page_instance_id: "page:identity-1" })
+  assert.deepEqual(sdk.getIdentity(), { anonymousId: "anonymous:stable-1", sessionId: "session:stable-1" })
+  assert.equal(sent[0].anonymous_id, "anonymous:stable-1")
+  assert.equal(sent[0].session_id, "session:stable-1")
+  assert.equal(sent[0].correlation_id, "session:stable-1")
+
+  const recreatedSdk = createBrowserSdk({
+    ...options,
+    createAnonymousId: () => { throw new Error("must restore anonymous identity") },
+    createSessionId: () => { throw new Error("must restore session identity") },
+  })
+  assert.deepEqual(recreatedSdk.getIdentity(), { anonymousId: "anonymous:stable-1", sessionId: "session:stable-1" })
+  await recreatedSdk.track("behavior.product_viewed", { product_id: "prod_1", page_instance_id: "page:identity-2" }, { correlationId: "cart:cart_1" })
+  assert.equal(sent[1].correlation_id, "cart:cart_1")
+})
+
+test("keeps raw utm_source as first-touch session metadata on later behavior events", async () => {
+  const attributionValues = new Map()
+  const attributionStorage = {
+    getItem: (key) => attributionValues.get(key) ?? null,
+    setItem: (key, value) => attributionValues.set(key, value),
+  }
+  const sent = []
+  let sequence = 0
+  const baseOptions = {
+    sourceId: "medusa-reference",
+    sourceKeyId: "medusa-reference-dev",
+    endpoint: "https://ingest.example.test",
+    writeKey: "public-write-key",
+    allowedEventTypes: ["behavior.product_viewed"],
+    hasConsent: () => true,
+    attributionStorage,
+    createEventId: () => `browser:utm-${++sequence}`,
+    fetch: async (_url, request) => {
+      const event = JSON.parse(request.body)
+      sent.push(event)
+      return { status: 202, text: async () => receipt("accepted", event.event_id, { ingestion_id: `ing_${event.event_id}` }) }
+    },
+  }
+
+  const landingSdk = createBrowserSdk({
+    ...baseOptions,
+    locationSearch: "?utm_source=Facebook%20Ads%2FPartner&utm_source=ignored&utm_medium=not-supported",
+  })
+  assert.equal(
+    attributionValues.get("funnelmetry.browser.attribution.v1.medusa-reference"),
+    "Facebook Ads/Partner",
+  )
+  await landingSdk.track("behavior.product_viewed", {
+    product_id: "prod_1",
+    page_instance_id: "page:utm-1",
+  }, { metadata: { existing_context: "kept" } })
+  assert.deepEqual(landingSdk.getSessionContext(), { utm_source: "Facebook Ads/Partner" })
+  assert.deepEqual(sent[0].source_metadata, {
+    existing_context: "kept",
+    utm_source: "Facebook Ads/Partner",
+  })
+
+  const laterSdk = createBrowserSdk({ ...baseOptions, locationSearch: "?utm_source=LaterSource" })
+  await laterSdk.track("behavior.product_viewed", {
+    product_id: "prod_2",
+    page_instance_id: "page:utm-2",
+  })
+  assert.deepEqual(laterSdk.getSessionContext(), { utm_source: "Facebook Ads/Partner" })
+  assert.equal(sent[1].source_metadata.utm_source, "Facebook Ads/Partner")
+  assert.equal("utm_medium" in sent[1].source_metadata, false)
+})
+
+test("drops only oversized automatic attribution metadata and keeps event delivery fail-open", async () => {
+  let sent
+  const sdk = createBrowserSdk({
+    sourceId: "medusa-reference",
+    sourceKeyId: "medusa-reference-dev",
+    endpoint: "https://ingest.example.test",
+    writeKey: "public-write-key",
+    allowedEventTypes: ["behavior.product_viewed"],
+    hasConsent: () => true,
+    locationSearch: `?utm_source=${"x".repeat(70_000)}`,
+    createEventId: () => "browser:utm-oversized",
+    fetch: async (_url, request) => {
+      sent = JSON.parse(request.body)
+      return { status: 202, text: async () => receipt("accepted", sent.event_id, { ingestion_id: "ing_utm_oversized" }) }
+    },
+  })
+
+  assert.equal((await sdk.track("behavior.product_viewed", {
+    product_id: "prod_1",
+    page_instance_id: "page:utm-oversized",
+  })).status, "drained")
+  assert.equal(sent.source_metadata, undefined)
 })
 
 test("tracks checkout start once per cart for the current browser session", async () => {
