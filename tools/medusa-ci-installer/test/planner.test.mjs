@@ -109,6 +109,8 @@ test("planner creates PR-ready artifacts without mutating the Medusa checkout", 
   assert.match(plan.patch, /createBrowserSdk/)
   assert.match(plan.patch, /createBackendForwarder/)
   assert.match(plan.patch, /createManagedDeliveryDispatcher/)
+  assert.match(plan.patch, /await import\("@3002tad\/funnelmetry-backend-integration-kit"\)/)
+  assert.doesNotMatch(plan.patch, /import \{ normalizeCurrencyCode, normalizeMajorAmount \} from/)
   assert.match(plan.patch, /export default async function funnelmetryOrderPlaced/)
   assert.match(plan.patch, /void enqueueOrderPlaced/)
   assert.match(plan.patch, /circuitOpened/)

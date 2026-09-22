@@ -423,7 +423,7 @@ function configureGeneratedSubscriber(content, manifest) {
     .replace("ContainerRegistrationKeys, Modules", "ContainerRegistrationKeys")
     .replace(
       'import { createManagedDeliveryDispatcher } from "../funnelmetry/managed-delivery-dispatcher"\n',
-      'import { normalizeCurrencyCode, normalizeMajorAmount } from "@3002tad/funnelmetry-backend-integration-kit"\nimport { createManagedDeliveryDispatcher } from "../funnelmetry/managed-delivery-dispatcher"\nimport { normalizeOccurredAt } from "../funnelmetry/occurred-at"\n',
+      'import { createManagedDeliveryDispatcher } from "../funnelmetry/managed-delivery-dispatcher"\nimport { normalizeOccurredAt } from "../funnelmetry/occurred-at"\n',
     )
     .replace(
       'type OrderItem = { product_id?: string; variant_id?: string; quantity?: number; unit_price?: number }\ntype Order = { id: string; created_at?: string; currency_code?: string; total?: number; items?: OrderItem[] }',
@@ -440,7 +440,7 @@ function linkedCartId(order: Order) {
     )
     .replace(
       '    const orderModuleService = container.resolve(Modules.ORDER) as { retrieveOrder: (id: string, options: Record<string, unknown>) => Promise<Order> }\n    const order = await orderModuleService.retrieveOrder(orderId, { relations: ["items"] })',
-      '    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Query\n    const { data } = await query.graph({ entity: "order", fields: ["id", "created_at", "currency_code", "total", "items.product_id", "items.variant_id", "items.quantity", "items.unit_price", "cart.id"], filters: { id: orderId } })\n    const order = data[0]',
+      '    const { normalizeCurrencyCode, normalizeMajorAmount } = await import("@3002tad/funnelmetry-backend-integration-kit")\n    const query = container.resolve(ContainerRegistrationKeys.QUERY) as Query\n    const { data } = await query.graph({ entity: "order", fields: ["id", "created_at", "currency_code", "total", "items.product_id", "items.variant_id", "items.quantity", "items.unit_price", "cart.id"], filters: { id: orderId } })\n    const order = data[0]',
     )
     .replace(
       '    if (!order.created_at || !order.currency_code) {',
