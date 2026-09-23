@@ -27,8 +27,10 @@ The installer implements behavior catalog V2. Browser hooks emit only consented 
 interaction id, and the server-side result wrapper sanitizes/normalizes the query before recording its
 outcome. These hooks enqueue asynchronously and fail open, so neither cart nor Search API behavior
 depends on Funnelmetry. The generated consent notice enables browser tracking only after the user
-closes it. The order subscriber emits source-native `medusa.order_placed`; the versioned Normalizer
-owns the conservative conversion to `order.created` as `BUSINESS_FACT`.
+closes it. The order subscriber emits source-native `medusa.order_placed` with its authoritative
+Cart link and Medusa major-unit amount/currency; the versioned Normalizer maps it to canonical
+`order.placed` as the reference commerce-conversion `BUSINESS_FACT`. Until that Pipeline mapping
+is deployed, the integration plan reports `commerceConversion: SOURCE_READY`, not end-to-end enabled.
 
 The pinned V2.2 runtime packages emit `checkout.started` once for each cart in a browser
 session, at the initial address stage. Delivery, payment, and review route

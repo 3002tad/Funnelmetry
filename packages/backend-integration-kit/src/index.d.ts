@@ -1,5 +1,8 @@
 import type { IngressReceipt } from "@3002tad/funnelmetry-input-contract"
 
+export function normalizeCurrencyCode(value: unknown): string | null
+export function normalizeMajorAmount(value: unknown): string | null
+
 export interface MappedSourceEvent {
   eventId: string
   sourceEventType: string
@@ -7,6 +10,8 @@ export interface MappedSourceEvent {
   occurredAt: string
   producedAt?: string
   aggregate?: { type: string; id: string; version?: string }
+  anonymousId?: string
+  sessionId?: string
   correlationId?: string
   sourcePayload: Record<string, unknown>
   sourceMetadata?: Record<string, unknown>

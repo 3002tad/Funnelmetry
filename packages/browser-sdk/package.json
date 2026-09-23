@@ -1,6 +1,6 @@
 {
   "name": "@3002tad/funnelmetry-browser-sdk",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "license": "UNLICENSED",
   "type": "module",
   "files": [
@@ -21,8 +21,8 @@
   },
   "types": "./src/index.d.ts",
   "dependencies": {
-    "@3002tad/funnelmetry-behavior-event-catalog": "0.2.2",
-    "@3002tad/funnelmetry-input-contract": "0.2.2"
+    "@3002tad/funnelmetry-behavior-event-catalog": "0.2.3",
+    "@3002tad/funnelmetry-input-contract": "0.2.3"
   },
   "scripts": {
     "test": "node --test test/*.test.js"

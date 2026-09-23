@@ -1,14 +1,29 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { createBackendForwarder, createManagedDeliveryDispatcher } from "../src/index.js"
+import { createBackendForwarder, createManagedDeliveryDispatcher, normalizeCurrencyCode, normalizeMajorAmount } from "../src/index.js"
 
 const mappedEvent = {
   eventId: "medusa:order.placed:order_1",
   sourceEventType: "medusa.order_placed",
   occurredAt: "2026-08-22T09:00:00.000Z",
   aggregate: { type: "order", id: "order_1" },
-  sourcePayload: { order_id: "order_1", currency_code: "usd", total_minor: 1200 },
+  anonymousId: "anonymous:1",
+  sessionId: "session:1",
+  correlationId: "cart:cart_1",
+  sourcePayload: { order_id: "order_1", cart_id: "cart_1", currency_code: "usd", total_amount: "12.00" },
 }
+
+test("normalizes ISO currency and Medusa major-unit amounts without minor-unit relabeling", () => {
+  assert.equal(normalizeCurrencyCode(" USD "), "usd")
+  assert.equal(normalizeCurrencyCode("US"), null)
+  assert.equal(normalizeMajorAmount(12.5), "12.5")
+  assert.equal(normalizeMajorAmount("12.50"), "12.50")
+  assert.equal(normalizeMajorAmount({ numeric: "125000.00" }), "125000.00")
+  assert.equal(normalizeMajorAmount({ numeric: 20 }), "20")
+  assert.equal(normalizeMajorAmount(-1), null)
+  assert.equal(normalizeMajorAmount(Number.POSITIVE_INFINITY), null)
+  assert.equal(normalizeMajorAmount("1e3"), null)
+})
 
 test("retries a stable signed event and returns the durable receipt", async () => {
   const bodies = []
@@ -37,6 +52,9 @@ test("retries a stable signed event and returns the durable receipt", async () =
   assert.equal(new Set(bodies).size, 1)
   assert.equal(forwarder.getMetrics().accepted, 1)
   assert.equal(JSON.parse(bodies[0]).source_schema_version, '1.0')
+  assert.equal(JSON.parse(bodies[0]).anonymous_id, "anonymous:1")
+  assert.equal(JSON.parse(bodies[0]).session_id, "session:1")
+  assert.equal(JSON.parse(bodies[0]).correlation_id, "cart:cart_1")
   await forwarder.forward({ ...mappedEvent, sourceEventType: 'behavior.search_submitted',
     sourcePayload: { search_interaction_id: 'search:1', query_normalized: 'shoes', outcome: 'succeeded', result_count: 1 } })
   assert.equal(JSON.parse(bodies.at(-1)).source_schema_version, '2.0')

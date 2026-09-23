@@ -13,7 +13,7 @@ apps/
 workers/                Canonical normalizer/ledger, journey và capability tiếp theo
 packages/               Input/canonical contract, Browser SDK và Backend Integration Kit
 integrations/medusa/    Ranh giới tích hợp Medusa; không chứa core pipeline
-tools/                   Công cụ CI planner và API docs
+tools/                   Công cụ CI planner, API docs và external test harness
 infra/                   Schema/config hạ tầng không phụ thuộc runtime V1
 tests/                   Contract, integration, E2E và fault fixtures dùng chung
 ```
@@ -208,5 +208,7 @@ không tự chọn transport phía source, không đọc Medusa và không mở 
 - Quy tắc workspace: repository `../System_Cookbook`
 - Layout và migration: [`docs/REPOSITORY_LAYOUT.md`](docs/REPOSITORY_LAYOUT.md)
 - Time semantics: [`docs/TIME_SEMANTICS_CONTRACT_V1.md`](docs/TIME_SEMANTICS_CONTRACT_V1.md)
+- Medusa simulator tạm di chuyển (chưa nối runtime):
+  [`tools/medusa-reference-simulator/RUN_FUNNELMETRY_API_BOT.md`](tools/medusa-reference-simulator/RUN_FUNNELMETRY_API_BOT.md)
 - Tài liệu trong `docs/` mô tả runtime V1 phải được xem là tài liệu migration cho
   đến khi được viết lại theo V2.

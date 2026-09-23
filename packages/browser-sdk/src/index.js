@@ -35,9 +35,38 @@ function defaultSessionStorage() {
   }
 }
 
+function defaultLocationSearch() {
+  if (typeof window === "undefined") return ""
+  try {
+    return window.location?.search ?? ""
+  } catch {
+    return ""
+  }
+}
+
+function readLandingUtmSource(locationSearch) {
+  if (typeof locationSearch !== "string") return null
+  try {
+    const query = new URLSearchParams(locationSearch)
+    return query.has("utm_source") ? query.get("utm_source") : null
+  } catch {
+    return null
+  }
+}
+
 function defaultEventId() {
   if (globalThis.crypto?.randomUUID) return `browser:${globalThis.crypto.randomUUID()}`
   throw new Error("Browser crypto.randomUUID is required to create a stable event_id")
+}
+
+function defaultAnonymousId() {
+  if (globalThis.crypto?.randomUUID) return `anonymous:${globalThis.crypto.randomUUID()}`
+  throw new Error("Browser crypto.randomUUID is required to create an anonymous_id")
+}
+
+function defaultSessionId() {
+  if (globalThis.crypto?.randomUUID) return `session:${globalThis.crypto.randomUUID()}`
+  throw new Error("Browser crypto.randomUUID is required to create a session_id")
 }
 
 function defaultNow() {
@@ -104,6 +133,45 @@ function parseStoredOnceKeys(storage, storageKey) {
   }
 }
 
+function parseStoredIdentity(storage, storageKey) {
+  if (!storage) return null
+  try {
+    const value = storage.getItem(storageKey)
+    return typeof value === "string" && value.length > 0 && value.length <= 256 ? value : null
+  } catch {
+    return null
+  }
+}
+
+function parseStoredUtmSource(storage, storageKey) {
+  if (!storage) return null
+  try {
+    const value = storage.getItem(storageKey)
+    return typeof value === "string" ? value : null
+  } catch {
+    return null
+  }
+}
+
+function persistIdentity(storage, storageKey, value) {
+  if (!storage) return
+  try {
+    storage.setItem(storageKey, value)
+  } catch {
+    // The generated identity remains stable for this SDK instance.
+  }
+}
+
+function metadataWithSessionContext(metadata, sessionContext) {
+  if (!sessionContext || !Object.prototype.hasOwnProperty.call(sessionContext, "utm_source")) return metadata
+  if (metadata !== undefined && (!metadata || typeof metadata !== "object" || Array.isArray(metadata))) return metadata
+  try {
+    return { ...(metadata ?? {}), utm_source: sessionContext.utm_source }
+  } catch {
+    return metadata
+  }
+}
+
 function requiredOnceKey(value) {
   const key = requiredString(value, "onceKey")
   if (key.length > 256) throw new Error("onceKey must be at most 256 characters")
@@ -128,7 +196,8 @@ function enteredDeliveryQueue(result) {
 
 /**
  * Browser runtime only handles explicit semantic events supplied by the host binding.
- * It never reads form values, the DOM, URL query/fragment, or raw IP data.
+ * It never reads form values, the DOM, arbitrary URL query/fragment data, or raw IP data.
+ * The only URL field it reads is the explicitly supported landing-session utm_source.
  */
 export function createBrowserSdk(options) {
   const sourceId = requiredString(options.sourceId, "sourceId")
@@ -149,7 +218,16 @@ export function createBrowserSdk(options) {
   const storageKey = options.storageKey ?? `funnelmetry.browser.queue.v2.${sourceId}`
   const onceStorage = options.onceStorage ?? defaultSessionStorage()
   const onceStorageKey = options.onceStorageKey ?? `funnelmetry.browser.once.v1.${sourceId}`
+  const anonymousIdStorage = options.anonymousIdStorage ?? defaultStorage()
+  const anonymousIdStorageKey = options.anonymousIdStorageKey ?? `funnelmetry.browser.anonymous-id.v1.${sourceId}`
+  const sessionIdStorage = options.sessionIdStorage ?? defaultSessionStorage()
+  const sessionIdStorageKey = options.sessionIdStorageKey ?? `funnelmetry.browser.session-id.v1.${sourceId}`
+  const attributionStorage = options.attributionStorage ?? defaultSessionStorage()
+  const attributionStorageKey = options.attributionStorageKey ?? `funnelmetry.browser.attribution.v1.${sourceId}`
+  const landingUtmSource = readLandingUtmSource(options.locationSearch ?? defaultLocationSearch())
   const createEventId = options.createEventId ?? defaultEventId
+  const createAnonymousId = options.createAnonymousId ?? defaultAnonymousId
+  const createSessionId = options.createSessionId ?? defaultSessionId
   const createPageInstanceId = options.createPageInstanceId ?? defaultPageInstanceId
   const now = options.now ?? defaultNow
   const sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)))
@@ -177,7 +255,40 @@ export function createBrowserSdk(options) {
     .map((event) => event?.source_payload?.page_instance_id)
     .filter((pageInstanceId) => typeof pageInstanceId === "string"))
   const metrics = { accepted: 0, duplicate: 0, relayQueued: 0, rejected: 0, retryableFailure: 0, queueDropped: 0 }
+  let anonymousId = parseStoredIdentity(anonymousIdStorage, anonymousIdStorageKey)
+  let sessionId = parseStoredIdentity(sessionIdStorage, sessionIdStorageKey)
+  let utmSource = parseStoredUtmSource(attributionStorage, attributionStorageKey)
   let flushing = false
+
+  function hasTrackingConsent() {
+    try {
+      return hasConsent() === true
+    } catch {
+      return false
+    }
+  }
+
+  function getIdentity() {
+    if (!hasTrackingConsent()) return null
+    if (!anonymousId) {
+      anonymousId = requiredString(createAnonymousId(), "anonymous_id")
+      persistIdentity(anonymousIdStorage, anonymousIdStorageKey, anonymousId)
+    }
+    if (!sessionId) {
+      sessionId = requiredString(createSessionId(), "session_id")
+      persistIdentity(sessionIdStorage, sessionIdStorageKey, sessionId)
+    }
+    return Object.freeze({ anonymousId, sessionId })
+  }
+
+  function getSessionContext() {
+    if (!hasTrackingConsent()) return null
+    if (utmSource === null && landingUtmSource !== null) {
+      utmSource = landingUtmSource
+      persistIdentity(attributionStorage, attributionStorageKey, utmSource)
+    }
+    return Object.freeze(utmSource === null ? {} : { utm_source: utmSource })
+  }
 
   function persistQueue() {
     if (!storage) return
@@ -260,7 +371,9 @@ export function createBrowserSdk(options) {
   function track(sourceEventType, sourcePayload, context = {}) {
     if (!allowedEventTypes.has(sourceEventType)) throw new Error(`Event '${sourceEventType}' is not allowed by this integration`) 
     const validatedSourcePayload = validateBehaviorPayload(sourceEventType, sourcePayload)
-    if (!hasConsent()) return Promise.resolve({ status: "skipped_no_consent" })
+    if (!hasTrackingConsent()) return Promise.resolve({ status: "skipped_no_consent" })
+    const identity = getIdentity()
+    const sessionContext = getSessionContext()
     const pageInstanceId = sourceEventType === "behavior.page_viewed"
       ? validatedSourcePayload.page_instance_id
       : null
@@ -273,7 +386,7 @@ export function createBrowserSdk(options) {
       onDrop(dropped)
       return Promise.resolve({ status: "dropped_queue_full" })
     }
-    const event = createIngressEvent({
+    const eventInput = {
       specversion: INGRESS_EVENT_SPEC_VERSION,
       source_id: sourceId,
       event_id: createEventId(),
@@ -282,11 +395,18 @@ export function createBrowserSdk(options) {
       occurred_at: context.occurredAt ?? now(),
       producer: "browser_sdk",
       source_payload: validatedSourcePayload,
-      anonymous_id: context.anonymousId,
-      session_id: context.sessionId,
-      correlation_id: context.correlationId,
-      source_metadata: context.metadata,
-    })
+      anonymous_id: context.anonymousId ?? identity?.anonymousId,
+      session_id: context.sessionId ?? identity?.sessionId,
+      correlation_id: context.correlationId ?? identity?.sessionId,
+      source_metadata: metadataWithSessionContext(context.metadata, sessionContext),
+    }
+    let event
+    try {
+      event = createIngressEvent(eventInput)
+    } catch (error) {
+      if (eventInput.source_metadata === context.metadata) throw error
+      event = createIngressEvent({ ...eventInput, source_metadata: context.metadata })
+    }
     queue.push(event)
     if (pageInstanceId) queuedPageInstances.add(pageInstanceId)
     persistQueue()
@@ -482,6 +602,10 @@ export function createBrowserSdk(options) {
     return () => window.removeEventListener("pagehide", onPageHide)
   }
 
+  // Capture the landing attribution into session context during initialization when consent
+  // already exists. Failures are contained by getSessionContext and storage helpers.
+  getSessionContext()
+
   return Object.freeze({
     track,
     trackBehavior,
@@ -492,6 +616,8 @@ export function createBrowserSdk(options) {
     attachScrollDepthObserver,
     trackBannerClick,
     attachBannerImpressionObserver,
+    getIdentity,
+    getSessionContext,
     flush,
     attachLifecycle,
     getMetrics: () => ({ ...metrics, queued: queue.length }),

@@ -6,6 +6,27 @@ function requiredString(value, name) {
   return value.trim()
 }
 
+export function normalizeCurrencyCode(value) {
+  if (typeof value !== "string") return null
+  const currencyCode = value.trim().toLowerCase()
+  return /^[a-z]{3}$/.test(currencyCode) ? currencyCode : null
+}
+
+/**
+ * Medusa v2 exposes prices in major currency units and server-side computed totals
+ * may be BigNumber-like objects with a `numeric` property. Keep the outbound value
+ * as a decimal string so the source boundary never relabels it as a minor-unit integer.
+ */
+export function normalizeMajorAmount(value) {
+  const candidate = value && typeof value === "object" && "numeric" in value
+    ? value.numeric
+    : value
+  const amount = typeof candidate === "number" && Number.isFinite(candidate)
+    ? String(candidate)
+    : typeof candidate === "string" ? candidate.trim() : ""
+  return /^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(amount) ? amount : null
+}
+
 function parseReceipt(body) {
   try {
     return validateIngressReceipt(JSON.parse(body))
@@ -59,6 +80,8 @@ export function createBackendForwarder(options) {
         produced_at: mappedEvent.producedAt,
         producer: "source_bridge",
         aggregate: mappedEvent.aggregate,
+        anonymous_id: mappedEvent.anonymousId,
+        session_id: mappedEvent.sessionId,
         correlation_id: mappedEvent.correlationId,
         source_payload: mappedEvent.sourcePayload,
         source_metadata: mappedEvent.sourceMetadata,
