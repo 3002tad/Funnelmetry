@@ -1,4 +1,5 @@
 import { eventBusinessDetails } from './event-business-details.js'
+import { attachEventProductReferences } from './product-reference.js'
 
 function number(value) {
   return Number(value ?? 0)
@@ -394,9 +395,10 @@ export function createV2AnalyticsRepository({ query } = {}) {
           LIMIT $${params.length}`,
         params,
       )
-      return Object.freeze(rows.map(({ private_business_data, ...event }) => ({
+      const events = rows.map(({ private_business_data, ...event }) => ({
         ...event, business_details: eventBusinessDetails(event.event_type, private_business_data),
-      })))
+      }))
+      return Object.freeze(await attachEventProductReferences(query, scope.sourceId, events))
     },
 
     async getDataHealth(scope) {

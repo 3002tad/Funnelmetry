@@ -20,6 +20,44 @@ const { requireLiveSession } = await import('../src/middleware/live-session.js')
 const { permissionsFor } = await import('../src/lib/roles.js')
 const { mutateAccount } = await import('../src/lib/account-mutation.js')
 const { assertAccountSchema, AccountSchemaError } = await import('../src/lib/account-schema.js')
+test('quarantine endpoint validates scope and hides raw payload',async()=>{
+  let role='super_admin',fail=false
+  const app=express();app.use(createAdminV2Router(async(sql,params)=>{
+    if(sql.startsWith('SELECT role'))return [{role,is_active:true}]
+    if(fail)throw Error('private detail')
+    assert.deepEqual(params,['medusa-reference','quarantined',0]);assert.match(sql,/canonicalization_latest_outcomes/);assert.ok(!sql.includes('outcome_document'));assert.ok(!sql.includes('raw_record_id'))
+    return Array.from({length:26},(_,i)=>({source_event_id:String(i),status:'quarantined',reason_code:'TEST'}))
+  }))
+  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r))
+  const token=jwt.sign({sub:'admin',role:'super_admin'},process.env.JWT_SECRET)
+  const get=(q='source_id=medusa-reference&status=quarantined',auth=true)=>fetch(`http://127.0.0.1:${server.address().port}/api/v2/admin/quarantine?${q}`,{headers:auth?{Authorization:`Bearer ${token}`}:{}})
+  try{
+    assert.equal((await get('',false)).status,401)
+    for(const q of ['','source_id=x&offset=-1','source_id=x&offset=10001','source_id=x&status=normalized','source_id[]=x'])assert.equal((await get(q)).status,400)
+    const body=await(await get()).json();assert.equal(body.items.length,25);assert.equal(body.next_offset,25);assert.equal(body.replay_available,false)
+    role='analyst';assert.equal((await get()).status,403)
+    role='super_admin';fail=true;assert.deepEqual(await(await get()).json(),{error:'quarantine_unavailable'})
+  }finally{server.closeAllConnections();await new Promise(r=>server.close(r))}
+})
+test('connector cursor API enforces permission, bounds and exact string sequences',async()=>{
+  let role='super_admin',fail=false
+  const app=express();app.use(createAdminV2Router(async(sql,params)=>{
+    if(sql.startsWith('SELECT role'))return [{role,is_active:true}]
+    if(fail)throw Error('secret')
+    assert.match(sql,/after_seq::text/);assert.deepEqual(params,['connector-test',null])
+    return Array.from({length:26},(_,i)=>({connector_id:`c${i}`,event_feed_id:'feed',after_seq:'9007199254740991',updated_at:'2026-09-29T00:00:00Z'}))
+  }))
+  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r))
+  const token=jwt.sign({sub:'admin',role:'super_admin'},process.env.JWT_SECRET)
+  const get=(suffix='?connector_id=connector-test',auth=true)=>fetch(`http://127.0.0.1:${server.address().port}/api/v2/admin/connectors${suffix}`,{headers:auth?{Authorization:`Bearer ${token}`}:{}})
+  try{
+    assert.equal((await get('',false)).status,401)
+    for(const suffix of ['?after=','?unknown=x','?connector_id[]=x'])assert.equal((await get(suffix)).status,400)
+    const response=await get();const body=await response.json();assert.equal(body.items.length,25);assert.equal(body.next_after,'c24');assert.equal(body.items[0].after_seq,'9007199254740991');assert.equal(body.runtime_status,'UNVERIFIED')
+    role='analyst';assert.equal((await get()).status,403)
+    role='super_admin';fail=true;const error=await get();assert.equal(error.status,503);assert.deepEqual(await error.json(),{error:'connector_state_unavailable'})
+  }finally{server.closeAllConnections();await new Promise(r=>server.close(r))}
+})
 
 test('admin capability routes reject stale grants, inactive users, outages and invalid scope', async () => {
   let role = 'super_admin', active = true, outage = false

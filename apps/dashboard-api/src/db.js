@@ -2,6 +2,8 @@ import pg from "pg";
 import { config } from "./config.js";
 
 const pool = new pg.Pool(config.db);
+// Server-only adapter for staged analytical execution; never exposed to model input.
+export const analyticalPool = pool;
 export const closeDatabase = () => pool.end();
 
 pool.on("error", (err) => {

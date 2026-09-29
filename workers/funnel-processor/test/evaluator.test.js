@@ -74,7 +74,7 @@ test("requires transition timeouts to target a non-entry profile step", () => {
 
 test("ships only the two approved reference semantics without invented timeout values", () => {
   assert.deepEqual(REFERENCE_FUNNEL_PROFILES.map((profile) => profile.ordered_steps.map((step) => step.event_type)), [
-    ["behavior.product_viewed", "cart.item_added", "checkout.started", "order.accepted"],
+    ["behavior.product_viewed", "cart.item_added", "checkout.started", "order.placed"],
     ["order.created", "payment.attempted", "payment.captured"],
   ])
   for (const profile of REFERENCE_FUNNEL_PROFILES) {

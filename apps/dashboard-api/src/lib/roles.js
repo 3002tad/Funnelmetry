@@ -12,7 +12,7 @@ export const SHOP_ROLES = [ROLE_ANALYST, ROLE_STAFF, ROLE_VIEWER];
 // Initial capability bundles for the currently supported database roles.
 export const ROLE_PERMISSIONS = Object.freeze({
   super_admin: Object.freeze(['pipeline.monitor', 'integration.read', 'user.manage', 'role.manage', 'audit.read']),
-  analyst: Object.freeze(['analytics.read', 'analytics.workspace.use', 'chat.use', 'insight.read']),
+  analyst: Object.freeze(['analytics.read', 'analytics.workspace.use', 'analytics.notes.write', 'chat.use', 'insight.read']),
   staff: Object.freeze(['analytics.read', 'chat.use', 'insight.read']),
   viewer: Object.freeze(['analytics.read', 'analytics.workspace.use']),
 });

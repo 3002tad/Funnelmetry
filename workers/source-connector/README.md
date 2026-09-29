@@ -1,5 +1,16 @@
 # Source Connector — opt-in runtime (stage 3)
 
+## Read-only unsupported inventory
+
+`node src/inspect-unsupported.mjs` uses the existing runtime configuration to
+match persisted unsupported outcomes against retained Feed metadata. It never
+publishes Kafka messages, acquires the writer lock or updates the live cursor.
+Limits: 10000 outcome IDs, 20 feed pages using configured batch size. It validates
+feed lineage and retention; a retention gap or incomplete scan is not proof that
+records are absent. Output includes only source/type/schema/producer group counts,
+not raw payload, event IDs, credentials or remote URLs. This does not validate
+payload mapping or authorize replay. PostgreSQL and Feed must be reachable.
+
 Implements part of Master v0.3.11 and
 `System_Backbone/docs/implementation/CORE_IMPLEMENTATION_CONTRACTS_V1.md`.
 Runtime entry point is available; **not activated against the real Source**.

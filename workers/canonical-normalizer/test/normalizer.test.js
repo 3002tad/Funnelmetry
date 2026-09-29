@@ -177,16 +177,17 @@ test("loads the Medusa source-native order mapping without weakening canonical s
     source_id: "medusa-reference",
     event_id: "medusa:order.placed:order_1",
     source_event_type: "medusa.order_placed",
-    source_schema_version: '1.0',
+    source_schema_version: '2.0',
     producer: "source_bridge",
     aggregate: { type: "order", id: "order_1" },
-    source_payload: { order_id: "order_1", currency_code: "usd", total_minor: 1200 },
+    correlation_id: 'cart:cart_1',
+    source_payload: { order_id: "order_1", cart_id: 'cart_1', currency_code: "usd", total_amount: '12.00', amount_unit: 'major', amount_semantics: 'medusa.order.total', items: [] },
   })))
 
   assert.equal(result.status, "normalized")
-  assert.equal(result.canonicalEvent.event_type, "order.created")
+  assert.equal(result.canonicalEvent.event_type, "order.placed")
   assert.equal(result.canonicalEvent.event_class, "BUSINESS_FACT")
-  assert.equal(result.canonicalEvent.mapping_version, "medusa-v2-order-placed-v1")
+  assert.equal(result.canonicalEvent.mapping_version, "medusa-order-placed-v2")
   assert.equal(result.canonicalEvent.data.order_id, "order_1")
 })
 

@@ -16,23 +16,23 @@ const admin = (path: string, label: string, unavailable?: string, permission = '
 export const navigation: NavigationGroup[] = [
   { label: 'OVERVIEW', items: [analytics('/overview', 'Overview')] },
   { label: 'ANALYZE', items: [
-    analytics('/workspace', 'Data Workspace', 'Cần kết nối kế hoạch phân tích, thực thi công cụ và bằng chứng có nguồn gốc. Chat hiện tại chưa đáp ứng toàn bộ quy trình này.'),
-    analytics('/analysis-runs', 'Analysis Runs', 'Chưa có API lưu và truy xuất Analysis Run cùng lịch sử thực thi. Lịch sử chat không thay thế Analysis Run.'),
-    analytics('/evidence', 'Evidence Explorer', 'Chưa có API tra cứu bằng chứng cùng phiên bản công cụ, metric và analytical asset.'),
+    analytics('/workspace', 'Data Workspace'),
+    analytics('/analysis-runs', 'Analysis Runs'),
+    analytics('/evidence', 'Evidence Explorer'),
   ] },
   { label: 'EXPLORE', items: [
     analytics('/funnels', 'Funnels'), analytics('/journeys', 'Journeys'),
-    analytics('/products', 'Products', 'Chưa kết nối analytical asset và metric sản phẩm. Không hiển thị doanh thu hoặc biểu đồ mẫu như dữ liệu thật.'),
+    analytics('/products', 'Products'),
     analytics('/traffic', 'Traffic', 'Chưa kết nối analytical asset và metric nguồn truy cập.'),
     analytics('/campaigns', 'Campaigns', 'Chưa kết nối analytical asset và metric chiến dịch.'),
   ] },
   { label: 'DATA', items: [
-    analytics('/metrics', 'Metrics', 'Chưa có API Metric Catalog để tra cứu công thức, grain, time basis và phiên bản.'),
-    analytics('/assets', 'Analytical Assets', 'Chưa có API Analytical Asset Catalog để tra cứu nguồn, grain, chất lượng và quan hệ dữ liệu.'),
+    analytics('/metrics', 'Metrics'),
+    analytics('/assets', 'Analytical Assets'),
   ] },
   { label: 'KNOWLEDGE', items: [
-    analytics('/findings', 'Findings', 'Chưa có API finding liên kết Analysis Run và evidence. Không sử dụng các insight mẫu trước đây.'),
-    analytics('/reports', 'Reports', 'Chưa có API báo cáo phân biệt finding, bằng chứng, diễn giải và giới hạn phân tích.'),
+    analytics('/findings', 'Findings · đánh giá DA'),
+    analytics('/reports', 'Reports · bản xem'),
   ] },
   { label: 'CURRENT TOOLS', items: [
     analytics('/events', 'Events'), analytics('/data-health', 'Data Health'),
@@ -42,14 +42,14 @@ export const navigation: NavigationGroup[] = [
     admin('pipeline', 'System Health'),
     admin('recovery', 'Recovery / Auto-Healing', 'Chưa kết nối watchdog và lịch sử phục hồi. Không có thao tác khởi động lại hoặc điều khiển Docker tại đây.'),
     admin('resources', 'Host / Container Resources', 'Chưa kết nối telemetry tài nguyên host/container. Không hiển thị số liệu giả hoặc claim tự động mở rộng tài nguyên.'),
-    admin('audit', 'Audit / Recovery History', 'Chưa kết nối API lịch sử audit và phục hồi hệ thống.'),
+    admin('audit', 'Audit tài khoản', undefined, 'audit.read'),
   ] },
   { label: 'INGESTION', items: [
     admin('sources', 'Source Ingress / Sources', undefined, 'integration.read'),
     admin('event-feed', 'Durable Event Log / Event Feed', 'Chưa kết nối màn hình availability và retention boundary của Event Feed.'),
-    admin('connector', 'Source Connector / Cursor / Lag', 'Chưa kết nối API cursor, lag và catch-up. Pipeline chủ động pull HTTPS Event Feed; đây không phải Relay push.'),
+    admin('connector', 'Source Connector / Cursor'),
     admin('processing', 'Kafka / Processing Lag', 'Chưa kết nối API consumer lag và lỗi xử lý từng stage.'),
-    admin('quarantine', 'Rejected / DLQ / Quarantine', 'Chưa kết nối màn hình quản trị bản ghi bị từ chối/cách ly và thao tác replay có kiểm soát.'),
+    admin('quarantine', 'Quarantine / Unsupported'),
   ] },
   { label: 'GOVERNANCE', items: [
     admin('schemas', 'Schemas / Mappings', 'Chưa có giao diện quản trị phiên bản schema và mapping.'),

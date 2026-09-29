@@ -144,7 +144,12 @@ export function createNormalizer({
         const identity = {}
         if (event.anonymous_id) identity.anonymous_id = event.anonymous_id
         if (event.session_id) identity.session_id = event.session_id
-        const relations = event.correlation_id ? { correlation_id: event.correlation_id } : undefined
+        // Validate mapped payload before projecting authoritative business relations.
+        const data = mapping.map_data(event)
+        const mappedRelations = mapping.map_relations?.(event)
+        const relations = event.correlation_id || mappedRelations ? {
+          ...(event.correlation_id ? { correlation_id: event.correlation_id } : {}), ...mappedRelations,
+        } : undefined
         const canonicalEvent = validateCanonicalEvent({
           canonical_event_id: `can_${sha256(JSON.stringify([sourceId, sourceEventId, mapping.mapping_version]))}`,
           source_event_id: sourceEventId,
@@ -160,7 +165,7 @@ export function createNormalizer({
           aggregate: event.aggregate,
           relations,
           identity: Object.keys(identity).length ? identity : undefined,
-          data: mapping.map_data(event),
+          data,
           quality: {
             time_basis: time.timeBasis,
             authoritative_event_time: time.authoritative,

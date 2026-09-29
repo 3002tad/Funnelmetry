@@ -3,6 +3,7 @@
 .env.*.local
 infra/.env
 runtime/*.env
+runtime/backups/
 
 node_modules/
 dist/

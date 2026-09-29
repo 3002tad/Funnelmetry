@@ -4,6 +4,8 @@
 .vscode
 **/.env
 **/.env.local
+**/*.env
+**/.env.*
 **/node_modules
 **/dist
 legacy

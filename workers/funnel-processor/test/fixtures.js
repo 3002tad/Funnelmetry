@@ -20,6 +20,8 @@ export function canonicalEvent(overrides = {}) {
   }
 }
 
+// Legacy merchant-acceptance fixture, NOT the Medusa reference Commerce profile.
+// Kept to test generic evaluator compatibility; current reference tested separately.
 export const commerceProfile = Object.freeze({
   funnel_profile_id: "commerce",
   profile_version: "1.0.0",

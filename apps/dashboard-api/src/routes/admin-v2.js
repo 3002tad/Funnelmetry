@@ -5,9 +5,39 @@ import { requireLivePermission } from '../middleware/live-permission.js'
 import { ROLE_PERMISSIONS } from '../lib/roles.js'
 import { listAccountAudit, parseAuditQuery } from '../lib/account-audit.js'
 import { listObservedSources, parseSourcesQuery } from '../lib/admin-sources.js'
+import { connectorReadiness } from '../lib/connector-readiness.js'
 
-export function createAdminV2Router(execute = query) {
+export function createAdminV2Router(execute = query, probe = connectorReadiness) {
   const router = Router()
+  router.get('/api/v2/admin/quarantine',requireAuth,requireLivePermission('pipeline.monitor',execute),async(req,res)=>{
+    res.set('Cache-Control','no-store')
+    const {source_id,status,offset='0'}=req.query
+    if(Object.keys(req.query).some(k=>!['source_id','status','offset'].includes(k)) || typeof source_id!=='string'||!source_id.trim()||source_id.length>200
+      || (status!==undefined&&!['quarantined','unsupported'].includes(status)) || typeof offset!=='string'||!/^\d+$/.test(offset)||Number(offset)>10000) return res.status(400).json({error:'invalid_quarantine_query'})
+    try{
+      const rows=await execute(`SELECT source_id,source_event_id,mapping_version,status,reason_code,processed_at
+        FROM canonicalization_latest_outcomes WHERE source_id=$1 AND status IN ('quarantined','unsupported')
+        AND ($2::text IS NULL OR status=$2) ORDER BY processed_at DESC,source_event_id LIMIT 26 OFFSET $3`,[source_id.trim(),status??null,Number(offset)])
+      return res.json({items:rows.slice(0,25),next_offset:rows.length>25&&Number(offset)<10000?Number(offset)+25:null,checked_at:new Date().toISOString(),scope:'latest_canonicalization_outcome',replay_available:false})
+    }catch{return res.status(503).json({error:'quarantine_unavailable'})}
+  })
+  router.get('/api/v2/admin/connector-readiness',requireAuth,requireLivePermission('pipeline.monitor',execute),async(req,res)=>{
+    res.set('Cache-Control','no-store')
+    if(Object.keys(req.query).length)return res.status(400).json({error:'invalid_readiness_query'})
+    try{return res.json(await probe())}catch{return res.status(503).json({error:'connector_probe_unavailable'})}
+  })
+  router.get('/api/v2/admin/connectors', requireAuth, requireLivePermission('pipeline.monitor', execute), async(req,res)=>{
+    res.set('Cache-Control','no-store')
+    const {connector_id,after}=req.query
+    if(Object.keys(req.query).some(k=>!['connector_id','after'].includes(k)) || [connector_id,after].some(v=>v!==undefined&&(typeof v!=='string'||!v.trim()||v.length>200))) return res.status(400).json({error:'invalid_connector_query'})
+    try {
+      const rows=await execute(`SELECT connector_id,event_feed_id,after_seq::text AS after_seq,updated_at
+        FROM source_connector_cursors WHERE ($1::text IS NULL OR connector_id=$1)
+        AND ($2::text IS NULL OR connector_id>$2) ORDER BY connector_id LIMIT 26`,[connector_id??null,after??null])
+      const items=rows.slice(0,25)
+      return res.json({items,next_after:rows.length>25?items.at(-1).connector_id:null,checked_at:new Date().toISOString(),runtime_status:'UNVERIFIED',scope:'persisted_kafka_handoff_cursor'})
+    } catch {return res.status(503).json({error:'connector_state_unavailable'})}
+  })
   router.get('/api/v2/admin/sources', requireAuth, requireLivePermission('integration.read', execute), async (req, res) => {
     res.set('Cache-Control', 'no-store')
     let filters

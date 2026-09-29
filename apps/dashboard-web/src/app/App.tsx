@@ -17,6 +17,14 @@ const AdminUsersPage = lazy(() => import('../features/admin/AdminUsersPage'))
 const PipelineHealthPage = lazy(() => import('../features/admin/PipelineHealthPage'))
 const SourcesPage = lazy(() => import('../features/admin/SourcesPage'))
 const ChatPage = lazy(() => import('../features/chat/ChatPage').then(module => ({ default: module.ChatPage })))
+const CatalogPage = lazy(() => import('../features/catalog/CatalogPage'))
+const EvidencePage = lazy(() => import('../features/evidence/EvidencePage'))
+const FindingsPage = lazy(() => import('../features/evidence/FindingsPage'))
+const AuditPage = lazy(() => import('../features/admin/AuditPage'))
+const ConnectorsPage = lazy(() => import('../features/admin/ConnectorsPage'))
+const QuarantinePage = lazy(() => import('../features/admin/QuarantinePage'))
+const WorkspacePage = lazy(() => import('../features/workspace/WorkspacePage'))
+const ProductObservationsPage = lazy(() => import('../features/products/ProductObservationsPage'))
 
 function Landing() {
   const { user } = useAuth()
@@ -56,6 +64,14 @@ export function App() {
           <Route path="/journeys" element={<JourneysPage />} />
           <Route path="/sessions/:sessionId" element={<SessionPage />} />
           <Route path="/events" element={<EventsPage />} />
+          <Route path="/metrics" element={<CatalogPage kind="metrics" />} />
+          <Route path="/assets" element={<CatalogPage kind="assets" />} />
+          <Route path="/analysis-runs" element={<EvidencePage runs />} />
+          <Route path="/workspace" element={<WorkspacePage />} />
+          <Route path="/products" element={<ProductObservationsPage />} />
+          <Route path="/evidence" element={<EvidencePage />} />
+          <Route path="/reports" element={<EvidencePage reports />} />
+          <Route path="/findings" element={<FindingsPage />} />
           <Route path="/data-health" element={<DataHealthPage />} />
           <Route path="/insights" element={<Navigate to="/findings" replace />} />
           <Route element={<PermissionGate permission="chat.use" />}>
@@ -63,7 +79,12 @@ export function App() {
           </Route>
           </Route>
           <Route element={<PermissionGate permission="pipeline.monitor" />}>
-            <Route path="/admin/pipeline" element={<PipelineHealthPage />} />
+          <Route path="/admin/pipeline" element={<PipelineHealthPage />} />
+          <Route path="/admin/connector" element={<ConnectorsPage />} />
+          <Route path="/admin/quarantine" element={<QuarantinePage />} />
+          </Route>
+          <Route element={<PermissionGate permission="audit.read" />}>
+            <Route path="/admin/audit" element={<AuditPage />} />
           </Route>
           <Route element={<PermissionGate permission="user.manage" />}>
             <Route path="/admin/users" element={<AdminUsersPage />} />

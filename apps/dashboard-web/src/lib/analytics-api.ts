@@ -132,9 +132,11 @@ export type JourneyDetail = {
 
 export type CanonicalEventItem = {
   business_details?: {
+    product_reference?: { title: string; snapshot_id: string; observed_at: string; provider: string } | null
+    total_amount?: string; amount_unit?: 'major'; amount_semantics?: string
     product_id?: string; variant_id?: string; cart_id?: string; order_id?: string; line_item_id?: string
     quantity?: number; unit_price_minor?: number; total_minor?: number; currency_code?: string
-    items?: Array<{ product_id?: string; variant_id?: string; quantity?: number; unit_price_minor?: number }>
+    items?: Array<{ product_id?: string; variant_id?: string; quantity?: number; unit_price_minor?: number; unit_price_amount?: string; product_reference?: { title: string; snapshot_id: string; observed_at: string; provider: string } | null }>
     items_truncated?: boolean
   } | null
   canonical_event_id: string

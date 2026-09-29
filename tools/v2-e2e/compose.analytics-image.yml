@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: analytics_image_test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: isolated-test-only
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U test -d analytics_image_test]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  setup:
+    image: funnelmetry-dashboard-analytics:staging-20260925-r2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: &environment
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: analytics_image_test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: isolated-test-only
+      JWT_SECRET: isolated-image-test-only-not-a-real-key
+      JWT_EXPIRES: 1h
+      CORS_ORIGIN_DASHBOARD: http://localhost:5180
+      DASHBOARD_ADMIN_EMAIL: admin@image.test
+      DASHBOARD_ADMIN_PASSWORD: isolated-admin-test-password
+      DASHBOARD_ENABLE_ORDER_SUMMARY_STAGING: 'true'
+    volumes:
+      - ./test/analytics-image-acceptance.mjs:/workspace/tools/acceptance.mjs:ro
+      - ../../infra/postgres:/workspace/test-sql:ro
+    command: [node, /workspace/tools/acceptance.mjs, setup]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  api:
+    image: funnelmetry-dashboard-analytics:staging-20260925-r2
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    environment: *environment
+    volumes:
+      - ./test/analytics-image-acceptance.mjs:/workspace/tools/acceptance.mjs:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:32000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+networks:
+  default:
+    internal: true

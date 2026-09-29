@@ -1,0 +1,31 @@
+{
+  "status": "DRAFT",
+  "version": "1.0.0",
+  "runtime_published": false,
+  "asset": {
+    "id": "asset.fact_order",
+    "relation": "analytical_fact_order_v1",
+    "grain": ["source_id", "order_id"],
+    "time_basis": "order_placed_at",
+    "authority": "order.placed / BUSINESS_FACT / medusa-order-placed-v2",
+    "quality_field": "quality_state",
+    "required_quality": "VALID",
+    "scope": "medusa-reference"
+  },
+  "measures": [
+    {"id": "measure.gross_order_value", "field": "total_amount", "aggregation": "sum", "unit": "major_currency"},
+    {"id": "measure.order_count", "fields": ["source_id", "order_id"], "aggregation": "count_distinct_tuple", "unit": "order"}
+  ],
+  "dimensions": [{"id": "dimension.currency_code", "field": "currency_code"}],
+  "metrics": [{"id": "metric.average_order_value", "numerator": "measure.gross_order_value", "denominator": "measure.order_count", "zero_denominator": "null"}],
+  "policies": {
+    "cross_currency": "prohibited_without_fx_contract; group_by_currency_required",
+    "blocked_rows": "block_execution_for_affected_scope; never_silently_drop",
+    "tax_shipping_discount": "preserve_source_medusa.order.total; no_recalculation",
+    "cancellation_refund": "no_subtraction_without_separate_lifecycle_contract",
+    "item_allocation": "prohibited",
+    "catalog_price_reconstruction": "prohibited",
+    "measure.revenue": "unavailable_for_this_baseline; not_an_alias",
+    "paid_captured_net_revenue": "unsupported"
+  }
+}

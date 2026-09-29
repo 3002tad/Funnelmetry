@@ -110,3 +110,41 @@ Các page route được lazy-load. Data Health dùng SVG React nhẹ thay cho c
 `echarts-for-react` đã được loại bỏ để giảm bundle và dependency attack surface.
 
 Frontend hiện build bằng Vite 8 và React Router 7 trên Node `^20.19.0 || >=22.12.0`.
+
+## Order chat staging — evidence compatibility
+
+Chat supports both legacy `data`/`scope` evidence and order-tool `result`/`provenance`
+evidence. Order amounts remain exact decimal strings, grouped by currency; the UI
+does not sum currencies or call placed-order value paid revenue. Quality warnings,
+source, UTC scope and catalog release are retained under evidence details.
+
+`BLOCKED_BY_QUALITY` hides totals; `INSUFFICIENT_DATA` is not reported as zero.
+`DETERMINISTIC_TEMPLATE` identifies fixed-template presentation, not verified data.
+Restored session text retains these status messages; it does not restore full evidence
+or revalidate an old result. Backend staging feature flags remain opt-in and unchanged.
+
+Verification: `node --test test/order-chat.test.mjs` checks safe status text, exact
+amounts, escaped warnings and server-rendered evidence. `npm run build` checks types
+and bundling. Neither substitutes for interactive browser acceptance with a live API.
+
+### Isolated browser acceptance
+
+Run `node test/chat-browser.mjs` with Node 22+ and Chrome installed. On Windows the
+default executable is `C:/Program Files/Google/Chrome/Application/chrome.exe`;
+set `CHROME_PATH` for another installation. The test starts a loopback-only Vite
+server on a random port and headless Chrome with a disposable profile, then closes
+both. It does not load local env files, contact the real API, or call Qwen.
+
+Synthetic API fixtures exercise the real `/chat` route and React interactions:
+order evidence expansion, exact decimal display, quality-blocked totals hidden,
+insufficient-data wording, new-chat reset, and F5 history restoration without
+resubmission. Runtime browser exceptions fail the test. This passed locally on
+2026-09-27; it validates frontend behavior, not backend authentication, live data
+integration, visual layout, or production readiness. Existing isolated API/database
+acceptance remains a separate check.
+
+The browser suite also covers F5 during an outstanding request (no automatic
+resend), explicit cancellation, 403 permission feedback, and 401 redirect to login
+with token/chat-history cleanup. The success fixture matches the API envelope:
+top-level `generated`, nested evidence `PROVISIONAL`. These are client response
+handling checks; a mocked 401/403 is not proof of backend permission enforcement.

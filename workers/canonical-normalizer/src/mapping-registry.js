@@ -9,6 +9,7 @@ const BASELINE_SEMANTICS = Object.freeze({
   "payment.submit_clicked": "BEHAVIOR_INTENT",
   "cart.item_added": "BUSINESS_FACT",
   "order.created": "BUSINESS_FACT",
+  "order.placed": "BUSINESS_FACT",
   "order.accepted": "BUSINESS_FACT",
   "order.cancelled": "BUSINESS_FACT",
   "payment.attempted": "BUSINESS_FACT",
@@ -27,6 +28,7 @@ export function createPassthroughMappings(mappingVersion = "canonical-passthroug
     event_class: eventClass,
     mapping_version: Object.hasOwn(BEHAVIOR_EVENT_DEFINITIONS, eventType) ? 'canonical-behavior-v2' : mappingVersion,
     map_data: (event) => {
+      if (eventType === 'order.placed' && event.producer !== 'source_bridge') throw new Error('Order placement requires source authority')
       const definition = BEHAVIOR_EVENT_DEFINITIONS[eventType]
       if (!definition) return event.source_payload
       const producer = definition.producer === 'source_server' ? 'source_bridge' : 'browser_sdk'

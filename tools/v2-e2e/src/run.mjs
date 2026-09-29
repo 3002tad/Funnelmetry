@@ -3,6 +3,12 @@ import assert from "node:assert/strict"
 import { Kafka, logLevel } from "kafkajs"
 import pg from "pg"
 
+// Historical Gateway/order.created scenarios, not current Medusa pull-feed acceptance.
+// Their fixtures depend on old mappings and must never certify the current deployment.
+if (process.env.E2E_ALLOW_LEGACY_GATEWAY !== 'true') {
+  throw Error('LEGACY_ONLY: this harness predates Master 0.3.17; use current downstream contract tests. Do not use it to certify Medusa v2.')
+}
+
 function required(name) {
   const value = process.env[name]?.trim()
   if (!value) throw new Error(`${name} is required`)

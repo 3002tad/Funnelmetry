@@ -1,7 +1,7 @@
 export const REFERENCE_FUNNEL_PROFILES = Object.freeze([
   Object.freeze({
     funnel_profile_id: "commerce-conversion",
-    profile_version: "1.0.0",
+    profile_version: "2.0.0",
     display_name: "Commerce conversion",
     subject_scope: "JOURNEY",
     entry_event_type: "behavior.product_viewed",
@@ -11,7 +11,7 @@ export const REFERENCE_FUNNEL_PROFILES = Object.freeze([
       Object.freeze({ step_id: "product-viewed", event_type: "behavior.product_viewed", event_class: "BEHAVIOR_INTENT" }),
       Object.freeze({ step_id: "item-added", event_type: "cart.item_added", event_class: "BUSINESS_FACT" }),
       Object.freeze({ step_id: "checkout-started", event_type: "checkout.started", event_class: "BEHAVIOR_INTENT" }),
-      Object.freeze({ step_id: "order-accepted", event_type: "order.accepted", event_class: "BUSINESS_FACT" }),
+      Object.freeze({ step_id: "order-placed", event_type: "order.placed", event_class: "BUSINESS_FACT" }),
     ]),
     negative_events: Object.freeze([]),
   }),

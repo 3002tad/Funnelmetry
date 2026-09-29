@@ -1,0 +1,14 @@
+# Opt-in after compose.v2.yml and your active network/security overlay.
+services:
+  catalog-sync:
+    profiles: [catalog-sync]
+    build:
+      context: ..
+      dockerfile: infra/docker/node-service.Dockerfile
+      args:
+        SERVICE_PATH: workers/catalog-sync
+    env_file: ../runtime/catalog-sync.env
+    restart: 'on-failure:3'
+    depends_on:
+      postgres-migrations: {condition: service_completed_successfully}
+    stop_grace_period: 20s

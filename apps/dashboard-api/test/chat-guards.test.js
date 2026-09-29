@@ -6,8 +6,8 @@ import { buildQdrantFilters, rerankInsights } from "../src/lib/chat/rag-filters.
 import { canAccessChat, canAccessShop } from "../src/lib/roles.js";
 
 describe("canAccessChat", () => {
-  it("allows super_admin and analyst", () => {
-    assert.equal(canAccessChat("super_admin"), true);
+  it("denies technical admin and allows analyst according to chat capability", () => {
+    assert.equal(canAccessChat("super_admin"), false);
     assert.equal(canAccessChat("analyst"), true);
     assert.equal(canAccessShop("super_admin"), false);
   });

@@ -1,5 +1,136 @@
 # dashboard-api
 
+## Evidence human notes
+
+Evidence list `GET /api/v2/evidence` also accepts `source_id` (exact, max 200),
+`saved_from` and `saved_to` (valid YYYY-MM-DD UTC dates). Bounds apply to saved
+created_at, inclusive start/exclusive end, not the analytical input window.
+All filters compose with status and the owner-scoped before cursor.
+
+Apply `analytics/sql/evidence-notes-v1.sql` after the evidence schema, then restart
+the API. GET/POST `/api/v2/evidence/:id/notes` are owner-scoped and require current
+session and analytics.read. POST additionally requires analytics.notes.write,
+assigned only to analyst. Body: `{note_id: UUID, content: string}`; max 4000 chars.
+Identical retries return the existing record. Text is stored separately as
+HUMAN_NOTE with server author/time, append-only (no edit/delete endpoint).
+These notes are not machine findings or source/business mutations. GET supports
+an optional `before` UUID cursor, 25 items/page. Missing schema returns 503.
+
+
+## Staged order-summary API (2026-09-24)
+
+`POST /api/v2/chat/order-summary` is disabled unless the API process has
+`DASHBOARD_ENABLE_ORDER_SUMMARY_STAGING=true`. Do not enable it on the current demo
+without deploying/reviewing the staged analytics schema and catalog first.
+
+It accepts only `{source_id, from, to}` for `medusa-reference`, with a bounded
+window up to 90 days. It requires a valid JWT, live account/session, `chat.use` and
+`analytics.read`; current database role takes precedence over JWT role. It shares
+the existing chat concurrency/rate limits. No raw SQL, role, tool ID or metadata
+version can be supplied by the browser. Responses use `Cache-Control: no-store`.
+
+The server pins `tool.metric_summary`, the staging catalog and three order-value
+references, then executes the evidence-persisting runner. Quality blocks return
+structured evidence without totals. Execution/storage failures return a sanitized
+503 error. Session/token are rechecked before disclosure. No Qwen call is made;
+`answer` is null and the result remains unofficial/staging. Natural-language
+`POST /api/v2/chat` and UI behavior are unchanged.
+
+Packaging prerequisite: the API's repository-relative `analytics/` modules, JSON
+metadata and SQL artifacts must be present. They are dynamically imported only
+when this staging endpoint is enabled and called. Existing container images have
+not been rebuilt or certified for this feature. Missing artifacts fail closed.
+
+HTTP tests exercise real JWT/middleware with synthetic account rows and a stub
+runner. Separate PostgreSQL tests exercise the real registry/runner; combined
+live-account + database + deployed-image acceptance remains outstanding.
+
+### Optional natural-language order chat
+
+`DASHBOARD_ENABLE_ORDER_CHAT_STAGING=true` additionally enables discovery/planning
+for order summaries in `/api/v2/chat`, only when `DASHBOARD_ENABLE_ORDER_SUMMARY_STAGING`
+is also true and source is `medusa-reference`. Both default off. It requires the
+validated staging catalog, staged SQL/evidence schemas, packaged analytics modules
+and an enabled provider; no schema is installed automatically by the route.
+
+The planner receives the tool descriptor from verified PostgreSQL metadata. It may
+select only the registered `tool.metric_summary`; request references are supplied
+by discovery, not invented by the model. Persisted provisional evidence is sent to
+the provider as aggregates plus scope, semantic versions and warnings. Actor IDs,
+raw events and source identities are excluded. Quality blocks/empty results return
+without synthesis; errors do not fall back to legacy calculators. Rechecks prevent
+disclosure after session revocation. Narrative remains `NOT_VERIFIED`/unofficial.
+
+Ambiguous revenue questions must be explained as placed-order value, not paid/net
+revenue. This is prompt guidance, not proof of live model classification accuracy.
+HTTP tests use a fake provider and account rows; no Alibaba call or deployment was
+performed. Review aggregate-data egress and run a real-model semantic evaluation
+before enabling. The existing event-count module flag remains independently enforced.
+
+2026-09-25: a combined isolated HTTP/PostgreSQL test now exercises this route with
+real catalog/runner/evidence and database account/session checks. Only the provider
+is mocked; JWTs are signed for a synthetic account rather than obtained by password
+login. Revocation during planning prevents synthesis and additional evidence writes.
+Real-model evaluation and deployed-image acceptance remain outstanding.
+
+### Standalone analytics image (2026-09-25)
+
+From repository root:
+
+```powershell
+docker build -f apps/dashboard-api/Dockerfile.analytics -t funnelmetry-dashboard-analytics:staging-20260925 .
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges funnelmetry-dashboard-analytics:staging-20260925 node /workspace/tools/analytics-image-smoke.mjs
+```
+
+Build and offline import smoke passed. This image includes repository-relative API
+and analytics modules, metadata and staged SQL; it does not need host node_modules
+or a workspace mount. Explicit COPY paths omit runtime/env files, also excluded by
+the root .dockerignore. It runs as `node`, with analytical feature flags off.
+
+This does not replace the current demo/Polars image. Python/Polars are not included;
+the legacy event-count tool remains disabled. Normal API startup still requires
+injected environment, account/schema readiness and PostgreSQL connectivity; the
+smoke probe does not certify a deployed service or apply migrations. No ports or
+volumes were exposed during the smoke run. The temporary container was removed.
+
+Build dependency audit reported 3 moderate vulnerabilities. No automatic dependency
+upgrade was performed; triage is required before public deployment. The new local
+image is retained for further testing, not pushed to a registry.
+
+Security follow-up (2026-09-25): Express was updated within major 4 to 4.22.3,
+body-parser to 1.20.8 and qs to 6.16.0. The lockfile now resolves the patched
+dependency chain; `npm audit --omit=dev` reports zero known vulnerabilities at this
+check. This supersedes the three-warning finding above, not a claim of complete
+application/container security. No major upgrade or forced overrides were used.
+
+Order-chat presentation update: the monetary branch now uses
+`order-summary-render.js`, not provider synthesis. The planner still receives the
+question and semantic tool descriptor, but monetary evidence is no longer sent
+back to Qwen for prose generation. Labels, exact decimal strings, currency, UTC
+scope, provisional warnings and evidence reference come from a deterministic
+Vietnamese template. Invalid presentation input fails closed. This supersedes
+the optional order-synthesis behavior described earlier; other chat tools are
+unchanged. `answer_verification=DETERMINISTIC_TEMPLATE` describes presentation
+only, not completeness/truth of source data, and `official` stays false.
+
+Tests cover large decimal preservation, duplicate currencies, missing/unsafe
+warnings, blocked outcomes and zero synthesis calls through HTTP/PostgreSQL.
+Previously built images predate this source change; rebuild before testing it
+in a container. No demo flags or containers were changed.
+
+Rebuilt image: `funnelmetry-dashboard-analytics:staging-20260925-patched`; offline
+non-root/read-only import smoke passed. API suite: 120 passed, 4 separate DB tests
+skipped. The isolated PostgreSQL/HTTP conformance test passed separately. One stale
+test expectation was corrected to deny technical Admin chat access, consistent
+with existing runtime permissions; authorization code was not relaxed. Neither
+the old nor patched image was deployed to the demo or pushed remotely.
+
+`analytics/test/qwen-order-eval-cases.json` prepares synthetic monetary questions and
+review criteria. It has NOT been executed against Alibaba. The planned evaluation
+must check valid selection, currency/authority wording, evidence citations and
+unsupported intents separately from transport success. Passing an import test is
+not a real-model quality result.
+
 Qwen Flash Singapore via `POST /api/v2/chat` (offline-tested, disabled by default):
 [AI backend notes](src/lib/ai/README.md). Do not enable legacy AI to activate Qwen.
 

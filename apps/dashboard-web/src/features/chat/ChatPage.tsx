@@ -4,18 +4,21 @@ import type { ShellContext } from '../../app/AppShell'
 import { useAuth } from '../../auth/AuthContext'
 import { ApiError, apiRequest } from '../../lib/api'
 import type { OverviewResponse } from '../../lib/analytics-api'
+import { OrderEvidenceDetails, type OrderEvidence } from './order-evidence'
+import { chatResponseText } from './response-text'
 import { Button } from '../../components/ui/button'
 import { ArrowUp, BarChart3, Database, Plus, Sparkles, Square, TrendingDown, Clock3 } from 'lucide-react'
 
 type ChatResponse = {
   answer: string | null
-  status: 'generated' | 'no_evidence'
+  status: 'generated' | 'no_evidence' | 'PROVISIONAL' | 'BLOCKED_BY_QUALITY' | 'INSUFFICIENT_DATA' | 'ERROR' | 'unsupported'
+  answer_verification?: string
   model?: string
   evidence: Array<{
     evidence_id: string; origin: string; retrieved_at: string
     scope: { sourceId: string; from: string; to: string }
     data: Partial<OverviewResponse> & { total_events?: number; counts?: Array<{ event_type: string; count: number }> }; limitations: string[]
-  }>
+  } | OrderEvidence>
 }
 
 type Turn = { id: number; question: string; result?: ChatResponse; error?: string; scope?: string; restored?: boolean }
@@ -89,7 +92,7 @@ function ChatConversation({ accountId }: { accountId: string }) {
       // Store bounded text only, not tokens or full analytics evidence snapshots.
       sessionStorage.setItem(storageKey, JSON.stringify(turns.slice(-50).map(turn => ({
         id: turn.id, question: turn.question, scope: turn.scope, error: turn.error,
-        answer: turn.result?.status === 'no_evidence' ? 'Chưa có dữ liệu trong phạm vi này.' : turn.result?.answer,
+        answer: turn.result ? chatResponseText(turn.result) : undefined,
       }))))
       setStorageError(false)
     } catch { setStorageError(true) }
@@ -150,8 +153,8 @@ function ChatConversation({ accountId }: { accountId: string }) {
           <div className="flex items-start gap-3"><div className="mt-1 rounded-lg bg-primary/10 p-2 text-primary"><Sparkles size={17} /></div>
             <div className="min-w-0 flex-1 space-y-3 text-sm leading-7"><p className="font-semibold">Funnelmetry <span className="ml-2 text-xs font-normal text-muted-foreground">Assistant</span></p>
               {turn.error ? <p role="alert" className="rounded-xl border bg-card p-4 text-muted-foreground">{turn.error}</p> : turn.result ? <>
-                <p className="whitespace-pre-wrap break-words">{turn.result.status === 'no_evidence' ? 'Chưa có dữ liệu trong phạm vi này. Hãy thử nguồn hoặc khoảng thời gian khác.' : turn.result.answer}</p>
-                <p className="text-xs text-muted-foreground">Chưa xác minh · Không phải insight chính thức</p>
+                <p className="whitespace-pre-wrap break-words">{chatResponseText(turn.result)}</p>
+                <p className="text-xs text-muted-foreground">{turn.result.answer_verification === 'DETERMINISTIC_TEMPLATE' ? 'Trình bày bằng mẫu cố định · Chất lượng dữ liệu vẫn tạm thời' : 'Chưa xác minh'} · Không phải insight chính thức</p>
                 <Evidence result={turn.result} />
                 {turn.restored && <p className="text-xs text-muted-foreground">Bản khôi phục trong tab, không phải dữ liệu mới truy xuất. Evidence chi tiết không được lưu.</p>}
               </> : <p role="status" className="animate-pulse text-muted-foreground">Đang đọc dữ liệu và chờ Qwen…</p>}
@@ -184,7 +187,7 @@ function ChatConversation({ accountId }: { accountId: string }) {
 }
 
 function Evidence({ result }: { result: ChatResponse }) {
-  return <>{result.evidence.map(item => <details key={item.evidence_id} className="rounded-lg border p-4">
+  return <>{result.evidence.map(item => !('data' in item) ? <OrderEvidenceDetails key={item.evidence_id} item={item} /> : <details key={item.evidence_id} className="rounded-lg border p-4">
         <summary className="cursor-pointer text-primary">Evidence [{item.evidence_id}] · {item.origin}</summary>
         <div className="mt-3 space-y-3 text-sm">
           <p>Nguồn: {item.scope.sourceId}. Khoảng UTC: {item.scope.from} → {item.scope.to}</p>

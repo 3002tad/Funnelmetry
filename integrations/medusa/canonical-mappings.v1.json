@@ -4,10 +4,11 @@
   "mappings": [
     {
       "source_event_type": "medusa.order_placed",
-      "source_schema_version": "1.0",
-      "event_type": "order.created",
+      "source_schema_version": "2.0",
+      "event_type": "order.placed",
       "event_class": "BUSINESS_FACT",
-      "mapping_version": "medusa-v2-order-placed-v1"
+      "mapping_version": "medusa-order-placed-v2",
+      "payload_contract": "medusa-order-major-v2"
     }
   ]
 }
