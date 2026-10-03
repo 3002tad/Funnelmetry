@@ -1,10 +1,15 @@
 # Workers
 
-Không đặt V1 `streaming-processor` nguyên khối vào đây. Worker V2 sẽ được thêm theo
-từng capability: canonical normalization, ingress telemetry, journey resolution, funnel processing
-và reconciliation.
+Worker V2 tách theo capability; không đặt V1 `streaming-processor` nguyên khối vào đây.
+Đây là danh mục code, không xác nhận tất cả worker đang chạy trên demo.
+Xem [mục lục tài liệu](../docs/README.md) và [resume/config runtime](../runtime/README.md).
 
 Hiện có:
+
+- [source-connector/](source-connector/README.md): chủ động pull HTTPS Event Feed,
+  bàn giao Kafka và lưu cursor. Cursor không phải processing-safe checkpoint.
+- [catalog-sync/](catalog-sync/README.md): đồng bộ tên sản phẩm qua Medusa Admin API;
+  current descriptive metadata, không tái dựng giá lịch sử. Activation one-shot và periodic khác nhau.
 
 - `canonical-normalizer/`: consume raw Kafka, tạo `CanonicalEvent v1` hoặc quarantine,
   ghi terminal outcome và raw consumer offset trong cùng Kafka transaction.
@@ -21,4 +26,5 @@ Hiện có:
 - `kpi-projector/`: materialize funnel snapshot idempotent thành KPI base fact và observed views,
   sau đó phát kpi-updated handoff.
 - `reconciliation-worker/`: persist manifest/comparison, version current projection và repair có audit;
-  discrepancy comparison và current-projection repair chưa được bật.
+  đã có [CLI compare/repair/verify](reconciliation-worker/README.md). Có code không chứng minh
+  runtime đã được cấu hình nguồn snapshot hoặc tự động đối soát; xem điều kiện trong README riêng.

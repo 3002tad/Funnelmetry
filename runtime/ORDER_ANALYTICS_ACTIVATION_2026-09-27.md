@@ -1,5 +1,7 @@
 # Local demo order analytics activation — 2026-09-27
 
+> Historical activation evidence, not a clean-install runbook or current health check. For navigation see [runtime index](README.md); newer ranking/product activation records are indexed in [analytics](../analytics/README.md).
+
 Activated on the existing `funnelmetry-private` installation with user approval.
 This is a local demo activation of the staged capability, not a production release.
 

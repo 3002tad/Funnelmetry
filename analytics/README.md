@@ -1,5 +1,23 @@
 # Staged order analytical asset
 
+## Read this first — documentation map (2026-10-03)
+
+This document retains chronological implementation stages. Statements such as “not registered” or “remaining” below describe their original stage, not the entire current implementation. Staging metadata still does not mean a production-published catalog.
+
+| Topic | Read | Boundary |
+|---|---|---|
+| Order summary activation | [27/09 evidence](../runtime/ORDER_ANALYTICS_ACTIVATION_2026-09-27.md) | Local snapshot, not current health |
+| Order ranking | [ORDER_RANKING_STAGING](ORDER_RANKING_STAGING.md) | Read the 02/10 activation follow-up |
+| Product ranking | [PRODUCT_RANKING_STAGING](PRODUCT_RANKING_STAGING.md) | Historical unit price × quantity, not paid revenue; 03/10 activation |
+| Admin registry/diagnostics | [Admin inspection](ADMIN_REGISTRY_READONLY_2026-10-03.md) | Read-only; acceptance limits per page |
+| Product names | [Catalog sync](../workers/catalog-sync/README.md) | Current descriptive reference; not historical price authority |
+| Tests / earlier readiness | [Staging readiness](STAGING_READINESS_2026-09-25.md), [Qwen evaluation](QWEN_EVAL_2026-09-25.md) | Dated evidence, not general accuracy claims |
+| Runtime / deployment | [Runtime index](../runtime/README.md) | Activation is separate from code installation |
+
+`metadata/` contains versioned definitions, `sql/` staged assets/catalog/evidence schema, `src/` deterministic execution and registry code, `test/` analytical tests. No code or SQL was moved during documentation cleanup.
+
+## Historical first slice
+
 Master 14.4.3 / Migration B, first slice only. Not a published catalog or Agent tool.
 
 `sql/fact-order-v1.sql` defines a read-only view over the canonical ledger. It is

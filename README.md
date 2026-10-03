@@ -2,17 +2,31 @@
 
 Repository chính cho backend analytics và giao diện Funnelmetry V2.
 
+## Bắt đầu từ đây
+
+- **Tìm tài liệu:** [mục lục theo nhu cầu](docs/README.md).
+- **Mở lại demo đã cấu hình:** [runtime/START_PRIVATE_DEMO.md](runtime/START_PRIVATE_DEMO.md). Không phải bộ cài máy sạch.
+- **Hiểu code:** [repository layout](docs/REPOSITORY_LAYOUT.md).
+- **Lịch sử:** [archive](docs/archive/README.md); không chạy lại lệnh replay/migration lịch sử khi chỉ muốn xem demo.
+- **Bàn giao/chuyển máy:** [quy tắc Backbone DEC-125](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md).
+
+Các lệnh chạy từng component phía dưới dành cho phát triển, không tự dựng đủ demo.
+Không đưa `.env`, logs hoặc backup lên Git. Đợt sắp xếp tài liệu 03/10 không đổi đường dẫn code/runtime.
+
 ## Cấu trúc đang chuyển đổi
 
 ```text
 apps/
-  dashboard-web/       UI analytics V2; một số màn hình chưa có contract vẫn dùng mock data
+  dashboard-web/       UI analytics/Admin V2; còn một số menu chưa triển khai
   dashboard-api/       API analytics hiện có, đang được chuyển dần sang V2
   input-gateway/       HTTP/security + KafkaJS durable-ingress runtime
   edge-relay/          Source Ingress + durable Event Log + pull Event Feed (migration path name)
 workers/                Canonical normalizer/ledger, journey và capability tiếp theo
 packages/               Input/canonical contract, Browser SDK và Backend Integration Kit
 integrations/medusa/    Ranh giới tích hợp Medusa; không chứa core pipeline
+analytics/              Metadata, SQL analytical assets, tool execution và evidence
+runtime/                Launcher, cấu hình local ignored và ghi chú vận hành
+docs/                   Mục lục, tài liệu kỹ thuật; archive/ dành cho lịch sử
 tools/                   Công cụ CI planner, API docs và external test harness
 infra/                   Schema/config hạ tầng không phụ thuộc runtime V1
 tests/                   Contract, integration, E2E và fault fixtures dùng chung
@@ -22,8 +36,8 @@ Code V1 đã được gom vào `legacy/` để đối chiếu trong lúc phát t
 trong đó không quyết định kiến trúc V2 và không còn được build/deploy mặc định.
 
 CI/CD và manifest k3s V1 đã được loại bỏ ngày 2026-08-24 vì không còn là runtime
-được duy trì. Hạ tầng triển khai mới sẽ chỉ được thêm sau khi backend V2 có
-vertical slice chạy được.
+được duy trì. Baseline hiện tại là Docker Compose; xem hướng dẫn từng capability
+trong mục lục, không dùng tài liệu k3s cũ để khởi động V2.
 
 ## Chạy UI mới
 
@@ -86,7 +100,8 @@ npm start
 Worker chỉ commit raw offset cùng transaction đã ghi canonical/quarantine và terminal
 outcome. Mapping native theo source nằm trong artifact versioned dưới `integrations/` và
 được nạp qua config path; core normalizer không hard-code Medusa. Reference hiện chỉ map
-`medusa.order_placed` sang `order.created`, không suy diễn `cart.item_added` hoặc `order.accepted`.
+`medusa.order_placed` schema 2.0 sang `order.placed` qua `medusa-order-placed-v2`;
+không suy diễn payment hoặc rewrite event lịch sử. Xem [binding Medusa](integrations/medusa/README.md).
 
 ## Chạy Canonical Ledger Writer
 
@@ -210,5 +225,5 @@ không tự chọn transport phía source, không đọc Medusa và không mở 
 - Time semantics: [`docs/TIME_SEMANTICS_CONTRACT_V1.md`](docs/TIME_SEMANTICS_CONTRACT_V1.md)
 - Medusa simulator tạm di chuyển (chưa nối runtime):
   [`tools/medusa-reference-simulator/RUN_FUNNELMETRY_API_BOT.md`](tools/medusa-reference-simulator/RUN_FUNNELMETRY_API_BOT.md)
-- Tài liệu trong `docs/` mô tả runtime V1 phải được xem là tài liệu migration cho
-  đến khi được viết lại theo V2.
+- Tài liệu có ngày là bằng chứng tại mốc ghi nhận, không phải health check hiện tại.
+  Phân loại hướng dẫn/lịch sử/legacy tại [mục lục](docs/README.md).

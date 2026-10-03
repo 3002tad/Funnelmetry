@@ -1,5 +1,7 @@
 # Integration and AI activation — 2026-09-12
 
+> Historical stages: private ingress has been superseded by authenticated HTTPS Event Feed pull. Do not use these bootstrap steps as the current deployment baseline. See [runtime index](../runtime/README.md) and [analytics map](../analytics/README.md) for later capability records. Keep this file for provenance.
+
 User-approved scope: proceed with Medusa connectivity and AI. Provider choice:
 Alibaba Cloud Model Studio/DashScope directly, Singapore, Qwen Flash. No OpenRouter.
 This supersedes the earlier local-model assumption, not the Master authorization,

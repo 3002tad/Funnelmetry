@@ -1,5 +1,7 @@
 # Repository layout V2
 
+> Điểm đọc tài liệu: [mục lục](README.md). Đợt dọn Markdown 03/10 không di chuyển code/runtime.
+
 ## Nguyên tắc
 
 - `apps/` chứa process có HTTP/UI entrypoint.
@@ -10,6 +12,8 @@
 - Code V1 được giữ tạm để tham chiếu; không đổi tên cơ học thành component V2.
 
 ## Mapping migration
+
+Bảng dưới ghi nhận quá trình di chuyển ban đầu; không phải báo cáo capability hiện tại.
 
 | Cũ | Mới | Trạng thái |
 | --- | --- | --- |
@@ -32,6 +36,8 @@ apps/
   edge-relay/                # Source Ingress + Event Log + authenticated pull Event Feed (migration path name)
 workers/
   canonical-normalizer/      # runnable raw → canonical/quarantine worker
+  source-connector/          # authenticated HTTPS Event Feed pull
+  catalog-sync/              # current descriptive product metadata
   ingress-telemetry-writer/  # accepted/outcome Kafka → durable Data Health evidence
   canonical-ledger-writer/   # canonical Kafka → PostgreSQL source of truth
   journey-processor/         # persisted canonical → progressive journey projection
@@ -54,6 +60,10 @@ integrations/
 tools/
 infra/
 tests/
+analytics/                   # metadata, analytical SQL, tools/evidence
+runtime/                     # local launcher/config; ignored secrets/logs/backups
+docs/                        # navigation and technical reference
+  archive/                   # classified historical records
 legacy/                      # reference-only V1 code
 ```
 

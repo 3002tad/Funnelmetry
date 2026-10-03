@@ -1,5 +1,7 @@
 # Tổng hợp thay đổi Backend Pipeline V2
 
+> ARCHIVE — ghi nhận tại mốc 30/08, không phải hướng dẫn vận hành hiện hành. Đọc [mục lục tài liệu](../README.md) trước khi chạy lệnh lịch sử. Đường dẫn code trong nội dung tính từ repository root.
+
 Ngày tổng hợp: **2026-08-30**
 
 Tài liệu này ghi lại phần backend V2 được xây dựng sau commit `654f0fc`. Phạm vi thay đổi chỉ

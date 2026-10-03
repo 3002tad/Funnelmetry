@@ -1,5 +1,7 @@
 # Workspace V2 — navigation foundation
 
+> ARCHIVE — implementation snapshot on 2026-09-20, not the current UI capability list. See [documentation index](../README.md) for later work. Code paths below are relative to the repository root.
+
 Scope: Master v0.3.12 §23. First migration increment, not full UI acceptance.
 
 - Grouped Data Analyst and Admin navigation; only explicitly granted existing permissions show screens. Combined permissions can show both bundles.

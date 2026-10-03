@@ -1,5 +1,7 @@
 # Rà soát Pipeline theo Master — 2026-09-11
 
+> ARCHIVE — snapshot theo các commit/Master được ghi bên dưới, không phải backlog hay kiến trúc hiện hành. Không dùng các mô tả role/transport cũ để triển khai hôm nay. Xem [mục lục](../README.md); đường dẫn code trong nội dung tính từ repository root.
+
 ## Cập nhật triển khai đợt 1
 
 Đã xử lý hai hạng mục đầu: authorization Admin/Chat/Insights và tách startup core

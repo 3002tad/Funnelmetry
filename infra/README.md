@@ -1,10 +1,23 @@
 # Local infrastructure
 
+## Đọc trước — phân biệt runtime và các profile lịch sử
+
+- Demo đã cấu hình: [runtime index](../runtime/README.md).
+- Transport baseline: [Source Connector HTTPS pull](../workers/source-connector/README.md).
+- Kiểm thử tách biệt: [V2 E2E](../tools/v2-e2e/README.md); không chạy smoke/replay trên database demo chỉ để mở UI.
+- [Schema PostgreSQL](postgres/README.md), [ports](PORTS.md), [mục lục chung](../docs/README.md).
+
+Các đoạn Gateway/Medusa registry và log mẫu phía dưới giữ bối cảnh triển khai cũ.
+Chúng không phải hướng dẫn onboarding Source hiện hành hoặc kết quả kỳ vọng đã xác minh
+cho code mới. Không dùng private-ingress làm baseline thay cho Event Feed pull.
+
+## Private ingress cũ — tham khảo
+
 Private Tailscale ingress (opt-in, separate from E2E): see [PRIVATE_INGRESS.md](PRIVATE_INGRESS.md).
 Configuration regression check: `powershell -File infra/test-private-ingress.ps1`
 from the repository root; no real auth keys or container startup required.
 
-## V2 end-to-end stack
+## Gateway / smoke stack — tài liệu theo giai đoạn
 
 ### Medusa reference key registry (SYNC-001)
 
@@ -59,10 +72,11 @@ worker khởi động, nên volume cũ cũng nhận migration mới mà không c
 `null/null`. Khi profile version cấu hình time policy, atomic outcome/KPI finalization có thể bật qua
 `MATURITY_SCHEDULER_FINALIZATION_ENABLED`; event muộn đủ strong-business-key evidence được lưu riêng.
 
-The smoke runner first sends the strict four-step Commerce Conversion sequence as a pipeline self-test
+The historical smoke runner first sent the strict four-step Commerce Conversion sequence as a pipeline self-test
 through Input Gateway, Kafka, Canonical Normalizer, Canonical Ledger Writer, Ingress Telemetry Writer,
 Journey Processor, Funnel Processor and KPI Projector. It separately verifies the bounded Medusa input
-demo without claiming that unsupported authoritative facts exist. A successful run ends with:
+demo without claiming that unsupported authoritative facts exist. Historical output example
+(not current acceptance; reference now maps schema 2.0 `medusa.order_placed` to `order.placed`):
 
 ```text
 [v2-e2e] pipeline-self-test-ordered canonical=4 journeys=1 outcome=CONVERTED steps=4/4
