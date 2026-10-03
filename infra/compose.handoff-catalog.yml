@@ -1,0 +1,22 @@
+# Explicit optional external read; not included in automated acceptance.
+services:
+  catalog-sync:
+    image: ${HANDOFF_WORKERS_IMAGE:?Set HANDOFF_WORKERS_IMAGE}
+    working_dir: /workspace/workers/catalog-sync
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: funnelmetry_handoff
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
+      CATALOG_SOURCE_ID: medusa-reference
+      CATALOG_MEDUSA_URL: ${HANDOFF_CATALOG_URL:?Set authorized HTTPS Medusa origin}
+      CATALOG_MEDUSA_SECRET_KEY: ${HANDOFF_CATALOG_KEY:?Set separately authorized catalog credential}
+      CATALOG_INTERVAL_MS: '3600000'
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: 'on-failure:3'
+    stop_grace_period: 30s

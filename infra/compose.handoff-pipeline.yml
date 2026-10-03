@@ -1,0 +1,114 @@
+# Add after compose.handoff.yml: isolated Kafka/downstream; no live connector.
+x-worker-env: &worker-env
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: '5432'
+  POSTGRES_DB: funnelmetry_handoff
+  POSTGRES_USER: funnelmetry
+  POSTGRES_PASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  KAFKA_TOPIC_RAW: funnelmetry.raw.v1
+  KAFKA_TOPIC_INGRESS_RECEIPTS: funnelmetry.ingress.receipts.v1
+  KAFKA_TOPIC_CANONICAL: funnelmetry.canonical.v1
+  KAFKA_TOPIC_CANONICALIZATION_OUTCOMES: funnelmetry.canonicalization.outcomes.v1
+  KAFKA_TOPIC_QUARANTINE: funnelmetry.quarantine.v1
+  KAFKA_TOPIC_CANONICAL_PERSISTED: funnelmetry.canonical.persisted.v1
+  KAFKA_TOPIC_JOURNEY_RESOLVED: funnelmetry.journey.resolved.v1
+  KAFKA_TOPIC_FUNNEL_UPDATED: funnelmetry.funnel.updated.v1
+  KAFKA_TOPIC_KPI_UPDATED: funnelmetry.kpi.updated.v1
+x-worker: &worker
+  image: ${HANDOFF_WORKERS_IMAGE:?Set HANDOFF_WORKERS_IMAGE}
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: 'on-failure:3'
+  stop_grace_period: 45s
+  depends_on:
+    bootstrap: {condition: service_completed_successfully}
+    kafka-topics: {condition: service_completed_successfully}
+services:
+  kafka:
+    image: apache/kafka:3.9.1
+    environment:
+      KAFKA_NODE_ID: '1'
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: '1'
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: '1'
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: '1'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+    volumes: [handoff-kafka:/var/lib/kafka/data]
+    healthcheck:
+      test: [CMD-SHELL, '/opt/kafka/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --list >/dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  kafka-topics:
+    image: apache/kafka:3.9.1
+    depends_on:
+      kafka: {condition: service_healthy}
+    entrypoint: [/bin/bash, -ec]
+    command:
+      - |
+        for topic in raw canonical quarantine canonical.persisted journey.resolved funnel.updated kpi.updated; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --partitions 1 --replication-factor 1 --topic funnelmetry.$$topic.v1 --config cleanup.policy=delete
+        done
+        for topic in ingress.receipts canonicalization.outcomes; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --partitions 1 --replication-factor 1 --topic funnelmetry.$$topic.v1 --config cleanup.policy=compact
+        done
+  canonical-normalizer:
+    <<: *worker
+    working_dir: /workspace/workers/canonical-normalizer
+    environment:
+      <<: *worker-env
+      CANONICAL_NORMALIZER_INSTANCE_ID: handoff-canonical-normalizer
+      CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH: /workspace/integrations/medusa/canonical-mappings.v1.json
+  canonical-ledger-writer:
+    <<: *worker
+    working_dir: /workspace/workers/canonical-ledger-writer
+    environment:
+      <<: *worker-env
+      CANONICAL_LEDGER_INSTANCE_ID: handoff-canonical-ledger-writer
+  ingress-telemetry-writer:
+    <<: *worker
+    working_dir: /workspace/workers/ingress-telemetry-writer
+    environment:
+      <<: *worker-env
+      INGRESS_TELEMETRY_INSTANCE_ID: handoff-ingress-telemetry-writer
+  journey-processor:
+    <<: *worker
+    working_dir: /workspace/workers/journey-processor
+    environment:
+      <<: *worker-env
+      JOURNEY_PROCESSOR_INSTANCE_ID: handoff-journey-processor
+  funnel-processor:
+    <<: *worker
+    working_dir: /workspace/workers/funnel-processor
+    environment:
+      <<: *worker-env
+      FUNNEL_PROCESSOR_INSTANCE_ID: handoff-funnel-processor
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+      kafka-topics: {condition: service_completed_successfully}
+      profile-publisher: {condition: service_completed_successfully}
+  kpi-projector:
+    <<: *worker
+    working_dir: /workspace/workers/kpi-projector
+    environment:
+      <<: *worker-env
+      KPI_PROJECTOR_INSTANCE_ID: handoff-kpi-projector
+  profile-publisher:
+    <<: *worker
+    restart: 'no'
+    working_dir: /workspace/workers/funnel-processor
+    command: [node, src/publish-reference-profiles.js]
+    environment:
+      <<: *worker-env
+      FUNNEL_PROCESSOR_INSTANCE_ID: handoff-publisher
+      FUNNEL_PROFILE_SOURCE_ID: medusa-reference
+volumes:
+  handoff-kafka:

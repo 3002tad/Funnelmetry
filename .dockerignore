@@ -8,6 +8,10 @@
 **/.env.*
 **/node_modules
 **/dist
+runtime
+**/*.log
+**/*.dump
+**/.npmrc
 legacy
 docs
 Medusa_Reference

@@ -1,0 +1,50 @@
+# Optional governed staging tools. Qwen remains disabled unless explicitly enabled.
+services:
+  analytical-releases:
+    image: ${HANDOFF_API_IMAGE:?Set HANDOFF_API_IMAGE}
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: funnelmetry_handoff
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
+      PORT: '32000'
+      JWT_SECRET: ${HANDOFF_JWT_SECRET:?Set HANDOFF_JWT_SECRET}
+      JWT_EXPIRES: 8h
+      CORS_ORIGIN_DASHBOARD: http://localhost:${HANDOFF_UI_PORT:-5181}
+      DASHBOARD_ADMIN_EMAIL: ${HANDOFF_ADMIN_EMAIL:?Set HANDOFF_ADMIN_EMAIL}
+      DASHBOARD_ADMIN_PASSWORD: ${HANDOFF_ADMIN_PASSWORD:?Set HANDOFF_ADMIN_PASSWORD}
+    command:
+      - node
+      - --input-type=module
+      - -e
+      - |
+        const { analyticalPool: pool } = await import('./src/db.js');
+        try {
+          const { installStagingOrderCatalog } = await import('/workspace/analytics/src/semantic-registry.mjs');
+          const { installRankingCatalog } = await import('/workspace/analytics/src/order-ranking.mjs');
+          const { installProductRankingCatalog } = await import('/workspace/analytics/src/product-ranking.mjs');
+          await installStagingOrderCatalog(pool);
+          await installRankingCatalog(pool);
+          await installProductRankingCatalog(pool);
+          console.log('Staging analytical releases verified');
+        } catch { console.error('Analytical release installation failed'); process.exitCode = 1; }
+        finally { await pool.end(); }
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  dashboard-api:
+    depends_on:
+      analytical-releases: {condition: service_completed_successfully}
+    environment:
+      DASHBOARD_ENABLE_ORDER_SUMMARY_STAGING: 'true'
+      DASHBOARD_ENABLE_ORDER_CHAT_STAGING: 'true'
+      DASHBOARD_ENABLE_ORDER_RANKING_STAGING: 'true'
+      DASHBOARD_ENABLE_PRODUCT_RANKING_STAGING: 'true'
+      DASHBOARD_ENABLE_QWEN: ${HANDOFF_ENABLE_QWEN:-false}
+      DASHSCOPE_API_KEY: ${HANDOFF_DASHSCOPE_API_KEY:-}
+      DASHSCOPE_BASE_URL: ${HANDOFF_DASHSCOPE_BASE_URL:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}
+      DASHSCOPE_TIMEOUT_MS: '15000'
+      DASHBOARD_ENABLE_POLARS: 'false'

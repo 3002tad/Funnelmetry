@@ -1,0 +1,82 @@
+# Independent OFFLINE_DEMO only. No host source mounts or live source credentials.
+name: ${HANDOFF_PROJECT:?Set a unique HANDOFF_PROJECT}
+x-database: &database
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: '5432'
+  POSTGRES_DB: funnelmetry_handoff
+  POSTGRES_USER: funnelmetry
+  POSTGRES_PASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment: *database
+    volumes:
+      - handoff-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U funnelmetry -d funnelmetry_handoff']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+  bootstrap:
+    image: ${HANDOFF_API_IMAGE:?Set the published API digest or local image tag}
+    environment:
+      <<: *database
+      HANDOFF_MODE: OFFLINE_DEMO
+    command: [node, /workspace/infra/docker/bootstrap-handoff.mjs]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  dashboard-api:
+    image: ${HANDOFF_API_IMAGE:?Set HANDOFF_API_IMAGE}
+    environment:
+      <<: *database
+      PORT: '32000'
+      JWT_SECRET: ${HANDOFF_JWT_SECRET:?Set a new HANDOFF_JWT_SECRET}
+      JWT_EXPIRES: 8h
+      CORS_ORIGIN_DASHBOARD: http://localhost:${HANDOFF_UI_PORT:-5181}
+      DASHBOARD_ADMIN_EMAIL: ${HANDOFF_ADMIN_EMAIL:?Set HANDOFF_ADMIN_EMAIL}
+      DASHBOARD_ADMIN_PASSWORD: ${HANDOFF_ADMIN_PASSWORD:?Set HANDOFF_ADMIN_PASSWORD}
+      DASHBOARD_ENABLE_LEGACY: 'false'
+      DASHBOARD_ENABLE_AI: 'false'
+      DASHBOARD_ENABLE_QWEN: 'false'
+      DASHBOARD_ENABLE_POLARS: 'false'
+      DASHBOARD_ENABLE_ORDER_SUMMARY_STAGING: 'false'
+      DASHBOARD_ENABLE_ORDER_CHAT_STAGING: 'false'
+      DASHBOARD_ENABLE_ORDER_RANKING_STAGING: 'false'
+      DASHBOARD_ENABLE_PRODUCT_RANKING_STAGING: 'false'
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:32000/health").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  dashboard-web:
+    image: ${HANDOFF_WEB_IMAGE:?Set the published UI digest or local image tag}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    ports:
+      - '127.0.0.1:${HANDOFF_UI_PORT:-5181}:8080'
+    depends_on:
+      dashboard-api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/healthz]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+volumes:
+  handoff-db:

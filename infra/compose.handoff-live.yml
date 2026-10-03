@@ -1,0 +1,41 @@
+# Explicit opt-in ONLY for a separately provisioned PARALLEL_LIVE environment.
+# Never append to a restored snapshot + fresh Kafka to bypass recovery review.
+services:
+  source-connector:
+    image: ${HANDOFF_WORKERS_IMAGE:?Set HANDOFF_WORKERS_IMAGE}
+    working_dir: /workspace/workers/source-connector
+    command:
+      - node
+      - --input-type=module
+      - -e
+      - |
+        if (process.env.HANDOFF_LIVE_ACK !== 'FRESH_PARALLEL_LIVE') throw Error('LIVE_REVIEW_REQUIRED');
+        process.env.SOURCE_CONNECTOR_DATABASE_URL = 'postgresql://funnelmetry:' + encodeURIComponent(process.env.POSTGRES_PASSWORD) + '@postgres:5432/funnelmetry_handoff';
+        await import('./src/main.js');
+    environment:
+      HANDOFF_LIVE_ACK: ${HANDOFF_LIVE_ACK:?Review isolation and fresh dataset boundary first}
+      POSTGRES_PASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
+      SOURCE_CONNECTOR_MODE: NORMAL
+      SOURCE_CONNECTOR_ID: ${HANDOFF_CONNECTOR_ID:?Set a distinct connector ID}
+      SOURCE_EVENT_FEED_URL: ${HANDOFF_FEED_URL:?Set authorized public HTTPS feed URL}
+      SOURCE_EVENT_FEED_TOKEN: ${HANDOFF_FEED_TOKEN:?Set read-only feed credential}
+      SOURCE_EVENT_FEED_ID: ${HANDOFF_FEED_ID:?Verify expected feed lineage}
+      SOURCE_INITIAL_AFTER_SEQ: ${HANDOFF_INITIAL_AFTER_SEQ:?Choose verified replay boundary explicitly}
+      SOURCE_FEED_BATCH_SIZE: '100'
+      SOURCE_FEED_WAIT_SECONDS: '25'
+      SOURCE_FEED_TIMEOUT_MS: '35000'
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+      kafka-topics: {condition: service_completed_successfully}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: 'on-failure:3'
+    stop_grace_period: 50s
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:32100/healthz").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 3

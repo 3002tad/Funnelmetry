@@ -16,6 +16,9 @@ Thư mục này giữ launcher, cấu hình local và bằng chứng vận hành
 
 ## File nào được chia sẻ?
 
+Bộ khung image-based bàn giao phát triển mới: [Handoff Docker](../infra/HANDOFF.md).
+Hiện chỉ OFFLINE_DEMO với UI/API/DB trống; chưa publish image hoặc chuyển dữ liệu/live ingestion.
+
 - `*.env.example`: mẫu cấu hình trong Git, không chứa credential thật.
 - `*.env`, logs và `backups/`: local/ignored, có thể chứa dữ liệu nhạy cảm. Không zip cả thư mục để gửi hoặc commit.
 - `dashboard-private.env`: cấu hình local của Dashboard API hiện có; không có nghĩa mọi máy đều đã được cấp tài khoản, DB và key tương ứng.
