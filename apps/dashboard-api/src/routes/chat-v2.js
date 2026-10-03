@@ -3,6 +3,7 @@ import { query, readOnlyTransaction, analyticalPool } from '../db.js'
 import { selectChatTool } from '../lib/ai/tool-plan.js'
 import { renderOrderSummary } from '../lib/ai/order-summary-render.js'
 import { renderOrderRanking } from '../lib/ai/order-ranking-render.js'
+import { renderProductRanking } from '../lib/ai/product-ranking-render.js'
 import { loadEventCounts, eventCountMetadata } from '../lib/ai/event-count-tool.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireLiveSession } from '../middleware/live-session.js'
@@ -17,6 +18,7 @@ const fields = ['entrants', 'observed_converted', 'pending', 'dropped', 'termina
   'matured_converted', 'finalized_dropped', 'provisional', 'reconciling', 'reconciled', 'degraded']
 
 export function createChatV2Router({ execute = query, repository = createV2AnalyticsRepository({ query: execute }),
+  requestsPerMinute = Number(process.env.DASHBOARD_CHAT_REQUESTS_PER_MINUTE ?? 20),
   provider = createDashScopeClient(), now = Date.now,
   toolsEnabled = process.env.DASHBOARD_ENABLE_POLARS === 'true', readOnly = readOnlyTransaction,
   eventCountLoader = loadEventCounts,
@@ -27,6 +29,12 @@ export function createChatV2Router({ execute = query, repository = createV2Analy
     return discoverRankingTool(analyticalPool)
   },
   rankingEnabled = process.env.DASHBOARD_ENABLE_ORDER_RANKING_STAGING === 'true',
+  productRankingEnabled = process.env.DASHBOARD_ENABLE_PRODUCT_RANKING_STAGING === 'true',
+  productToolDiscovery = async () => {
+    const {discoverProductRankingTool} = await import('../../../../analytics/src/product-ranking.mjs')
+    const tool=await discoverProductRankingTool(analyticalPool)
+    return tool ? {...tool,id:tool.tool_id} : null
+  },
   orderToolDiscovery = async () => {
     const { discoverStagingOrderTool } = await import('../../../../analytics/src/semantic-registry.mjs')
     return discoverStagingOrderTool(analyticalPool)
@@ -35,6 +43,9 @@ export function createChatV2Router({ execute = query, repository = createV2Analy
     const { createStagingAnalysisRunner } = await import('../../../../analytics/src/analysis-run.mjs')
     return createStagingAnalysisRunner({ pool: analyticalPool, authQuery: execute, statementTimeoutMs: 10000 })
   } } = {}) {
+  if (!Number.isInteger(requestsPerMinute) || requestsPerMinute < 1 || requestsPerMinute > 120) {
+    throw new Error('invalid_chat_rate_limit')
+  }
   const router = Router(), usage = new Map()
   let active = 0
   // Explicit structured analysis endpoint: no LLM selection or external egress.
@@ -53,7 +64,7 @@ export function createChatV2Router({ execute = query, repository = createV2Analy
     const time = now()
     for (const [key, value] of usage) if (time >= value.until) usage.delete(key)
     const bucket = usage.get(req.user.id) ?? { count: 0, until: time + 60000 }
-    if (bucket.count >= 5 || active >= 2 || (!usage.has(req.user.id) && usage.size >= 10000)) {
+    if (bucket.count >= requestsPerMinute || active >= 2 || (!usage.has(req.user.id) && usage.size >= 10000)) {
       res.set('Retry-After', '60'); return res.status(429).json({ error: 'chat_rate_limited' })
     }
     bucket.count++; usage.set(req.user.id, bucket); active++
@@ -94,7 +105,7 @@ export function createChatV2Router({ execute = query, repository = createV2Analy
     const time = now()
     for (const [key, value] of usage) if (time >= value.until) usage.delete(key)
     const bucket = usage.get(req.user.id) ?? { count: 0, until: time + 60000 }
-    if (bucket.count >= 5 || active >= 2 || (!usage.has(req.user.id) && usage.size >= 10000)) {
+    if (bucket.count >= requestsPerMinute || active >= 2 || (!usage.has(req.user.id) && usage.size >= 10000)) {
       res.set('Retry-After', '60')
       return res.status(429).json({ error: 'chat_rate_limited' })
     }
@@ -114,11 +125,12 @@ export function createChatV2Router({ execute = query, repository = createV2Analy
           ? await orderToolDiscovery() : null
         await recheck()
         const rankingTool = orderTool && rankingEnabled ? await rankingToolDiscovery() : null
-        const plan = await selectChatTool(provider, body.message, scope, abort.signal, orderTool, rankingTool)
+        const productTool = orderTool && productRankingEnabled ? await productToolDiscovery() : null
+        const plan = await selectChatTool(provider, body.message, scope, abort.signal, orderTool, rankingTool, productTool)
         await recheck()
         scope = plan.scope
-        if (plan.tool === 'tool.metric_summary' || plan.tool === 'tool.order_ranking') {
-          const selectedTool = plan.tool === 'tool.order_ranking' ? rankingTool : orderTool
+        if (['tool.metric_summary','tool.order_ranking','tool.product_value_ranking'].includes(plan.tool)) {
+          const selectedTool = plan.tool === 'tool.product_value_ranking' ? productTool : plan.tool === 'tool.order_ranking' ? rankingTool : orderTool
           const runner = await orderRunnerFactory()
           const evidence = await runner.run({ actor: req.user, request: {
             tool_id: selectedTool.id, catalog_release: selectedTool.catalog_release,
@@ -128,12 +140,12 @@ export function createChatV2Router({ execute = query, repository = createV2Analy
           await recheck()
           if (evidence.status === 'ERROR') throw Error('order_tool_failed')
           if (evidence.status !== 'PROVISIONAL') return res.json({ status: evidence.status, answer: null, official: false, evidence: [evidence] })
-          const answer = plan.tool === 'tool.order_ranking' ? renderOrderRanking(evidence) : renderOrderSummary(evidence)
+          const answer = plan.tool === 'tool.product_value_ranking' ? renderProductRanking(evidence) : plan.tool === 'tool.order_ranking' ? renderOrderRanking(evidence) : renderOrderSummary(evidence)
           await recheck()
           return res.json({ status: 'generated', answer, official: false,
             answer_verification: 'DETERMINISTIC_TEMPLATE', evidence: [evidence] })
         }
-        if (plan.tool === 'unsupported') return res.json({ status: 'generated', answer: 'Yêu cầu này chưa đủ rõ hoặc chưa có tool phù hợp. Nếu hỏi cao nhất, bạn muốn xếp theo đơn hàng, ngày hay sản phẩm? Hiện chỉ hỗ trợ xếp hạng đơn hàng khi tool tương ứng đã được bật; không suy ra doanh thu đã thanh toán.', evidence: [], official: false, answer_verification: 'DETERMINISTIC_TEMPLATE' })
+        if (plan.tool === 'unsupported') return res.json({ status: 'generated', answer: 'Chưa có công cụ đang bật phù hợp hoặc yêu cầu chưa xác định rõ đối tượng và chỉ tiêu. Xếp hạng ngày/khách hàng và doanh thu đã thanh toán chưa được hỗ trợ. Công cụ đơn hàng và sản phẩm chỉ khả dụng khi đã được triển khai, bật và xác minh dữ liệu.', evidence: [], official: false, answer_verification: 'DETERMINISTIC_TEMPLATE' })
         if (plan.tool === 'event_counts') {
           if (!toolsEnabled) return res.json({ status: 'unsupported', answer: null, evidence: [], official: false })
           const evidence = await eventCountLoader({ actor: req.user, scope, execute, readOnly, signal: abort.signal })

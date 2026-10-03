@@ -69,7 +69,8 @@ Do not render model text as raw HTML. UI not connected in this change.
 
 Session/JWT expiry and live capabilities are checked at entry, immediately before
 model egress and before response. Revocation cannot recall data already sent externally.
-Disconnected HTTP clients abort the model request. Five valid attempts/account/minute
+Disconnected HTTP clients abort the model request. Default 20 valid attempts/account/minute
+(configurable via `DASHBOARD_CHAT_REQUESTS_PER_MINUTE`, integer 1..120, shared by chat and structured order summary)
 and two active Chat requests per app; state is in memory, reset on restart and not
 shared across replicas. Failed/no-evidence attempts count. This is not a billing cap.
 Responses use Cache-Control no-store. Codes: 400 invalid request, 401 session failure,

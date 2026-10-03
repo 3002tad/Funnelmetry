@@ -52,15 +52,15 @@ export const navigation: NavigationGroup[] = [
     admin('quarantine', 'Quarantine / Unsupported'),
   ] },
   { label: 'GOVERNANCE', items: [
-    admin('schemas', 'Schemas / Mappings', 'Chưa có giao diện quản trị phiên bản schema và mapping.'),
-    admin('metadata', 'Metadata Catalog', 'Chưa có giao diện quản trị semantic metadata.'),
-    admin('metric-catalog', 'Metric / Dimension / Relationship Catalog', 'Chưa có giao diện quản trị catalog và audit thay đổi.'),
+    admin('schemas', 'Schemas / Mappings', undefined, 'integration.read'),
+    admin('metadata', 'Metadata Catalog', undefined, 'integration.read'),
+    admin('metric-catalog', 'Metric / Dimension / Relationship Catalog', undefined, 'integration.read'),
     admin('recipes', 'Analysis Recipes', 'Chưa có giao diện quản trị recipe và compatibility.'),
-    admin('tools', 'Tool Registry', 'Chưa có giao diện quản trị công cụ và phiên bản.'),
+    admin('tools', 'Tool Registry', undefined, 'integration.read'),
   ] },
   { label: 'AI / OBSERVABILITY', items: [
     admin('agent', 'Agent Observability', 'Chưa kết nối telemetry Agent và tool execution.'),
-    admin('run-diagnostics', 'Analysis Run Diagnostics', 'Chưa kết nối chẩn đoán lỗi, retry và re-plan theo Analysis Run.'),
+    admin('run-diagnostics', 'Analysis Run Diagnostics'),
     admin('model-provider', 'Model / Provider Configuration', 'Chưa có API cấu hình provider có phân quyền và audit. Không nhập API key vào trang này.'),
   ] },
   { label: 'ACCESS / SETTINGS', items: [

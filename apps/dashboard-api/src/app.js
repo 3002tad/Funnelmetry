@@ -11,6 +11,7 @@ import { usersRouter } from "./routes/users.js";
 import { analyticsV2Router } from "./routes/analytics-v2.js";
 import { createAdminV2Router } from "./routes/admin-v2.js";
 import { createCatalogV2Router } from './routes/catalog-v2.js';
+import { createRunDiagnosticsRouter } from './routes/run-diagnostics.js';
 import { createEvidenceV2Router } from './routes/evidence-v2.js';
 import { createProductsV2Router } from './routes/products-v2.js';
 import { requireLivePermission } from "./middleware/live-permission.js";
@@ -52,6 +53,7 @@ export function createApp() {
   app.use(createChatV2Router());
   app.use(createAdminV2Router());
   app.use(createCatalogV2Router());
+  app.use(createRunDiagnosticsRouter());
   app.use(createEvidenceV2Router());
   app.use(createProductsV2Router());
 

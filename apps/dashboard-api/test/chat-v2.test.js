@@ -209,9 +209,18 @@ test('Chat V2 HTTP: live authorization, validation, egress allowlist, references
     version = 0; revokeAtReply = false; failure = true
     const failed = await request(); assert.equal(failed.status, 503)
     assert.deepEqual(await failed.json(), { error: 'chat_unavailable' })
+    failure = false; empty = true
+    for (let i = 5; i < 20; i++) assert.equal((await request()).status, 200)
     const rate = await request(); assert.equal(rate.status, 429); assert.equal(rate.headers.get('retry-after'), '60')
     clock = 60001; failure = false
     assert.equal((await request()).status, 200)
     provider.enabled = false; assert.equal((await request()).status, 503)
   } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
+})
+
+test('chat rate configuration rejects invalid limits', () => {
+  for (const requestsPerMinute of [0, -1, 121, NaN, 1.5]) {
+    assert.throws(() => createChatV2Router({ requestsPerMinute }), /invalid_chat_rate_limit/)
+  }
+  assert.doesNotThrow(() => createChatV2Router({ requestsPerMinute: 5 }))
 })

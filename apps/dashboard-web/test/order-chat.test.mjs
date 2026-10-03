@@ -19,6 +19,30 @@ async function load(relativePath) {
 const { chatResponseText } = await load('../src/features/chat/response-text.ts')
 const { OrderEvidenceDetails } = await load('../src/features/chat/order-evidence.tsx')
 const { reportMarkdown } = await load('../src/features/evidence/report-markdown.ts')
+const { MetricDefinitions } = await load('../src/features/admin/MetricDefinitions.tsx')
+
+test('admin metric definitions render registered metadata without inventing relationships',async()=>{
+  const metadata=JSON.parse(await readFile(new URL('../../../analytics/metadata/order-value-v1.json',import.meta.url),'utf8'))
+  const html=renderToStaticMarkup(React.createElement(MetricDefinitions,{document:{metadata}}))
+  for(const value of ['measure.gross_order_value','metric.average_order_value','dimension.currency_code','DRAFT','false','analytical_fact_order_v1','Chưa có định nghĩa relationship']) assert.ok(html.includes(value),value)
+  const product=JSON.parse(await readFile(new URL('../../../analytics/metadata/product-value-v1.json',import.meta.url),'utf8'))
+  const productHtml=renderToStaticMarkup(React.createElement(MetricDefinitions,{document:product}))
+  assert.match(productHtml,/SUM\(point_in_time_unit_price_amount \* quantity\)/)
+  assert.match(productHtml,/Tham chiếu không phải định nghĩa đầy đủ/)
+  const unsafe=renderToStaticMarkup(React.createElement(MetricDefinitions,{document:{policies:{test:'<script>bad</script>'}}}))
+  assert.doesNotMatch(unsafe,/<script>/);assert.match(unsafe,/Chưa khai báo/)
+})
+
+test('product evidence and export retain proxy semantics, precision and safe names',()=>{
+  const item={evidence_id:'product-test',status:'PROVISIONAL',semantic_context:{tool_id:'tool.product_value_ranking'},
+    result:{groups:[],products:[{product_id:'prod_test',currency_code:'EUR',position:'1',quantity:'2',
+      ordered_product_unit_value:'9007199254740993.123',reference:{title:'<script>bad</script>',snapshot_id:'snap',observed_at:'now'}}]}}
+  const html=renderToStaticMarkup(React.createElement(OrderEvidenceDetails,{item}))
+  assert.match(html,/9007199254740993.123/); assert.doesNotMatch(html,/<script>/)
+  const md=reportMarkdown(item)
+  assert.match(md,/measure.ordered_product_unit_value/);assert.doesNotMatch(md,/measure.gross_order_value/)
+  assert.doesNotMatch(reportMarkdown({...item,status:'BLOCKED_BY_QUALITY'}),/9007199254740993/)
+})
 
 test('blocked and empty responses override an unsafe supplied answer', () => {
   assert.match(chatResponseText({ status: 'BLOCKED_BY_QUALITY', answer: '999 EUR' }), /bị chặn/)

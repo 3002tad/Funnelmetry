@@ -3,12 +3,13 @@ export type OrderEvidence = {
   status: string
   quality_state?: string
   blocked_order_count?: string
-  result: null | { groups: Array<{ currency_code: string; values: Record<string, string> }>; orders?: Array<{order_id:string;currency_code:string;gross_order_value:string;position:string}> }
+  result: null | { groups: Array<{ currency_code: string; values: Record<string, string> }>; orders?: Array<{order_id:string;currency_code:string;gross_order_value:string;position:string}>; products?: Array<{product_id:string;currency_code:string;ordered_product_unit_value:string;quantity:string;order_count:string;position:string;reference?:{title:string;snapshot_id:string;observed_at:string}|null}> }
   provenance?: { parameters?: { source_id: string; from: string; to: string }; warnings?: string[] }
   semantic_context?: { catalog_release?: string; tool_id?: string }
 }
 
 export function OrderRankingTable({item}:{item:OrderEvidence}){
+  if(item.status==='PROVISIONAL' && item.result?.products?.length) return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption>Tổng đơn giá lúc đặt × số lượng, riêng từng tiền tệ. Không phải doanh thu thanh toán; không phân bổ tổng đơn/thuế/phí/giảm giá bổ sung. Tên catalog hiện tại, không phải tên lịch sử.</caption><thead><tr><th>Tiền tệ</th><th>Hạng</th><th>Sản phẩm</th><th>Giá trị</th><th>Số lượng</th></tr></thead><tbody>{item.result.products.map(r=><tr key={`${r.currency_code}:${r.product_id}`}><td>{r.currency_code}</td><td>{r.position}</td><td>{r.reference?.title??'Chưa có tên'}<br/>{r.product_id}{r.reference&&<small className="block">Catalog: {r.reference.snapshot_id} · {r.reference.observed_at}</small>}</td><td>{r.ordered_product_unit_value}</td><td>{r.quantity}</td></tr>)}</tbody></table></div>
   if(item.status!=='PROVISIONAL'||!item.result?.orders?.length)return null
   return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption>Xếp hạng giá trị đơn đã đặt, riêng từng loại tiền · tối đa 5 đơn · không phải thanh toán</caption><thead><tr><th>Tiền tệ</th><th>Hạng</th><th>Đơn hàng</th><th>Giá trị</th></tr></thead><tbody>{item.result.orders.map(row=><tr key={`${row.currency_code}:${row.order_id}`}><td>{row.currency_code}</td><td>{row.position}</td><td>{row.order_id}</td><td>{row.gross_order_value}</td></tr>)}</tbody></table></div>
 }

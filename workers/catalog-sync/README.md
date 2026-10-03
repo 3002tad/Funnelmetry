@@ -56,3 +56,22 @@ change, source change, remote request or credential creation is implicit.
 `tools/v2-e2e/run-medusa-contract.ps1` includes an isolated PostgreSQL catalog test:
 migration rerun, title history, source isolation, cardinality and failed-batch atomicity.
 These tests do not prove live Medusa credentials or source reachability.
+
+## Local one-shot activation — 2026-10-02
+
+- Approved local configuration read successfully from ignored `runtime/catalog-sync.env`.
+  Medusa Admin GET returned HTTP 200 across two pages, 104 validated products.
+- `POSTGRES_PASSWORD` in this catalog config is empty. No credential was printed or
+  copied: the operator one-shot used the existing Dashboard API PostgreSQL pool,
+  loading the catalog config separately rather than overriding API DB environment.
+- Saved ignored `runtime/backups/before-catalog-20261002.dump`; complete archive
+  listing checked. Restore rehearsal not performed; this is not a migration snapshot.
+- Applied additive migration 020 in a transaction, then atomically saved one catalog
+  snapshot under the per-source advisory lock. Canonical records and amounts unchanged.
+- Read-only comparison found three distinct product IDs in canonical top-level/item
+  data and three matching catalog names. Counts refer to this point-in-time dataset.
+- Periodic worker NOT enabled. Complete its DB credential configuration before
+  deployment. No ingestion/replay/source mutation or model call was performed.
+
+This verifies live catalog access and one-shot storage, not ongoing freshness,
+snapshot-consistent Medusa pagination or full variant/category metadata support.

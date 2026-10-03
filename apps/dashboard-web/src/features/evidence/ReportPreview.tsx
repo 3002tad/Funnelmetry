@@ -11,6 +11,7 @@ export function ReportPreview({evidence}:{evidence:Evidence}) {
   const active=useRef<AbortController|null>(null)
   useEffect(()=>()=>active.current?.abort(),[])
   const available = evidence.status === 'PROVISIONAL' && !!evidence.result?.groups.length
+  const isRanking = evidence.status === 'PROVISIONAL' && !!(evidence.result?.orders?.length || evidence.result?.products?.length)
   const observations = available ? evidence.result!.groups.map(group => ({currency:group.currency_code,values:group.values})) : []
   const interpretation = 'Chỉ mô tả kết quả công cụ đã lưu; chưa xác minh diễn giải nguyên nhân hoặc so sánh. Nhận xét của người phân tích được trình bày riêng dưới nhãn HUMAN_NOTE.'
   const limitations = ['Bản nháp dựng từ snapshot kết quả, không phải finding chính thức.', 'Giá trị đơn đã đặt không xác nhận thanh toán. Không cộng chéo tiền tệ.',
@@ -27,7 +28,8 @@ export function ReportPreview({evidence}:{evidence:Evidence}) {
     if(controller.signal.aborted) return
     const document = { report_format:'evidence-report-preview.v1', official:false, persisted_report:false,
       evidence_id:evidence.evidence_id, analysis_run_id:evidence.analysis_run_id, tool_call_id:evidence.tool_call_id,
-      status:evidence.status, observations, order_ranking:evidence.status==='PROVISIONAL'?evidence.result?.orders:undefined, interpretation, limitations,
+      status:evidence.status, observations, order_ranking:evidence.status==='PROVISIONAL'?evidence.result?.orders:undefined,
+      product_ranking:evidence.status==='PROVISIONAL'?evidence.result?.products:undefined, interpretation, limitations,
       human_notes:notes?{...notes,scope:'latest_25',official:false}: {included:false},
       suggested_next_analysis:'Kiểm tra phạm vi thời gian và chất lượng nguồn trước khi kết luận.',
       evidence: evidence.status === 'PROVISIONAL' ? evidence : {...evidence,result:null} }
@@ -41,7 +43,7 @@ export function ReportPreview({evidence}:{evidence:Evidence}) {
     <header className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">Báo cáo quan sát · Bản nháp</h3><div className="flex gap-2"><Button disabled={busy} variant="outline" onClick={()=>void download('md')}>Tải báo cáo Markdown</Button><Button disabled={busy} variant="outline" onClick={()=>void download('json')}>Tải bản JSON</Button></div></header>
     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeNotes} disabled={busy} onChange={e=>setIncludeNotes(e.target.checked)}/>Kèm 25 ghi chú mới nhất đã lưu (có tác giả/thời điểm)</label>
     {busy && <p role="status">Đang chuẩn bị bản xuất…</p>}{error && <p role="alert">{error}</p>}
-    <section hidden={evidence.status === 'PROVISIONAL' && !!evidence.result?.orders?.length}><h4 className="font-medium">1. Kết quả quan sát</h4>{!available ? <p className="mt-2 text-sm">Không công bố số liệu: trạng thái {evidence.status}. Thiếu dữ liệu không đồng nghĩa bằng 0.</p> : <div className="mt-2 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Tiền tệ</th><th>Giá trị đơn đã đặt</th><th>Số đơn</th><th>AOV</th></tr></thead><tbody>{observations.map(row=><tr key={row.currency}><td>{row.currency}</td><td>{row.values['measure.gross_order_value@1.0.0']??'Không có'}</td><td>{row.values['measure.order_count@1.0.0']??'Không có'}</td><td>{row.values['metric.average_order_value@1.0.0']??'Không có'}</td></tr>)}</tbody></table></div>}</section>
+    <section hidden={isRanking}><h4 className="font-medium">1. Kết quả quan sát</h4>{!available ? <p className="mt-2 text-sm">Không công bố số liệu: trạng thái {evidence.status}. Thiếu dữ liệu không đồng nghĩa bằng 0.</p> : <div className="mt-2 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Tiền tệ</th><th>Giá trị đơn đã đặt</th><th>Số đơn</th><th>AOV</th></tr></thead><tbody>{observations.map(row=><tr key={row.currency}><td>{row.currency}</td><td>{row.values['measure.gross_order_value@1.0.0']??'Không có'}</td><td>{row.values['measure.order_count@1.0.0']??'Không có'}</td><td>{row.values['metric.average_order_value@1.0.0']??'Không có'}</td></tr>)}</tbody></table></div>}</section>
     <section><h4 className="font-medium">2. Bằng chứng</h4><p className="mt-2 break-all text-sm">{evidence.evidence_id}<br/>Nguồn: {evidence.provenance?.parameters?.source_id??'Chưa ghi nhận'}<br/>UTC: {evidence.provenance?.parameters?.from??'—'} → trước {evidence.provenance?.parameters?.to??'—'}<br/>Catalog: {evidence.semantic_context?.catalog_release??'Chưa ghi nhận'}</p></section>
     <OrderRankingTable item={evidence}/>
     <section><h4 className="font-medium">3. Diễn giải</h4><p className="mt-2 text-sm">{interpretation}</p></section>

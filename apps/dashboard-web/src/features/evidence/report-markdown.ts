@@ -9,11 +9,12 @@ const text = (value: unknown) => String(value ?? 'Chưa ghi nhận')
 
 export function reportMarkdown(evidence: Evidence, notes?: ReportNotes): string {
   const scope = evidence.provenance?.parameters
+  const product = evidence.semantic_context?.tool_id === 'tool.product_value_ranking'
   const lines = [
     '# Báo cáo quan sát — Bản nháp', '',
     '> Không phải finding chính thức. Bản xuất từ bằng chứng đã lưu; không phải báo cáo đã được xuất bản.', '',
     '## 1. Kết quả quan sát', '',
-    'Giá trị đơn hàng đã đặt (gross order value), không phải doanh thu đã thanh toán. Không cộng chéo tiền tệ.', '',
+    product ? 'Tổng đơn giá lúc đặt × số lượng. Không phân bổ tổng đơn/thuế/phí/giảm giá bổ sung; không phải doanh thu thanh toán. Không cộng chéo tiền tệ.' : 'Giá trị đơn hàng đã đặt (gross order value), không phải doanh thu đã thanh toán. Không cộng chéo tiền tệ.', '',
     `Trạng thái: ${text(evidence.status)}. Chất lượng: ${text(evidence.quality_state)}.`, '',
   ]
   if (evidence.status === 'PROVISIONAL' && evidence.result?.groups.length) {
@@ -24,6 +25,9 @@ export function reportMarkdown(evidence: Evidence, notes?: ReportNotes): string 
   } else if(evidence.status==='PROVISIONAL' && evidence.result?.orders?.length){
     lines.push('Xếp hạng riêng từng loại tiền, tối đa 5 đơn; cùng giá trị thì sắp theo mã đơn.', '', '| Tiền tệ | Hạng | Đơn hàng | Giá trị đơn đã đặt |','| --- | --- | --- | --- |')
     for(const row of evidence.result.orders)lines.push(`| ${[row.currency_code,row.position,row.order_id,row.gross_order_value].map(text).join(' | ')} |`)
+  } else if(evidence.status==='PROVISIONAL' && evidence.result?.products?.length){
+    lines.push('| Tiền tệ | Hạng | Mã sản phẩm | Giá trị đơn giá × số lượng | Số lượng |','| --- | --- | --- | --- | --- |')
+    for(const row of evidence.result.products)lines.push(`| ${[row.currency_code,row.position,row.product_id,row.ordered_product_unit_value,row.quantity].map(text).join(' | ')} |`)
   } else lines.push('Không công bố số liệu. Thiếu dữ liệu không đồng nghĩa bằng 0.')
   lines.push('', '## 2. Bằng chứng và định nghĩa', '',
     `- Evidence: ${text(evidence.evidence_id)}`,
@@ -33,9 +37,10 @@ export function reportMarkdown(evidence: Evidence, notes?: ReportNotes): string 
     `- Catalog: ${text(evidence.semantic_context?.catalog_release)}`,
     `- Nguồn: ${text(scope?.source_id)}`,
     `- Cửa sổ UTC: từ ${text(scope?.from)} đến trước ${text(scope?.to)}`,
+    ...(product ? ['- Định nghĩa giá trị: measure.ordered_product_unit_value@1.0.0'] : [
     '- Định nghĩa giá trị: measure.gross_order_value@1.0.0',
     '- Định nghĩa số đơn: measure.order_count@1.0.0',
-    '- Định nghĩa AOV: metric.average_order_value@1.0.0',
+    '- Định nghĩa AOV: metric.average_order_value@1.0.0']),
     '- Grain/physical binding: đối chiếu JSON bằng chứng gốc; không suy ra từ bảng tổng hợp.', '',
     '## 3. Diễn giải', '',
     'Chưa xác minh diễn giải nguyên nhân. Bảng trên chỉ trình bày kết quả công cụ đã lưu; ghi chú con người được tách riêng ở mục 6.', '',

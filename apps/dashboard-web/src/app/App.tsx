@@ -14,6 +14,9 @@ const EventsPage = lazy(() => import("../features/events/EventsPage").then((modu
 const DataHealthPage = lazy(() => import("../features/data-health/DataHealthPage").then((module) => ({ default: module.DataHealthPage })))
 const SettingsPage = lazy(() => import("../features/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })))
 const AdminUsersPage = lazy(() => import('../features/admin/AdminUsersPage'))
+const RegistryPage = lazy(() => import('../features/admin/RegistryPage'))
+const MappingsPage = lazy(() => import('../features/admin/MappingsPage'))
+const RunDiagnosticsPage = lazy(() => import('../features/admin/RunDiagnosticsPage'))
 const PipelineHealthPage = lazy(() => import('../features/admin/PipelineHealthPage'))
 const SourcesPage = lazy(() => import('../features/admin/SourcesPage'))
 const ChatPage = lazy(() => import('../features/chat/ChatPage').then(module => ({ default: module.ChatPage })))
@@ -82,6 +85,7 @@ export function App() {
           <Route path="/admin/pipeline" element={<PipelineHealthPage />} />
           <Route path="/admin/connector" element={<ConnectorsPage />} />
           <Route path="/admin/quarantine" element={<QuarantinePage />} />
+          <Route path="/admin/run-diagnostics" element={<RunDiagnosticsPage />} />
           </Route>
           <Route element={<PermissionGate permission="audit.read" />}>
             <Route path="/admin/audit" element={<AuditPage />} />
@@ -91,6 +95,10 @@ export function App() {
           </Route>
           <Route element={<PermissionGate permission="integration.read" />}>
             <Route path="/admin/sources" element={<SourcesPage />} />
+            <Route path="/admin/metadata" element={<RegistryPage kind="metadata" />} />
+            <Route path="/admin/tools" element={<RegistryPage kind="tools" />} />
+            <Route path="/admin/metric-catalog" element={<RegistryPage kind="metrics" />} />
+            <Route path="/admin/schemas" element={<MappingsPage />} />
           </Route>
           <Route path="/settings" element={<SettingsPage />} />
           {navigation.flatMap(group => group.items).filter(item => item.unavailable).map(item =>

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { executeStagingMetricSummary } from './semantic-registry.mjs'
 import { rankOrders } from './order-ranking.mjs'
+import { rankProducts } from './product-ranking.mjs'
 import { assertEvidenceAccess } from '../../apps/dashboard-api/src/lib/ai/overview-evidence.js'
 
 // Server-only orchestration. actor must come from verified authentication middleware.
@@ -14,7 +15,8 @@ export function createStagingAnalysisRunner({ pool, authQuery, statementTimeoutM
       // Freeze the request boundary against caller mutation while awaiting DB I/O.
       const input = structuredClone(request)
       await authorize(actor)
-      const executeTool = input?.tool_id === 'tool.order_ranking' ? rankOrders : executeStagingMetricSummary
+      const executeTool = input?.tool_id === 'tool.product_value_ranking' ? rankProducts
+        : input?.tool_id === 'tool.order_ranking' ? rankOrders : executeStagingMetricSummary
       const outcome = await executeTool({ pool, request: input, statementTimeoutMs })
       await authorize(actor)
       const ids = { evidence_id: randomUUID(), analysis_run_id: randomUUID(), tool_call_id: randomUUID() }

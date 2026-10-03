@@ -1,0 +1,25 @@
+{
+  "status": "DRAFT",
+  "version": "1.0.0",
+  "runtime_published": false,
+  "tool_id": "tool.product_value_ranking",
+  "catalog_release": "product-value-staging-1.0.0",
+  "binding": "public.analytical_product_order_items_v1",
+  "input_grain": ["source_id", "order_id", "item_position"],
+  "output_grain": ["source_id", "currency_code", "product_id"],
+  "time_basis": "order_placed_at",
+  "value_refs": ["measure.ordered_product_unit_value@1.0.0"],
+  "dimension_refs": ["dimension.currency_code@1.0.0", "dimension.product_id@1.0.0"],
+  "formula": "SUM(point_in_time_unit_price_amount * quantity)",
+  "limit_per_currency": 5,
+  "policies": {
+    "currency": "separate; no FX conversion",
+    "money": "PostgreSQL numeric; major currency units; never JS arithmetic",
+    "tax_shipping_discount": "no additional allocation or adjustment; source unit-price inclusion policy unverified",
+    "revenue": "not paid/net revenue and not allocated order total",
+    "refund_cancellation": "no deduction without separate lifecycle contract",
+    "catalog": "current names only; never current prices",
+    "quality": "block if any source order or items invalid; no silent exclusion",
+    "deduplication": "one order once; conflicting ordered item arrays block"
+  }
+}

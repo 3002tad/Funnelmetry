@@ -10,6 +10,7 @@ import { createFunnelRepository, createFunnelProfileRepository } from '../../../
 import { REFERENCE_FUNNEL_PROFILES } from '../../../workers/funnel-processor/src/reference-profiles.js'
 import { createKpiRepository } from '../../../workers/kpi-projector/src/repository.js'
 import { summarizeOrders } from '../../../analytics/src/order-summary.mjs'
+import { installProductRankingCatalog, rankProducts, productRankingMetadata as pm } from '../../../analytics/src/product-ranking.mjs'
 import {installRankingCatalog,discoverRankingTool,rankOrders,rankingContract} from '../../../analytics/src/order-ranking.mjs'
 import { installStagingOrderCatalog, executeStagingMetricSummary, discoverStagingOrderTool, ORDER_CATALOG_RELEASE } from '../../../analytics/src/semantic-registry.mjs'
 import { createStagingAnalysisRunner } from '../../../analytics/src/analysis-run.mjs'
@@ -127,6 +128,20 @@ test('isolated DB: Medusa v2 downstream funnel and order-grain monetary asset', 
     assert.equal(ranking.result.orders[0].gross_order_value,'20')
     assert.equal(ranking.result.orders[0].order_id,'order_test')
     assert.equal(ranking.result.orders[1].position,'1') // separate currencies, no global ranking
+    await pool.query(await readFile(new URL('../../../analytics/sql/product-value-v1.sql',import.meta.url),'utf8'))
+    await installProductRankingCatalog(pool)
+    const productRequest={tool_id:pm.tool_id,catalog_release:pm.catalog_release,value_refs:pm.value_refs,
+      dimension_refs:pm.dimension_refs,parameters:summaryRequest}
+    const products=await rankProducts({pool,request:productRequest,statementTimeoutMs:5000})
+    assert.equal(products.status,'PROVISIONAL')
+    // Repeated deliveries do not double quantity; order total is NOT item value.
+    assert.deepEqual(products.result.products.map(r=>[r.currency_code,r.ordered_product_unit_value,r.quantity]),
+      [['EUR','10','1'],['USD','10','1']])
+    assert.equal((await rankProducts({pool,request:{...productRequest,sql:'SELECT 1'},statementTimeoutMs:5000})).code,'INVALID_TOOL_REQUEST')
+    try {
+      await pool.query(`UPDATE canonical_events SET data=jsonb_set(data,'{items}','[]'::jsonb) WHERE canonical_event_id='duplicate_order'`)
+      assert.equal((await rankProducts({pool,request:productRequest,statementTimeoutMs:5000})).status,'BLOCKED_BY_QUALITY')
+    } finally { await pool.query(`UPDATE canonical_events SET data=$1::jsonb WHERE canonical_event_id='duplicate_order'`,[JSON.stringify(canonical[3].data)]) }
     const discovered = await discoverStagingOrderTool(pool)
     assert.equal(discovered.id, 'tool.metric_summary')
     assert.ok(discovered.value_refs.includes('metric.average_order_value@1.0.0'))
