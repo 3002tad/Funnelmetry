@@ -1,5 +1,10 @@
 # Bàn giao worker pipeline — 04/10/2026
 
+**Release update:** ba image commit `a725fad` đã publish và verify trên GHCR
+`vanoson2`; xem [CODEX_HANDOFF](../CODEX_HANDOFF.md) cho digest và hướng dẫn đầy đủ.
+Các trạng thái chưa publish bên dưới mô tả các lượt trước phát hành, không phải
+trạng thái registry hiện tại. Acceptance live trên máy nhận vẫn chưa được xác nhận.
+
 Đọc [bộ khung handoff](HANDOFF.md) trước. Không dùng env/database/Kafka của demo cũ.
 Base + overlay này chạy **sandbox độc lập**, không phải migration authoritative.
 

@@ -17,7 +17,9 @@ Thư mục này giữ launcher, cấu hình local và bằng chứng vận hành
 ## File nào được chia sẻ?
 
 Bộ khung image-based bàn giao phát triển mới: [Handoff Docker](../infra/HANDOFF.md).
-Hiện chỉ OFFLINE_DEMO với UI/API/DB trống; chưa publish image hoặc chuyển dữ liệu/live ingestion.
+Trạng thái phát hành và hướng dẫn máy nhận: [CODEX_HANDOFF](../CODEX_HANDOFF.md).
+Ba image đã publish ngày 04/10/2026; kết nối live/AI trên máy nhận vẫn cần preflight
+và acceptance riêng. Không kèm database cũ hoặc secrets trong image.
 
 - `*.env.example`: mẫu cấu hình trong Git, không chứa credential thật.
 - `*.env`, logs và `backups/`: local/ignored, có thể chứa dữ liệu nhạy cảm. Không zip cả thư mục để gửi hoặc commit.

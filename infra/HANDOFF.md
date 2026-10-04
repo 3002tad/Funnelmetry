@@ -1,5 +1,9 @@
 # Bàn giao phát triển bằng Docker images
 
+**Cập nhật 04/10/2026:** ba image đã publish vào GHCR `vanoson2`.
+Xem [CODEX_HANDOFF](../CODEX_HANDOFF.md) để lấy digest, cấu hình live/AI và checklist
+máy nhận. Các ghi chú “chưa publish” bên dưới là provenance của lượt triển khai cũ.
+
 Phạm vi hiện có: **OFFLINE_DEMO / database mới, trống** theo DEC-125 và Master §24.2.1.
 Đây là bộ khung chạy UI/API độc lập, **chưa phải bản sao đầy đủ của demo đang chạy**.
 Không cần Node/npm trên máy chỉ xem UI. Người sửa code vẫn clone Git.
