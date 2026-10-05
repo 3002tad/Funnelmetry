@@ -9,7 +9,8 @@ Không coi việc publish images là đã nghiệm thu live trên máy nhận.
 
 Đọc theo thứ tự trước khi sửa/chạy:
 
-1. [AGENTS.md](AGENTS.md), `../System_Cookbook/AGENTS.md` và `codex/INDEX.md`.
+1. [AGENTS.md](AGENTS.md), [System_Cookbook/AGENTS.md](../System_Cookbook/AGENTS.md)
+   và [System_Cookbook/codex/INDEX.md](../System_Cookbook/codex/INDEX.md).
 2. `../System_Backbone/docs/governance/DINH_HUONG_DE_TAI.md` (DEC-125),
    `../System_Backbone/MASTER_SPECIFICATION.md` (§24.2.1).
 3. `../System_Backbone/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md`.
@@ -29,17 +30,21 @@ Tài liệu này không override các quyết định mới hơn của Backbone.
 - Code: `https://github.com/3002tad/Funnelmetry.git`.
 - Commit image: `a725fad1baabfa5c3885e82c0d996c08af895d21`.
 - Platform: **linux/amd64**, dùng Docker Linux containers.
-- Registry owner: **vanoson2**, KHÔNG phải owner repository `3002tad`.
-- Cả ba image đã push và xác minh remote manifest ngày 04/10/2026.
-- Người gửi báo đã cấp Read cho người nhận; login/pull bằng tài khoản người nhận
-  vẫn phải kiểm tra trên máy nhận. Không dùng chung PAT.
+- Registry owner: **3002tad**, cùng owner với repository; ba container package
+  `funnelmetry/handoff-api`, `funnelmetry/handoff-web`, `funnelmetry/handoff-workers`
+  hiện nằm trong GitHub Packages của owner này.
+- Cả ba image đã push ngày 04/10/2026. Đã xác minh bằng quyền đọc package trên
+  môi trường hiện tại rằng cả ba digest bên dưới tồn tại dưới owner `3002tad`;
+  login/pull bằng tài khoản máy nhận vẫn phải kiểm tra trên máy nhận.
+- Môi trường hiện tại có secret `FUNNELMETRY_PACKAGE_READ_TOKEN` để đọc package;
+  không ghi giá trị vào Git/log và không mặc định secret này có trên máy nhận.
 
 Các giá trị để dán vào `runtime/handoff.env`:
 
 ```dotenv
-HANDOFF_API_IMAGE=ghcr.io/vanoson2/funnelmetry/handoff-api@sha256:07e843527a098f5de56b33b67fc864ade68e510e23c151b29984a0d5b48ca951
-HANDOFF_WEB_IMAGE=ghcr.io/vanoson2/funnelmetry/handoff-web@sha256:3cb0950bbe49a4ddd8473ba60ade8279f8713b97c6922d17976a1e4a958f25d2
-HANDOFF_WORKERS_IMAGE=ghcr.io/vanoson2/funnelmetry/handoff-workers@sha256:2284b0940f31602d9e0472adcf5b7feafd60bd3454a42b8c138cd19c446f5cdf
+HANDOFF_API_IMAGE=ghcr.io/3002tad/funnelmetry/handoff-api@sha256:07e843527a098f5de56b33b67fc864ade68e510e23c151b29984a0d5b48ca951
+HANDOFF_WEB_IMAGE=ghcr.io/3002tad/funnelmetry/handoff-web@sha256:3cb0950bbe49a4ddd8473ba60ade8279f8713b97c6922d17976a1e4a958f25d2
+HANDOFF_WORKERS_IMAGE=ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:2284b0940f31602d9e0472adcf5b7feafd60bd3454a42b8c138cd19c446f5cdf
 ```
 
 Image có code/dependencies; KHÔNG có database cũ, `.env` thật hoặc API keys.
@@ -76,6 +81,8 @@ toàn bộ dependency risk, không claim production-ready hay toàn bộ Master 
 - Chọn project riêng, DB/Kafka/cursor riêng, không dùng volume/external DB máy cũ.
 - Đăng nhập `docker login ghcr.io -u YOUR_GITHUB_USERNAME`, nhập PAT ở prompt.
   Token classic có `read:packages` và tài khoản có Read trên cả ba package.
+  Trên môi trường hiện tại có thể dùng secret `FUNNELMETRY_PACKAGE_READ_TOKEN`
+  đã được cấp; máy nhận cần secret/quyền đọc của chính mình, không sao chép PAT qua Git.
 - Không in env thật, `docker inspect` toàn bộ hoặc `compose config` đầy đủ ra chat.
   Dùng `config --quiet`; log có thể nhạy cảm, cần lọc trước khi chia sẻ.
 - Lập record environment: owner, host, mode, environment/state lineage ID,

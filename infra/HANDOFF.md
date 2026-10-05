@@ -1,6 +1,6 @@
 # Bàn giao phát triển bằng Docker images
 
-**Cập nhật 04/10/2026:** ba image đã publish vào GHCR `vanoson2`.
+**Cập nhật 04/10/2026:** ba image đã chuyển vào GHCR `3002tad/funnelmetry`.
 Xem [CODEX_HANDOFF](../CODEX_HANDOFF.md) để lấy digest, cấu hình live/AI và checklist
 máy nhận. Các ghi chú “chưa publish” bên dưới là provenance của lượt triển khai cũ.
 
