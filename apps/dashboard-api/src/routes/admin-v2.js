@@ -6,9 +6,59 @@ import { ROLE_PERMISSIONS } from '../lib/roles.js'
 import { listAccountAudit, parseAuditQuery } from '../lib/account-audit.js'
 import { listObservedSources, parseSourcesQuery } from '../lib/admin-sources.js'
 import { connectorReadiness } from '../lib/connector-readiness.js'
+import { requireLiveSession } from '../middleware/live-session.js'
+import { PROCESSING_OBSERVATION_SQL, parseProcessingSource } from '../lib/processing-observation.js'
+import { kafkaLag } from '../lib/kafka-lag.js'
 
-export function createAdminV2Router(execute = query, probe = connectorReadiness) {
+export function createAdminV2Router(execute = query, probe = connectorReadiness, probeLag = kafkaLag) {
   const router = Router()
+  router.get('/api/v2/admin/kafka-lag', requireAuth, requireLiveSession(execute),
+    requireLivePermission('pipeline.monitor', execute), async (req, res) => {
+      res.set('Cache-Control', 'no-store')
+      if (Object.keys(req.query).length) return res.status(400).json({ error: 'invalid_kafka_lag_query' })
+      try {
+        const result = await probeLag()
+        return requireLiveSession(execute)(req, res, () =>
+          requireLivePermission('pipeline.monitor', execute)(req, res, () => res.json(result)))
+      } catch { return res.status(503).json({ error: 'kafka_lag_unavailable' }) }
+    })
+  router.get('/api/v2/admin/processing', requireAuth, requireLiveSession(execute),
+    requireLivePermission('pipeline.monitor', execute), async (req, res) => {
+      res.set('Cache-Control', 'no-store')
+      let source
+      try { source = parseProcessingSource(req.query) }
+      catch { return res.status(400).json({ error: 'invalid_processing_query' }) }
+      try {
+        const observation_started_at = new Date().toISOString()
+        const rows = await execute(PROCESSING_OBSERVATION_SQL, [source])
+        const snapshot = {
+          source_id: source, observation_started_at, checked_at: new Date().toISOString(),
+          scope: 'retained_postgres_records', runtime_status: 'UNVERIFIED',
+          kafka_consumer_lag: null, kafka_lag_status: 'UNVERIFIED',
+          stages: rows.map(({ stage, retained_count, last_processed_at, last_recorded_at }) =>
+            ({ stage, retained_count, last_processed_at, last_recorded_at })),
+        }
+        return requireLiveSession(execute)(req, res, () =>
+          requireLivePermission('pipeline.monitor', execute)(req, res, () => res.json(snapshot)))
+      } catch { return res.status(503).json({ error: 'processing_observation_unavailable' }) }
+    })
+  router.get('/api/v2/admin/event-feed', requireAuth, requireLiveSession(execute),
+    requireLivePermission('pipeline.monitor', execute), async (req, res) => {
+      res.set('Cache-Control', 'no-store')
+      if (Object.keys(req.query).length) return res.status(400).json({ error: 'invalid_event_feed_query' })
+      try {
+        const result = await probe()
+        const snapshot = {
+          checked_at: result.checked_at, reachable: result.reachable,
+          ready: result.ready, status: result.status,
+          last_success_at: result.last_success_at,
+          observation: result.feed_observation ?? null,
+          scope: 'last_validated_feed_response', processing_checkpoint_available: false,
+        }
+        return requireLiveSession(execute)(req, res, () =>
+          requireLivePermission('pipeline.monitor', execute)(req, res, () => res.json(snapshot)))
+      } catch { return res.status(503).json({ error: 'event_feed_observation_unavailable' }) }
+    })
   router.get('/api/v2/admin/quarantine',requireAuth,requireLivePermission('pipeline.monitor',execute),async(req,res)=>{
     res.set('Cache-Control','no-store')
     const {source_id,status,offset='0'}=req.query

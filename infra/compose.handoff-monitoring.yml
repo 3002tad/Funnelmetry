@@ -1,0 +1,15 @@
+# Optional read-only Kafka offset observation for the isolated handoff topology.
+# Exact group/topic allowlist must track worker configuration. No public broker port.
+services:
+  dashboard-api:
+    environment:
+      DASHBOARD_KAFKA_LAG_ENABLED: 'true'
+      DASHBOARD_KAFKA_LAG_BROKERS: kafka:9092
+      DASHBOARD_KAFKA_LAG_TARGETS_JSON: >-
+        [{"group_id":"funnelmetry-canonical-normalizer-v1","topic":"funnelmetry.raw.v1"},
+        {"group_id":"funnelmetry-canonical-ledger-v1","topic":"funnelmetry.canonical.v1"},
+        {"group_id":"funnelmetry-ingress-telemetry-v1","topic":"funnelmetry.ingress.receipts.v1"},
+        {"group_id":"funnelmetry-ingress-telemetry-v1","topic":"funnelmetry.canonicalization.outcomes.v1"},
+        {"group_id":"funnelmetry-journey-processor-v1","topic":"funnelmetry.canonical.persisted.v1"},
+        {"group_id":"funnelmetry-funnel-processor-v1","topic":"funnelmetry.journey.resolved.v1"},
+        {"group_id":"funnelmetry-kpi-projector-v1","topic":"funnelmetry.funnel.updated.v1"}]

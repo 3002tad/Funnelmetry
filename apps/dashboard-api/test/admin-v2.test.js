@@ -20,6 +20,117 @@ const { requireLiveSession } = await import('../src/middleware/live-session.js')
 const { permissionsFor } = await import('../src/lib/roles.js')
 const { mutateAccount } = await import('../src/lib/account-mutation.js')
 const { assertAccountSchema, AccountSchemaError } = await import('../src/lib/account-schema.js')
+
+test('Kafka lag endpoint accepts no client target and rechecks live grants after probe', async () => {
+  let role = 'super_admin', version = 0, calls = 0, afterProbe = () => {}
+  const app = express()
+  app.use(createAdminV2Router(async () => [{ role, is_active: true, session_version: version }], undefined,
+    async () => { calls++; afterProbe(); return { status: 'UNVERIFIED', groups: [] } }))
+  const server = app.listen(0, '127.0.0.1')
+  await new Promise(resolve => server.once('listening', resolve))
+  const token = jwt.sign({ sub:'admin', role, session_version:0 }, process.env.JWT_SECRET)
+  const get = (suffix='', auth=true, method='GET') => fetch(`http://127.0.0.1:${server.address().port}/api/v2/admin/kafka-lag${suffix}`,
+    { method, headers:auth ? { Authorization:`Bearer ${token}` } : {} })
+  try {
+    assert.equal((await get('',false)).status,401)
+    for (const suffix of ['?broker=evil','?source_id=shop','?group_id=other']) assert.equal((await get(suffix)).status,400)
+    assert.equal((await get('',true,'POST')).status,404); assert.equal(calls,0)
+    const response=await get(); assert.equal(response.status,200); assert.equal(response.headers.get('cache-control'),'no-store')
+    role='analyst'; assert.equal((await get()).status,403)
+    role='super_admin'; afterProbe=()=>{role='analyst'}; assert.equal((await get()).status,403)
+    role='super_admin'; afterProbe=()=>{version++}; assert.equal((await get()).status,401)
+    version=0; afterProbe=()=>{throw Error('secret')}
+    const failed=await get(); assert.equal(failed.status,503); assert.deepEqual(await failed.json(),{error:'kafka_lag_unavailable'})
+  } finally { server.closeAllConnections(); await new Promise(resolve=>server.close(resolve)) }
+})
+
+test('processing observation preserves exact counts, unknown lag and live authorization', async () => {
+  let role = 'super_admin', version = 0, active = true, fail = false, afterQuery = () => {}, calls = 0
+  const app = express()
+  app.use(createAdminV2Router(async (sql, params) => {
+    if (sql.startsWith('SELECT role')) return [{ role, is_active: active, session_version: version }]
+    calls++
+    assert.deepEqual(params, ["shop'--"])
+    assert.match(sql, /canonicalization_latest_outcomes/)
+    assert.match(sql, /COUNT\(\*\)::text/)
+    assert.ok(!sql.includes("shop'--"))
+    if (fail) throw Error('private connection string')
+    afterQuery()
+    return [{ stage: 'normalized', retained_count: '9007199254740993', last_processed_at: null, last_recorded_at: null, secret: 'private' }]
+  }))
+  const server = app.listen(0, '127.0.0.1')
+  await new Promise(resolve => server.once('listening', resolve))
+  const token = jwt.sign({ sub: 'admin', role, session_version: 0 }, process.env.JWT_SECRET)
+  const request = (suffix = '?source_id=shop%27--', auth = true, method = 'GET') => fetch(
+    `http://127.0.0.1:${server.address().port}/api/v2/admin/processing${suffix}`,
+    { method, headers: auth ? { Authorization: `Bearer ${token}` } : {} })
+  try {
+    assert.equal((await request('', false)).status, 401)
+    for (const query of ['', '?source_id=', '?source_id[]=x', '?source_id=x&limit=1', '?source_id=x&source_id=y', `?source_id=${'x'.repeat(201)}`]) {
+      assert.equal((await request(query)).status, 400)
+    }
+    assert.equal((await request('', true, 'POST')).status, 404)
+    assert.equal(calls, 0)
+    const response = await request()
+    assert.equal(response.status, 200)
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    const body = await response.json()
+    assert.equal(body.stages[0].retained_count, '9007199254740993')
+    assert.equal(body.kafka_consumer_lag, null)
+    assert.equal(body.kafka_lag_status, 'UNVERIFIED')
+    assert.equal(body.scope, 'retained_postgres_records')
+    assert.ok(!JSON.stringify(body).includes('private'))
+    role = 'analyst'; assert.equal((await request()).status, 403)
+    role = 'super_admin'; active = false; assert.equal((await request()).status, 401)
+    active = true; afterQuery = () => { role = 'analyst' }; assert.equal((await request()).status, 403)
+    role = 'super_admin'; afterQuery = () => { version++ }; assert.equal((await request()).status, 401)
+    version = 0; afterQuery = () => {}; fail = true
+    const failure = await request(); assert.equal(failure.status, 503)
+    assert.deepEqual(await failure.json(), { error: 'processing_observation_unavailable' })
+  } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
+})
+
+test('event feed monitoring is read-only, session guarded and rechecks grants after probe', async () => {
+  let role = 'super_admin', version = 0, active = true, afterProbe = () => {}, calls = 0
+  const execute = async () => [{ role, is_active: active, session_version: version }]
+  const app = express()
+  app.use(createAdminV2Router(execute, async () => {
+    calls++; afterProbe()
+    return { checked_at: '2026-10-08T00:00:00Z', reachable: true, ready: false,
+      status: 'BLOCKED', last_success_at: null,
+      feed_observation: { connector_id: 'connector-test', event_feed_id: 'feed-test',
+        observed_at: '2026-10-08T00:00:00Z', requested_after_seq: '0', retention_floor_seq: '0',
+        latest_available_seq: '3', returned_count: 2 }, error: 'private' }
+  }))
+  const server = app.listen(0, '127.0.0.1')
+  await new Promise(resolve => server.once('listening', resolve))
+  const token = jwt.sign({ sub: 'admin', role, session_version: 0 }, process.env.JWT_SECRET)
+  const request = (suffix = '', method = 'GET', auth = true) => fetch(
+    `http://127.0.0.1:${server.address().port}/api/v2/admin/event-feed${suffix}`,
+    { method, headers: auth ? { Authorization: `Bearer ${token}` } : {} })
+  try {
+    assert.equal((await request('', 'GET', false)).status, 401)
+    assert.equal((await request('?url=http://attacker')).status, 400)
+    assert.equal((await request('', 'POST')).status, 404)
+    assert.equal(calls, 0)
+    const response = await request()
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    const body = await response.json()
+    assert.equal(body.observation.latest_available_seq, '3')
+    assert.equal(body.status, 'BLOCKED') // old snapshot must not imply current availability
+    assert.equal(body.processing_checkpoint_available, false)
+    assert.ok(!JSON.stringify(body).includes('private'))
+    role = 'analyst'; assert.equal((await request()).status, 403)
+    role = 'super_admin'; active = false; assert.equal((await request()).status, 401)
+    active = true; afterProbe = () => { role = 'analyst' }
+    assert.equal((await request()).status, 403)
+    role = 'super_admin'; afterProbe = () => { version++ }
+    assert.equal((await request()).status, 401)
+    version = 0; afterProbe = () => { throw Error('private') }
+    const failure = await request(); assert.equal(failure.status, 503)
+    assert.deepEqual(await failure.json(), { error: 'event_feed_observation_unavailable' })
+  } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
+})
 test('quarantine endpoint validates scope and hides raw payload',async()=>{
   let role='super_admin',fail=false
   const app=express();app.use(createAdminV2Router(async(sql,params)=>{

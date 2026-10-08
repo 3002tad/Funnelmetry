@@ -59,7 +59,7 @@ export function toRawMessage(record, receivedAt) {
 
 // Single-flight, ordered publishing deliberately prevents out-of-order ACK holes.
 // cursorStore must be durable and compare-and-set; publisher resolves only on broker ACK.
-export function createConnector({ feedClient, cursorStore, publish, limit = 100, now = () => new Date().toISOString() }) {
+export function createConnector({ feedClient, cursorStore, publish, limit = 100, now = () => new Date().toISOString(), onFeedValidated = () => {} }) {
   requireCondition(Number.isSafeInteger(limit) && limit > 0, 'INVALID_LIMIT')
   let busy = false
   return {
@@ -70,6 +70,15 @@ export function createConnector({ feedClient, cursorStore, publish, limit = 100,
         let cursor = { ...validateCursor(await cursorStore.load()) }
         const feed = await feedClient.read({ ...cursor, limit })
         const records = validateFeed(feed, cursor, limit)
+        // Observation only: this is BEFORE publishing, not a processing checkpoint.
+        // Never pass event payloads or credentials to the monitoring surface.
+        onFeedValidated(Object.freeze({
+          observed_at: now(), event_feed_id: cursor.event_feed_id,
+          requested_after_seq: cursor.after_seq,
+          retention_floor_seq: feed.retention_floor_seq,
+          latest_available_seq: feed.latest_available_seq,
+          returned_count: records.length,
+        }))
         for (const record of records) {
           await cursorStore.assertOwned?.()
           await publish(toRawMessage(record, now()))

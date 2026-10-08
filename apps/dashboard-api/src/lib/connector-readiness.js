@@ -1,3 +1,4 @@
+import { feedObservation } from './feed-observation.js'
 // Fixed operator-configured monitoring target. Never accept a URL from the client.
 export async function connectorReadiness(fetcher=fetch, target=process.env.DASHBOARD_CONNECTOR_READINESS_URL || 'http://source-connector:32100/readyz') {
   const checked_at=new Date().toISOString()
@@ -9,6 +10,7 @@ export async function connectorReadiness(fetcher=fetch, target=process.env.DASHB
     if((response.status===200)!==(data.status==='READY'))throw Error('inconsistent_state')
     const last_success_at=typeof data.last_success_at==='string'&&Number.isFinite(Date.parse(data.last_success_at))?new Date(data.last_success_at).toISOString():null
     return {checked_at,reachable:true,ready:response.status===200,status:data.status,last_success_at,
-      error_present:!!data.error,scope:'configured_connector_process',lag_available:false}
+      error_present:!!data.error,scope:'configured_connector_process',lag_available:false,
+      feed_observation:feedObservation(data)}
   }catch{return {checked_at,reachable:false,ready:null,status:'UNVERIFIED',last_success_at:null,error_present:null,scope:'configured_connector_process',lag_available:false}}
 }

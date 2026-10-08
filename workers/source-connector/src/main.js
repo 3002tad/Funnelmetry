@@ -17,7 +17,8 @@ async function main() {
   const kafka = new Kafka({ clientId: config.id, brokers: config.brokers, logLevel: logLevel.NOTHING,
     connectionTimeout: 10000, requestTimeout: 30000, retry: { retries: 2 } })
   const controller = new AbortController()
-  const state = { status: 'STARTING', last_success_at: null, error: null }
+  const state = { status: 'STARTING', last_success_at: null, error: null,
+    connector_id: config.id, feed_observation: null }
   const server = createServer((request, response) => {
     if (!['/healthz', '/readyz'].includes(request.url)) { response.writeHead(404).end(); return }
     const ready = request.url === '/healthz' || state.status === 'READY'
@@ -45,7 +46,8 @@ async function main() {
           producer = kafka.producer({ transactionalId: `source-connector-${config.id}`, idempotent: true, maxInFlightRequests: 1 })
           await producer.connect()
           const publish = createKafkaPublisher({ producer, rawTopic: config.rawTopic, receiptTopic: config.receiptTopic })
-          const connector = createConnector({ feedClient, cursorStore: store, publish, limit: config.limit })
+          const connector = createConnector({ feedClient, cursorStore: store, publish, limit: config.limit,
+            onFeedValidated: observation => { state.feed_observation = observation } })
           return { pollOnce: () => connector.pollOnce(), close }
         } catch (error) {
           await close()

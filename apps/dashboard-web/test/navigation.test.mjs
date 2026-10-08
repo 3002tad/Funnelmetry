@@ -17,11 +17,14 @@ test('analyst navigation keeps live tools, excludes admin and gates chat', () =>
 test('admin permissions do not implicitly grant analytics or user management', () => {
   const result = paths(['pipeline.monitor'])
   assert.ok(result.includes('/admin/connector'))
+  assert.ok(result.includes('/admin/event-feed'))
+  assert.ok(result.includes('/admin/processing'))
+  assert.equal(navigation.flatMap(group => group.items).find(item => item.path === '/admin/processing').unavailable, undefined)
   assert.ok(!result.includes('/admin/users'))
   assert.ok(!result.includes('/admin/sources'))
   assert.ok(!result.includes('/overview'))
   assert.deepEqual(paths(['user.manage']), ['/admin/users'])
-  assert.deepEqual(paths(['integration.read']), ['/admin/sources'])
+  assert.deepEqual(paths(['integration.read']), ['/admin/sources', '/admin/schemas', '/admin/metadata', '/admin/metric-catalog', '/admin/tools'])
 })
 test('explicitly combined capabilities retain both navigation bundles', () => {
   const result = paths(['analytics.read', 'pipeline.monitor'])
@@ -31,7 +34,7 @@ test('explicitly combined capabilities retain both navigation bundles', () => {
 test('routes are unique and mock-backed surfaces are unavailable', () => {
   const items = navigation.flatMap(group => group.items)
   assert.equal(new Set(items.map(item => item.path)).size, items.length)
-  for (const path of ['/products', '/findings', '/workspace', '/admin/recovery']) assert.ok(items.find(item => item.path === path)?.unavailable)
-  for (const path of ['/overview', '/events', '/funnels', '/journeys', '/chat', '/admin/users']) assert.equal(items.find(item => item.path === path)?.unavailable, undefined)
+  for (const path of ['/traffic', '/campaigns', '/admin/recovery']) assert.ok(items.find(item => item.path === path)?.unavailable)
+  for (const path of ['/products', '/findings', '/workspace', '/overview', '/events', '/funnels', '/journeys', '/chat', '/admin/users', '/admin/event-feed']) assert.equal(items.find(item => item.path === path)?.unavailable, undefined)
   assert.ok(items.every(item => !['/implementations', '/evaluations', '/insights'].includes(item.path)))
 })

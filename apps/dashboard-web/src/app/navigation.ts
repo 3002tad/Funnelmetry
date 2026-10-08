@@ -46,9 +46,9 @@ export const navigation: NavigationGroup[] = [
   ] },
   { label: 'INGESTION', items: [
     admin('sources', 'Source Ingress / Sources', undefined, 'integration.read'),
-    admin('event-feed', 'Durable Event Log / Event Feed', 'Chưa kết nối màn hình availability và retention boundary của Event Feed.'),
+    admin('event-feed', 'Event Feed · quan sát nguồn'),
     admin('connector', 'Source Connector / Cursor'),
-    admin('processing', 'Kafka / Processing Lag', 'Chưa kết nối API consumer lag và lỗi xử lý từng stage.'),
+    admin('processing', 'Processing · dữ liệu đã lưu'),
     admin('quarantine', 'Quarantine / Unsupported'),
   ] },
   { label: 'GOVERNANCE', items: [

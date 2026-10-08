@@ -5,6 +5,27 @@ import { createConnector, validateFeed, toRawMessage } from '../src/connector.js
 import { createFeedClient } from '../src/feed-client.js'
 
 const cursor = { event_feed_id: 'feed-test', after_seq: 0 }
+test('monitoring observes only validated metadata before publish, even when Kafka fails', async () => {
+  const h = harness({ failPublish: 1 }), observations = []
+  const connector = createConnector({ ...h.deps, now: () => '2026-10-08T00:00:00Z',
+    onFeedValidated: value => { assert.deepEqual(h.operations, []); observations.push(value) } })
+  await assert.rejects(connector.pollOnce(), /broker/)
+  assert.deepEqual(observations, [{ observed_at: '2026-10-08T00:00:00Z', event_feed_id: 'feed-test',
+    requested_after_seq: 0, retention_floor_seq: 0, latest_available_seq: 4, returned_count: 3 }])
+  assert.equal(h.stored().after_seq, 0)
+  h.deps.feedClient.read = async () => ({ ...feed(), event_feed_id: 'wrong' })
+  await assert.rejects(connector.pollOnce(), { code: 'FEED_ID_MISMATCH' })
+  assert.equal(observations.length, 1)
+})
+
+test('empty poll exposes zero batch count without writing a cursor', async () => {
+  const h = harness(), observations = []
+  h.deps.feedClient.read = async () => feed([])
+  await createConnector({ ...h.deps, onFeedValidated: value => observations.push(value) }).pollOnce()
+  assert.equal(observations[0].returned_count, 0)
+  assert.equal(observations[0].latest_available_seq, 0)
+  assert.deepEqual(h.operations, [])
+})
 function record(seq) {
   return { event_feed_id: 'feed-test', ingress_seq: seq, accepted_at: '2026-09-18T00:00:00.000Z',
     specversion: INGRESS_EVENT_SPEC_VERSION, source_id: 'medusa-reference', event_id: `test:${seq}`,

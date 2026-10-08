@@ -1,5 +1,13 @@
 # Source Connector — opt-in runtime (stage 3)
 
+## Monitoring addition — 08/10/2026
+
+`/readyz` now includes an in-memory `feed_observation` from the last fully validated
+feed response plus `connector_id`. Observation is recorded before Kafka publication;
+it can remain old on failure and is not a processing checkpoint or current cursor.
+No token/raw payload is added. Keep this endpoint internal. Dashboard rollout and
+verification: [Admin Event Feed](../../docs/ADMIN_EVENT_FEED_2026-10-08.md).
+
 ## Read-only unsupported inventory
 
 `node src/inspect-unsupported.mjs` uses the existing runtime configuration to

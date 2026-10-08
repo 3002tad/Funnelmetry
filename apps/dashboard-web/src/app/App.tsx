@@ -25,6 +25,8 @@ const EvidencePage = lazy(() => import('../features/evidence/EvidencePage'))
 const FindingsPage = lazy(() => import('../features/evidence/FindingsPage'))
 const AuditPage = lazy(() => import('../features/admin/AuditPage'))
 const ConnectorsPage = lazy(() => import('../features/admin/ConnectorsPage'))
+const EventFeedPage = lazy(() => import('../features/admin/EventFeedPage'))
+const ProcessingPage = lazy(() => import('../features/admin/ProcessingPage'))
 const QuarantinePage = lazy(() => import('../features/admin/QuarantinePage'))
 const WorkspacePage = lazy(() => import('../features/workspace/WorkspacePage'))
 const ProductObservationsPage = lazy(() => import('../features/products/ProductObservationsPage'))
@@ -84,6 +86,8 @@ export function App() {
           <Route element={<PermissionGate permission="pipeline.monitor" />}>
           <Route path="/admin/pipeline" element={<PipelineHealthPage />} />
           <Route path="/admin/connector" element={<ConnectorsPage />} />
+          <Route path="/admin/event-feed" element={<EventFeedPage />} />
+          <Route path="/admin/processing" element={<ProcessingPage />} />
           <Route path="/admin/quarantine" element={<QuarantinePage />} />
           <Route path="/admin/run-diagnostics" element={<RunDiagnosticsPage />} />
           </Route>
