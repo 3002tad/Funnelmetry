@@ -22,7 +22,7 @@ Không dùng `down -v` để dừng. Không ghi secrets vào Git hoặc gửi c�
 
 ## Image / cấu hình
 
-Images local `funnelmetry/demo-api:20261009-monitoring-auth`, `funnelmetry/demo-web:20261009-health`,
+Images local `funnelmetry/demo-api:20261010-alerts`, `funnelmetry/demo-web:20261010-alerts`,
 `funnelmetry/demo-workers:20261009-health` build từ worktree có thay đổi Event Feed,
 không phải release mới đã commit/publish. Không ghi đè các tag SHA bàn giao cũ.
 File demo-new.env dùng các biến của handoff.env.example; secrets ngẫu nhiên riêng.
@@ -170,3 +170,13 @@ Không dùng thông tin đăng nhập thành công/healthy làm bằng chứng l
   hoàn tất. Check monitoring PASS: 8 panel, UP=1, 6 worker observations.
 - Khóa mới hết hạn lúc 00:03 ngày 17/10/2026 (giờ Việt Nam); rotate trước hạn.
 - Chỉ Prometheus recreate trong bước đổi khóa; không reset dữ liệu/cursor/offset.
+
+### Admin cảnh báo — 10/10/2026
+
+- `/admin/processing` thêm cảnh báo scrape, worker và hạn khóa; tự cập nhật mỗi
+  15 giây khi trang đang mở. UNKNOWN tách khỏi lỗi/giá trị 0, chưa gửi thông báo ngoài.
+- API/UI hiện dùng tag `20261010-alerts`; chỉ recreate API/UI để triển khai.
+- Dừng thử canonical-normalizer → WORKER_UNVERIFIED; bật lại → cảnh báo hết.
+  Worker đã được khôi phục. Prometheus UP=1, Grafana đủ 6 worker observations.
+- API 169 PASS / 4 SKIP; UI build PASS. Không migration/reset/source/model.
+- Chi tiết và giới hạn: `docs/ADMIN_MONITORING_ALERTS_2026-10-10.md`.

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { analyticsSourceId, apiRequest } from '../../lib/api'
 import { Button } from '../../components/ui/button'
+import MonitoringAlerts from './MonitoringAlerts'
 
 type Stage = { stage: string; retained_count: string; last_processed_at: string | null; last_recorded_at: string | null }
 type Snapshot = { source_id: string; checked_at: string; stages: Stage[] }
@@ -48,6 +49,7 @@ export default function ProcessingPage() {
         <p className="text-sm text-muted-foreground">Nguồn: {analyticsSourceId} · chỉ đọc</p></div>
       <Button variant="outline" disabled={query.isFetching || lagQuery.isFetching || workerQuery.isFetching} onClick={() => { void query.refetch(); void lagQuery.refetch(); void workerQuery.refetch() }}>Làm mới</Button>
     </header>
+    <MonitoringAlerts />
     <section className="panel space-y-3 p-4">
       <h2 className="font-semibold">Worker · trạng thái runtime tự báo</h2>
       <p className="text-sm text-muted-foreground">Đọc từ endpoint nội bộ, cache tối đa 5 giây. READY là cờ Kafka runtime của tiến trình;

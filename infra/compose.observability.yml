@@ -1,5 +1,10 @@
 # Optional local demo monitoring. No Docker socket, no public Prometheus port.
 services:
+  dashboard-api:
+    environment:
+      DASHBOARD_PROMETHEUS_MONITORING_ENABLED: 'true'
+      MONITORING_EXPIRY_WARNING_SECONDS: ${MONITORING_EXPIRY_WARNING_SECONDS:-86400}
+      MONITORING_SCRAPE_STALE_SECONDS: ${MONITORING_SCRAPE_STALE_SECONDS:-120}
   prometheus:
     image: ${MONITORING_PROMETHEUS_IMAGE:-prom/prometheus:v3.5.0}
     command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus, --storage.tsdb.retention.time=7d, --storage.tsdb.retention.size=1GB]

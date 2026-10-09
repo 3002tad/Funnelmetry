@@ -8,6 +8,7 @@ import { accountRouter } from './routes/account.js';
 import { createChatV2Router } from './routes/chat-v2.js';
 import { healthRouter } from "./routes/health.js";
 import { createMachineMonitoringRouter, createMonitoringCredentialRouter } from './routes/monitoring.js';
+import { createMonitoringAlertsRouter } from './routes/monitoring-alerts.js';
 import { usersRouter } from "./routes/users.js";
 import { analyticsV2Router } from "./routes/analytics-v2.js";
 import { createAdminV2Router } from "./routes/admin-v2.js";
@@ -53,6 +54,7 @@ export function createApp() {
   app.use(authRouter);
   app.use(accountRouter);
   app.use(createMonitoringCredentialRouter());
+  app.use(createMonitoringAlertsRouter());
   app.use(createChatV2Router());
   app.use(createAdminV2Router());
   app.use(createCatalogV2Router());

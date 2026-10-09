@@ -11,6 +11,22 @@ Object.assign(process.env, { PORT: '32000', CORS_ORIGIN_DASHBOARD: 'http://local
   QDRANT_URL: 'http://unused', QDRANT_COLLECTION: 'test', OLLAMA_URL: 'http://unused', OLLAMA_MODEL: 'test', OLLAMA_TIMEOUT_MS: '1000' })
 const { createMachineMonitoringRouter, createMonitoringCredentialRouter } = await import('../src/routes/monitoring.js')
 const { requireAuth } = await import('../src/middleware/auth.js')
+const { createMonitoringAlertsRouter } = await import('../src/routes/monitoring-alerts.js')
+
+test('alerts enforce live permissions before and after probes and reject caller targets',async()=>{
+  let role='super_admin',after=false,calls=0
+  const execute=async sql=>sql.includes('FROM dashboard_users')?[{role,is_active:true,session_version:0}]:[]
+  const app=express();app.use(createMonitoringAlertsRouter({execute,workers:async()=>{calls++;if(after)role='analyst';return {workers:[]}},scrape:async()=>({state:'OK'})}))
+  await serve(app,async base=>{
+    const token=jwt.sign({sub:'admin',role,session_version:0},process.env.JWT_SECRET)
+    const get=(suffix='',key=token)=>fetch(base+'/api/v2/admin/monitoring-alerts'+suffix,{headers:{Authorization:`Bearer ${key}`}})
+    assert.equal((await get('','invalid')).status,401)
+    assert.equal((await get('?url=http://evil')).status,400);assert.equal(calls,0)
+    const good=await get();assert.equal(good.status,200);assert.equal(good.headers.get('cache-control'),'no-store')
+    role='analyst';assert.equal((await get()).status,403)
+    role='super_admin';after=true;assert.equal((await get()).status,403)
+  })
+})
 
 async function serve(app, work) {
   const server = app.listen(0, '127.0.0.1')
