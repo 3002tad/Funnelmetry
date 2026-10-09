@@ -1,5 +1,9 @@
 # Bàn giao test Admin monitoring — 10/10/2026
 
+> Điểm bắt đầu chung cho team: [bản bàn giao trong System_Backbone](https://github.com/3002tad/System_Backbone/blob/main/docs/implementation/PIPELINE_MONITORING_HANDOFF_2026-10-10.md).
+> File này giữ lệnh vận hành theo version code Pipeline; Backbone tổng hợp tiến độ,
+> bằng chứng và checklist, không sao chép một bộ lệnh runtime thứ hai.
+
 ## Phạm vi bản này
 
 Sau bản bàn giao 05/10: thêm Admin Event Feed/Processing, Kafka lag/membership,
