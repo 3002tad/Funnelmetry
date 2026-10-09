@@ -1,0 +1,318 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "id": null,
+  "uid": "funnelmetry-pipeline-monitoring",
+  "title": "Funnelmetry — Pipeline observations",
+  "tags": [
+    "funnelmetry",
+    "pipeline"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Scope and interpretation",
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Read-only observations across **all configured sources**. No data means **unknown**, not zero. Kafka lag counts offset positions, not events or seconds. Worker READY is a local runtime flag, not continuous database validation or proof of canonical acceptance. Group membership is not container health. No recovery or autoscaling is enabled. Scrape authentication uses an expiring metrics-only machine credential; a failed scrape may indicate expiry or revocation. Timestamp age measures probe age, not time since successful processing."
+      }
+    },
+    {
+      "id": 2,
+      "title": "Scrape success (0 = failed, absent = unknown)",
+      "type": "timeseries",
+      "description": "HTTP collection only; 1 does not mean the pipeline is healthy.",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"funnelmetry-monitoring\"}",
+          "legendFormat": "{{instance}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Observation availability (1 = at least one known target)",
+      "type": "timeseries",
+      "description": "Not an all-targets health score.",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "funnelmetry_monitoring_snapshot_available{job=\"funnelmetry-monitoring\"} and on(job,instance) (up{job=\"funnelmetry-monitoring\"} == 1)",
+          "legendFormat": "{{instance}} / {{collector}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Kafka lag — offset positions",
+      "type": "timeseries",
+      "description": "Unknown and unsafe-integer counts are omitted, not replaced with zero.",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "funnelmetry_kafka_lag_offsets{job=\"funnelmetry-monitoring\"} and on(job,instance,group_id,topic) (funnelmetry_kafka_lag_available{job=\"funnelmetry-monitoring\"} == 1) and on(job,instance) (up{job=\"funnelmetry-monitoring\"} == 1)",
+          "legendFormat": "{{instance}} / {{group_id}} / {{topic}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Worker local runtime readiness",
+      "type": "timeseries",
+      "description": "1 READY, 0 known non-ready; unavailable is a gap.",
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "funnelmetry_worker_runtime_ready{job=\"funnelmetry-monitoring\"} and on(job,instance,worker) (funnelmetry_worker_observation_available{job=\"funnelmetry-monitoring\"} == 1) and on(job,instance) (up{job=\"funnelmetry-monitoring\"} == 1)",
+          "legendFormat": "{{instance}} / {{worker}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Kafka consumer-group members",
+      "type": "timeseries",
+      "description": "Broker observation; membership can lag a stopped worker until session timeout.",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "funnelmetry_kafka_group_members{job=\"funnelmetry-monitoring\"} and on(job,instance,group_id) (funnelmetry_kafka_membership_available{job=\"funnelmetry-monitoring\"} == 1) and on(job,instance) (up{job=\"funnelmetry-monitoring\"} == 1)",
+          "legendFormat": "{{instance}} / {{group_id}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Probe age in seconds",
+      "type": "timeseries",
+      "description": "Time since latest probe, including failed probes. Not processing freshness.",
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(time() - funnelmetry_monitoring_observed_timestamp_seconds{job=\"funnelmetry-monitoring\"}) and on(job,instance) (up{job=\"funnelmetry-monitoring\"} == 1)",
+          "legendFormat": "{{instance}} / {{collector}} / {{worker}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Current broker group state",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "funnelmetry_kafka_group_state{job=\"funnelmetry-monitoring\"} and on(job,instance,group_id) (funnelmetry_kafka_membership_available{job=\"funnelmetry-monitoring\"} == 1) and on(job,instance) (up{job=\"funnelmetry-monitoring\"} == 1)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    }
+  ]
+}

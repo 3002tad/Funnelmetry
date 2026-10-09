@@ -4,6 +4,7 @@
 infra/.env
 runtime/*.env
 runtime/backups/
+runtime/monitoring/
 
 node_modules/
 dist/

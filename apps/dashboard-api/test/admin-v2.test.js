@@ -21,6 +21,43 @@ const { permissionsFor } = await import('../src/lib/roles.js')
 const { mutateAccount } = await import('../src/lib/account-mutation.js')
 const { assertAccountSchema, AccountSchemaError } = await import('../src/lib/account-schema.js')
 
+test('metrics exposition is authenticated, no-store and rechecks grants after both probes',async()=>{
+  let role='super_admin',version=0,calls=0,after=()=>{}
+  const app=express();app.use(createAdminV2Router(async()=>[{role,is_active:true,session_version:version}],undefined,
+    async()=>{calls++;return {groups:[]}},async()=>{after();return {workers:[]}}))
+  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve))
+  const token=jwt.sign({sub:'admin',role,session_version:0},process.env.JWT_SECRET)
+  const get=(suffix='',auth=true)=>fetch(`http://127.0.0.1:${server.address().port}/api/v2/admin/metrics${suffix}`,{headers:auth?{Authorization:`Bearer ${token}`}:{}})
+  try{
+    assert.equal((await get('',false)).status,401);assert.equal((await get('?target=evil')).status,400);assert.equal(calls,0)
+    const response=await get();assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/text\/plain;.*version=0.0.4/)
+    assert.equal(response.headers.get('cache-control'),'no-store');assert.match(await response.text(),/# TYPE funnelmetry_monitoring_snapshot_available gauge/)
+    role='analyst';assert.equal((await get()).status,403)
+    role='super_admin';after=()=>{role='analyst'};assert.equal((await get()).status,403)
+    role='super_admin';after=()=>{version++};assert.equal((await get()).status,401)
+    version=0;after=()=>{throw Error('secret')};const failure=await get();assert.equal(failure.status,503);assert.deepEqual(await failure.json(),{error:'monitoring_metrics_unavailable'})
+  }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve))}
+})
+
+test('worker readiness requires current permission and rejects client-selected targets', async () => {
+  let role='super_admin',version=0,calls=0,after=()=>{}
+  const app=express();app.use(createAdminV2Router(async()=>[{role,is_active:true,session_version:version}],undefined,undefined,
+    async()=>{calls++;after();return {workers:[]}}))
+  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve))
+  const token=jwt.sign({sub:'admin',role,session_version:0},process.env.JWT_SECRET)
+  const get=(suffix='',auth=true,method='GET')=>fetch(`http://127.0.0.1:${server.address().port}/api/v2/admin/worker-readiness${suffix}`,{method,headers:auth?{Authorization:`Bearer ${token}`}:{}})
+  try {
+    assert.equal((await get('',false)).status,401)
+    assert.equal((await get('?url=http://evil')).status,400)
+    assert.equal((await get('',true,'POST')).status,404);assert.equal(calls,0)
+    const good=await get();assert.equal(good.status,200);assert.equal(good.headers.get('cache-control'),'no-store')
+    role='analyst';assert.equal((await get()).status,403)
+    role='super_admin';after=()=>{role='analyst'};assert.equal((await get()).status,403)
+    role='super_admin';after=()=>{version++};assert.equal((await get()).status,401)
+    version=0;after=()=>{throw Error('secret')};const bad=await get();assert.equal(bad.status,503);assert.deepEqual(await bad.json(),{error:'worker_readiness_unavailable'})
+  }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve))}
+})
+
 test('Kafka lag endpoint accepts no client target and rechecks live grants after probe', async () => {
   let role = 'super_admin', version = 0, calls = 0, afterProbe = () => {}
   const app = express()

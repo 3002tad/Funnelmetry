@@ -3,6 +3,7 @@
 services:
   dashboard-api:
     environment:
+      DASHBOARD_WORKER_HEALTH_ENABLED: 'true'
       DASHBOARD_KAFKA_LAG_ENABLED: 'true'
       DASHBOARD_KAFKA_LAG_BROKERS: kafka:9092
       DASHBOARD_KAFKA_LAG_TARGETS_JSON: >-
@@ -13,3 +14,15 @@ services:
         {"group_id":"funnelmetry-journey-processor-v1","topic":"funnelmetry.canonical.persisted.v1"},
         {"group_id":"funnelmetry-funnel-processor-v1","topic":"funnelmetry.journey.resolved.v1"},
         {"group_id":"funnelmetry-kpi-projector-v1","topic":"funnelmetry.funnel.updated.v1"}]
+  canonical-normalizer:
+    environment: {WORKER_HEALTH_PORT: '32110'}
+  canonical-ledger-writer:
+    environment: {WORKER_HEALTH_PORT: '32110'}
+  ingress-telemetry-writer:
+    environment: {WORKER_HEALTH_PORT: '32110'}
+  journey-processor:
+    environment: {WORKER_HEALTH_PORT: '32110'}
+  funnel-processor:
+    environment: {WORKER_HEALTH_PORT: '32110'}
+  kpi-projector:
+    environment: {WORKER_HEALTH_PORT: '32110'}

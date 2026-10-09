@@ -6,8 +6,10 @@ import { Button } from '../../components/ui/button'
 
 type Stage = { stage: string; retained_count: string; last_processed_at: string | null; last_recorded_at: string | null }
 type Snapshot = { source_id: string; checked_at: string; stages: Stage[] }
+type WorkerSnapshot = { reason?: string; workers: { worker: string; checked_at: string; status: string; ready: boolean | null }[] }
 type Lag = { checked_at: string; status: string; reason?: string; groups: {
   group_id: string; topic: string; status: string; lag_offsets: string | null;
+  membership?: { status: string; state: string | null; member_count: number | null };
   partitions: { partition: number; status: string; committed_offset: string | null; high_offset: string; low_offset: string; lag_offsets: string | null }[]
 }[] }
 const descriptions: Record<string, [string, string]> = {
@@ -16,6 +18,11 @@ const descriptions: Record<string, [string, string]> = {
   quarantined: ['Đã cách ly', 'Kết quả mới nhất theo source event'],
   canonical: ['Canonical đã lưu', 'Bản ghi theo source event và phiên bản mapping'],
   kpi: ['KPI đã áp dụng', 'Lượt áp dụng projection; không phải số đơn hay số khách'],
+}
+const membershipLabels: Record<string, string> = {
+  Stable: 'Nhóm ổn định', PreparingRebalance: 'Đang chuẩn bị phân chia lại công việc',
+  CompletingRebalance: 'Đang hoàn tất phân chia lại công việc',
+  Empty: 'Không có thành viên trong nhóm', Dead: 'Nhóm không còn hoạt động (Dead)',
 }
 
 export default function ProcessingPage() {
@@ -32,12 +39,27 @@ export default function ProcessingPage() {
     retry: false, gcTime: 0,
   })
   const lag = lagQuery.isError ? undefined : lagQuery.data
+  const workerQuery = useQuery({ queryKey: ['admin-worker-readiness', user?.id],
+    queryFn: ({ signal }) => apiRequest<WorkerSnapshot>('/api/v2/admin/worker-readiness', { signal }), retry: false, gcTime: 0 })
+  const workers = workerQuery.isError ? undefined : workerQuery.data
   return <div className="space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div><h1 className="text-2xl font-semibold">Processing · dữ liệu đã lưu</h1>
         <p className="text-sm text-muted-foreground">Nguồn: {analyticsSourceId} · chỉ đọc</p></div>
-      <Button variant="outline" disabled={query.isFetching || lagQuery.isFetching} onClick={() => { void query.refetch(); void lagQuery.refetch() }}>Làm mới</Button>
+      <Button variant="outline" disabled={query.isFetching || lagQuery.isFetching || workerQuery.isFetching} onClick={() => { void query.refetch(); void lagQuery.refetch(); void workerQuery.refetch() }}>Làm mới</Button>
     </header>
+    <section className="panel space-y-3 p-4">
+      <h2 className="font-semibold">Worker · trạng thái runtime tự báo</h2>
+      <p className="text-sm text-muted-foreground">Đọc từ endpoint nội bộ, cache tối đa 5 giây. READY là cờ Kafka runtime của tiến trình;
+        không kiểm tra PostgreSQL liên tục, mọi replica hay bảo đảm xử lý end-to-end. UNVERIFIED không có nghĩa chắc chắn worker đã dừng.</p>
+      {workerQuery.isPending && <p role="status">Đang kiểm tra worker…</p>}
+      {workerQuery.isError && <p role="alert">Không đọc được trạng thái worker.</p>}
+      {workers?.reason && <p>Giám sát chưa được cấu hình.</p>}
+      <div className="grid gap-3 sm:grid-cols-2">{workers?.workers.map(worker => <div key={worker.worker} className="rounded border p-3">
+        <p className="font-medium">{worker.worker}</p><p>{worker.status}</p>
+        <p className="text-xs text-muted-foreground">Quan sát: {worker.checked_at}</p>
+      </div>)}</div>
+    </section>
     <section className="panel space-y-2 p-4">
       <h2 className="font-semibold">Kafka consumer lag · offset</h2>
       <p>Phạm vi: các nhóm được cấu hình trên Kafka, gồm mọi nguồn; không theo bộ lọc source hoặc thời gian. Snapshot có thể được tái sử dụng trong 5 giây.</p>
@@ -45,7 +67,13 @@ export default function ProcessingPage() {
       {lagQuery.isError && <p role="alert">Không tải được quan sát Kafka; không coi là lag bằng 0.</p>}
       {lag && <p>Quan sát: {lag.checked_at} · {lag.status}{lag.reason ? ` · ${lag.reason}` : ''}</p>}
       {lag?.groups.map(group => <details key={`${group.group_id}/${group.topic}`} className="rounded border p-3">
-        <summary className="cursor-pointer break-all">{group.group_id} · {group.topic} — {group.lag_offsets ?? 'Chưa xác minh'} offset · {group.status}</summary>
+        <summary className="cursor-pointer break-all">{group.group_id} · {group.topic} — {group.lag_offsets ?? 'Chưa xác minh'} offset · {group.status}
+          <span className="mt-1 block text-sm">{group.membership?.status === 'OBSERVED' && group.membership.state
+            ? `${membershipLabels[group.membership.state] ?? group.membership.state} · ${group.membership.member_count} thành viên`
+            : 'Thành viên nhóm: chưa xác minh'}</span>
+        </summary>
+        <p className="mt-2 text-sm text-muted-foreground">Thành viên do broker ghi nhận cho toàn nhóm, không phải số container hay số worker riêng của topic này.
+          Stable không chứng minh worker xử lý thành công. Sau khi worker mất kết nối, broker có thể cần chờ session timeout mới cập nhật.</p>
         <div className="mt-2 overflow-x-auto"><table className="w-full text-left text-sm">
           <thead><tr><th>Partition</th><th>Low</th><th>High</th><th>Committed</th><th>Lag</th><th>Trạng thái</th></tr></thead>
           <tbody>{group.partitions.map(row => <tr key={row.partition}>

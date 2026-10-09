@@ -9,9 +9,33 @@ import { connectorReadiness } from '../lib/connector-readiness.js'
 import { requireLiveSession } from '../middleware/live-session.js'
 import { PROCESSING_OBSERVATION_SQL, parseProcessingSource } from '../lib/processing-observation.js'
 import { kafkaLag } from '../lib/kafka-lag.js'
+import { workerReadiness } from '../lib/worker-readiness.js'
+import { monitoringMetrics } from '../lib/monitoring-metrics.js'
 
-export function createAdminV2Router(execute = query, probe = connectorReadiness, probeLag = kafkaLag) {
+export function createAdminV2Router(execute = query, probe = connectorReadiness, probeLag = kafkaLag, probeWorkers = workerReadiness) {
   const router = Router()
+  router.get('/api/v2/admin/metrics', requireAuth, requireLiveSession(execute),
+    requireLivePermission('pipeline.monitor', execute), async (req, res) => {
+      res.set('Cache-Control', 'no-store')
+      if (Object.keys(req.query).length) return res.status(400).json({ error: 'invalid_metrics_query' })
+      try {
+        const [lag, workers] = await Promise.all([probeLag(), probeWorkers()])
+        const output = monitoringMetrics(lag, workers)
+        return requireLiveSession(execute)(req, res, () =>
+          requireLivePermission('pipeline.monitor', execute)(req, res, () =>
+            res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8').send(output)))
+      } catch { return res.status(503).json({ error: 'monitoring_metrics_unavailable' }) }
+    })
+  router.get('/api/v2/admin/worker-readiness', requireAuth, requireLiveSession(execute),
+    requireLivePermission('pipeline.monitor', execute), async (req, res) => {
+      res.set('Cache-Control', 'no-store')
+      if (Object.keys(req.query).length) return res.status(400).json({ error: 'invalid_worker_readiness_query' })
+      try {
+        const result = await probeWorkers()
+        return requireLiveSession(execute)(req, res, () =>
+          requireLivePermission('pipeline.monitor', execute)(req, res, () => res.json(result)))
+      } catch { return res.status(503).json({ error: 'worker_readiness_unavailable' }) }
+    })
   router.get('/api/v2/admin/kafka-lag', requireAuth, requireLiveSession(execute),
     requireLivePermission('pipeline.monitor', execute), async (req, res) => {
       res.set('Cache-Control', 'no-store')

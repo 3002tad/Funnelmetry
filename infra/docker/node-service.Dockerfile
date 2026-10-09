@@ -5,6 +5,7 @@ ARG SERVICE_PATH
 WORKDIR /workspace
 COPY packages ./packages
 COPY integrations ./integrations
+COPY workers/shared ./workers/shared
 COPY ${SERVICE_PATH}/package.json ${SERVICE_PATH}/package-lock.json ./${SERVICE_PATH}/
 
 WORKDIR /workspace/${SERVICE_PATH}

@@ -1,4 +1,5 @@
 import { Kafka, logLevel } from 'kafkajs'
+import { observeMembership } from './kafka-membership.js'
 
 const decimal = value => typeof value === 'string' && /^(0|[1-9]\d{0,18})$/.test(value)
 export function partitionLag({ partition, low, high }, committed) {
@@ -28,7 +29,11 @@ export function lagConfig(env) {
 // offset resolution/reset, consumer, producer, or Docker access.
 export async function collectLag(admin, targets) {
   await admin.connect()
+  // Reuse one describe per group, including telemetry's two topic rows.
+  const memberships = new Map([...new Set(targets.map(target => target.group_id))]
+    .map(groupId => [groupId, observeMembership(admin, groupId)]))
   const groups = await Promise.all(targets.map(async ({ group_id, topic }) => {
+    const membership = await memberships.get(group_id)
     try {
       // Read commits first. High/low later: moving snapshots are not atomic.
       const offsets = await admin.fetchOffsets({ groupId: group_id, topics: [topic], resolveOffsets: false })
@@ -37,9 +42,9 @@ export async function collectLag(admin, targets) {
       const commits = offsets.find(row => row.topic === topic)?.partitions ?? []
       const partitions = bounds.map(bound => partitionLag(bound, commits.find(row => row.partition === bound.partition)?.offset))
       const known = partitions.every(row => row.status === 'OBSERVED')
-      return { group_id, topic, status: known ? 'OBSERVED' : 'UNVERIFIED', partitions,
+      return { group_id, topic, membership, status: known ? 'OBSERVED' : 'UNVERIFIED', partitions,
         lag_offsets: known ? String(partitions.reduce((sum, row) => sum + BigInt(row.lag_offsets), 0n)) : null }
-    } catch { return { group_id, topic, status: 'UNVERIFIED', partitions: [], lag_offsets: null } }
+    } catch { return { group_id, topic, membership, status: 'UNVERIFIED', partitions: [], lag_offsets: null } }
   }))
   return groups
 }

@@ -22,8 +22,8 @@ Không dùng `down -v` để dừng. Không ghi secrets vào Git hoặc gửi c�
 
 ## Image / cấu hình
 
-Images local `funnelmetry/demo-api:20261008-lag`, `funnelmetry/demo-web:20261008-lag`,
-`funnelmetry/demo-workers:20261008` build từ worktree có thay đổi Event Feed,
+Images local `funnelmetry/demo-api:20261009-monitoring-auth`, `funnelmetry/demo-web:20261009-health`,
+`funnelmetry/demo-workers:20261009-health` build từ worktree có thay đổi Event Feed,
 không phải release mới đã commit/publish. Không ghi đè các tag SHA bàn giao cũ.
 File demo-new.env dùng các biến của handoff.env.example; secrets ngẫu nhiên riêng.
 DB/Kafka không mở port host; UI bind 127.0.0.1. Bốn Compose files:
@@ -103,3 +103,70 @@ Không dùng thông tin đăng nhập thành công/healthy làm bằng chứng l
   có high=0, committed=-1: hiện NO_COMMITTED_OFFSET, không tự nhận lag bằng 0.
 - Chi tiết cấu hình, giới hạn và kiểm chứng: `docs/ADMIN_KAFKA_LAG_2026-10-08.md`.
 - Worker/DB/Kafka giữ nguyên; không gửi event, reset offset hoặc bật source/AI.
+
+### Follow-up thành viên nhóm Kafka — 09/10/2026
+
+- API/UI dùng tag local `20261009-membership`. Trang Processing thêm trạng thái
+  nhóm và số thành viên, không hiển thị danh tính/IP hay metadata nội bộ.
+- Broker thực tế trả 6 nhóm Stable, mỗi nhóm 1 thành viên tại thời điểm kiểm tra.
+  Không dùng Stable để chứng nhận worker xử lý thành công hoặc hết backlog.
+- Chi tiết: `docs/ADMIN_KAFKA_MEMBERSHIP_2026-10-09.md`.
+- Chỉ recreate API/UI; không thay đổi dữ liệu, worker, offset hoặc bật live feed/AI.
+
+### Follow-up worker runtime — 09/10/2026
+
+- API/UI/workers dùng tag local `20261009-health`; overlay monitoring bật listener
+  nội bộ 32110 cho 6 worker, không publish port lên host.
+- Processing có thẻ trạng thái từng worker; runtime smoke trả 6 READY. Đây là cờ
+  Kafka runtime tự báo, không phải kiểm tra DB liên tục hoặc chứng nhận xử lý đủ.
+- Chi tiết và tests: `docs/ADMIN_WORKER_READINESS_2026-10-09.md`.
+- Recreate worker/API/UI; giữ nguyên DB/Kafka/volumes/offset. Không bật Medusa/AI.
+
+### Follow-up metrics — 09/10/2026
+
+- API dùng `20261009-metrics`, UI/workers vẫn `20261009-health`.
+- `/api/v2/admin/metrics` xuất định dạng Prometheus có phân quyền Admin, dùng
+  session Bearer hiện hành. Dữ liệu chưa xác minh không đổi thành lag/ready = 0.
+- Runtime HTTP smoke và promtool check metrics PASS. Chỉ recreate API.
+- Chưa dựng Prometheus/Grafana hay credential cho scrape tự động lâu dài.
+  Chi tiết: `docs/ADMIN_MONITORING_METRICS_2026-10-09.md`.
+
+### Follow-up dashboard monitoring artifacts — 09/10/2026
+
+- Thêm dashboard Grafana import thủ công và mẫu cấu hình Prometheus tại
+  `infra/observability/`; hướng dẫn trong `infra/observability/README.md`.
+- Artifact tests: 3 PASS; promtool syntax và 3 truy vấn regression PASS.
+  Phân biệt known zero, chưa có observation và scrape thất bại.
+- Chưa deploy Prometheus/Grafana, chưa kiểm chứng import bằng trình duyệt;
+  không thêm container vào launcher hoặc đổi image demo trong bước này.
+- Scrape demo cần session có quyền còn hiệu lực; credential máy chạy tự động
+  cần thống nhất vòng đời cấp/rotate/revoke trước khi triển khai lâu dài.
+- Không migration, đổi dữ liệu/cursor/offset hay bật source/model.
+
+### Follow-up machine key và monitoring runtime — 09/10/2026
+
+- Prometheus/Grafana đã chạy bằng khóa metrics riêng, không dùng session Admin.
+- Grafana: http://localhost:5182, user `monitoring-admin`; mật khẩu nằm trong
+  ignored `runtime/monitoring/grafana-password`. Dashboard trong thư mục Pipeline.
+- Launcher start/stop tự gồm monitoring khi có `runtime/monitoring.env`.
+- Đã apply migration bổ sung `011_monitoring_credentials.sql`; không đổi bootstrap
+  digest hoặc bảng event/cursor. Khóa demo hết hạn sau 7 ngày, phải rotate chủ động.
+- Runtime kiểm chứng dashboard 8 panel, scrape UP=1, 6 worker observations;
+  khóa bị thu hồi/hết hạn bị từ chối. Đây không phải chứng nhận dữ liệu end-to-end.
+- Runbook: `docs/MONITORING_MACHINE_CREDENTIALS_2026-10-09.md`.
+
+### Monitoring key rotation helper
+
+- `rotate-monitoring-key.cmd` hoặc `node runtime/manage-monitoring-key.mjs rotate`:
+  thay khóa, chỉ recreate Prometheus; xác nhận scrape mới rồi mới thu hồi khóa cũ.
+- Có status/revoke và pending journal để chạy tiếp khi gián đoạn, không in secret.
+- 4 workflow tests PASS; chưa kiểm chứng rotation thực tế vì Docker đang tắt.
+  Lượt thử chưa cấp khóa mới hoặc thu hồi khóa hiện hành.
+
+### Rotation acceptance — 10/10/2026
+
+- Sau khi Docker bật lại, launcher start thành công; đổi khóa thực tế exit 0.
+- Xác nhận scrape mới thành công trước khi thu hồi khóa cũ; pending journal đã
+  hoàn tất. Check monitoring PASS: 8 panel, UP=1, 6 worker observations.
+- Khóa mới hết hạn lúc 00:03 ngày 17/10/2026 (giờ Việt Nam); rotate trước hạn.
+- Chỉ Prometheus recreate trong bước đổi khóa; không reset dữ liệu/cursor/offset.

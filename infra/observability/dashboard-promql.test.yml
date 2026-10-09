@@ -1,0 +1,127 @@
+{
+  "rule_files": [],
+  "evaluation_interval": "30s",
+  "tests": [
+    {
+      "interval": "30s",
+      "input_series": [
+        {
+          "series": "up{job=\"funnelmetry-monitoring\",instance=\"known:32000\"}",
+          "values": "1 1"
+        },
+        {
+          "series": "funnelmetry_kafka_lag_offsets{job=\"funnelmetry-monitoring\",instance=\"known:32000\",group_id=\"g\",topic=\"t\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_kafka_lag_available{job=\"funnelmetry-monitoring\",instance=\"known:32000\",group_id=\"g\",topic=\"t\"}",
+          "values": "1 1"
+        },
+        {
+          "series": "funnelmetry_worker_runtime_ready{job=\"funnelmetry-monitoring\",instance=\"known:32000\",worker=\"w\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_worker_observation_available{job=\"funnelmetry-monitoring\",instance=\"known:32000\",worker=\"w\"}",
+          "values": "1 1"
+        },
+        {
+          "series": "funnelmetry_kafka_group_members{job=\"funnelmetry-monitoring\",instance=\"known:32000\",group_id=\"g\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_kafka_membership_available{job=\"funnelmetry-monitoring\",instance=\"known:32000\",group_id=\"g\"}",
+          "values": "1 1"
+        },
+        {
+          "series": "up{job=\"funnelmetry-monitoring\",instance=\"unknown:32000\"}",
+          "values": "1 1"
+        },
+        {
+          "series": "funnelmetry_kafka_lag_offsets{job=\"funnelmetry-monitoring\",instance=\"unknown:32000\",group_id=\"g\",topic=\"t\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_kafka_lag_available{job=\"funnelmetry-monitoring\",instance=\"unknown:32000\",group_id=\"g\",topic=\"t\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_worker_runtime_ready{job=\"funnelmetry-monitoring\",instance=\"unknown:32000\",worker=\"w\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_worker_observation_available{job=\"funnelmetry-monitoring\",instance=\"unknown:32000\",worker=\"w\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_kafka_group_members{job=\"funnelmetry-monitoring\",instance=\"unknown:32000\",group_id=\"g\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_kafka_membership_available{job=\"funnelmetry-monitoring\",instance=\"unknown:32000\",group_id=\"g\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "up{job=\"funnelmetry-monitoring\",instance=\"failed:32000\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_kafka_lag_offsets{job=\"funnelmetry-monitoring\",instance=\"failed:32000\",group_id=\"g\",topic=\"t\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_kafka_lag_available{job=\"funnelmetry-monitoring\",instance=\"failed:32000\",group_id=\"g\",topic=\"t\"}",
+          "values": "1 1"
+        },
+        {
+          "series": "funnelmetry_worker_runtime_ready{job=\"funnelmetry-monitoring\",instance=\"failed:32000\",worker=\"w\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_worker_observation_available{job=\"funnelmetry-monitoring\",instance=\"failed:32000\",worker=\"w\"}",
+          "values": "1 1"
+        },
+        {
+          "series": "funnelmetry_kafka_group_members{job=\"funnelmetry-monitoring\",instance=\"failed:32000\",group_id=\"g\"}",
+          "values": "0 0"
+        },
+        {
+          "series": "funnelmetry_kafka_membership_available{job=\"funnelmetry-monitoring\",instance=\"failed:32000\",group_id=\"g\"}",
+          "values": "1 1"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "funnelmetry_kafka_lag_offsets{job=\"funnelmetry-monitoring\"} and on(job,instance,group_id,topic) (funnelmetry_kafka_lag_available{job=\"funnelmetry-monitoring\"} == 1) and on(job,instance) (up{job=\"funnelmetry-monitoring\"} == 1)",
+          "eval_time": "30s",
+          "exp_samples": [
+            {
+              "labels": "funnelmetry_kafka_lag_offsets{job=\"funnelmetry-monitoring\",instance=\"known:32000\",group_id=\"g\",topic=\"t\"}",
+              "value": 0
+            }
+          ]
+        },
+        {
+          "expr": "funnelmetry_worker_runtime_ready{job=\"funnelmetry-monitoring\"} and on(job,instance,worker) (funnelmetry_worker_observation_available{job=\"funnelmetry-monitoring\"} == 1) and on(job,instance) (up{job=\"funnelmetry-monitoring\"} == 1)",
+          "eval_time": "30s",
+          "exp_samples": [
+            {
+              "labels": "funnelmetry_worker_runtime_ready{job=\"funnelmetry-monitoring\",instance=\"known:32000\",worker=\"w\"}",
+              "value": 0
+            }
+          ]
+        },
+        {
+          "expr": "funnelmetry_kafka_group_members{job=\"funnelmetry-monitoring\"} and on(job,instance,group_id) (funnelmetry_kafka_membership_available{job=\"funnelmetry-monitoring\"} == 1) and on(job,instance) (up{job=\"funnelmetry-monitoring\"} == 1)",
+          "eval_time": "30s",
+          "exp_samples": [
+            {
+              "labels": "funnelmetry_kafka_group_members{job=\"funnelmetry-monitoring\",instance=\"known:32000\",group_id=\"g\"}",
+              "value": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

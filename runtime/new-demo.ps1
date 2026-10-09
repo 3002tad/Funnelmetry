@@ -20,6 +20,10 @@ try {
       '-f', (Join-Path $repo 'infra/compose.handoff-pipeline.yml'),
       '-f', (Join-Path $repo 'infra/compose.handoff-analytics.yml'),
       '-f', (Join-Path $repo 'infra/compose.handoff-monitoring.yml'))
+    $monitoringConfig = Join-Path $PSScriptRoot 'monitoring.env'
+    if (Test-Path -LiteralPath $monitoringConfig -PathType Leaf) {
+        $arguments += @('--env-file', $monitoringConfig, '-f', (Join-Path $repo 'infra/compose.observability.yml'))
+    }
     & $dockerExe @arguments config --quiet
     if ($LASTEXITCODE -ne 0) { throw 'Invalid demo config.' }
     if ($Action -eq 'start') {

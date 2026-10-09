@@ -1,4 +1,5 @@
 import { loadConfig } from "./config.js"
+import { createWorkerHealth } from '../../shared/health-server.mjs'
 import { createKafkaNormalizerRuntime } from "./kafka-runtime.js"
 import { loadMappingRegistry } from "./mapping-loader.js"
 import { createNormalizer } from "./normalizer.js"
@@ -7,6 +8,7 @@ const config = loadConfig()
 const registry = await loadMappingRegistry(config.mappingConfigPath)
 const runtime = createKafkaNormalizerRuntime({ ...config, normalizer: createNormalizer({ registry }) })
 let shuttingDown = false
+const health = createWorkerHealth({ worker: 'canonical-normalizer', runtime, isStopping: () => shuttingDown })
 
 async function shutdown(signal) {
   if (shuttingDown) return
@@ -14,6 +16,7 @@ async function shutdown(signal) {
   console.log(`canonical-normalizer received ${signal}; shutting down`)
   const forceExit = setTimeout(() => process.exit(1), config.shutdownTimeoutMs)
   forceExit.unref()
+  await health.stop()
   await runtime.stop()
   clearTimeout(forceExit)
 }
@@ -28,10 +31,13 @@ process.once("SIGTERM", () => shutdown("SIGTERM").catch((error) => {
 }))
 
 try {
+  await health.start()
   await runtime.start()
+  health.markStarted()
   console.log("canonical-normalizer is consuming raw events")
 } catch (error) {
   console.error("canonical-normalizer startup failed", error)
+  await health.stop()
   await runtime.stop()
   process.exitCode = 1
 }
