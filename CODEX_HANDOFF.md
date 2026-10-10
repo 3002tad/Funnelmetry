@@ -1,5 +1,11 @@
 # Codex handoff — Pipeline development, 04/10/2026
 
+> **Cập nhật release 10/10/2026:** image mới từ `2fb6b91` đã publish lên GHCR.
+> Dùng [runbook monitoring mới](docs/TEAMMATE_MONITORING_TEST_2026-10-10.md) để lấy
+> ba digest và bước migration/khởi chạy; máy nhận không cần build image.
+> Các digest `a725fad` bên dưới là release lịch sử 04/10, không chứa monitoring mới.
+> Release mới được test sandbox độc lập, không chứng nhận Medusa/Qwen live trên máy nhận.
+
 ## 1. Read this first
 
 Mục tiêu: người nhận tải Docker images, chạy Pipeline độc lập với Medusa + Qwen

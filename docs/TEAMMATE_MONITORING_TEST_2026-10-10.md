@@ -10,9 +10,10 @@ Sau bản bàn giao 05/10: thêm Admin Event Feed/Processing, Kafka lag/membersh
 readiness 6 worker, Prometheus/Grafana, khóa metrics riêng + rotation, cảnh báo
 trên Admin. Xem `runtime/NEW_DEMO.md` và `docs/ADMIN_MONITORING_ALERTS_2026-10-10.md`.
 
-**Git pull không cập nhật container.** Image GHCR cũ tại commit `a725fad` chưa có
-các thay đổi này. Bản test này bàn giao source để build tại máy nhận; chưa publish
-image mới. Không dùng image cũ rồi kết luận tính năng mới không hoạt động.
+**Git pull không cập nhật container.** Ba image mới đã publish và xác minh digest
+trên GHCR ngày 10/10/2026, từ source `2fb6b91f73f7abe9036d527cbb78217062e96d1e`,
+platform `linux/amd64`. Image cũ `a725fad` chưa có các thay đổi này.
+Build thực hiện trên máy phát triển bằng `tools/release-handoff.ps1`, không phải GitHub Actions.
 
 ## An toàn trước khi chạy
 
@@ -27,15 +28,21 @@ image mới. Không dùng image cũ rồi kết luận tính năng mới không 
 - Hướng dẫn nhanh dưới đây dùng PowerShell/Docker Desktop Linux containers và
   Node.js 22+. Linux có thể dùng cùng Compose files nhưng không chạy file `.cmd`.
 
-## Dựng bản test từ source
+## Dựng bản test bằng image đã publish (không cần build)
 
 Từ repo `Streaming_Pipeline` sau `git pull --ff-only`, ghi lại `git rev-parse HEAD`:
 
 ```powershell
-docker build -f apps/dashboard-api/Dockerfile.analytics -t funnelmetry/handoff-api:monitoring-test .
-docker build -f apps/dashboard-web/Dockerfile -t funnelmetry/handoff-web:monitoring-test .
-docker build -f infra/docker/pipeline-workers.Dockerfile -t funnelmetry/handoff-workers:monitoring-test .
+docker login ghcr.io -u <github-username>
+docker pull ghcr.io/3002tad/funnelmetry/handoff-api@sha256:a794500f8cf84f6a2f03c99d2da1864937522b9a5757a79be815bf920face72d
+docker pull ghcr.io/3002tad/funnelmetry/handoff-web@sha256:b5a0f6feb77e2823013a5fc3f35b3f71deb651eaedfc8f4f697294760f5671dc
+docker pull ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:6987b769f89d1a38cfbaee539f670e86ffb50cec5c84271c38b2037b41811650
 ```
+
+Thay `<github-username>` bằng tài khoản người nhận. Nếu package private, tài khoản
+phải được cấp quyền đọc package, token có `read:packages`; nhập token tại prompt
+Password, không dán token vào câu lệnh hoặc Git. Quyền pull trên máy nhận chưa được
+kiểm chứng bởi lần publish này. Vẫn cần checkout source để lấy Compose, migration và helper.
 
 Tạo **file local mới**, không ghi đè file đang dùng: dựa trên `runtime/handoff.env.example`
 tạo `runtime/demo-new.env`, điền mật khẩu DB, JWT secret và mật khẩu Admin ngẫu nhiên
@@ -44,9 +51,9 @@ riêng (Admin tối thiểu 12 ký tự). Cấu hình:
 ```dotenv
 HANDOFF_PROJECT=funnelmetry-demo-new
 HANDOFF_UI_PORT=5180
-HANDOFF_API_IMAGE=funnelmetry/handoff-api:monitoring-test
-HANDOFF_WEB_IMAGE=funnelmetry/handoff-web:monitoring-test
-HANDOFF_WORKERS_IMAGE=funnelmetry/handoff-workers:monitoring-test
+HANDOFF_API_IMAGE=ghcr.io/3002tad/funnelmetry/handoff-api@sha256:a794500f8cf84f6a2f03c99d2da1864937522b9a5757a79be815bf920face72d
+HANDOFF_WEB_IMAGE=ghcr.io/3002tad/funnelmetry/handoff-web@sha256:b5a0f6feb77e2823013a5fc3f35b3f71deb651eaedfc8f4f697294760f5671dc
+HANDOFF_WORKERS_IMAGE=ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:6987b769f89d1a38cfbaee539f670e86ffb50cec5c84271c38b2037b41811650
 ```
 
 Pull `postgres:15-alpine` và `apache/kafka:3.9.1` nếu chưa có. Chưa tạo
@@ -100,3 +107,12 @@ che secrets và ảnh UI nếu cần. Không gửi toàn bộ env/log chưa ki�
 API 169 PASS / 4 optional SKIP, UI build PASS; runtime Grafana 8 panel, UP=1,
 6 worker observations; thử stop/start canonical-normalizer cho UNKNOWN rồi tự hết;
 rotation thật PASS. Các kết quả này chưa thay cho acceptance trên máy người nhận.
+
+Release image `2fb6b91`: isolated acceptance PASS trước publish, gồm clean bootstrap,
+UI assets/proxy/login/RBAC, Raw Kafka → canonical → Journey → Funnel → KPI,
+gross order value fixture 20 EUR, stop/start và resume giữ state fixture.
+Project test `funnelmetry-handoff-test-5bd74ab8e46f` dùng volumes riêng và được dọn
+sau test; không reset demo đang có. Release harness không test overlay monitoring
+hoặc Medusa/Qwen thật; bằng chứng monitoring phía trên là lần kiểm tra riêng.
+Cả ba digest đã được đối chiếu qua `docker buildx imagetools inspect` trên GHCR.
+Commit tài liệu có thể mới hơn source image; không có nghĩa image chứa code sau `2fb6b91`.
