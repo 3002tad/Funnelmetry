@@ -36,7 +36,7 @@ Các trang Admin monitoring là **quan sát read-only**, không điều khiển 
 - `/api/v2/admin/worker-readiness`: process-local runtime flag của sáu worker type, không kiểm tra DB liên tục và không bao phủ mọi replica.
 - `/api/v2/admin/metrics` và `/api/v2/admin/monitoring-alerts`: cần session/quyền `pipeline.monitor`; scrape/worker unknown không đồng nghĩa healthy. Cảnh báo UI chỉ refresh khi trang mở, chưa có Alertmanager/email.
 
-Các endpoint từ ghi nhận 08–10/10 có test auth, bounds và redaction, nhưng kết quả ở demo/image cũ không chứng minh profile monitoring của deployment mới đã provision hoặc đạt acceptance. Chi tiết theo mốc đã gộp vào [hồ sơ Admin/monitoring](archive/ADMIN_MONITORING_EVIDENCE_2026-10-08_TO_10.md); không dùng nó làm runbook hiện hành.
+Các endpoint từ ghi nhận 08–10/10 có test auth, bounds và redaction, nhưng kết quả ở demo/image cũ không chứng minh profile monitoring của deployment mới đã provision hoặc đạt acceptance. Chi tiết theo mốc đã gộp vào [hồ sơ Admin/monitoring](archive/MONITORING_HISTORY.md); không dùng nó làm runbook hiện hành.
 
 ## Chỗ cần làm tiếp
 
@@ -46,4 +46,4 @@ Các endpoint từ ghi nhận 08–10/10 có test auth, bounds và redaction, nh
 4. Đánh giá autoscaler actuator, graceful drain, identity/recovery và host capacity trước khi bật tự động.
 5. Chỉ nhận migration/cutover khi thỏa [DEC-125](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md), không suy từ demo tươi.
 
-Nguồn chi tiết theo component: [Analytics](analytics/README.md), [non-AI rollout](NON_AI_FEATURE_ROLLOUT.md), [workers](workers/README.md), [autoscaler](tools/autoscaler/README.md), [observability](infra/observability/README.md). Các ghi nhận theo ngày là evidence ở thời điểm đó, không tự nâng trạng thái của code hiện tại.
+Nguồn chi tiết theo component: [Analytics](analytics/README.md), [UI rollout](archive/UI_HISTORY.md), [workers](workers/README.md), [autoscaler](tools/RESILIENCE.md#autoscaler), [monitoring](MONITORING.md). Các ghi nhận theo ngày là evidence ở thời điểm đó, không tự nâng trạng thái của code hiện tại.

@@ -19,6 +19,7 @@ Thứ tự đọc khi thay đổi semantics hoặc deployment: [Decision Record]
 
 - [Dashboard API](apps/dashboard-api/README.md), [Dashboard Web](apps/dashboard-web/README.md), [Analytics](analytics/README.md).
 - [Source Connector](workers/source-connector/README.md), [Catalog Sync](workers/catalog-sync/README.md), [Workers](workers/README.md), [Packages](packages/README.md).
-- [Vận hành/infra/runtime](OPERATIONS.md), [tests](../tests/README.md), [autoscaler](tools/autoscaler/README.md).
+- [Vận hành/infra/runtime](OPERATIONS.md), [tests](../tests/README.md), [autoscaler và watchdog](tools/RESILIENCE.md).
+- [Monitoring](MONITORING.md), [hồ sơ Analytics/AI](archive/ANALYTICS_AI_HISTORY.md), [ingestion/recovery](archive/INGESTION_RECOVERY_HISTORY.md), [demo/handoff](archive/DEMO_HANDOFF_HISTORY.md), [UI rollout](archive/UI_HISTORY.md).
 
-Tài liệu component đã được gom dưới `docs/` theo đường dẫn code tương ứng; code/runtime vẫn ở thư mục cũ. README của npm packages là [ngoại lệ đóng gói](packages/README.md). Tài liệu về bài test nằm ở [tests](../tests/README.md). [Hồ sơ Admin/monitoring 08–10/10](archive/ADMIN_MONITORING_EVIDENCE_2026-10-08_TO_10.md), các bài rollout/activation/demo handoff và [archive](archive/README.md) là evidence/hướng dẫn lịch sử tại phiên bản cụ thể; không chạy lại lệnh cũ trên project hiện hành. V1 dưới [`docs/legacy/`](legacy/README.md) chỉ dùng truy vết. Không đưa `.env`, log, token hoặc backup thật vào Git/tài liệu.
+Tài liệu component nằm dưới `docs/` theo đường dẫn code tương ứng; code/runtime vẫn ở thư mục cũ. README của npm packages là [ngoại lệ đóng gói](packages/README.md). Tài liệu test nằm ở [tests](../tests/README.md). Các hồ sơ trong [archive](archive/README.md) giữ evidence và hướng dẫn lịch sử theo chủ đề/mốc; không chạy lại lệnh cũ trên project hiện hành. V1 dưới [`docs/legacy/`](legacy/README.md) chỉ dùng truy vết. Không đưa `.env`, log, token hoặc backup thật vào Git/tài liệu.

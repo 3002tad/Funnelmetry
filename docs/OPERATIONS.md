@@ -10,7 +10,7 @@
 | [`runtime/deploy.env.example`](../runtime/deploy.env.example) | Mẫu biến môi trường, không chứa key thật |
 | `runtime/deploy.env` | Env duy nhất của từng máy/project, Git-ignored; không đưa vào chat hoặc Git |
 | [`infra/docker/`](infra/docker/README.md), `infra/bootstrap/` | Image build và bootstrap schema cho deployment mới |
-| [`infra/observability/`](infra/observability/README.md) | Prometheus/Grafana artifacts; profile chỉ dùng sau khi provision secret |
+| [Monitoring artifacts](MONITORING.md#observability-artifacts) | Prometheus/Grafana; profile chỉ dùng sau khi provision secret |
 
 `infra/` giữ Compose, Dockerfile và bootstrap schema; `runtime/` giữ env local và tiện ích vận hành. Xem [Docker build definitions](infra/docker/README.md) và [PostgreSQL schema](infra/postgres/README.md) khi cần chi tiết. Các Compose V2/handoff/private-ingress và launcher demo cũ không thuộc đường chạy hiện hành.
 
@@ -76,4 +76,5 @@ Ngày 11/10, một project mới đã build API/Web/worker từ source và kiể
 
 - [Chức năng đã có/chưa xong](FEATURE_STATUS.md) và [kiểm thử](TESTING.md).
 - [Schema PostgreSQL](infra/postgres/README.md), [Source Connector](workers/source-connector/README.md).
+- [Monitoring và khóa metrics](MONITORING.md); [hồ sơ demo/handoff cũ](archive/DEMO_HANDOFF_HISTORY.md).
 - Kiến trúc/transport: [Decision Record](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/DINH_HUONG_DE_TAI.md) và [Master Specification](https://github.com/3002tad/System_Backbone/blob/main/MASTER_SPECIFICATION.md). Các lệnh handoff/private-ingress cũ chỉ còn là lịch sử.

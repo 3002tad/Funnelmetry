@@ -6,7 +6,7 @@
 feed response plus `connector_id`. Observation is recorded before Kafka publication;
 it can remain old on failure and is not a processing checkpoint or current cursor.
 No token/raw payload is added. Keep this endpoint internal. Dashboard rollout and
-verification: [Admin Event Feed evidence](../../archive/ADMIN_MONITORING_EVIDENCE_2026-10-08_TO_10.md).
+verification: [Admin Event Feed evidence](../../archive/MONITORING_HISTORY.md#admin-monitoring-evidence).
 
 ## Read-only unsupported inventory
 
@@ -132,16 +132,15 @@ cluster; `RESTORE_REPLAY` deliberately fails until safe-checkpoint recovery exis
 
 Operator-only exception: `src/recover-retained-prefix.mjs` can rehydrate a fully
 retained prefix whose PostgreSQL projections are already complete, without changing
-the cursor. See `docs/KAFKA_RECOVERY_2026-09-20.md` at repository root for scope and
-the isolated/live verification evidence. It is not a general restore-mode implementation.
+the cursor. See [historical Kafka recovery evidence](../../archive/INGESTION_RECOVERY_HISTORY.md#kafka-recovery)
+for scope and isolated/live verification. It is not a general restore-mode implementation.
 
-Use `infra/compose.source-connector.yml` after `infra/compose.v2.yml`, selecting
-profile/service `source-connector`. This overlay does not publish any connector port.
-Review base PostgreSQL host-port exposure before deployment, or retain the existing
-private overlay. Do not run the entire default Compose stack unintentionally.
-The demo launcher now resumes the existing Source Connector and downstream workers
-without starting the legacy Gateway/Tailscale services. It does not bootstrap or
-recreate containers; the old private-demo runbook is archived at `docs/archive/START_PRIVATE_DEMO.md`. Current deployment uses `docs/OPERATIONS.md`.
+The old `infra/compose.source-connector.yml` overlay and `infra/compose.v2.yml`
+belonged to the private demo; those instructions are archived in the
+[demo/handoff history](../../archive/DEMO_HANDOFF_HISTORY.md#private-demo).
+The current Source Connector runs under the `live` profile in
+[`infra/compose.yaml`](../../../infra/compose.yaml); follow [current operations](../../OPERATIONS.md)
+and its preflight instead of the old launcher. No connector port is published to the host.
 
 Next: real-service integration tests through the
 normalizer/ledger, explicit initial cursor choice and authenticated reference-path

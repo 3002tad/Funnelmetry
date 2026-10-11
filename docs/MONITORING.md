@@ -1,3 +1,20 @@
+# Monitoring Pipeline
+
+> Hợp nhất contract khóa metrics và tài liệu Prometheus/Grafana. Các lệnh demo trong phần lịch sử có thể dùng cấu hình cũ; chỉ triển khai theo docs/OPERATIONS.md.
+
+Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Artifact Prometheus/Grafana vẫn nằm ở `infra/observability/` trong source repo.
+
+## Mục lục theo tài liệu nguồn
+
+- [Machine credentials](#machine-credentials) — `docs/MONITORING_MACHINE_CREDENTIALS_2026-10-09.md`
+- [Observability artifacts](#observability-artifacts) — `docs/infra/observability/README.md`
+
+---
+
+<a id="machine-credentials"></a>
+
+> Nguồn gốc: `docs/MONITORING_MACHINE_CREDENTIALS_2026-10-09.md`. Nội dung dưới đây giữ trạng thái theo mốc của tài liệu gốc.
+
 # Metrics-only machine credentials and local monitoring
 
 > **Cập nhật đường chạy:** các ví dụ `demo-new.env`/overlay bên dưới là lịch sử. Monitoring hiện dùng `runtime/deploy.env` và profile `monitoring` của [`infra/compose.yaml`](../infra/compose.yaml); các script runtime đã chuyển sang env này.
@@ -155,3 +172,77 @@ and [Docker secret-file configuration](https://grafana.com/docs/grafana/latest/s
 - New key expiry: 2026-10-16 17:03:08 UTC / 2026-10-17 00:03:08 Asia/Saigon.
   Token/password never printed; current key ID/expiry stored in ignored runtime
   receipt. Revoked old key remains in the database with its audit trail.
+
+---
+
+<a id="observability-artifacts"></a>
+
+> Nguồn gốc: `docs/infra/observability/README.md`. Nội dung dưới đây giữ trạng thái theo mốc của tài liệu gốc.
+
+# Pipeline monitoring artifacts
+
+Implements the visualization preparation for Master §24.3.4 / DEC-103.
+The optional `../compose.yaml` monitoring profile defines Prometheus and Grafana with a
+metrics-only machine credential. See [current operations](OPERATIONS.md) and [historical key-lifecycle evidence](MONITORING.md#machine-credentials).
+No recovery/autoscaling is enabled.
+
+## Files
+
+- `pipeline-dashboard.json`: classic Grafana dashboard for manual import.
+- `prometheus.yml.example`: authenticated internal scrape template.
+- `dashboard-promql.test.yml`: synthetic PromQL tests (JSON-compatible YAML).
+- `artifacts.test.mjs`: dependency-free artifact consistency tests.
+
+## Controlled demo setup
+
+1. Provision Prometheus on the same private Compose network as `dashboard-api`.
+   Use the template as its configuration, not a public API target. For remote
+   scraping, use authenticated HTTPS and validate certificates; do not send the
+   Bearer token over public HTTP.
+2. Mount a **metrics-only machine token** as the read-only file
+   `/run/secrets/funnelmetry_metrics_token`. Issue it through the Admin credential API.
+   Supply the token only, not the `Bearer ` prefix. Keep the secret outside Git,
+   logs, CLI arguments and dashboard JSON. No credentials are included here.
+3. Verify the scrape target is UP. Expiration/revocation must fail authentication;
+   use an operator-authorized replacement. Do not extend
+   JWT lifetime or embed an Admin password to keep scraping unattended.
+4. In Grafana, configure a Prometheus datasource pointing to that internal server,
+   import `pipeline-dashboard.json`, and select it for the Prometheus input.
+   This dashboard uses the fixed job name `funnelmetry-monitoring` from the template.
+
+Machine credentials now support explicit expiry, rotation by replacement and
+revocation. They are not Admin sessions. Production retention, sizing, alert
+thresholds, host/container exporters and recovery policies are separate work.
+
+## Interpretation
+
+- Scrape UP means HTTP collection succeeded, not that processing succeeded.
+- Availability means at least one observation exists, not all targets healthy.
+- Lag is offset positions for all configured sources, not event count or seconds.
+- Known zero is displayed; unknown lag/member/readiness is omitted, never zero-filled.
+- Processing queries require both observation availability and a successful scrape.
+  Failed scrapes suppress old operational samples; historical points remain visible
+  at their original timestamps. A removed target may remain visible until Prometheus
+  marks its series stale. Always inspect scrape status and the chart time range.
+- Worker READY is a local runtime flag, not continuous database/dependency validation.
+- Probe age measures time since a probe (including failed probes), not last successful
+  canonical event or business data freshness. No source/date filtering is implied.
+
+## Verification — 2026-10-09
+
+Run from `Streaming_Pipeline`:
+
+```powershell
+node --test infra/observability/artifacts.test.mjs
+$checks = (Resolve-Path infra/observability).Path
+docker run --rm --network none --mount "type=bind,source=$checks,target=/checks,readonly" --entrypoint /bin/promtool prom/prometheus:v3.5.0 check config --syntax-only /checks/prometheus.yml.example
+docker run --rm --network none --mount "type=bind,source=$checks,target=/checks,readonly" --entrypoint /bin/promtool prom/prometheus:v3.5.0 test rules /checks/dashboard-promql.test.yml
+```
+
+Promtool configuration syntax and three query regressions PASS: known-zero values
+remain visible; unavailable observations and failed scrapes are excluded even if
+an old operational value exists. Syntax-only does not validate the mounted token,
+network access or authorization. Live Grafana provisioning and datasource queries
+now pass (see linked evidence); browser visual acceptance remains outstanding.
+Validator containers are temporary/read-only/network-disabled; no demo events,
+schema, volumes, Kafka offsets or Source Connector state are changed.

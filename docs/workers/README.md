@@ -11,19 +11,19 @@ Hiện có:
 - [catalog-sync/](catalog-sync/README.md): đồng bộ tên sản phẩm qua Medusa Admin API;
   current descriptive metadata, không tái dựng giá lịch sử. Activation one-shot và periodic khác nhau.
 
-- `canonical-normalizer/`: consume raw Kafka, tạo `CanonicalEvent v1` hoặc quarantine,
+- [canonical-normalizer](INGESTION.md#canonical-normalizer): consume raw Kafka, tạo `CanonicalEvent v1` hoặc quarantine,
   ghi terminal outcome và raw consumer offset trong cùng Kafka transaction.
-- `ingress-telemetry-writer/`: persist unique accepted receipt và versioned canonicalization outcome
+- [ingress-telemetry-writer](INGESTION.md#ingress-telemetry-writer): persist unique accepted receipt và versioned canonicalization outcome
   để Data Health có durable evidence, rồi mới commit offset của receipt/outcome topic.
-- `canonical-ledger-writer/`: persist CanonicalEvent idempotent vào PostgreSQL rồi mới
+- [canonical-ledger-writer](INGESTION.md#canonical-ledger-writer): persist CanonicalEvent idempotent vào PostgreSQL rồi mới
   phát canonical-persisted handoff và commit canonical offset trong Kafka transaction.
-- `journey-processor/`: progressive anchoring CanonicalEvent đã persist thành journey
+- [journey-processor](PROJECTIONS.md#journey-processor): progressive anchoring CanonicalEvent đã persist thành journey
   projection, sau đó phát journey-resolved handoff.
-- `funnel-processor/`: chiếu journey theo Funnel Profile immutable/versioned, rebuild theo
+- [funnel-processor](PROJECTIONS.md#funnel-processor): chiếu journey theo Funnel Profile immutable/versioned, rebuild theo
   event-time rồi phát funnel-updated handoff.
-- `funnel-maturity-scheduler/`: polling runtime có PostgreSQL advisory-lock coordination và lưu
+- [funnel-maturity-scheduler](PROJECTIONS.md#funnel-maturity-scheduler): polling runtime có PostgreSQL advisory-lock coordination và lưu
   maturity evidence immutable/revisioned; gated finalizer đóng drop-off và KPI trong một transaction.
-- `kpi-projector/`: materialize funnel snapshot idempotent thành KPI base fact và observed views,
+- [kpi-projector](PROJECTIONS.md#kpi-projector): materialize funnel snapshot idempotent thành KPI base fact và observed views,
   sau đó phát kpi-updated handoff.
 - `reconciliation-worker/`: persist manifest/comparison, version current projection và repair có audit;
   đã có [CLI compare/repair/verify](reconciliation-worker/README.md). Có code không chứng minh

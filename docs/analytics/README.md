@@ -6,12 +6,12 @@ This document retains chronological implementation stages. Statements such as �
 
 | Topic | Read | Boundary |
 |---|---|---|
-| Order summary activation | [27/09 evidence](../archive/ORDER_ANALYTICS_ACTIVATION_2026-09-27.md) | Local snapshot, not current health |
-| Order ranking | [ORDER_RANKING_STAGING](ORDER_RANKING_STAGING.md) | Read the 02/10 activation follow-up |
-| Product ranking | [PRODUCT_RANKING_STAGING](PRODUCT_RANKING_STAGING.md) | Historical unit price × quantity, not paid revenue; 03/10 activation |
-| Admin registry/diagnostics | [Admin inspection](ADMIN_REGISTRY_READONLY_2026-10-03.md) | Read-only; acceptance limits per page |
+| Order summary activation | [27/09 evidence](../archive/ANALYTICS_AI_HISTORY.md#order-analytics-0927) | Local snapshot, not current health |
+| Order ranking | [Order ranking history](../archive/ANALYTICS_AI_HISTORY.md#order-ranking) | Read the 02/10 activation follow-up |
+| Product ranking | [Product ranking history](../archive/ANALYTICS_AI_HISTORY.md#product-ranking) | Historical unit price × quantity, not paid revenue; 03/10 activation |
+| Admin registry/diagnostics | [Admin inspection](../archive/ANALYTICS_AI_HISTORY.md#admin-registry) | Read-only; acceptance limits per page |
 | Product names | [Catalog sync](../workers/catalog-sync/README.md) | Current descriptive reference; not historical price authority |
-| Tests / earlier readiness | [Staging readiness](../../tests/evidence/STAGING_READINESS_2026-09-25.md), [Qwen evaluation](../../tests/evidence/QWEN_EVAL_2026-09-25.md) | Dated evidence, not general accuracy claims |
+| Tests / earlier readiness | [Staging readiness](../../tests/evidence/ANALYTICS_AI_EVIDENCE_2026-09-25.md#staging-readiness), [Qwen evaluation](../../tests/evidence/ANALYTICS_AI_EVIDENCE_2026-09-25.md#qwen-evaluation) | Dated evidence, not general accuracy claims |
 | Runtime / deployment | [Operations](../OPERATIONS.md) | Activation is separate from code installation |
 
 Code under repository-root `analytics/metadata/` contains versioned definitions, `analytics/sql/` staged assets/catalog/evidence schema, `analytics/src/` deterministic execution and registry code, and `analytics/test/` analytical tests. No code or SQL was moved during documentation cleanup.

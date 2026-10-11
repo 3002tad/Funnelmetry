@@ -1,3 +1,43 @@
+# UI Pipeline — lịch sử rollout
+
+> Các trạng thái và chức năng trong phần dưới thuộc mốc ghi nhận, không phải bảng chức năng hiện tại; xem docs/FEATURE_STATUS.md.
+
+Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Đường dẫn code/lệnh trong nội dung gốc tính từ root `Streaming_Pipeline` trừ khi ghi khác.
+
+## Mục lục theo tài liệu nguồn
+
+- [Workspace V2 navigation](#workspace-v2) — `docs/archive/UI_WORKSPACE_V2_2026-09-20.md`
+- [Non-AI feature rollout](#non-ai-rollout) — `docs/NON_AI_FEATURE_ROLLOUT.md`
+
+---
+
+<a id="workspace-v2"></a>
+
+> Nguồn gốc: `docs/archive/UI_WORKSPACE_V2_2026-09-20.md`. Nội dung dưới đây giữ trạng thái theo mốc của tài liệu gốc.
+
+# Workspace V2 — navigation foundation
+
+> ARCHIVE — implementation snapshot on 2026-09-20, not the current UI capability list. See [documentation index](../README.md) for later work. Code paths below are relative to the repository root.
+
+Scope: Master v0.3.12 §23. First migration increment, not full UI acceptance.
+
+- Grouped Data Analyst and Admin navigation; only explicitly granted existing permissions show screens. Combined permissions can show both bundles.
+- Existing live Overview, Funnels, Journeys, Events, Data Health, Chat, System Health, Sources and Users routes retained. Existing page implementations are not upgraded by renaming navigation.
+- Planned modules have explicit unavailable screens with no fetch, model calls, metrics, or mutations. `pipeline.monitor` only grants viewing these admin placeholders, not future governance/write permissions.
+- Products no longer serves mock analytics. `/insights` redirects to unavailable Findings. Original preview components remain in source but are not routed.
+- Chat remains a separate current tool, not an implemented Analysis Run / Evidence workflow. Evaluate capabilities remain absent.
+- Removed the non-functional global search input. Existing page-local search is unchanged.
+
+Not implemented in this increment: complete vi/en via react-i18next, per-account Light/Dark/System, Data Workspace execution, persisted runs/evidence/reports, metric/asset catalogs, expanded admin APIs, auto-healing controls or end-to-end UI acceptance. Existing pages still require migration.
+
+Verification: `npm run build`; Node 22.6+ `node --experimental-strip-types --test test/navigation.test.mjs` in `apps/dashboard-web`. Tests cover menu capability filtering and module availability; they do not replace backend RBAC or browser interaction tests.
+
+---
+
+<a id="non-ai-rollout"></a>
+
+> Nguồn gốc: `docs/NON_AI_FEATURE_ROLLOUT.md`. Nội dung dưới đây giữ trạng thái theo mốc của tài liệu gốc.
+
 # Non-AI UI rollout
 
 User priority: complete usable non-AI capabilities before expanding AI tools/planner.
@@ -24,12 +64,12 @@ Availability is not completion of all Master acceptance criteria.
 backup, no cursor reset. Manifest verification found 41/41 canonical records,
 Journey links, KPI applications and latest normalized outcomes. Source latest
 totals now 309 normalized, no unsupported group; cursor remains 358. Audit/backup
-are in ignored runtime/backups. See UNSUPPORTED_REPLAY_PLAN_2026-09-29.md.
+are in ignored runtime/backups. See [browser replay evidence](INGESTION_RECOVERY_HISTORY.md#unsupported-replay).
 
 Unsupported dry-run follow-up: deployed normalizer accepted 41/41 retained browser
 schema1 records with stable canonical IDs under medusa-browser-schema1-catalog-v2.
 Original receipt IDs/timestamps checked; zero writes. See
-`UNSUPPORTED_REPLAY_PLAN_2026-09-29.md` for evidence and remaining replay safeguards.
+[Browser replay evidence](INGESTION_RECOVERY_HISTORY.md#unsupported-replay) for evidence and remaining replay safeguards.
 
 Unsupported diagnosis (2026-09-29): read-only retained Feed inspection matched all
 41 persisted mapping_not_found/unmapped-v1 outcomes. All belong to medusa-reference,
@@ -265,4 +305,4 @@ isolated PostgreSQL migration-rerun/source-isolation/history/no-fanout/rollback
 test and downstream regression passed. No live Medusa request or demo migration
 was run. Activation requires ignored `runtime/catalog-sync.env`, authorized
 Medusa Admin origin/key, migration 020 and opt-in Compose worker deployment.
-See [Catalog Sync](workers/catalog-sync/README.md); Event Feed credentials must not be reused.
+See [Catalog Sync](../workers/catalog-sync/README.md); Event Feed credentials must not be reused.

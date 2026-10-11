@@ -1,6 +1,63 @@
+# Admin monitoring — hồ sơ test và bàn giao 08–10/10/2026
+
+> Bằng chứng theo mốc cũ, không chứng nhận monitoring của deployment hiện tại. Xem docs/MONITORING.md và docs/OPERATIONS.md.
+
+Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Đường dẫn code/lệnh trong nội dung gốc tính từ root `Streaming_Pipeline` trừ khi ghi khác.
+
+## Mục lục theo tài liệu nguồn
+
+- [Admin monitoring evidence](#admin-monitoring-evidence) — `docs/archive/ADMIN_MONITORING_EVIDENCE_2026-10-08_TO_10.md`
+- [Teammate monitoring test](#teammate-monitoring-test) — `docs/TEAMMATE_MONITORING_TEST_2026-10-10.md`
+
+---
+
+<a id="admin-monitoring-evidence"></a>
+
+> Nguồn gốc: `docs/archive/ADMIN_MONITORING_EVIDENCE_2026-10-08_TO_10.md`. Nội dung dưới đây giữ trạng thái theo mốc của tài liệu gốc.
+
+# Admin/monitoring implementation evidence — 08–10/10/2026
+
+> **HISTORICAL / NON-NORMATIVE.** Hồ sơ này gộp bảy bản ghi `ADMIN_*_2026-10-08/09/10.md` của Pipeline. Số test, image tag và trạng thái container dưới đây thuộc các mốc đó, **không** phải kết quả chạy trên deployment hiện tại. Xem [trạng thái chức năng](../FEATURE_STATUS.md), [kiểm thử](../TESTING.md) và [vận hành](../OPERATIONS.md) trước khi demo. Bản gốc vẫn truy vết được qua Git history theo tên file cũ.
+
+## Tóm tắt theo mốc
+
+| Ngày / capability | Đã triển khai tại mốc đó | Bằng chứng / giới hạn |
+|---|---|---|
+| 08/10 — Event Feed | Connector lưu `feed_observation` trong memory sau whole-batch validation; `GET /api/v2/admin/event-feed` và trang Admin read-only | Connector 34 PASS; API 144 PASS, 4 DB-dependent SKIP; navigation 5 PASS/build PASS. Chưa có live-source/browser E2E ở đợt này. |
+| 08/10 — Processing | `GET /api/v2/admin/processing` tổng hợp PostgreSQL latest outcomes/canonical/KPI và trang stage cards | API 145 PASS, 4 SKIP; PostgreSQL shadow-table + local HTTP smoke. Không phải Kafka lag hay completeness audit. |
+| 08/10 — Kafka lag | `GET /api/v2/admin/kafka-lag` đọc allowlisted group/topic offsets bằng KafkaJS admin | API 151 PASS, 4 SKIP; offline broker 7 pairs/partitions, NO_COMMITTED_OFFSET. Chưa thử workload live nonempty. |
+| 09/10 — Membership | Additive `membership` (status/state/member_count) theo broker group trên lag API | API 154 PASS, 4 SKIP; broker demo 6 groups Stable/1 member, 7 topic rows. Không có worker-kill/browser automation. |
+| 09/10 — Worker readiness | `/healthz`/`/readyz` nội bộ cho sáu worker; `GET /api/v2/admin/worker-readiness` và UI cards | API 158 PASS, 4 SKIP; worker/shared health 85 PASS, 6 SKIP; sáu demo endpoints READY. Chỉ process-local runtime flag, không phải continuous DB check hay all-replica inventory. |
+| 09/10 — Metrics | Authenticated `GET /api/v2/admin/metrics` xuất Prometheus text 0.0.4 từ bounded probes | API 162 PASS, 4 SKIP; real HTTP metrics và `promtool check metrics` PASS. Chưa có unattended scrape/alert delivery ở đợt này. |
+| 10/10 — Monitoring warnings | `GET /api/v2/admin/monitoring-alerts`, Prometheus target/worker/key-expiry observations và UI poll khi trang mở | API 169 PASS, 4 SKIP; local fault test stop/restart một worker rồi warning clear. Chưa chứng minh catch-up/idempotency dưới tải, persisted incident hay external notification. |
+
+Đây là các snapshot test suite tăng dần, **không cộng** chúng thành tổng số test độc lập. Các tag local cũ (`20261008-*`, `20261009-*`, `20261010-*`) không tự chứa thay đổi mới và không phải digest phát hành hiện hành.
+
+## Semantics và ranh giới bảo mật còn phải giữ
+
+- Tất cả Admin APIs cần current session + `pipeline.monitor`, recheck sau bounded probe/query, `no-store`; không nhận broker/URL/topic tùy ý từ client. Không có Docker control, reset offset/cursor, replay hay scale endpoint. Analyst/anonymous không có quyền.
+- Event Feed observation có thể cũ sau poll error hoặc mất khi Connector restart. Nó được chụp **trước** Kafka publish; valid Source batch không chứng minh durable Pipeline handoff. Sequence gap không phải số event thiếu.
+- Processing counts có grain khác nhau: latest outcome per source event, canonical per mapping version và KPI application per trigger. Không trừ count/timestamp giữa grain để suy backlog hoặc latency. DB/schema failure phải là unavailable, không là zero.
+- Kafka lag là high offset trừ committed **next** offset theo partition, unit offset positions. Missing commit, below retention, inconsistent snapshot và oversized response trả unknown/null; lag zero không chứng minh worker đang xử lý. Membership Stable/member count là broker group evidence, không phải số container hay business-event completeness.
+- Worker readiness chỉ kiểm tra fixed internal targets và local Kafka runtime flag. `healthz` khác `readyz`; endpoint worker không được public. Unreachable/old image/mismatch là `UNVERIFIED`, không tự suy STOPPED.
+- Metrics unknown không bị xuất thành zero; exact large offsets vượt safe float bị bỏ khỏi metric nhưng JSON API có decimal string. Scrape HTTP 200 chỉ là collection; phải xem availability/freshness. Label/cardinality từ allowlist, không xuất member identity, payload, secret hay raw error.
+- Monitoring warnings phân biệt scrape DOWN với target UNKNOWN, worker non-ready với absent observation, và key expiry với key actually used. Browser poll mỗi 15 giây chỉ khi mở trang; không có sustained-condition window, Alertmanager/email, ack history hoặc auto-recovery.
+
+## Giới hạn bàn giao
+
+Đợt 08–10/10 phần lớn dùng demo/project và image cũ. Sau khi chuyển sang một Compose/env mới, monitoring secret cũ đã xóa; cần provision lại và chạy acceptance của deployment mới. Không nâng kết quả lịch sử thành claim rằng Prometheus/Grafana, Admin alerts hoặc live Medusa/Qwen đang hoạt động trên máy nhận.
+
+Nguồn gốc trong Git history: `docs/ADMIN_EVENT_FEED_2026-10-08.md`, `ADMIN_PROCESSING_2026-10-08.md`, `ADMIN_KAFKA_LAG_2026-10-08.md`, `ADMIN_KAFKA_MEMBERSHIP_2026-10-09.md`, `ADMIN_WORKER_READINESS_2026-10-09.md`, `ADMIN_MONITORING_METRICS_2026-10-09.md`, `ADMIN_MONITORING_ALERTS_2026-10-10.md`. Hồ sơ này tóm lược, không thay thế source code/test hay Backbone Master.
+
+---
+
+<a id="teammate-monitoring-test"></a>
+
+> Nguồn gốc: `docs/TEAMMATE_MONITORING_TEST_2026-10-10.md`. Nội dung dưới đây giữ trạng thái theo mốc của tài liệu gốc.
+
 # Bàn giao test Admin monitoring — 10/10/2026
 
-> **Lưu trữ lịch sử:** overlay monitoring handoff cũ đã bỏ. Profile monitoring hiện nằm trong [`infra/compose.yaml`](../infra/compose.yaml); xem [vận hành](OPERATIONS.md).
+> **Lưu trữ lịch sử:** overlay monitoring handoff cũ đã bỏ. Profile monitoring hiện nằm trong [`infra/compose.yaml`](../../infra/compose.yaml); xem [vận hành](../OPERATIONS.md).
 
 > Điểm bắt đầu chung cho team: [bản bàn giao trong System_Backbone](https://github.com/3002tad/System_Backbone/blob/main/docs/implementation/PIPELINE_MONITORING_HANDOFF_2026-10-10.md).
 > File này giữ lệnh vận hành theo version code Pipeline; Backbone tổng hợp tiến độ,
@@ -10,7 +67,7 @@
 
 Sau bản bàn giao 05/10: thêm Admin Event Feed/Processing, Kafka lag/membership,
 readiness 6 worker, Prometheus/Grafana, khóa metrics riêng + rotation, cảnh báo
-trên Admin. Xem bản lịch sử `docs/archive/NEW_DEMO_2026-10-08.md` và [hồ sơ Admin/monitoring](archive/ADMIN_MONITORING_EVIDENCE_2026-10-08_TO_10.md); bộ hiện hành dùng `docs/OPERATIONS.md`.
+trên Admin. Xem [new demo 08/10](DEMO_HANDOFF_HISTORY.md#new-demo) và [hồ sơ Admin/monitoring](#admin-monitoring-evidence); bộ hiện hành dùng [vận hành](../OPERATIONS.md).
 
 **Git pull không cập nhật container.** Ba image mới đã publish và xác minh digest
 trên GHCR ngày 10/10/2026, từ source `2fb6b91f73f7abe9036d527cbb78217062e96d1e`,
@@ -19,7 +76,7 @@ Build thực hiện trên máy phát triển bằng `tools/release-handoff.ps1`,
 
 ## An toàn trước khi chạy
 
-- Đọc [`docs/archive/CODEX_HANDOFF.md`](archive/CODEX_HANDOFF.md) và quy tắc DEC-125 trong System_Backbone.
+- Đọc [Codex handoff lịch sử](DEMO_HANDOFF_HISTORY.md#codex-handoff) và quy tắc DEC-125 trong System_Backbone.
 - Test sandbox tách khỏi hệ thống live: không copy database/Kafka volume/cursor,
   không bật Source Connector/catalog/Qwen bằng credential của máy gửi.
 - Không chia sẻ `.env`, `runtime/monitoring/`, mật khẩu hoặc token trong Git/chat.

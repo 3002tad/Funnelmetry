@@ -30,6 +30,6 @@ Hai bài Compose trong `runtime/unified-compose.test.mjs` tự SKIP nếu `TEST_
 
 ## Hướng dẫn test cũ chưa dùng trực tiếp
 
-[`tools/v2-e2e/README.md`](../tests/tools/v2-e2e/README.md) hiện còn lệnh `infra/compose.v2.yml` và profile `smoke` đã bị loại khỏi bộ Compose thống nhất. Đó là hướng dẫn cho topology cũ, **không chạy nguyên lệnh trên deployment hiện tại**. Trước khi có runner E2E mới cho `infra/compose.yaml`, dùng project test riêng và acceptance có kiểm soát; không reset cursor/volume demo để chạy lại bài test cũ. Các ghi nhận test ngày 08–10/10 trong [hồ sơ Admin/monitoring](archive/ADMIN_MONITORING_EVIDENCE_2026-10-08_TO_10.md) là bằng chứng theo phiên bản, không phải kết quả chạy hôm nay.
+[`tools/v2-e2e/README.md`](../tests/tools/v2-e2e/README.md) hiện còn lệnh `infra/compose.v2.yml` và profile `smoke` đã bị loại khỏi bộ Compose thống nhất. Đó là hướng dẫn cho topology cũ, **không chạy nguyên lệnh trên deployment hiện tại**. Trước khi có runner E2E mới cho `infra/compose.yaml`, dùng project test riêng và acceptance có kiểm soát; không reset cursor/volume demo để chạy lại bài test cũ. Các ghi nhận test ngày 08–10/10 trong [hồ sơ Admin/monitoring](archive/MONITORING_HISTORY.md) là bằng chứng theo phiên bản, không phải kết quả chạy hôm nay.
 
 Nguồn chuẩn cho semantics/test acceptance: [Master Specification](https://github.com/3002tad/System_Backbone/blob/main/MASTER_SPECIFICATION.md) và [Core Implementation Contracts](https://github.com/3002tad/System_Backbone/blob/main/docs/implementation/CORE_IMPLEMENTATION_CONTRACTS_V1.md).
