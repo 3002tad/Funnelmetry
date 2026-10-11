@@ -44,3 +44,17 @@ npm start
 - canonicalization outcome topic dùng compaction;
 - `CANONICAL_NORMALIZER_INSTANCE_ID` phải duy nhất và ổn định cho transactional producer;
 - consumer group phải ổn định qua restart để raw offset tiếp tục đúng vị trí.
+
+### Opt-in identity cho replica Docker
+
+`CANONICAL_NORMALIZER_INSTANCE_ID_MODE=explicit` (mặc định) giữ nguyên ID cấu hình.
+Base ID được kiểm tra 1–128 ký tự chữ/số/dấu chấm/gạch dưới/gạch ngang.
+Chế độ `container` nối base `CANONICAL_NORMALIZER_INSTANCE_ID` với hostname mặc định
+dạng container ID của Docker. Hai container có ID khác nhau; restart cùng container
+giữ ID. Không dùng `hostname:` cố định/chung khi scale. Container bị recreate có ID
+mới: transaction cũ có thể cần timeout, không claim ID ổn định qua recreate hoặc host
+migration. Vẫn giữ consumer group và committed offsets; không đổi source event IDs.
+
+Tính năng này chưa bật trong Compose demo/live. Xem
+[sandbox autoscaling](../../tools/autoscaler/README.md); không tự tăng replica nếu
+chưa kiểm tra partition, consumer membership, replay và graceful shutdown.

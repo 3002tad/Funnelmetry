@@ -4,6 +4,17 @@ Thư mục này giữ launcher, cấu hình local và bằng chứng vận hành
 
 ## Chọn đúng thao tác
 
+Watchdog có [controller host-side opt-in](../tools/resilience-watchdog/README.md):
+đã test restart trên fixture và normalizer thật trong sandbox Kafka riêng, **chưa bật
+cho demo/live**. Không tự bật qua launcher hiện tại; chưa chứng nhận mọi worker/failure mode.
+
+Autoscaling có [policy quyết định theo Kafka lag](../tools/autoscaler/README.md), chưa
+có actuator scale Docker tự động. Sandbox đã thử 1→2→1 normalizer với ID riêng và
+2 partition; Compose handoff mặc định vẫn dùng ID cố định và 1 partition.
+Không tự tăng replica trên demo/live bằng cấu hình mặc định.
+`tools/autoscaler/observe.mjs` đọc lag/replica/group thật ở chế độ chỉ quan sát;
+không tự suy ra đủ tài nguyên hoặc đủ điều kiện phục hồi để cho phép scale.
+
 | Muốn làm gì | Đọc / dùng | Không được hiểu nhầm |
 |---|---|---|
 | Mở lại demo đã cấu hình trên máy này | [START_PRIVATE_DEMO](START_PRIVATE_DEMO.md), `../start-private-demo.cmd` | Resume container có sẵn, không tạo/migrate/seed môi trường mới |

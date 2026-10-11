@@ -10,6 +10,9 @@ $dockerExe = if ($dockerCommand) { $dockerCommand.Source } else {
 }
 $previousPath = $env:PATH
 try {
+    if ($Action -ne 'status' -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'watchdog/demo-state.json.runner.lock'))) {
+        throw 'Stop the recovery demo Watchdog with Ctrl+C before starting/stopping Compose. Preserve stale locks for review.'
+    }
     if (!$dockerExe) { throw 'Docker CLI not found. Install Docker Desktop.' }
     if (!(Test-Path -LiteralPath $config)) { throw 'Missing runtime/demo-new.env. See runtime/NEW_DEMO.md.' }
     $env:PATH = (Split-Path -Parent $dockerExe) + [IO.Path]::PathSeparator + $previousPath

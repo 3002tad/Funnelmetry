@@ -5,6 +5,8 @@ infra/.env
 runtime/*.env
 runtime/backups/
 runtime/monitoring/
+runtime/watchdog/
+runtime/teammate-demo/
 
 node_modules/
 dist/

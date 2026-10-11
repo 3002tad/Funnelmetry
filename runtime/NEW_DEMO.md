@@ -1,5 +1,17 @@
 # Demo mới — 08/10/2026
 
+## Demo tự phục hồi worker — 11/10/2026
+
+Chạy `start-recovery-demo.cmd` để bật demo và Watchdog cho `canonical-normalizer`.
+Giữ cửa sổ mở; Ctrl+C dừng Watchdog (không tắt container), sau đó mới chạy
+`stop-new-demo.cmd`. UI vẫn ở http://localhost:5180. Cấu hình thử nghiệm và giới hạn:
+[Watchdog README](../tools/resilience-watchdog/README.md).
+
+Đây là tự phục hồi normalizer, **chưa phải autoscale tự động**. Không tự bật Medusa,
+Qwen hay tạo dữ liệu. State/audit được giữ trong ignored `runtime/watchdog/`;
+không xóa state để vượt circuit breaker. Cửa sổ bị đóng cưỡng bức có thể để lại lock
+cần review, không tự giành lại quyền điều khiển.
+
 Project `funnelmetry-demo-new`, fresh OFFLINE_DEMO với PostgreSQL/Kafka riêng.
 Người dùng đã đồng ý bỏ image cũ và tạo demo mới; không restore dữ liệu lịch sử.
 Docker trước thao tác không có container/volume. Đã xóa 15 tag của 6 image

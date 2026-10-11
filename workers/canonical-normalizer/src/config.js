@@ -1,3 +1,5 @@
+import { hostname } from 'node:os'
+
 function required(env, name) {
   const value = env[name]?.trim()
   if (!value) throw new Error(`${name} is required`)
@@ -16,11 +18,17 @@ function positiveInteger(env, name, fallback) {
   return value
 }
 
-export function loadConfig(env = process.env) {
-  const instanceId = required(env, "CANONICAL_NORMALIZER_INSTANCE_ID")
-  if (!/^[A-Za-z0-9._-]+$/.test(instanceId)) {
+export function loadConfig(env = process.env, containerHostname = hostname()) {
+  const baseId = required(env, "CANONICAL_NORMALIZER_INSTANCE_ID")
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(baseId)) {
     throw new Error("CANONICAL_NORMALIZER_INSTANCE_ID contains unsupported characters")
   }
+  const mode = env.CANONICAL_NORMALIZER_INSTANCE_ID_MODE || 'explicit'
+  if (!['explicit', 'container'].includes(mode)) throw new Error('Invalid CANONICAL_NORMALIZER_INSTANCE_ID_MODE')
+  if (mode === 'container' && !/^[a-f0-9]{12,64}$/.test(containerHostname)) {
+    throw new Error('Container identity requires a default Docker container-ID hostname')
+  }
+  const instanceId = mode === 'container' ? `${baseId}-${containerHostname}` : baseId
   return Object.freeze({
     brokers: Object.freeze(list(required(env, "KAFKA_BOOTSTRAP_SERVERS"))),
     clientId: env.CANONICAL_NORMALIZER_KAFKA_CLIENT_ID?.trim() || "funnelmetry-canonical-normalizer",

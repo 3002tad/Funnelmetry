@@ -1,0 +1,14 @@
+{
+  "project": "watchdog-sandbox-only",
+  "services": ["canonical-normalizer"],
+  "failureThreshold": 3,
+  "startupGraceMs": 60000,
+  "cooldownMs": 120000,
+  "maxAttempts": 2,
+  "windowMs": 900000,
+  "maxSampleAgeMs": 15000,
+  "port": 31009,
+  "probeTimeoutMs": 2000,
+  "commandTimeoutMs": 45000,
+  "restartTimeoutSec": 30
+}

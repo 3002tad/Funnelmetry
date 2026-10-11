@@ -1,0 +1,6 @@
+# Test-only overlay: applied exclusively by randomized handoff acceptance.
+services:
+  canonical-normalizer:
+    init: true
+    environment:
+      WORKER_HEALTH_PORT: '31009'

@@ -1,0 +1,14 @@
+{
+  "project": "funnelmetry-demo-new",
+  "services": ["canonical-normalizer"],
+  "failureThreshold": 3,
+  "startupGraceMs": 60000,
+  "cooldownMs": 120000,
+  "maxAttempts": 2,
+  "windowMs": 900000,
+  "maxSampleAgeMs": 15000,
+  "port": 32110,
+  "probeTimeoutMs": 2000,
+  "commandTimeoutMs": 60000,
+  "restartTimeoutSec": 45
+}
