@@ -1,5 +1,7 @@
 # Metrics-only machine credentials and local monitoring
 
+> **Cập nhật đường chạy:** các ví dụ `demo-new.env`/overlay bên dưới là lịch sử. Monitoring hiện dùng `runtime/deploy.env` và profile `monitoring` của [`infra/compose.yaml`](../infra/compose.yaml); các script runtime đã chuyển sang env này.
+
 Implements user-approved separate monitoring credentials under Master §24.3.4 /
 DEC-103 and Cookbook security / pipeline-recovery-observability boundaries.
 
@@ -50,14 +52,14 @@ tables/audit intact. No down-migration or data deletion is required.
    UID. Admin JWT stays in process memory. Script refuses to overwrite existing
    artifacts; failure attempts to revoke the new key, never prints secrets.
 3. Copy `runtime/monitoring.env.example` to ignored `runtime/monitoring.env` and
-   obtain the pinned images. Start the demo with `start-new-demo.cmd`; the launcher
+   obtain the pinned images. Start the demo with `runtime/new-demo.ps1 -Action start`; the script
    includes `infra/compose.observability.yml` only when this env file exists.
 4. Open `http://localhost:5182`, user `monitoring-admin`. Password is in ignored
    `runtime/monitoring/grafana-password`. Open **Pipeline / Funnelmetry — Pipeline
    observations**. Pipeline UI remains at localhost:5180.
 5. `node runtime/check-monitoring.mjs`: checks Grafana health, dashboard provision,
    Prometheus scrape UP and six worker observation series, without printing secrets.
-6. `stop-new-demo.cmd` stops monitoring too and preserves all named volumes.
+6. `runtime/new-demo.ps1 -Action stop` stops monitoring too and preserves all named volumes.
 
 Prometheus is internal only, no published host port; Grafana binds loopback and
 requires login, anonymous/signup disabled. Neither container has Docker socket.
@@ -81,7 +83,7 @@ node runtime/manage-monitoring-key.mjs rotate
 node runtime/manage-monitoring-key.mjs revoke
 ```
 
-Alternatively double-click `rotate-monitoring-key.cmd`. Status reads local receipt,
+Alternatively run `node runtime/manage-monitoring-key.mjs rotate`. Status reads local receipt,
 not authoritative server revocation state. Rotation logs in through the existing
 Admin API, writes a pending journal before installing the replacement, recreates
 only Prometheus and waits for a successful target scrape newer than that restart.

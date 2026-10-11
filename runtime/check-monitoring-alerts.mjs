@@ -4,7 +4,7 @@ import { parseEnv } from 'node:util'
 import { setTimeout as delay } from 'node:timers/promises'
 const expected=process.argv[2]??'recovered'
 if(!['unverified','recovered'].includes(expected))throw Error('Expected unverified or recovered')
-const env=parseEnv(await readFile(new URL('demo-new.env',import.meta.url),'utf8'))
+const env=parseEnv(await readFile(new URL('deploy.env',import.meta.url),'utf8'))
 const base=`http://127.0.0.1:${Number(env.HANDOFF_UI_PORT)}`
 try {
   const login=await fetch(base+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:env.HANDOFF_ADMIN_EMAIL,password:env.HANDOFF_ADMIN_PASSWORD}),signal:AbortSignal.timeout(10000),redirect:'error'})

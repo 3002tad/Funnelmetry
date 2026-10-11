@@ -32,7 +32,7 @@ và conformance test chứng minh authoritative transition.
 
 ## Chạy
 
-Provision các topic được khai báo trong `infra/.env.example`, sau đó:
+Provision các topic được khai báo trong `runtime/v2-dev.env.example`, sau đó:
 
 ```powershell
 cd workers/canonical-normalizer

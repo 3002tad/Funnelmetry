@@ -141,7 +141,7 @@ Review base PostgreSQL host-port exposure before deployment, or retain the exist
 private overlay. Do not run the entire default Compose stack unintentionally.
 The demo launcher now resumes the existing Source Connector and downstream workers
 without starting the legacy Gateway/Tailscale services. It does not bootstrap or
-recreate containers; see `runtime/START_PRIVATE_DEMO.md`.
+recreate containers; the old private-demo runbook is archived at `docs/archive/START_PRIVATE_DEMO.md`. Current deployment uses `docs/UNIFIED_COMPOSE.md`.
 
 Next: real-service integration tests through the
 normalizer/ledger, explicit initial cursor choice and authenticated reference-path

@@ -24,7 +24,7 @@ try {
     assert.ok((await readFile(`/workspace/analytics/sql/${file}`, 'utf8')).length)
   }
   assert.ok(JSON.parse(await readFile('/workspace/integrations/medusa/canonical-mappings.v1.json', 'utf8')))
-  await access('/workspace/infra/docker/bootstrap-handoff.mjs')
+  await access('/workspace/infra/bootstrap/bootstrap-handoff.mjs')
   await access('/workspace/infra/postgres/v2/020_product_reference.sql')
   console.log('PASS: non-root API + analytics imports, metadata, SQL; no runtime env directory')
 } finally { await closeDatabase() }

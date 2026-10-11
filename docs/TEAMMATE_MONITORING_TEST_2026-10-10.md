@@ -1,5 +1,7 @@
 # Bàn giao test Admin monitoring — 10/10/2026
 
+> **Lưu trữ lịch sử:** overlay monitoring handoff cũ đã bỏ. Profile monitoring hiện nằm trong [`infra/compose.yaml`](../infra/compose.yaml); xem [Unified Compose](UNIFIED_COMPOSE.md).
+
 > Điểm bắt đầu chung cho team: [bản bàn giao trong System_Backbone](https://github.com/3002tad/System_Backbone/blob/main/docs/implementation/PIPELINE_MONITORING_HANDOFF_2026-10-10.md).
 > File này giữ lệnh vận hành theo version code Pipeline; Backbone tổng hợp tiến độ,
 > bằng chứng và checklist, không sao chép một bộ lệnh runtime thứ hai.
@@ -8,7 +10,7 @@
 
 Sau bản bàn giao 05/10: thêm Admin Event Feed/Processing, Kafka lag/membership,
 readiness 6 worker, Prometheus/Grafana, khóa metrics riêng + rotation, cảnh báo
-trên Admin. Xem `runtime/NEW_DEMO.md` và `docs/ADMIN_MONITORING_ALERTS_2026-10-10.md`.
+trên Admin. Xem bản lịch sử `docs/archive/NEW_DEMO_2026-10-08.md` và `docs/ADMIN_MONITORING_ALERTS_2026-10-10.md`; bộ hiện hành dùng `docs/UNIFIED_COMPOSE.md`.
 
 **Git pull không cập nhật container.** Ba image mới đã publish và xác minh digest
 trên GHCR ngày 10/10/2026, từ source `2fb6b91f73f7abe9036d527cbb78217062e96d1e`,
@@ -26,7 +28,7 @@ Build thực hiện trên máy phát triển bằng `tools/release-handoff.ps1`,
   không thuộc một deployment đang có trên máy nhận. Nếu trùng, dừng và chọn
   project riêng qua Compose; không tự dùng launcher đè lên project cũ.
 - Hướng dẫn nhanh dưới đây dùng PowerShell/Docker Desktop Linux containers và
-  Node.js 22+. Linux có thể dùng cùng Compose files nhưng không chạy file `.cmd`.
+  Node.js 22+. Linux có thể dùng cùng Compose files; script PowerShell cho demo cũ chỉ chạy trên Windows.
 
 ## Dựng bản test bằng image đã publish (không cần build)
 
@@ -57,7 +59,7 @@ HANDOFF_WORKERS_IMAGE=ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:6987b76
 ```
 
 Pull `postgres:15-alpine` và `apache/kafka:3.9.1` nếu chưa có. Chưa tạo
-`runtime/monitoring.env` ở bước này. Chạy `start-new-demo.cmd` để khởi tạo sandbox
+`runtime/monitoring.env` ở bước này. Chạy `runtime/new-demo.ps1 -Action start` để khởi tạo sandbox
 trống và mở UI. Nếu bootstrap báo schema mismatch, **không reset/down -v**:
 đối chiếu hướng dẫn handoff trước khi tiếp tục.
 
@@ -76,7 +78,7 @@ node runtime/prepare-monitoring.mjs
 Script tạo khóa metrics riêng, mật khẩu Grafana và dashboard trong thư mục ignored;
 không in secrets, không ghi đè lần provisioning trước. Tạo `runtime/monitoring.env`
 từ `runtime/monitoring.env.example` (không ghi đè env có sẵn), pull đúng hai image
-đã pin trong file đó, rồi chạy lại `start-new-demo.cmd`.
+đã pin trong file đó, rồi chạy lại `runtime/new-demo.ps1 -Action start`.
 
 ## Checklist người nhận
 
@@ -93,7 +95,7 @@ từ `runtime/monitoring.env.example` (không ghi đè env có sẵn), pull đú
   được API Admin khác. Test để lại audit/khóa revoked, không tạo event nghiệp vụ.
 - `node runtime/manage-monitoring-key.mjs rotate`: khóa mới dùng được và scrape
   mới thành công trước khi thu hồi khóa cũ. Không xóa pending journal nếu bị lỗi.
-- `stop-new-demo.cmd`: dừng và giữ volumes. Chạy lại phải giữ tài khoản/khóa/metrics.
+- `runtime/new-demo.ps1 -Action stop`: dừng và giữ volumes. Chạy lại phải giữ tài khoản/khóa/metrics.
 
 Cảnh báo chỉ cập nhật khi mở trang Admin; chưa có email/Alertmanager/tự restart/scale.
 Khóa demo mặc định 7 ngày, cần rotate chủ động. Không coi checklist này là kiểm chứng

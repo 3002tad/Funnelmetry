@@ -1,13 +1,17 @@
 # Tài liệu Funnelmetry
 
+> **Bắt đầu với cấu hình hiện hành:** [Unified Compose](UNIFIED_COMPOSE.md). Các hướng dẫn demo/handoff trước đây chỉ còn giá trị đối chiếu lịch sử và có thể nhắc tới file đã loại bỏ.
+
 Mục lục rà soát 03/10/2026. Có code, đã test, đã triển khai và đang hoạt động là bốn trạng thái khác nhau.
 
 ## Đọc theo nhu cầu
 
 | Nhu cầu | Tài liệu | Phạm vi |
 |---|---|---|
-| Mở lại demo | [Resume demo](../runtime/START_PRIVATE_DEMO.md) | Máy đã cấu hình; không clean install |
+| Mở lại demo | [Unified Compose](UNIFIED_COMPOSE.md) | Dùng cùng project/profile và `runtime/deploy.env`; giữ nguyên dữ liệu |
 | Phân biệt cấu hình / logs / activation | [Mục lục runtime](../runtime/README.md) | Không chia sẻ env/backup thật qua Git |
+| Chọn file env/Compose để triển khai | [Bộ file cấu hình triển khai](DEPLOYMENT_CONFIG_FILES.md) | Chọn mode trước; live/AI/catalog là opt-in, không trộn stack V2 smoke |
+| Triển khai mới hoặc phát triển bằng Docker | [Unified Compose](UNIFIED_COMPOSE.md) | Một Compose/env cho Windows và Linux; không tự chuyển volume demo cũ |
 | Phát triển API/UI | [API](../apps/dashboard-api/README.md), [UI](../apps/dashboard-web/README.md) | UI riêng không tự bật backend |
 | Nhận event | [Source Connector](../workers/source-connector/README.md), [Medusa binding](../integrations/medusa/README.md) | Public HTTPS pull; cursor handoff khác checkpoint xử lý |
 | Tên sản phẩm | [Catalog sync](../workers/catalog-sync/README.md) | One-shot không có nghĩa đã chạy định kỳ |
@@ -53,7 +57,7 @@ Không chạy lại lệnh kích hoạt/replay chỉ vì chúng xuất hiện tr
 - [Master alignment 11/09 — archive](archive/MASTER_ALIGNMENT_REVIEW_2026-09-11.md), [Integration/AI 12/09](INTEGRATION_AI_ACTIVATION_2026-09-12.md).
 - [Behavior V2](BEHAVIOR_V2_ONLY_2026-09-20.md), [UI workspace 20/09 — archive](archive/UI_WORKSPACE_V2_2026-09-20.md).
 - [Source activation](SOURCE_CONNECTOR_ACTIVATION_2026-09-20.md), [bounded Kafka recovery](KAFKA_RECOVERY_2026-09-20.md).
-- [Order placement migration](ORDER_PLACEMENT_MIGRATION_2026-09-23.md), [order activation](../runtime/ORDER_ANALYTICS_ACTIVATION_2026-09-27.md).
+- [Order placement migration](ORDER_PLACEMENT_MIGRATION_2026-09-23.md), [order activation](archive/ORDER_ANALYTICS_ACTIVATION_2026-09-27.md).
 - [Qwen eval](../analytics/QWEN_EVAL_2026-09-25.md), [staging readiness](../analytics/STAGING_READINESS_2026-09-25.md).
 - [Replay 41 event](UNSUPPORTED_REPLAY_PLAN_2026-09-29.md), [non-AI rollout](NON_AI_FEATURE_ROLLOUT.md).
 

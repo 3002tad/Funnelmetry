@@ -78,7 +78,7 @@ Real-model evaluation and deployed-image acceptance remain outstanding.
 From repository root:
 
 ```powershell
-docker build -f apps/dashboard-api/Dockerfile.analytics -t funnelmetry-dashboard-analytics:staging-20260925 .
+docker build -f infra/docker/dashboard-api.Dockerfile -t funnelmetry-dashboard-analytics:staging-20260925 .
 docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges funnelmetry-dashboard-analytics:staging-20260925 node /workspace/tools/analytics-image-smoke.mjs
 ```
 
@@ -277,7 +277,7 @@ Kiểm tra trước khi chạy, từ `apps/dashboard-api`:
 ```powershell
 npm run schema:check
 # Nếu chủ động dùng file env local sẵn có:
-node --env-file=../../infra/.env scripts/check-account-schema.mjs
+node --env-file=../../runtime/v2-dev.env scripts/check-account-schema.mjs
 ```
 
 Lệnh không tự nạp env ở dạng `npm run schema:check`; cần `POSTGRES_HOST`,

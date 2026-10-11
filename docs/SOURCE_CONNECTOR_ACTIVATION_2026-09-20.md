@@ -38,8 +38,8 @@ Limits / follow-up:
 - Source API bot owner should add the catalog-required page instance identifier
   to future product-view events. Do not reuse old immutable event IDs with changed
   payloads or silently repair historical observation facts.
-- Follow-up on 2026-09-20: `start-private-demo.cmd` now starts the pull Connector,
-  downstream workers and dashboard; no Gateway/Tailscale startup dependency.
+- Historical follow-up on 2026-09-20: the now-removed CMD wrapper started the pull Connector,
+  downstream workers and dashboard, without a Gateway/Tailscale startup dependency.
   Two launcher runs succeeded with Connector READY and API/UI HTTP 200; the second
   run reused the same UI process. This does not prove downstream KPI correctness.
 - No Git push was performed. Connector is left running to long-poll new events.

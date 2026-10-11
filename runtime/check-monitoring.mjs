@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { parseEnv } from 'node:util'
 import assert from 'node:assert/strict'
-const env=parseEnv(await readFile(new URL('monitoring.env',import.meta.url),'utf8'))
+const env=parseEnv(await readFile(new URL('deploy.env',import.meta.url),'utf8'))
 const port=Number(env.MONITORING_GRAFANA_PORT||5182)
 if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid Grafana port')
 const password=await readFile(new URL('monitoring/grafana-password',import.meta.url),'utf8')

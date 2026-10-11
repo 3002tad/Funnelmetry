@@ -5,9 +5,9 @@ import { parseEnv } from 'node:util'
 
 const root = new URL('../', import.meta.url)
 const dir = new URL('runtime/monitoring/', root)
-const env = parseEnv(await readFile(new URL('runtime/demo-new.env', root), 'utf8'))
+const env = parseEnv(await readFile(new URL('runtime/deploy.env', root), 'utf8'))
 const port = Number(env.HANDOFF_UI_PORT)
-if (!Number.isInteger(port) || port < 1024 || port > 65535) throw Error('Invalid demo port')
+if (!Number.isInteger(port) || port < 1024 || port > 65535) throw Error('Invalid deployment port')
 const base = `http://127.0.0.1:${port}`
 const tokenFile = new URL('metrics-token', dir)
 try { await access(tokenFile); throw Error('Already provisioned: rotate explicitly; no overwrite performed') }

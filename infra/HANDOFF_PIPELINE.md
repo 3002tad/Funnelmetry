@@ -1,5 +1,7 @@
 # Bàn giao worker pipeline — 04/10/2026
 
+> **Lưu trữ lịch sử:** không chạy lệnh handoff overlay bên dưới. Bộ hiện hành là [`compose.yaml`](compose.yaml) + `runtime/deploy.env`; xem [Unified Compose](../docs/UNIFIED_COMPOSE.md).
+
 **Release update:** ba image commit `a725fad` đã publish và xác minh digest dưới
 GHCR `3002tad/funnelmetry`; xem [CODEX_HANDOFF](../CODEX_HANDOFF.md) cho digest
 và hướng dẫn đầy đủ.

@@ -1,11 +1,13 @@
 # Funnelmetry
 
+> **Cấu hình hiện hành:** triển khai/phát triển bằng [`infra/compose.yaml`](infra/compose.yaml) và [`runtime/deploy.env.example`](runtime/deploy.env.example). Xem [Unified Compose](docs/UNIFIED_COMPOSE.md). Các link tới demo/handoff cũ bên dưới chỉ còn là tài liệu lịch sử, không còn là lệnh khởi chạy.
+
 Repository chính cho backend analytics và giao diện Funnelmetry V2.
 
 ## Bắt đầu từ đây
 
 - **Tìm tài liệu:** [mục lục theo nhu cầu](docs/README.md).
-- **Mở lại demo đã cấu hình:** [runtime/START_PRIVATE_DEMO.md](runtime/START_PRIVATE_DEMO.md). Không phải bộ cài máy sạch.
+- **Mở hoặc triển khai demo hiện hành:** [Unified Compose](docs/UNIFIED_COMPOSE.md) với `runtime/deploy.env`.
 - **Hiểu code:** [repository layout](docs/REPOSITORY_LAYOUT.md).
 - **Lịch sử:** [archive](docs/archive/README.md); không chạy lại lệnh replay/migration lịch sử khi chỉ muốn xem demo.
 - **Bàn giao/chuyển máy:** [quy tắc Backbone DEC-125](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md).
@@ -75,8 +77,8 @@ contract V1 để đối chiếu.
 
 ## Chạy Input Gateway
 
-Gateway yêu cầu Kafka và các topic đã được provision. Sao chép `infra/.env.example`
-thành `infra/.env`, điền credential development rồi chạy:
+Gateway yêu cầu Kafka và các topic đã được provision. Sao chép `runtime/v2-dev.env.example`
+thành `runtime/v2-dev.env`, điền credential development rồi chạy:
 
 ```powershell
 cd apps/input-gateway
@@ -188,7 +190,7 @@ Migration `009_matured_conversion.sql` đưa authoritative converted instance v�
 sau horizon + grace để API công bố final conversion/drop-off rate với mẫu số đúng contract.
 
 Chạy riêng worker bằng `npm start` trong `workers/funnel-maturity-scheduler`, hoặc chạy cùng local
-stack qua `infra/compose.v2.yml`. Các tham số polling nằm trong `infra/.env.example`.
+stack qua `infra/compose.v2.yml`. Các tham số polling nằm trong `runtime/v2-dev.env.example`.
 
 Xem [`docs/TIME_SEMANTICS_CONTRACT_V1.md`](docs/TIME_SEMANTICS_CONTRACT_V1.md).
 

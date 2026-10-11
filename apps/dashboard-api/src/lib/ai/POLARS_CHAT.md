@@ -3,7 +3,7 @@
 Enable explicitly with `DASHBOARD_ENABLE_POLARS=true` in the Dashboard API process.
 Default false preserves overview-only chat. Qwen must also be enabled separately.
 Runtime requires `python3` + `polars==1.34.0`; private demo image:
-`apps/dashboard-api/Dockerfile.polars` (workspace and existing node_modules mounted
+`infra/docker/dashboard-api-polars.Dockerfile` (workspace and existing node_modules mounted
 read-only at `/workspace`, same env files as the existing private API).
 No Docker socket or model-generated SQL/code is used by the API.
 

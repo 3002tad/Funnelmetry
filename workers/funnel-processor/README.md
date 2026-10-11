@@ -34,7 +34,7 @@ npm run profiles:publish-reference
 npm start
 ```
 
-Lệnh publish dùng `FUNNEL_PROFILE_SOURCE_ID` trong `infra/.env`, hiện cung cấp đúng hai profile
+Lệnh publish dùng `FUNNEL_PROFILE_SOURCE_ID` trong `runtime/v2-dev.env`, hiện cung cấp đúng hai profile
 tham chiếu đã duyệt: Commerce Conversion và Online Payment. Chạy lại lệnh là idempotent nếu
 profile cùng version không đổi; semantics khác phải dùng version mới.
 

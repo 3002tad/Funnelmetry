@@ -1,5 +1,7 @@
 # Codex handoff — Pipeline development, 04/10/2026
 
+> **Lưu trữ lịch sử:** quy trình handoff nhiều overlay trong tài liệu này không còn là cấu hình triển khai hiện hành. Dùng [`docs/UNIFIED_COMPOSE.md`](docs/UNIFIED_COMPOSE.md) với `infra/compose.yaml` và `runtime/deploy.env`; không chạy các lệnh `compose.handoff*.yml` bên dưới.
+
 > **Cập nhật release 10/10/2026:** image mới từ `2fb6b91` đã publish lên GHCR.
 > Dùng [runbook monitoring mới](docs/TEAMMATE_MONITORING_TEST_2026-10-10.md) để lấy
 > ba digest và bước migration/khởi chạy; máy nhận không cần build image.
@@ -145,7 +147,7 @@ docker compose @handoffArgs ps -a
 
 Mở `http://localhost:5181` (hoặc cổng đã chọn). Admin bootstrap dùng env trên DB trống;
 tạo Data Analyst qua quản lý tài khoản để test analytics/chat. Không cấp analytics
-cho Admin chỉ để né RBAC. Không dùng launcher `start-private-demo.cmd` của máy cũ
+cho Admin chỉ để né RBAC. Không dùng script `runtime/start-private-demo.ps1` của máy cũ
 cho environment mới: launcher đó resume deployment khác.
 
 Dừng/ngày sau chạy lại bằng **cùng** `$handoffArgs` (khai báo lại khi mở terminal mới):

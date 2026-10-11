@@ -1,5 +1,7 @@
 # Demo mới trên máy bạn — 11/10/2026
 
+> **Lưu trữ lịch sử:** bundle/launcher demo cũ đã bỏ. Người nhận triển khai bằng [Unified Compose](UNIFIED_COMPOSE.md), với project/env riêng và không dùng image digest cũ khi chưa kiểm chứng.
+
 Phạm vi: OFFLINE_DEMO, database/Kafka mới, không chuyển dữ liệu từ máy khác.
 Theo DEC-125; không xóa hoặc ghi đè demo cũ. Project riêng được tạo ngẫu nhiên
 `funnelmetry-teammate-<id>`, UI mặc định http://localhost:5183.
@@ -18,7 +20,7 @@ Theo DEC-125; không xóa hoặc ghi đè demo cũ. Project riêng được tạ
    ```
 
    Nhập token ở prompt Password, không dán token vào Git hoặc tin nhắn.
-4. Trong repo Pipeline chạy `start-teammate-demo.cmd`, hoặc:
+4. Trong repo Pipeline chạy:
 
    ```powershell
    node runtime/teammate-demo.mjs start
@@ -29,6 +31,8 @@ manifest không chứa secret, sau đó pull ba image đã pin digest từ relea
 ngày 10/10 và image hạ tầng. Xem provenance trong `TEAMMATE_MONITORING_TEST_2026-10-10.md`.
 Không copy `.env` của người gửi. Mật khẩu Admin chỉ đọc tại file local, email
 `admin@teammate.local`; tạo Analyst qua Users để xem analytics.
+Launcher xác minh project, image và các biến cấu hình trước khi chạy Compose;
+biến `HANDOFF_*`, `MONITORING_*` hoặc `COMPOSE_*` trong terminal không lấn file demo.
 
 Nếu cổng 5183 đã dùng, **ngay lần đầu** chọn cổng khác:
 
@@ -44,15 +48,16 @@ Nếu thư mục khởi tạo dở thiếu manifest, cần review thay vì ghi �
 
 ```powershell
 node runtime/teammate-demo.mjs status
+node runtime/teammate-demo.mjs config
 node runtime/teammate-demo.mjs stop
 node runtime/teammate-demo.mjs start
 ```
 
-Stop giữ nguyên volume, tài khoản và dữ liệu. Không dùng `start-new-demo.cmd` hoặc
-`start-recovery-demo.cmd` cho deployment này vì hai launcher đó thuộc project khác.
+Stop giữ nguyên volume, tài khoản và dữ liệu. Không dùng `runtime/new-demo.ps1` hoặc
+`runtime/start-recovery-demo.ps1` cho deployment này vì hai script đó thuộc project khác.
 
-Có thể bấm `stop-teammate-demo.cmd` để dừng và `watchdog-teammate-demo.cmd` để
-chạy Watchdog. Khóa `operation.lock` chặn start/stop/Watchdog chạy đồng thời;
+Có thể chạy `node runtime/teammate-demo.mjs stop` để dừng và
+`node runtime/teammate-demo.mjs watchdog` để chạy Watchdog. Khóa `operation.lock` chặn start/stop/Watchdog chạy đồng thời;
 status vẫn đọc được. Nếu đóng cưỡng bức cửa sổ, lock có thể còn lại: xác minh tiến
 trình đã dừng và review trước khi xử lý lock; không xóa database/cấu hình.
 

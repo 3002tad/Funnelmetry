@@ -1,5 +1,7 @@
 # Bàn giao phát triển bằng Docker images
 
+> **Lưu trữ lịch sử:** các Compose handoff nhiều overlay bên dưới đã loại bỏ. Triển khai mới dùng [`compose.yaml`](compose.yaml) và [`runtime/deploy.env`](../runtime/deploy.env.example); xem [Unified Compose](../docs/UNIFIED_COMPOSE.md).
+
 **Cập nhật 04/10/2026:** ba image đã chuyển vào GHCR `3002tad/funnelmetry`.
 Xem [CODEX_HANDOFF](../CODEX_HANDOFF.md) để lấy digest, cấu hình live/AI và checklist
 máy nhận. Các ghi chú “chưa publish” bên dưới là provenance của lượt triển khai cũ.
@@ -30,8 +32,8 @@ overlay pipeline; xem tài liệu bổ sung để bật downstream hoặc review
 Từ repository root, build thử bằng Docker Linux containers:
 
 ```powershell
-docker build -f apps/dashboard-api/Dockerfile.analytics -t funnelmetry/handoff-api:local .
-docker build -f apps/dashboard-web/Dockerfile -t funnelmetry/handoff-web:local .
+docker build -f infra/docker/dashboard-api.Dockerfile -t funnelmetry/handoff-api:local .
+docker build -f infra/docker/dashboard-web.Dockerfile -t funnelmetry/handoff-web:local .
 docker run --rm --network none --read-only --cap-drop ALL funnelmetry/handoff-api:local node /workspace/tools/analytics-image-smoke.mjs
 ```
 

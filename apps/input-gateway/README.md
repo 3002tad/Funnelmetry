@@ -15,7 +15,7 @@ Phần hiện có:
 
 ## Chạy local
 
-Tạo `infra/.env` từ `infra/.env.example`, khởi tạo hai topic Kafka rồi chạy:
+Tạo `runtime/v2-dev.env` từ `runtime/v2-dev.env.example`, khởi tạo hai topic Kafka rồi chạy:
 
 ```powershell
 cd apps/input-gateway
@@ -154,7 +154,7 @@ npm run claims:inspect -- medusa-reference event-id-can-kiem-tra
 CLI không tự nạp `.env`. Nếu dùng cấu hình local sẵn có, có thể nạp tường minh:
 
 ```sh
-node --env-file=../../infra/.env src/claim-inspector-cli.js medusa-reference
+node --env-file=../../runtime/v2-dev.env src/claim-inspector-cli.js medusa-reference
 ```
 
 Kết quả JSON giới hạn 50 claim của source, cũ nhất theo `updated_at` trước; nếu `truncated=true`,

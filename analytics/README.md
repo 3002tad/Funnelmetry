@@ -6,7 +6,7 @@ This document retains chronological implementation stages. Statements such as â€
 
 | Topic | Read | Boundary |
 |---|---|---|
-| Order summary activation | [27/09 evidence](../runtime/ORDER_ANALYTICS_ACTIVATION_2026-09-27.md) | Local snapshot, not current health |
+| Order summary activation | [27/09 evidence](../docs/archive/ORDER_ANALYTICS_ACTIVATION_2026-09-27.md) | Local snapshot, not current health |
 | Order ranking | [ORDER_RANKING_STAGING](ORDER_RANKING_STAGING.md) | Read the 02/10 activation follow-up |
 | Product ranking | [PRODUCT_RANKING_STAGING](PRODUCT_RANKING_STAGING.md) | Historical unit price Ã— quantity, not paid revenue; 03/10 activation |
 | Admin registry/diagnostics | [Admin inspection](ADMIN_REGISTRY_READONLY_2026-10-03.md) | Read-only; acceptance limits per page |

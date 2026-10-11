@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node --env-file=../../infra/.env src/main.js",
-    "profiles:publish-reference": "node --env-file=../../infra/.env src/publish-reference-profiles.js",
+    "start": "node src/main.js",
+    "profiles:publish-reference": "node src/publish-reference-profiles.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

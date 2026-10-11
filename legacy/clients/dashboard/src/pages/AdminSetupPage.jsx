@@ -116,7 +116,7 @@ export function AdminSetupPage() {
         <h3>Env mẫu</h3>
         <p style={{ padding: "0 1rem", margin: 0, fontSize: "0.8rem", color: "var(--text-muted)" }}>
           WSL IP gợi ý: <code className="mono">{view.wsl_ip_hint}</code> — lấy từ{" "}
-          <code>VITE_DASHBOARD_API_URL</code> hoặc cập nhật <code>WSL_IP</code> trong infra/.env
+          <code>VITE_DASHBOARD_API_URL</code> hoặc cập nhật <code>WSL_IP</code> trong runtime/v2-dev.env
         </p>
         <div className="admin-panel-body" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           <EnvBlock title="Simulate_Demo/.env" vars={view.env_examples?.web_shop} />

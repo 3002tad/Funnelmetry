@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "claims:inspect": "node src/claim-inspector-cli.js",
-    "start": "node --env-file=../../infra/.env src/main.js",
-    "dev": "node --watch --env-file=../../infra/.env src/main.js",
+    "start": "node src/main.js",
+    "dev": "node --watch src/main.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

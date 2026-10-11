@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises'
 import { parseEnv } from 'node:util'
 import assert from 'node:assert/strict'
-const env=parseEnv(await readFile(new URL('demo-new.env',import.meta.url),'utf8'))
+const env=parseEnv(await readFile(new URL('deploy.env',import.meta.url),'utf8'))
 const base=`http://127.0.0.1:${Number(env.HANDOFF_UI_PORT)}`
 const request=(path,token,options={})=>fetch(base+path,{...options,redirect:'error',signal:AbortSignal.timeout(15000),headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})}})
 let admin,issued

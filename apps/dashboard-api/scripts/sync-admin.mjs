@@ -1,6 +1,6 @@
 /**
  * Compatibility command: bootstrap only an empty account store, never reset existing users.
- * Run locally: node --env-file=../../infra/.env scripts/sync-admin.mjs
+ * Run locally with the required environment already set; deployment bootstrap is managed by infra/compose.yaml.
  */
 import { seedAdminUser } from "../src/seed.js";
 import { query, closeDatabase } from '../src/db.js';

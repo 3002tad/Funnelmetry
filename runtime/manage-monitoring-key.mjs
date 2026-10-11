@@ -30,9 +30,8 @@ try {
   if(action==='status') {
     console.log(JSON.stringify({id:current.id,expires_at:current.expires_at,pending_rotation:!!await optional('rotation-pending.json'),scope:'local_receipt_not_server_authority'}))
   } else {
-    const env=parseEnv(await readFile(new URL('demo-new.env',import.meta.url),'utf8'))
-    const monitoring=parseEnv(await readFile(new URL('monitoring.env',import.meta.url),'utf8'))
-    const port=Number(env.HANDOFF_UI_PORT),grafanaPort=Number(monitoring.MONITORING_GRAFANA_PORT||5182)
+    const env=parseEnv(await readFile(new URL('deploy.env',import.meta.url),'utf8'))
+    const port=Number(env.HANDOFF_UI_PORT),grafanaPort=Number(env.MONITORING_GRAFANA_PORT||5182)
     if([port,grafanaPort].some(p=>!Number.isInteger(p)||p<1024||p>65535))throw Error('Invalid port')
     const base=`http://127.0.0.1:${port}`
     let session
@@ -41,7 +40,7 @@ try {
       if(!r.ok)throw Error('Admin request failed')
       return r.status===204?null:r.json()
     }
-    stage='admin_login_check_demo_running'
+    stage='admin_login_check_deployment_running'
     session=(await api('/api/auth/login',{method:'POST',body:JSON.stringify({email:env.HANDOFF_ADMIN_EMAIL,password:env.HANDOFF_ADMIN_PASSWORD})})).token
     const revoke=async id=>{if(!idPattern.test(id))throw Error('Invalid ID');await api('/api/v2/admin/monitoring-credentials/'+id,{method:'DELETE'})}
     if(action==='revoke') {
@@ -54,8 +53,7 @@ try {
       let docker
       for(const candidate of dockerCandidates){try{await access(candidate);docker=candidate;break}catch{}}
       if(!docker)throw Error('Docker not found')
-      const args=['compose','-p','funnelmetry-demo-new','--env-file','runtime/demo-new.env','--env-file','runtime/monitoring.env']
-      for(const file of ['handoff','handoff-pipeline','handoff-analytics','handoff-monitoring','observability'])args.push('-f',`infra/compose.${file}.yml`)
+      const args=['compose','--env-file','runtime/deploy.env','-f','infra/compose.yaml','--profile','monitoring']
       const run=async extra=>promisify(execFile)(docker,[...args,...extra],{cwd:root,windowsHide:true,timeout:180000,maxBuffer:1024*1024})
       stage='compose_preflight'
       await run(['config','--quiet'])

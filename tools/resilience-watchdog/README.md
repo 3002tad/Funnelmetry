@@ -1,5 +1,7 @@
 # Resilience Watchdog — host-side opt-in controller
 
+> **Lưu ý:** launcher `runtime/start-recovery-demo.ps1` của demo cũ đã bỏ. Watchdog vẫn là công cụ host-side opt-in, chưa tự tích hợp vào Compose thống nhất; không chạy ví dụ cũ trên project live.
+
 Implementation evidence, 2026-10-10. Authority: Master §24.3, Core Implementation
 Contracts §7–8 and DEC-111. Published `2fb6b91` handoff images remain unchanged.
 **Opt-in demo runner available; not installed as a background service.** No Docker socket in UI/API/AI,
@@ -63,7 +65,7 @@ reinitialize to continue. Changed configuration also requires reviewed migration
 
 ### Persistent foreground demo runner (2026-10-11)
 
-From the Pipeline root, run `start-recovery-demo.cmd`. It starts the existing
+From the Pipeline root, run `powershell -NoProfile -ExecutionPolicy Bypass -File runtime/start-recovery-demo.ps1`. It starts the existing
 `funnelmetry-demo-new` demo through its standard launcher, then runs the host Watchdog
 until Ctrl+C. Keep that window open. The demo UI remains at http://localhost:5180.
 This is **normalizer recovery**, not an automatic replica-scaling demo or live Medusa
@@ -84,7 +86,7 @@ immediately driving restarts. This startup check cannot recover an already hung 
 inspect/restore that worker before starting the foreground demo runner.
 
 Ctrl+C requests shutdown after the current bounded cycle; containers keep running.
-Then use `stop-new-demo.cmd` to stop the demo. The normal demo launcher refuses
+Then use `runtime/new-demo.ps1 -Action stop` to stop the demo. The normal demo script refuses
 start/stop while the known recovery session lease exists. Forced process termination
 may leave a stale lease; preserve state and verify that no runner is alive before
 operator review. Do not run another controller against a different state file or

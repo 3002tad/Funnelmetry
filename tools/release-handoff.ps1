@@ -20,8 +20,8 @@ $dockerExe = if ($dockerCommand) { $dockerCommand.Source } else {
 if (!$dockerExe) { throw 'Docker CLI not found' }
 $previousPath = $env:PATH
 $images = [ordered]@{
-    api = @{ file = 'apps/dashboard-api/Dockerfile.analytics'; image = "$Registry/handoff-api`:sha-$revision" }
-    web = @{ file = 'apps/dashboard-web/Dockerfile'; image = "$Registry/handoff-web`:sha-$revision" }
+    api = @{ file = 'infra/docker/dashboard-api.Dockerfile'; image = "$Registry/handoff-api`:sha-$revision" }
+    web = @{ file = 'infra/docker/dashboard-web.Dockerfile'; image = "$Registry/handoff-web`:sha-$revision" }
     workers = @{ file = 'infra/docker/pipeline-workers.Dockerfile'; image = "$Registry/handoff-workers`:sha-$revision" }
 }
 try {

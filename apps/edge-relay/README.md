@@ -10,7 +10,7 @@ khi event đã được durable-persist cùng Source-owned `event_feed_id` và
 ## Runtime tối thiểu
 
 Source Ingress yêu cầu Node 22+ vì dùng `node:sqlite`. Chạy local với biến môi
-trường trong `infra/.env`:
+trường trong `runtime/v2-dev.env`:
 
 ```powershell
 cd apps/edge-relay

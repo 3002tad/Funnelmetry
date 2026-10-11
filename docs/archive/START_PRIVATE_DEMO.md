@@ -1,9 +1,11 @@
 # Khởi động lại demo private trên Laptop 2
 
+> **Lưu trữ lịch sử:** private launcher đã bỏ; không dùng các lệnh trong tài liệu này để khởi chạy bộ mới. Xem [Unified Compose](../UNIFIED_COMPOSE.md).
+
 > Hướng dẫn **resume trên máy đã cấu hình**, không phải chuyển server. Xem [mục lục runtime](README.md) để chọn đúng cấu hình/capability.
 
-Bấm đúp `Streaming_Pipeline/start-private-demo.cmd`. Có thể chạy file từ bất kỳ
-thư mục nào. Launcher bật Docker Desktop nếu cần, PostgreSQL/Kafka,
+Từ root `Streaming_Pipeline`, chạy `powershell -NoProfile -ExecutionPolicy Bypass -File runtime/start-private-demo.ps1`.
+Script bật Docker Desktop nếu cần, PostgreSQL/Kafka,
 Source Connector và các worker canonical/telemetry/journey/funnel/KPI, API private có Qwen,
 rồi chạy UI ẩn và mở http://localhost:5180.
 
