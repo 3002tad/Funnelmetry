@@ -24,7 +24,7 @@ Tests use temporary schema/database only, not the user's runtime database.
 
 Stop old API before applying dashboard migrations 006, 007, 008 after the account
 schema 003. These are separate from canonical V2 migrations. Existing JWTs without
-session_version require login again. See apps/dashboard-api/README.md for details.
+session_version require login again. See [Dashboard API](apps/dashboard-api/README.md) for details.
 
 Revocation applies on the next request, not an already-open SSE or in-flight request.
 No audit UI, rejected-attempt audit, tamper-proof storage, or complete business

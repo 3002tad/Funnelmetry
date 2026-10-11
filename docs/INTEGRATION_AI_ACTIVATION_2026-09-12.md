@@ -1,6 +1,6 @@
 # Integration and AI activation — 2026-09-12
 
-> Historical stages: private ingress has been superseded by authenticated HTTPS Event Feed pull. Do not use these bootstrap steps as the current deployment baseline. See [runtime index](../runtime/README.md) and [analytics map](../analytics/README.md) for later capability records. Keep this file for provenance.
+> Historical stages: private ingress has been superseded by authenticated HTTPS Event Feed pull. Do not use these bootstrap steps as the current deployment baseline. See [operations](OPERATIONS.md) and [analytics map](analytics/README.md) for later capability records. Keep this file for provenance.
 
 User-approved scope: proceed with Medusa connectivity and AI. Provider choice:
 Alibaba Cloud Model Studio/DashScope directly, Singapore, Qwen Flash. No OpenRouter.
@@ -29,7 +29,7 @@ Added standalone DashScope transport and permission-checked V2 Overview evidence
 Seven offline tests pass: config, request bounds, sanitized errors, no retry, response
 validation, timeout/concurrency/cancel and live-account capability checks. No new Chat
 route, UI, model call or business data export yet. `DASHBOARD_ENABLE_QWEN` is distinct
-from old `DASHBOARD_ENABLE_AI`. See apps/dashboard-api/src/lib/ai/README.md.
+from old `DASHBOARD_ENABLE_AI`. See [Dashboard AI](apps/dashboard-api/src/lib/ai/README.md).
 
 The original stage/gates below remain historical planning context; provider foundation
 is now implemented but live activation and authenticated orchestration remain pending.

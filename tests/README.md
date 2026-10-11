@@ -5,10 +5,12 @@ fault injection. Unit test vẫn nằm cạnh package hoặc component sở hữ
 
 ## Tìm đúng bài test
 
-- [V2 E2E](../tools/v2-e2e/README.md): đọc prerequisites và phạm vi fixture trước khi chạy.
-- [Analytics](../analytics/README.md): tool/metadata và bằng chứng theo từng giai đoạn.
-- [Dashboard API](../apps/dashboard-api/README.md): test route và phân quyền.
-- [Dashboard Web](../apps/dashboard-web/README.md): build/test giao diện.
+- [V2 E2E](tools/v2-e2e/README.md): đọc prerequisites và phạm vi fixture trước khi chạy.
+- [Polars smoke](tools/polars-smoke/README.md) và [Medusa reference simulator](tools/medusa-reference-simulator/RUN_FUNNELMETRY_API_BOT.md): hướng dẫn test theo công cụ.
+- [Qwen eval](evidence/QWEN_EVAL_2026-09-25.md) và [staging readiness](evidence/STAGING_READINESS_2026-09-25.md): bằng chứng theo mốc, không phải trạng thái nghiệm thu hiện tại.
+- [Analytics](../docs/analytics/README.md): tool/metadata và bằng chứng theo từng giai đoạn.
+- [Dashboard API](../docs/apps/dashboard-api/README.md): test route và phân quyền.
+- [Dashboard Web](../docs/apps/dashboard-web/README.md): build/test giao diện.
 - Quay lại [mục lục](../docs/README.md).
 
 Không suy ra live acceptance từ unit test/build. Test tạo database/container riêng

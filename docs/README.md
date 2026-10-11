@@ -1,72 +1,24 @@
-# Tài liệu Funnelmetry
+# Tài liệu Streaming Pipeline
 
-> **Bắt đầu với cấu hình hiện hành:** [Unified Compose](UNIFIED_COMPOSE.md). Các hướng dẫn demo/handoff trước đây chỉ còn giá trị đối chiếu lịch sử và có thể nhắc tới file đã loại bỏ.
+> Điểm vào hiện hành cho repo này. Kiến trúc và quyết định thuộc [System Backbone](https://github.com/3002tad/System_Backbone); tài liệu ở đây mô tả triển khai và mức hoàn thành của code Pipeline, không được override Master. Cập nhật mục lục: 2026-10-11.
 
-Mục lục rà soát 03/10/2026. Có code, đã test, đã triển khai và đang hoạt động là bốn trạng thái khác nhau.
-
-## Đọc theo nhu cầu
-
-| Nhu cầu | Tài liệu | Phạm vi |
+| Cần biết gì | Đọc file | Phạm vi |
 |---|---|---|
-| Mở lại demo | [Unified Compose](UNIFIED_COMPOSE.md) | Dùng cùng project/profile và `runtime/deploy.env`; giữ nguyên dữ liệu |
-| Phân biệt cấu hình / logs / activation | [Mục lục runtime](../runtime/README.md) | Không chia sẻ env/backup thật qua Git |
-| Chọn file env/Compose để triển khai | [Bộ file cấu hình triển khai](DEPLOYMENT_CONFIG_FILES.md) | Chọn mode trước; live/AI/catalog là opt-in, không trộn stack V2 smoke |
-| Triển khai mới hoặc phát triển bằng Docker | [Unified Compose](UNIFIED_COMPOSE.md) | Một Compose/env cho Windows và Linux; không tự chuyển volume demo cũ |
-| Phát triển API/UI | [API](../apps/dashboard-api/README.md), [UI](../apps/dashboard-web/README.md) | UI riêng không tự bật backend |
-| Nhận event | [Source Connector](../workers/source-connector/README.md), [Medusa binding](../integrations/medusa/README.md) | Public HTTPS pull; cursor handoff khác checkpoint xử lý |
-| Tên sản phẩm | [Catalog sync](../workers/catalog-sync/README.md) | One-shot không có nghĩa đã chạy định kỳ |
-| Phân tích / AI | [Analytics](../analytics/README.md), [order ranking](../analytics/ORDER_RANKING_STAGING.md), [product ranking](../analytics/PRODUCT_RANKING_STAGING.md) | Đọc cả activation follow-up, metadata staging |
-| Admin | [Registry và diagnostics](../analytics/ADMIN_REGISTRY_READONLY_2026-10-03.md) | Tra cứu, chưa đầy đủ vòng đời quản trị |
-| Kiểm thử | [Tests](../tests/README.md), [V2 E2E](../tools/v2-e2e/README.md) | Tách test isolated khỏi dữ liệu demo |
-| Hạ tầng | [Infra](../infra/README.md), [PostgreSQL](../infra/postgres/README.md), [Ports](../infra/PORTS.md) | Theo capability, không suy ra full deployment |
-| Bàn giao | [Backbone implementation](https://github.com/3002tad/System_Backbone/tree/main/docs/implementation) | Bản 30/9 là lịch sử; bản bổ sung 03/10 cần được push riêng |
-| Chuyển máy/server | [DEC-125](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md) | Không copy Kafka volume; chưa có clean bootstrap tổng quát |
+| Chạy, dừng, cấu hình, profile và tài nguyên | [Vận hành](OPERATIONS.md) | Một Compose `infra/compose.yaml` + một `runtime/deploy.env`; Windows/Linux |
+| Chức năng đã có, còn thiếu và giới hạn | [Chức năng](FEATURE_STATUS.md) | Phân biệt code, demo evidence và production acceptance |
+| Test an toàn và cách chứng minh demo | [Kiểm thử](TESTING.md) | Unit/build/config khác với E2E và restore acceptance |
+| Cấu trúc repo | [Repository layout](REPOSITORY_LAYOUT.md) | Đường dẫn code và ownership |
+| Time semantics | [Time contract](TIME_SEMANTICS_CONTRACT_V1.md) | Contract nội bộ Pipeline, subordinate to Backbone |
+| API machine-readable | [OpenAPI V2](../tools/api-docs/public/openapi-v2.yaml) | Đối chiếu với runtime/API version thực tế |
 
-README theo component giữ cạnh code để tránh nhiều bản hướng dẫn lệch nhau; mục lục này là điểm tìm chung.
+## Nguồn quy tắc hệ thống
 
-## Hiện hành
+Thứ tự đọc khi thay đổi semantics hoặc deployment: [Decision Record](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/DINH_HUONG_DE_TAI.md) → [Master Specification](https://github.com/3002tad/System_Backbone/blob/main/MASTER_SPECIFICATION.md) → [Core Implementation Contracts](https://github.com/3002tad/System_Backbone/blob/main/docs/implementation/CORE_IMPLEMENTATION_CONTRACTS_V1.md). Trước khi dựng máy mới, demo song song, restore hay cutover, đọc thêm [DEC-125](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md). Quy tắc cho coding agent nằm trong [System Cookbook](https://github.com/3002tad/System_Cookbook).
 
-- [`REPOSITORY_LAYOUT.md`](REPOSITORY_LAYOUT.md): cấu trúc repository V2 và trạng thái migration.
-- [`TIME_SEMANTICS_CONTRACT_V1.md`](TIME_SEMANTICS_CONTRACT_V1.md): clock, horizon/grace,
-  maturity và late-arrival boundary dùng chung; không chứa numeric default.
-- [`../tools/api-docs/public/openapi-v2.yaml`](../tools/api-docs/public/openapi-v2.yaml): OpenAPI
-  machine-readable cho Analytics API V2.
-- Kiến trúc đích và decision record: repository `../../System_Backbone`.
-- Quy tắc phát triển: repository `../../System_Cookbook`.
+## Tài liệu chuyên sâu theo module
 
-## Tài liệu V1 giữ để tham khảo
+- [Dashboard API](apps/dashboard-api/README.md), [Dashboard Web](apps/dashboard-web/README.md), [Analytics](analytics/README.md).
+- [Source Connector](workers/source-connector/README.md), [Catalog Sync](workers/catalog-sync/README.md), [Workers](workers/README.md), [Packages](packages/README.md).
+- [Vận hành/infra/runtime](OPERATIONS.md), [tests](../tests/README.md), [autoscaler](tools/autoscaler/README.md).
 
-Các file dưới đây mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Chúng
-không phải hướng dẫn chạy V2:
-
-- [`BAO_CAO_DU_AN.md`](../legacy/docs-v1/BAO_CAO_DU_AN.md)
-- [`PHU_LUC.md`](../legacy/docs-v1/PHU_LUC.md)
-- [`RUNTIME.md`](../legacy/docs-v1/RUNTIME.md)
-- [`TECH_STACK.md`](../legacy/docs-v1/TECH_STACK.md)
-- [`SPEC.md`](../legacy/docs-v1/SPEC.md)
-- [`REPO_MAP.md`](../legacy/docs-v1/REPO_MAP.md)
-- [`API.md`](../legacy/docs-v1/API.md)
-
-Code và tài liệu tương ứng được giữ trong `../legacy/` để đối chiếu migration.
-
-## Nhật ký và bằng chứng có thời điểm
-
-Không chạy lại lệnh kích hoạt/replay chỉ vì chúng xuất hiện trong lịch sử:
-
-- [Archive backend 30/08](archive/V2_BACKEND_CHANGELOG_2026-08-30.md).
-- [Master alignment 11/09 — archive](archive/MASTER_ALIGNMENT_REVIEW_2026-09-11.md), [Integration/AI 12/09](INTEGRATION_AI_ACTIVATION_2026-09-12.md).
-- [Behavior V2](BEHAVIOR_V2_ONLY_2026-09-20.md), [UI workspace 20/09 — archive](archive/UI_WORKSPACE_V2_2026-09-20.md).
-- [Source activation](SOURCE_CONNECTOR_ACTIVATION_2026-09-20.md), [bounded Kafka recovery](KAFKA_RECOVERY_2026-09-20.md).
-- [Order placement migration](ORDER_PLACEMENT_MIGRATION_2026-09-23.md), [order activation](archive/ORDER_ANALYTICS_ACTIVATION_2026-09-27.md).
-- [Qwen eval](../analytics/QWEN_EVAL_2026-09-25.md), [staging readiness](../analytics/STAGING_READINESS_2026-09-25.md).
-- [Replay 41 event](UNSUPPORTED_REPLAY_PLAN_2026-09-29.md), [non-AI rollout](NON_AI_FEATURE_ROLLOUT.md).
-
-Ngày trong tên không tự chứng minh file có thể xóa. File trộn hướng dẫn và follow-up giữ vị trí cũ; đọc đúng mốc cập nhật.
-
-## Quy tắc lưu tài liệu và cấu hình
-
-1. Hướng dẫn component đặt cạnh code; mục lục trỏ đến bản đó, không sao chép toàn bộ.
-2. Nhật ký thuần lịch sử đặt trong `docs/archive/`, ghi ngày/commit/test/deployed/evidence/giới hạn.
-3. Khi chuyển file, kiểm tra backlink và link tương đối; giữ chỉ dẫn đường dẫn cũ khi cần.
-4. `.env`, logs và backups là cấu hình/dữ liệu local; không đưa nội dung vào Git hoặc tài liệu. Dùng `.env.example` làm mẫu.
-5. Không di chuyển script/SQL/env trong một đợt dọn Markdown. Tên `private` là đường dẫn tương thích, không chứng minh runtime cần VPN.
+Tài liệu component đã được gom dưới `docs/` theo đường dẫn code tương ứng; code/runtime vẫn ở thư mục cũ. README của npm packages là [ngoại lệ đóng gói](packages/README.md). Tài liệu về bài test nằm ở [tests](../tests/README.md). [Hồ sơ Admin/monitoring 08–10/10](archive/ADMIN_MONITORING_EVIDENCE_2026-10-08_TO_10.md), các bài rollout/activation/demo handoff và [archive](archive/README.md) là evidence/hướng dẫn lịch sử tại phiên bản cụ thể; không chạy lại lệnh cũ trên project hiện hành. V1 dưới [`docs/legacy/`](legacy/README.md) chỉ dùng truy vết. Không đưa `.env`, log, token hoặc backup thật vào Git/tài liệu.

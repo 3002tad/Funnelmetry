@@ -1,6 +1,6 @@
 # Demo mới trên máy bạn — 11/10/2026
 
-> **Lưu trữ lịch sử:** bundle/launcher demo cũ đã bỏ. Người nhận triển khai bằng [Unified Compose](UNIFIED_COMPOSE.md), với project/env riêng và không dùng image digest cũ khi chưa kiểm chứng.
+> **Lưu trữ lịch sử:** bundle/launcher demo cũ đã bỏ. Người nhận triển khai theo [vận hành hiện hành](OPERATIONS.md), với project/env riêng và không dùng image digest cũ khi chưa kiểm chứng.
 
 Phạm vi: OFFLINE_DEMO, database/Kafka mới, không chuyển dữ liệu từ máy khác.
 Theo DEC-125; không xóa hoặc ghi đè demo cũ. Project riêng được tạo ngẫu nhiên

@@ -19,7 +19,7 @@ khỏi AI/V1. Các nhận xét bên dưới là snapshot trước sửa, không 
   nạp module/authorization/validation, không gọi model hoặc xác nhận chất lượng AI.
 - Chưa kiểm thử end-to-end Medusa, startup deployment thực tế hoặc health probe V1
   với toàn bộ dịch vụ ngoài. Không áp migration vào DB runtime, không đổi UI/Medusa.
-- Hướng dẫn cờ và lưu ý nâng cấp demo cũ: `apps/dashboard-api/README.md`.
+- Hướng dẫn cờ và lưu ý nâng cấp demo cũ: [Dashboard API](../apps/dashboard-api/README.md).
   Chưa commit/push đợt này. Account preferences được bổ sung ở đợt 2 bên dưới;
   Admin inventory và UI còn tiếp tục.
 

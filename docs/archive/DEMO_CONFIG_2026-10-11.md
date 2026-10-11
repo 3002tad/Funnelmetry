@@ -1,6 +1,6 @@
 # Cấu hình theo luồng demo hiện tại
 
-> **Lưu trữ lịch sử:** bộ `demo-new.env`/handoff overlay không còn là đường chạy hiện hành. Dùng [`deploy.env.example`](../../runtime/deploy.env.example) và [Unified Compose](../UNIFIED_COMPOSE.md).
+> **Lưu trữ lịch sử:** bộ `demo-new.env`/handoff overlay không còn là đường chạy hiện hành. Dùng [`deploy.env.example`](../../runtime/deploy.env.example) và [vận hành](../OPERATIONS.md).
 
 ## Máy đang phát triển — funnelmetry-demo-new
 
@@ -46,7 +46,7 @@ Compose có thể recreate container; `restart` đơn thuần không nạp env/l
 ## Recovery / giới hạn tài nguyên
 
 - CPU/RAM/PID từng worker: `HANDOFF_*_CPUS`, `*_MEMORY`, `*_PIDS` trong demo-new.env;
-  mặc định và bảng biến ở [WORKER_RESOURCE_LIMITS](../docs/WORKER_RESOURCE_LIMITS.md).
+  mặc định và bảng biến ở [vận hành](../OPERATIONS.md#giới-hạn-tài-nguyên-worker).
 - Watchdog: `powershell -NoProfile -ExecutionPolicy Bypass -File runtime/start-recovery-demo.ps1`, policy
   `tools/resilience-watchdog/demo.config.json`, state/audit `runtime/watchdog/`.
 - Autoscaler chưa có actuator demo; đổi resource limit không bật autoscale.
@@ -56,7 +56,7 @@ Compose có thể recreate container; `restart` đơn thuần không nạp env/l
 `node runtime/teammate-demo.mjs start` ->
 `runtime/teammate-demo/demo.env` + `manifest.json`. Script sinh project ngẫu nhiên,
 secret mới, UI mặc định 5183. Không dùng demo-new.env/monitoring.env của máy gửi.
-Xem [TEAMMATE_FRESH_DEMO](../docs/TEAMMATE_FRESH_DEMO.md).
+Xem [TEAMMATE_FRESH_DEMO](../TEAMMATE_FRESH_DEMO.md).
 
 ## Các file khác không được demo launcher tự nạp
 

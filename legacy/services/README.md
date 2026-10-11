@@ -1,3 +1,0 @@
-# Services
-
-**[Tech stack V1](../docs-v1/TECH_STACK.md)** · **[Repo map V1](../docs-v1/REPO_MAP.md)** · **[API V1](../docs-v1/API.md)**

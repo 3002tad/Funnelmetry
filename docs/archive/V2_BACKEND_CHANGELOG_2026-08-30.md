@@ -751,7 +751,7 @@ Các mô tả takeover/fingerprint và xác nhận E2E bên dưới được tha
 - Sau test, toàn bộ dataset hai lượt có canonical=26 và KPI applications=26. Consumer offset=51,
   log-end=52, lag=1; không claim lag bằng 0. Kafka transaction control positions có thể góp vào lag,
   nên kết luận business processing dựa trên application và projection assertions, không chỉ offset.
-- Bổ sung runbook trong `tools/v2-e2e/README.md`. Đây là downtime/backlog recovery, chưa phải
+- Bổ sung runbook trong [V2 E2E](../../tests/tools/v2-e2e/README.md). Đây là downtime/backlog recovery, chưa phải
   crash đúng cửa sổ giữa PostgreSQL commit và Kafka commit. Không thay code worker trong lượt này.
 - Dừng riêng stack E2E, giữ volume evidence. Demo Dashboard/UI và database demo vẫn mở;
   không sửa AI/Medusa hoặc database pipeline runtime, chưa commit/push.

@@ -1,8 +1,8 @@
 # Khởi động lại demo private trên Laptop 2
 
-> **Lưu trữ lịch sử:** private launcher đã bỏ; không dùng các lệnh trong tài liệu này để khởi chạy bộ mới. Xem [Unified Compose](../UNIFIED_COMPOSE.md).
+> **Lưu trữ lịch sử:** private launcher đã bỏ; không dùng các lệnh trong tài liệu này để khởi chạy bộ mới. Xem [vận hành](../OPERATIONS.md).
 
-> Hướng dẫn **resume trên máy đã cấu hình**, không phải chuyển server. Xem [mục lục runtime](README.md) để chọn đúng cấu hình/capability.
+> Hướng dẫn **resume trên máy đã cấu hình**, không phải chuyển server. Xem [vận hành hiện hành](../OPERATIONS.md) để chọn đúng cấu hình/capability.
 
 Từ root `Streaming_Pipeline`, chạy `powershell -NoProfile -ExecutionPolicy Bypass -File runtime/start-private-demo.ps1`.
 Script bật Docker Desktop nếu cần, PostgreSQL/Kafka,

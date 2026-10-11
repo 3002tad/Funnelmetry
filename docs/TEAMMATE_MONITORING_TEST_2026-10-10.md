@@ -1,6 +1,6 @@
 # Bàn giao test Admin monitoring — 10/10/2026
 
-> **Lưu trữ lịch sử:** overlay monitoring handoff cũ đã bỏ. Profile monitoring hiện nằm trong [`infra/compose.yaml`](../infra/compose.yaml); xem [Unified Compose](UNIFIED_COMPOSE.md).
+> **Lưu trữ lịch sử:** overlay monitoring handoff cũ đã bỏ. Profile monitoring hiện nằm trong [`infra/compose.yaml`](../infra/compose.yaml); xem [vận hành](OPERATIONS.md).
 
 > Điểm bắt đầu chung cho team: [bản bàn giao trong System_Backbone](https://github.com/3002tad/System_Backbone/blob/main/docs/implementation/PIPELINE_MONITORING_HANDOFF_2026-10-10.md).
 > File này giữ lệnh vận hành theo version code Pipeline; Backbone tổng hợp tiến độ,
@@ -10,7 +10,7 @@
 
 Sau bản bàn giao 05/10: thêm Admin Event Feed/Processing, Kafka lag/membership,
 readiness 6 worker, Prometheus/Grafana, khóa metrics riêng + rotation, cảnh báo
-trên Admin. Xem bản lịch sử `docs/archive/NEW_DEMO_2026-10-08.md` và `docs/ADMIN_MONITORING_ALERTS_2026-10-10.md`; bộ hiện hành dùng `docs/UNIFIED_COMPOSE.md`.
+trên Admin. Xem bản lịch sử `docs/archive/NEW_DEMO_2026-10-08.md` và [hồ sơ Admin/monitoring](archive/ADMIN_MONITORING_EVIDENCE_2026-10-08_TO_10.md); bộ hiện hành dùng `docs/OPERATIONS.md`.
 
 **Git pull không cập nhật container.** Ba image mới đã publish và xác minh digest
 trên GHCR ngày 10/10/2026, từ source `2fb6b91f73f7abe9036d527cbb78217062e96d1e`,
@@ -19,7 +19,7 @@ Build thực hiện trên máy phát triển bằng `tools/release-handoff.ps1`,
 
 ## An toàn trước khi chạy
 
-- Đọc `CODEX_HANDOFF.md` và quy tắc DEC-125 trong System_Backbone.
+- Đọc [`docs/archive/CODEX_HANDOFF.md`](archive/CODEX_HANDOFF.md) và quy tắc DEC-125 trong System_Backbone.
 - Test sandbox tách khỏi hệ thống live: không copy database/Kafka volume/cursor,
   không bật Source Connector/catalog/Qwen bằng credential của máy gửi.
 - Không chia sẻ `.env`, `runtime/monitoring/`, mật khẩu hoặc token trong Git/chat.

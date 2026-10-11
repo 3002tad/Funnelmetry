@@ -265,4 +265,4 @@ isolated PostgreSQL migration-rerun/source-isolation/history/no-fanout/rollback
 test and downstream regression passed. No live Medusa request or demo migration
 was run. Activation requires ignored `runtime/catalog-sync.env`, authorized
 Medusa Admin origin/key, migration 020 and opt-in Compose worker deployment.
-See `workers/catalog-sync/README.md`; Event Feed credentials must not be reused.
+See [Catalog Sync](workers/catalog-sync/README.md); Event Feed credentials must not be reused.
