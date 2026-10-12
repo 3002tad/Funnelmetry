@@ -57,6 +57,11 @@ an explicit follow-up before provisioning monitoring credentials. Without it,
 the new endpoints fail closed with 503; normal existing endpoints keep working.
 Do not modify the handoff bootstrap digest manually to bypass compatibility.
 
+Trong bộ Compose hiện hành, `node runtime/deploy.mjs start` chạy one-shot job
+`monitoring-schema` để áp migration bổ sung này **sau** core bootstrap và **trước**
+`prepare-monitoring.mjs`. Job dùng `CREATE TABLE IF NOT EXISTS`, không reset event,
+cursor hoặc database; operator chạy Compose thủ công phải giữ cùng thứ tự.
+
 Rollback: stop monitoring services, revert API image if needed; leave the additive
 tables/audit intact. No down-migration or data deletion is required.
 

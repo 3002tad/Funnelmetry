@@ -25,6 +25,7 @@ test('unified template keeps isolated build defaults and no real credentials', a
   assert.equal(pairs.HANDOFF_IMAGE_POLICY, 'build');
   assert.equal(pairs.HANDOFF_ENABLE_POLARS, 'true');
   assert.equal(pairs.HANDOFF_ENABLE_QWEN, 'false');
+  assert.equal(pairs.HANDOFF_DEPLOY_PROFILES, '');
   assert.equal(pairs.HANDOFF_LIVE_ACK, '');
   for (const key of ['HANDOFF_DB_PASSWORD', 'HANDOFF_JWT_SECRET', 'HANDOFF_ADMIN_PASSWORD',
     'HANDOFF_FEED_TOKEN', 'HANDOFF_CATALOG_KEY', 'HANDOFF_DASHSCOPE_API_KEY']) {
@@ -44,7 +45,7 @@ test('default unified Compose starts core services and enabled internal tools on
       'funnel-maturity-scheduler', 'kpi-projector']) {
       assert.ok(services[name], name);
     }
-    for (const name of ['source-connector', 'catalog-sync', 'prometheus', 'grafana']) {
+    for (const name of ['source-connector', 'catalog-sync', 'monitoring-schema', 'prometheus', 'grafana']) {
       assert.equal(services[name], undefined, name);
     }
     const api = services['dashboard-api'];
@@ -69,10 +70,14 @@ test('external integration profiles remain separately selectable in same YAML',
       [...args, '--profile', 'live', '--profile', 'catalog', '--profile', 'monitoring', 'config', '--format', 'json'],
       { cwd: root, env, timeout: 30000, windowsHide: true });
     const services = JSON.parse(stdout).services;
-    for (const name of ['source-connector', 'catalog-sync', 'prometheus', 'grafana']) {
+    for (const name of ['source-connector', 'catalog-sync', 'monitoring-schema', 'prometheus', 'grafana']) {
       assert.ok(services[name], name);
     }
     assert.equal(services['source-connector'].environment.HANDOFF_LIVE_ACK, '');
     assert.equal(services.prometheus.volumes[0].source, join(root, 'infra/observability/prometheus.yml.example'));
     assert.equal(services.grafana.volumes[1].source, join(root, 'infra/observability/provisioning'));
+    assert.equal(services['monitoring-schema'].volumes[0].source,
+      join(root, 'infra/postgres/011_monitoring_credentials.sql'));
+    assert.equal(services['monitoring-schema'].entrypoint[0], 'psql');
+    assert.equal(services['monitoring-schema'].depends_on.bootstrap.condition, 'service_completed_successfully');
   });

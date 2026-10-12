@@ -1,6 +1,5 @@
-# Canonical cross-platform Pipeline stack. Run from repository root with
-# docker compose --env-file runtime/deploy.env -f infra/compose.yaml [--profile live|catalog|monitoring].
-# Existing handoff/legacy Compose files remain for already-running deployments.
+# Canonical cross-platform Pipeline stack. Use `node runtime/deploy.mjs start`
+# for a fresh isolated deployment; the same Compose file also supports manual operation.
 name: ${HANDOFF_PROJECT:?Set a unique HANDOFF_PROJECT}
 
 x-database: &database
@@ -329,6 +328,21 @@ services:
       CATALOG_MEDUSA_SECRET_KEY: ${HANDOFF_CATALOG_KEY:-}
       CATALOG_INTERVAL_MS: '3600000'
     stop_grace_period: 30s
+  monitoring-schema:
+    profiles: [monitoring]
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
+    volumes:
+      - ./postgres/011_monitoring_credentials.sql:/migration.sql:ro
+    entrypoint: [psql, -h, postgres, -U, funnelmetry, -d, funnelmetry_handoff, -v, ON_ERROR_STOP=1, -f, /migration.sql]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+      postgres: {condition: service_healthy}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: 'no'
   prometheus:
     profiles: [monitoring]
     image: ${MONITORING_PROMETHEUS_IMAGE:-prom/prometheus:v3.5.0}
