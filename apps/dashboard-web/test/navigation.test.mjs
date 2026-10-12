@@ -1,5 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { navigation, visibleNavigation } from '../src/app/navigation.ts'
 
 const paths = permissions => visibleNavigation(permissions).flatMap(group => group.items.map(item => item.path))
@@ -37,4 +39,12 @@ test('routes are unique and mock-backed surfaces are unavailable', () => {
   for (const path of ['/traffic', '/campaigns', '/admin/recovery']) assert.ok(items.find(item => item.path === path)?.unavailable)
   for (const path of ['/products', '/findings', '/workspace', '/overview', '/events', '/funnels', '/journeys', '/chat', '/admin/users', '/admin/event-feed']) assert.equal(items.find(item => item.path === path)?.unavailable, undefined)
   assert.ok(items.every(item => !['/implementations', '/evaluations', '/insights'].includes(item.path)))
+})
+test('nginx serves the exact /assets application route without directory redirect', () => {
+  const nginx = readFileSync(fileURLToPath(new URL('../nginx.conf', import.meta.url)), 'utf8')
+  const exactRoute = nginx.indexOf('location = /assets')
+  const spaFallback = nginx.indexOf('location / {')
+  assert.ok(exactRoute >= 0)
+  assert.ok(exactRoute < spaFallback)
+  assert.match(nginx.slice(exactRoute, spaFallback), /try_files \/index\.html =404;/)
 })

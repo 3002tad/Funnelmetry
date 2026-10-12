@@ -35,3 +35,29 @@ test('planner restricts tool names, parameters and requested window', async () =
   }
   await assert.rejects(selectChatTool(provider({ tool: 'event_counts', last_hours: 72 }), 'count', scope), /outside_window/)
 })
+
+test('planner canonicalizes only registered semantic tool aliases', async () => {
+  const provider = tool => ({ complete: async messages => {
+    assert.match(messages[0].content, /tool\.metric_summary/)
+    assert.match(messages[0].content, /tool\.order_ranking/)
+    assert.match(messages[0].content, /tool\.product_value_ranking/)
+    return { text: JSON.stringify({ tool, last_hours: null }) }
+  } })
+  const orderTool = { id: 'tool.metric_summary' }
+  const rankingTool = { id: 'tool.order_ranking' }
+  const productTool = { id: 'tool.product_value_ranking' }
+  for (const [alias, canonical] of [
+    ['metric_summary', 'tool.metric_summary'],
+    ['order_ranking', 'tool.order_ranking'],
+    ['product_value_ranking', 'tool.product_value_ranking'],
+  ]) {
+    const plan = await selectChatTool(provider(alias), 'analysis', scope, undefined, orderTool, rankingTool, productTool)
+    assert.equal(plan.tool, canonical)
+  }
+  await assert.rejects(
+    selectChatTool(provider('sql'), 'analysis', scope, undefined, orderTool, rankingTool, productTool),
+    /invalid_tool_plan/,
+  )
+  const disabledProvider = { complete: async () => ({ text: '{"tool":"metric_summary","last_hours":null}' }) }
+  await assert.rejects(selectChatTool(disabledProvider, 'analysis', scope), /invalid_tool_plan/)
+})

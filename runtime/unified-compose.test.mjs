@@ -80,4 +80,5 @@ test('external integration profiles remain separately selectable in same YAML',
       join(root, 'infra/postgres/011_monitoring_credentials.sql'));
     assert.equal(services['monitoring-schema'].entrypoint[0], 'psql');
     assert.equal(services['monitoring-schema'].depends_on.bootstrap.condition, 'service_completed_successfully');
+    assert.equal(services.prometheus.depends_on['monitoring-schema'].condition, 'service_completed_successfully');
   });

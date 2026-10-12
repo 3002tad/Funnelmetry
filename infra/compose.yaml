@@ -346,6 +346,8 @@ services:
   prometheus:
     profiles: [monitoring]
     image: ${MONITORING_PROMETHEUS_IMAGE:-prom/prometheus:v3.5.0}
+    depends_on:
+      monitoring-schema: {condition: service_completed_successfully}
     command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus, --storage.tsdb.retention.time=7d, --storage.tsdb.retention.size=1GB]
     volumes:
       - ./observability/prometheus.yml.example:/etc/prometheus/prometheus.yml:ro
