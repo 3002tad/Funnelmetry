@@ -1,6 +1,7 @@
 # Docker Swarm migration
 
 > Bằng chứng chạy candidate local ngày 2026-10-13: [SWARM_CANDIDATE_VALIDATION_2026-10-13.md](SWARM_CANDIDATE_VALIDATION_2026-10-13.md). Đây là kiểm thử `OFFLINE_DEMO`, không phải live cutover.
+> Bằng chứng candidate `PARALLEL_LIVE` và các gate còn thiếu: [SWARM_PARALLEL_LIVE_VALIDATION_2026-10-13.md](SWARM_PARALLEL_LIVE_VALIDATION_2026-10-13.md). Stack mới không phải authoritative cutover hoặc full-capability acceptance.
 
 ## Internal-only application smoke (không publish port)
 
