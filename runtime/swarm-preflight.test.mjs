@@ -49,6 +49,9 @@ test('fresh parallel-live candidate requires isolated connector, observed feed a
   assert.throws(() => validateSwarmCandidate({ ...live, SWARM_CONNECTOR_ID: 'old-source' }), /unique/);
   assert.throws(() => validateSwarmCandidate({ ...live, SWARM_INITIAL_AFTER_SEQ: '-1' }), /nonnegative/);
   assert.throws(() => validateSwarmCandidate({ ...live, SWARM_FEED_URL: 'http://feed.example.com/' }), /HTTPS/);
+  assert.throws(() => validateSwarmCandidate({ ...live, SWARM_MONITORING_ENABLED: 'maybe' }), /SWARM_MONITORING_ENABLED/);
+  assert.throws(() => validateSwarmCandidate({ ...live, SWARM_MONITORING_ENABLED: 'true',
+    MONITORING_PROMETHEUS_IMAGE: 'prom/prometheus:latest' }), /MONITORING_PROMETHEUS_IMAGE/);
 });
 
 test('application images require GHCR full Git SHA tags or immutable digests', () => {

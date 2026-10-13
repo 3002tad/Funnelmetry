@@ -23,6 +23,11 @@ test('parallel-live candidate includes connector/catalog/AI overlay before edge'
     ['swarm-stack.yml', 'swarm-workers.yml', 'swarm-app.yml', 'swarm-live.yml', 'swarm-edge-local.yml']);
 });
 
+test('monitoring stays opt-in and joins the same Swarm stack when enabled', () => {
+  assert.deepEqual(stackFilesForCommand('deploy-app', { tlsMode: 'local' }, 'PARALLEL_LIVE', true).map(file => file.split(/[\\/]/).at(-1)),
+    ['swarm-stack.yml', 'swarm-workers.yml', 'swarm-app.yml', 'swarm-live.yml', 'swarm-monitoring.yml', 'swarm-edge-local.yml']);
+});
+
 test('single-node Kafka controller registration does not depend on its own Swarm VIP', () => {
   const stack = readFileSync(fileURLToPath(new URL('../infra/swarm-stack.yml', import.meta.url)), 'utf8');
   assert.match(stack, /KAFKA_CONTROLLER_QUORUM_VOTERS: 1@127\.0\.0\.1:9093/);

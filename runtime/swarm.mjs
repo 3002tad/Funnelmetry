@@ -14,6 +14,7 @@ const stackFile = join(root, 'infra', 'swarm-stack.yml');
 const appFile = join(root, 'infra', 'swarm-app.yml');
 const workersFile = join(root, 'infra', 'swarm-workers.yml');
 const liveFile = join(root, 'infra', 'swarm-live.yml');
+const monitoringFile = join(root, 'infra', 'swarm-monitoring.yml');
 const edgeFiles = Object.freeze({
   local: join(root, 'infra', 'swarm-edge-local.yml'),
   acme: join(root, 'infra', 'swarm-edge-acme.yml'),
@@ -23,7 +24,8 @@ const renderKeys = ['SWARM_STACK_NAME', 'SWARM_POSTGRES_IMAGE', 'SWARM_KAFKA_IMA
   'SWARM_PUBLIC_DOMAIN', 'SWARM_ADMIN_EMAIL', 'SWARM_ACME_EMAIL',
   'HANDOFF_RAW_PARTITIONS', 'SWARM_EXPECTED_SCHEMA_DIGEST', 'SWARM_MIGRATION_MODE',
   'SWARM_LIVE_ACK', 'SWARM_CONNECTOR_ID', 'SWARM_FEED_URL', 'SWARM_FEED_ID',
-  'SWARM_INITIAL_AFTER_SEQ', 'SWARM_CATALOG_URL', 'SWARM_DASHSCOPE_BASE_URL'];
+  'SWARM_INITIAL_AFTER_SEQ', 'SWARM_CATALOG_URL', 'SWARM_DASHSCOPE_BASE_URL',
+  'MONITORING_PROMETHEUS_IMAGE', 'MONITORING_GRAFANA_IMAGE'];
 
 export async function localSchemaDigest() {
   const files = await schemaFiles(root);
@@ -43,8 +45,9 @@ export function stackDeployArgs(stackFiles, stackName) {
     ...stackFiles.flatMap(file => ['--compose-file', file]), stackName];
 }
 
-export function stackFilesForCommand(command, appPlan, mode = 'OFFLINE_DEMO') {
-  const appFiles = [stackFile, workersFile, appFile, ...(mode === 'PARALLEL_LIVE' ? [liveFile] : [])];
+export function stackFilesForCommand(command, appPlan, mode = 'OFFLINE_DEMO', monitoring = false) {
+  const appFiles = [stackFile, workersFile, appFile, ...(mode === 'PARALLEL_LIVE' ? [liveFile] : []),
+    ...(monitoring ? [monitoringFile] : [])];
   if (command === 'check-internal' || command === 'deploy-internal') {
     return appFiles;
   }
@@ -126,17 +129,18 @@ export async function run(command) {
   parsed.SWARM_EXPECTED_SCHEMA_DIGEST = await localSchemaDigest();
   const env = dockerEnvironment(process.env, parsed);
   const internalOnly = ['check-internal', 'deploy-internal'].includes(command);
-  const withApp = internalOnly || ['check-app', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'deploy-app'].includes(command);
+  const withApp = internalOnly || ['check-app', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'create-monitoring-secrets', 'deploy-app'].includes(command);
   const appPlan = withApp ? validateSwarmApp(parsed) : null;
-  const stackFiles = stackFilesForCommand(command, appPlan, plan.mode);
+  const monitoring = parsed.SWARM_MONITORING_ENABLED === 'true';
+  const stackFiles = stackFilesForCommand(command, appPlan, plan.mode, monitoring);
   const files = stackFiles.flatMap(file => ['-c', file]);
   if (command === 'check' || command === 'check-app' || command === 'check-internal') {
     await docker(['stack', 'config', ...files], env);
     console.log(`PASS: ${plan.stackName} ${internalOnly ? 'internal-only app' : withApp ? 'HTTPS app' : 'phase-1 data'} stack renders; runtime, DNS and image pulls unverified`);
     return;
   }
-  if (!['create-db-secret', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'deploy', 'deploy-internal', 'deploy-app'].includes(command)) {
-    throw Error('Usage: node runtime/swarm.mjs check|check-internal|check-app|create-db-secret|create-app-secrets|create-tls-secrets|create-live-secrets|deploy|deploy-internal|deploy-app');
+  if (!['create-db-secret', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'create-monitoring-secrets', 'deploy', 'deploy-internal', 'deploy-app'].includes(command)) {
+    throw Error('Usage: node runtime/swarm.mjs check|check-internal|check-app|create-db-secret|create-app-secrets|create-tls-secrets|create-live-secrets|create-monitoring-secrets|deploy|deploy-internal|deploy-app');
   }
   await managerReady(env);
   const secretName = `${plan.stackName}_db_password_v1`;
@@ -185,6 +189,51 @@ export async function run(command) {
     console.log('Created isolated Swarm live-service secret references');
     return;
   }
+  if (command === 'create-monitoring-secrets') {
+    if (plan.mode !== 'PARALLEL_LIVE') throw Error('Monitoring provisioning currently requires the fresh live stack');
+    const monitorDir = join(root, 'runtime', 'monitoring', 'swarm');
+    const tokenFile = join(monitorDir, 'metrics-token');
+    try { await access(tokenFile); throw Error('Monitoring credential already provisioned; no overwrite performed'); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    for (const name of ['metrics_token', 'grafana_admin_password']) {
+      if (await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error('Monitoring secret already exists; no overwrite performed');
+    }
+    const ids = (await docker(['ps', '--filter', `label=com.docker.swarm.service.name=${plan.stackName}_dashboard-api`,
+      '--format', '{{.ID}}'], env)).split(/\s+/).filter(Boolean);
+    if (ids.length !== 1) throw Error('Exactly one healthy Swarm API task is required to issue monitoring credential');
+    const issueScript = `const fs=require('node:fs'); (async()=>{
+      const base='http://127.0.0.1:32000';
+      const pass=fs.readFileSync('/run/secrets/admin_password','utf8').trim();
+      const login=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({email:process.env.DASHBOARD_ADMIN_EMAIL,password:pass})});
+      if(login.status!==200)throw Error('login_failed');
+      const auth=(await login.json()).token;
+      const issued=await fetch(base+'/api/v2/admin/monitoring-credentials',{method:'POST',
+        headers:{Authorization:'Bearer '+auth,'content-type':'application/json'},
+        body:JSON.stringify({label:'swarm-live-prometheus',ttl_seconds:604800})});
+      if(issued.status!==201)throw Error('issue_failed');
+      const credential=await issued.json();
+      const check=await fetch(base+'/api/monitoring/metrics',
+        {headers:{Authorization:'Bearer '+credential.token}});
+      if(check.status!==200)throw Error('metrics_validation_failed');
+      console.log(JSON.stringify({id:credential.id,expires_at:credential.expires_at,token:credential.token}));
+    })().catch(()=>{console.error('Monitoring credential setup failed');process.exit(1)})`;
+    const issued = JSON.parse(await docker(['exec', '-i', ids[0], 'node', '-'], env, issueScript));
+    if (!/^fmmon_[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/.test(issued.token || '')) throw Error('Issued monitoring token format invalid');
+    const grafanaPassword = randomBytes(32).toString('base64url');
+    const dashboard = JSON.parse(await readFile(join(root, 'infra', 'observability', 'pipeline-dashboard.json'), 'utf8'));
+    delete dashboard.__inputs;
+    for (const panel of dashboard.panels) if (panel.datasource) panel.datasource.uid = 'funnelmetry-prometheus';
+    await mkdir(monitorDir, { recursive: true, mode: 0o700 });
+    await writeFile(join(monitorDir, 'credential.json'), JSON.stringify({ id: issued.id, expires_at: issued.expires_at }), { flag: 'wx', mode: 0o600 });
+    await writeFile(tokenFile, issued.token, { flag: 'wx', mode: 0o600 });
+    await writeFile(join(monitorDir, 'grafana-password'), grafanaPassword, { flag: 'wx', mode: 0o600 });
+    await writeFile(join(monitorDir, 'pipeline.json'), JSON.stringify(dashboard), { flag: 'wx', mode: 0o600 });
+    await docker(['secret', 'create', `${plan.stackName}_metrics_token_v1`, '-'], env, issued.token);
+    await docker(['secret', 'create', `${plan.stackName}_grafana_admin_password_v1`, '-'], env, grafanaPassword);
+    console.log(`Created isolated monitoring secrets and dashboard config; credential expires ${issued.expires_at}`);
+    return;
+  }
   if (command === 'create-tls-secrets') {
     if (appPlan.tlsMode !== 'local') throw Error('create-tls-secrets is only for local trusted TLS');
     const specs = [['tls_cert', 'SWARM_LOCAL_TLS_CERT_FILE'], ['tls_key', 'SWARM_LOCAL_TLS_KEY_FILE']];
@@ -221,6 +270,11 @@ export async function run(command) {
     }
     if (plan.mode === 'PARALLEL_LIVE') {
       for (const name of ['source_feed_token', 'catalog_key', 'dashscope_api_key']) {
+        if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
+      }
+    }
+    if (monitoring) {
+      for (const name of ['metrics_token', 'grafana_admin_password']) {
         if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
       }
     }

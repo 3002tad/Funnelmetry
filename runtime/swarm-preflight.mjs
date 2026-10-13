@@ -10,6 +10,7 @@ const envPath = join(root, 'runtime', 'deploy.env');
 const imagePattern = /^ghcr\.io\/[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+(?::sha-[a-f0-9]{40}|@sha256:[a-f0-9]{64})$/;
 const statefulImagePattern = /^(?:docker\.io\/)?(?:library\/)?(?:postgres|apache\/kafka):[a-z0-9._-]+@sha256:[a-f0-9]{64}$/;
 const edgeImagePattern = /^(?:docker\.io\/)?(?:library\/)?traefik:[a-z0-9._-]+@sha256:[a-f0-9]{64}$/;
+const monitoringImagePattern = /^(?:docker\.io\/)?(?:prom\/prometheus|grafana\/grafana):[a-z0-9._-]+@sha256:[a-f0-9]{64}$/;
 
 export function validateSwarmApp(env) {
   const domain = env.SWARM_PUBLIC_DOMAIN?.trim() || '';
@@ -60,6 +61,14 @@ export function validateSwarmCandidate(env) {
       let url;
       try { url = new URL(env[key]); } catch { throw Error(`${key} must be a reviewed HTTPS URL`); }
       if (!protocols.includes(url.protocol) || url.username || url.password || url.hash) throw Error(`${key} must be a reviewed HTTPS URL`);
+    }
+  }
+  if (env.SWARM_MONITORING_ENABLED && !['true', 'false'].includes(env.SWARM_MONITORING_ENABLED)) {
+    throw Error('SWARM_MONITORING_ENABLED must be true or false');
+  }
+  if (env.SWARM_MONITORING_ENABLED === 'true') {
+    for (const key of ['MONITORING_PROMETHEUS_IMAGE', 'MONITORING_GRAFANA_IMAGE']) {
+      if (!monitoringImagePattern.test(env[key] || '')) throw Error(`${key} must pin an official image digest`);
     }
   }
   const images = {};
