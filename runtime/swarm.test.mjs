@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dockerEnvironment, validateAppSecrets, validateDbSecret, validateTlsFilePath } from './swarm.mjs';
 
@@ -39,4 +40,9 @@ test('Swarm app secrets are independent and never passed to stack renderer', () 
 test('local TLS private key path cannot be inside repository', () => {
   assert.throws(() => validateTlsFilePath('relative/key.pem'), /absolute/);
   assert.throws(() => validateTlsFilePath(fileURLToPath(new URL('../infra/swarm-stack.yml', import.meta.url))), /outside the repository/);
+});
+
+test('single-node Kafka controller does not depend on its own healthy Swarm DNS record', async () => {
+  const stack = await readFile(new URL('../infra/swarm-stack.yml', import.meta.url), 'utf8');
+  assert.match(stack, /KAFKA_CONTROLLER_QUORUM_VOTERS:\s*1@127\.0\.0\.1:9093/);
 });
