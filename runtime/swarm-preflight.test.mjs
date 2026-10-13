@@ -35,6 +35,22 @@ test('candidate cannot share the Compose project identity or claim live cutover'
   assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_MIGRATION_MODE: 'MIGRATION_CUTOVER' }), /OFFLINE_DEMO/);
 });
 
+test('fresh parallel-live candidate requires isolated connector, observed feed and credentials', () => {
+  const live = { ...candidate, SWARM_MIGRATION_MODE: 'PARALLEL_LIVE',
+    SWARM_LIVE_ACK: 'FRESH_PARALLEL_LIVE', SWARM_CONNECTOR_ID: 'fresh-live-source',
+    HANDOFF_CONNECTOR_ID: 'old-source', SWARM_FEED_URL: 'https://feed.example.com/v1/events',
+    SWARM_FEED_ID: '5143bee7-b883-453f-a045-e696621dbd1d', SWARM_INITIAL_AFTER_SEQ: '0',
+    HANDOFF_FEED_TOKEN: 'secret-feed', HANDOFF_CATALOG_KEY: 'secret-catalog',
+    HANDOFF_DASHSCOPE_API_KEY: 'secret-ai', SWARM_CATALOG_URL: 'https://store.example.com/',
+    SWARM_DASHSCOPE_BASE_URL: 'https://ai.example.com/v1' };
+  const plan = validateSwarmCandidate(live);
+  assert.equal(plan.mode, 'PARALLEL_LIVE');
+  assert.doesNotMatch(JSON.stringify(plan), /secret-/);
+  assert.throws(() => validateSwarmCandidate({ ...live, SWARM_CONNECTOR_ID: 'old-source' }), /unique/);
+  assert.throws(() => validateSwarmCandidate({ ...live, SWARM_INITIAL_AFTER_SEQ: '-1' }), /nonnegative/);
+  assert.throws(() => validateSwarmCandidate({ ...live, SWARM_FEED_URL: 'http://feed.example.com/' }), /HTTPS/);
+});
+
 test('application images require GHCR full Git SHA tags or immutable digests', () => {
   for (const key of ['SWARM_API_IMAGE', 'SWARM_WEB_IMAGE', 'SWARM_WORKERS_IMAGE']) {
     for (const ref of ['', 'ghcr.io/3002tad/funnelmetry/api:latest',

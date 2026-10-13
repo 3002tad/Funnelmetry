@@ -1,6 +1,7 @@
 // Cross-platform, single-env launcher for the isolated DEC-126 Swarm candidate.
 // Does not touch Compose state or create any secret unless explicitly requested.
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, access } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { parseEnv } from 'node:util';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -12,6 +13,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const stackFile = join(root, 'infra', 'swarm-stack.yml');
 const appFile = join(root, 'infra', 'swarm-app.yml');
 const workersFile = join(root, 'infra', 'swarm-workers.yml');
+const liveFile = join(root, 'infra', 'swarm-live.yml');
 const edgeFiles = Object.freeze({
   local: join(root, 'infra', 'swarm-edge-local.yml'),
   acme: join(root, 'infra', 'swarm-edge-acme.yml'),
@@ -19,7 +21,9 @@ const edgeFiles = Object.freeze({
 const renderKeys = ['SWARM_STACK_NAME', 'SWARM_POSTGRES_IMAGE', 'SWARM_KAFKA_IMAGE',
   'SWARM_API_IMAGE', 'SWARM_WEB_IMAGE', 'SWARM_WORKERS_IMAGE', 'SWARM_TRAEFIK_IMAGE',
   'SWARM_PUBLIC_DOMAIN', 'SWARM_ADMIN_EMAIL', 'SWARM_ACME_EMAIL',
-  'HANDOFF_RAW_PARTITIONS', 'SWARM_EXPECTED_SCHEMA_DIGEST'];
+  'HANDOFF_RAW_PARTITIONS', 'SWARM_EXPECTED_SCHEMA_DIGEST', 'SWARM_MIGRATION_MODE',
+  'SWARM_LIVE_ACK', 'SWARM_CONNECTOR_ID', 'SWARM_FEED_URL', 'SWARM_FEED_ID',
+  'SWARM_INITIAL_AFTER_SEQ', 'SWARM_CATALOG_URL', 'SWARM_DASHSCOPE_BASE_URL'];
 
 export async function localSchemaDigest() {
   const files = await schemaFiles(root);
@@ -39,11 +43,12 @@ export function stackDeployArgs(stackFiles, stackName) {
     ...stackFiles.flatMap(file => ['--compose-file', file]), stackName];
 }
 
-export function stackFilesForCommand(command, appPlan) {
+export function stackFilesForCommand(command, appPlan, mode = 'OFFLINE_DEMO') {
+  const appFiles = [stackFile, workersFile, appFile, ...(mode === 'PARALLEL_LIVE' ? [liveFile] : [])];
   if (command === 'check-internal' || command === 'deploy-internal') {
-    return [stackFile, workersFile, appFile];
+    return appFiles;
   }
-  if (appPlan) return [stackFile, workersFile, appFile, edgeFiles[appPlan.tlsMode]];
+  if (appPlan) return [...appFiles, edgeFiles[appPlan.tlsMode]];
   return [stackFile];
 }
 
@@ -70,6 +75,13 @@ export function validateTlsFilePath(file) {
   const rel = relative(root, resolve(file));
   if (!rel.startsWith('..') && !isAbsolute(rel)) throw Error('TLS certificate/key files must stay outside the repository');
   return file;
+}
+
+async function saveGeneratedCredential(stackName, kind, value) {
+  const dir = join(root, 'runtime', 'credentials');
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const file = join(dir, `${stackName}-${kind}`);
+  await writeFile(file, value, { flag: 'wx', mode: 0o600 });
 }
 
 async function docker(args, env, input) {
@@ -114,35 +126,63 @@ export async function run(command) {
   parsed.SWARM_EXPECTED_SCHEMA_DIGEST = await localSchemaDigest();
   const env = dockerEnvironment(process.env, parsed);
   const internalOnly = ['check-internal', 'deploy-internal'].includes(command);
-  const withApp = internalOnly || ['check-app', 'create-app-secrets', 'create-tls-secrets', 'deploy-app'].includes(command);
+  const withApp = internalOnly || ['check-app', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'deploy-app'].includes(command);
   const appPlan = withApp ? validateSwarmApp(parsed) : null;
-  const stackFiles = stackFilesForCommand(command, appPlan);
+  const stackFiles = stackFilesForCommand(command, appPlan, plan.mode);
   const files = stackFiles.flatMap(file => ['-c', file]);
   if (command === 'check' || command === 'check-app' || command === 'check-internal') {
     await docker(['stack', 'config', ...files], env);
     console.log(`PASS: ${plan.stackName} ${internalOnly ? 'internal-only app' : withApp ? 'HTTPS app' : 'phase-1 data'} stack renders; runtime, DNS and image pulls unverified`);
     return;
   }
-  if (!['create-db-secret', 'create-app-secrets', 'create-tls-secrets', 'deploy', 'deploy-internal', 'deploy-app'].includes(command)) {
-    throw Error('Usage: node runtime/swarm.mjs check|check-internal|check-app|create-db-secret|create-app-secrets|create-tls-secrets|deploy|deploy-internal|deploy-app');
+  if (!['create-db-secret', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'deploy', 'deploy-internal', 'deploy-app'].includes(command)) {
+    throw Error('Usage: node runtime/swarm.mjs check|check-internal|check-app|create-db-secret|create-app-secrets|create-tls-secrets|create-live-secrets|deploy|deploy-internal|deploy-app');
   }
   await managerReady(env);
   const secretName = `${plan.stackName}_db_password_v1`;
   if (command === 'create-db-secret') {
-    const password = validateDbSecret(parsed);
+    const generated = !parsed.SWARM_DB_PASSWORD;
+    const password = validateDbSecret({ ...parsed,
+      SWARM_DB_PASSWORD: parsed.SWARM_DB_PASSWORD || randomBytes(36).toString('base64url') });
     if (await secretExists(secretName, env)) throw Error('Swarm DB secret already exists; no overwrite performed');
+    if (generated) await saveGeneratedCredential(plan.stackName, 'db-password', password);
     await docker(['secret', 'create', secretName, '-'], env, password);
-    console.log(`Created isolated Swarm DB secret ${secretName}`);
+    console.log(`Created isolated Swarm DB secret ${secretName}; back up ignored local credential securely`);
     return;
   }
   if (command === 'create-app-secrets') {
-    const values = validateAppSecrets(parsed);
+    const generatedAdmin = !parsed.SWARM_ADMIN_PASSWORD;
+    const values = validateAppSecrets({ ...parsed,
+      SWARM_JWT_SECRET: parsed.SWARM_JWT_SECRET || randomBytes(48).toString('base64url'),
+      SWARM_ADMIN_PASSWORD: parsed.SWARM_ADMIN_PASSWORD || randomBytes(24).toString('base64url') });
     const specs = [['jwt_secret', values.jwt], ['admin_password', values.admin]];
+    if (generatedAdmin) {
+      const credentialFile = join(root, 'runtime', 'credentials', `${plan.stackName}-admin-password`);
+      try { await access(credentialFile); throw Error('Local admin credential already exists; no overwrite performed'); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
     for (const [name] of specs) {
       if (await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error('Swarm application secret already exists; no overwrite performed');
     }
+    if (!parsed.SWARM_JWT_SECRET) await saveGeneratedCredential(plan.stackName, 'jwt-secret', values.jwt);
+    if (generatedAdmin) await saveGeneratedCredential(plan.stackName, 'admin-password', values.admin);
     for (const [name, value] of specs) await docker(['secret', 'create', `${plan.stackName}_${name}_v1`, '-'], env, value);
-    console.log('Created isolated Swarm application secrets');
+    console.log(`Created isolated Swarm application secrets${generatedAdmin ? '; local admin credential saved in ignored runtime/credentials' : ''}`);
+    return;
+  }
+  if (command === 'create-live-secrets') {
+    if (plan.mode !== 'PARALLEL_LIVE') throw Error('Live secrets require PARALLEL_LIVE mode');
+    const specs = [
+      ['source_feed_token', parsed.HANDOFF_FEED_TOKEN],
+      ['catalog_key', parsed.HANDOFF_CATALOG_KEY],
+      ['dashscope_api_key', parsed.HANDOFF_DASHSCOPE_API_KEY],
+    ];
+    if (specs.some(([, value]) => !value || /[\r\n]/.test(value))) throw Error('Live credential values are missing or invalid');
+    for (const [name] of specs) {
+      if (await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error('Live secret already exists; no overwrite performed');
+    }
+    for (const [name, value] of specs) await docker(['secret', 'create', `${plan.stackName}_${name}_v1`, '-'], env, value);
+    console.log('Created isolated Swarm live-service secret references');
     return;
   }
   if (command === 'create-tls-secrets') {
@@ -178,6 +218,11 @@ export async function run(command) {
   if (withApp) {
     for (const name of ['jwt_secret', 'admin_password']) {
       if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
+    }
+    if (plan.mode === 'PARALLEL_LIVE') {
+      for (const name of ['source_feed_token', 'catalog_key', 'dashscope_api_key']) {
+        if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
+      }
     }
     if (!internalOnly) {
       if (appPlan.tlsMode === 'local') {

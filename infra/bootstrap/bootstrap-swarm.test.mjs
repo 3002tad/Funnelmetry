@@ -4,8 +4,9 @@ import { schemaFiles, schemaDigest, connectWithRetry, installAnalyticalReleases 
 
 test('Swarm bootstrap includes the traffic schemas after the core and analytical schemas', async () => {
   const files = await schemaFiles(new URL('../..', import.meta.url).pathname.replace(/^\/(?=[A-Za-z]:)/, ''));
-  assert.match(files.at(-2), /traffic\/001_raw_utm_source\.sql$/);
-  assert.match(files.at(-1), /traffic\/002_source_registry\.sql$/);
+  assert.match(files.at(-3), /traffic\/001_raw_utm_source\.sql$/);
+  assert.match(files.at(-2), /traffic\/002_source_registry\.sql$/);
+  assert.match(files.at(-1), /011_monitoring_credentials\.sql$/);
   assert.ok(files.some(file => file.endsWith('/v2/001_canonical_ledger.sql')));
 });
 

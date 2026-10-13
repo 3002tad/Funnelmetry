@@ -1,4 +1,4 @@
-// Fresh OFFLINE_DEMO Swarm database only. Never upgrades or resets an existing DB.
+// Fresh isolated Swarm database only. Never upgrades or resets an existing DB.
 import { readFile, readdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
@@ -17,6 +17,7 @@ export async function schemaFiles(root = '/workspace') {
       'evidence-notes-v2.sql', 'product-value-v1.sql'].map(name => `${root}/analytics/sql/${name}`),
     `${postgres}/traffic/001_raw_utm_source.sql`,
     `${postgres}/traffic/002_source_registry.sql`,
+    `${postgres}/011_monitoring_credentials.sql`,
   ];
 }
 
@@ -48,7 +49,9 @@ export async function installAnalyticalReleases(pool, installers) {
 }
 
 async function main() {
-  validateTarget(process.env);
+  if (process.env.HANDOFF_MODE === 'OFFLINE_DEMO') validateTarget(process.env);
+  else if (process.env.HANDOFF_MODE !== 'PARALLEL_LIVE' || process.env.POSTGRES_HOST !== 'postgres'
+    || process.env.POSTGRES_DB !== 'funnelmetry_handoff') throw Error('HANDOFF_TARGET_REJECTED');
   const require = createRequire('/workspace/apps/dashboard-api/package.json');
   const { Client, Pool } = require('pg');
   const options = { host: 'postgres', port: 5432, database: 'funnelmetry_handoff',
@@ -75,7 +78,7 @@ async function main() {
       id integer PRIMARY KEY CHECK (id=1), completed_at timestamptz NOT NULL DEFAULT now())`);
     await pool.query(`INSERT INTO swarm_release_bootstrap(id) VALUES (1)
       ON CONFLICT (id) DO UPDATE SET completed_at=now()`);
-    console.log('PASS: Swarm offline schema and analytical releases installed');
+    console.log('PASS: isolated Swarm schema and analytical releases installed');
   } finally { await pool.end(); }
 }
 

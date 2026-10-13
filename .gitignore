@@ -4,6 +4,7 @@
 runtime/*.env
 runtime/backups/
 runtime/monitoring/
+runtime/credentials/
 runtime/watchdog/
 runtime/teammate-demo/
 

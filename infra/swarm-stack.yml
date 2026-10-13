@@ -1,4 +1,4 @@
-# DEC-126 phase 1: isolated OFFLINE_DEMO data substrate, NOT the complete app.
+# DEC-126 isolated data substrate; live mode requires a fresh stack and cursor.
 # Render only with the Swarm deployment command; do not paste secrets into YAML.
 version: '3.8'
 
@@ -84,7 +84,7 @@ services:
     image: ${SWARM_API_IMAGE:?Pin the API image digest}
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/infra/bootstrap/bootstrap-swarm.mjs]
     environment:
-      HANDOFF_MODE: OFFLINE_DEMO
+      HANDOFF_MODE: ${SWARM_MIGRATION_MODE:?Set reviewed mode}
       SWARM_EXPECTED_SCHEMA_DIGEST: ${SWARM_EXPECTED_SCHEMA_DIGEST:?Set reviewed schema digest}
       POSTGRES_HOST: postgres
       POSTGRES_DB: funnelmetry_handoff
@@ -109,7 +109,7 @@ services:
     image: ${SWARM_WORKERS_IMAGE:?Pin the Workers image digest}
     command: [node, /workspace/infra/docker/swarm-kafka-topics.mjs]
     environment:
-      HANDOFF_MODE: OFFLINE_DEMO
+      HANDOFF_MODE: ${SWARM_MIGRATION_MODE:?Set reviewed mode}
       HANDOFF_RAW_PARTITIONS: ${HANDOFF_RAW_PARTITIONS:-1}
     networks:
       - data

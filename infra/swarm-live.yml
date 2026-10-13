@@ -1,0 +1,89 @@
+# Add only to a new PARALLEL_LIVE stack after feed lineage, retention and
+# initial cursor are verified. Never point at an OFFLINE_DEMO DB/Kafka volume.
+version: '3.8'
+services:
+  source-connector:
+    image: ${SWARM_WORKERS_IMAGE:?Pin the Workers image digest}
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/source-connector/src/swarm-main.js]
+    environment:
+      SWARM_WAIT_ROLE: worker
+      SWARM_EXPECTED_SCHEMA_DIGEST: ${SWARM_EXPECTED_SCHEMA_DIGEST:?Set reviewed schema digest}
+      SWARM_LIVE_ACK: ${SWARM_LIVE_ACK:?Review fresh live environment}
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: funnelmetry_handoff
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      SOURCE_CONNECTOR_MODE: NORMAL
+      SOURCE_CONNECTOR_ID: ${SWARM_CONNECTOR_ID:?Set unique connector ID}
+      SOURCE_EVENT_FEED_URL: ${SWARM_FEED_URL:?Set HTTPS feed URL}
+      SOURCE_EVENT_FEED_ID: ${SWARM_FEED_ID:?Set observed feed ID}
+      SOURCE_INITIAL_AFTER_SEQ: ${SWARM_INITIAL_AFTER_SEQ:?Set reviewed cursor}
+      SOURCE_EVENT_FEED_TOKEN_FILE: /run/secrets/source_feed_token
+      SOURCE_FEED_BATCH_SIZE: '100'
+      SOURCE_FEED_WAIT_SECONDS: '25'
+      SOURCE_FEED_TIMEOUT_MS: '35000'
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    secrets: [db_password, source_feed_token]
+    networks: [data]
+    read_only: true
+    stop_grace_period: 50s
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:32100/readyz").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    deploy:
+      replicas: 1
+      restart_policy: {condition: on-failure, delay: 10s}
+      update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
+      resources:
+        reservations: {cpus: '0.10', memory: 128M}
+        limits: {cpus: '1.00', memory: 512M}
+
+  catalog-sync:
+    image: ${SWARM_WORKERS_IMAGE:?Pin the Workers image digest}
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/catalog-sync/src/main.js]
+    environment:
+      SWARM_WAIT_ROLE: worker
+      SWARM_EXPECTED_SCHEMA_DIGEST: ${SWARM_EXPECTED_SCHEMA_DIGEST:?Set reviewed schema digest}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: funnelmetry_handoff
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      CATALOG_SOURCE_ID: medusa-reference
+      CATALOG_MEDUSA_URL: ${SWARM_CATALOG_URL:?Set reviewed HTTPS Medusa URL}
+      CATALOG_MEDUSA_SECRET_KEY_FILE: /run/secrets/catalog_key
+      CATALOG_INTERVAL_MS: '3600000'
+    secrets: [db_password, catalog_key]
+    networks: [data]
+    read_only: true
+    stop_grace_period: 30s
+    deploy:
+      replicas: 1
+      restart_policy: {condition: on-failure, delay: 10s}
+      update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
+      resources:
+        reservations: {cpus: '0.10', memory: 128M}
+        limits: {cpus: '1.00', memory: 512M}
+
+  dashboard-api:
+    environment:
+      DASHBOARD_ENABLE_QWEN: 'true'
+      DASHBOARD_ENABLE_POLARS: 'true'
+      DASHSCOPE_API_KEY_FILE: /run/secrets/dashscope_api_key
+      DASHSCOPE_BASE_URL: ${SWARM_DASHSCOPE_BASE_URL:?Set reviewed Qwen endpoint}
+      DASHSCOPE_TIMEOUT_MS: '15000'
+    secrets: [db_password, jwt_secret, admin_password, dashscope_api_key]
+
+secrets:
+  source_feed_token:
+    external: true
+    name: ${SWARM_STACK_NAME:?Set isolated stack name}_source_feed_token_v1
+  catalog_key:
+    external: true
+    name: ${SWARM_STACK_NAME:?Set isolated stack name}_catalog_key_v1
+  dashscope_api_key:
+    external: true
+    name: ${SWARM_STACK_NAME:?Set isolated stack name}_dashscope_api_key_v1

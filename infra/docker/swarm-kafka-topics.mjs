@@ -1,4 +1,4 @@
-// Isolated OFFLINE_DEMO Swarm topic bootstrap. Never repartitions existing topics.
+// Isolated Swarm topic bootstrap. Never repartitions existing topics.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
@@ -42,7 +42,7 @@ export async function ensureTopics(admin, specs) {
 }
 
 async function main() {
-  if (process.env.HANDOFF_MODE !== 'OFFLINE_DEMO') throw Error('OFFLINE_DEMO only');
+  if (!['OFFLINE_DEMO', 'PARALLEL_LIVE'].includes(process.env.HANDOFF_MODE)) throw Error('Unsupported Swarm mode');
   const require = createRequire('/workspace/workers/source-connector/package.json');
   const { Kafka, logLevel } = require('kafkajs');
   const kafka = new Kafka({ clientId: 'funnelmetry-swarm-topics',

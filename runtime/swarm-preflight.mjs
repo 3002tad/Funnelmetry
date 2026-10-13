@@ -39,8 +39,28 @@ export function validateSwarmCandidate(env) {
   if (stackName === env.HANDOFF_PROJECT?.trim()) {
     throw Error('Swarm candidate and existing Compose project must have different names');
   }
-  if (env.SWARM_MIGRATION_MODE !== 'OFFLINE_DEMO') {
-    throw Error('First Swarm migration phase supports an isolated OFFLINE_DEMO candidate only');
+  if (!['OFFLINE_DEMO', 'PARALLEL_LIVE'].includes(env.SWARM_MIGRATION_MODE)) {
+    throw Error('SWARM_MIGRATION_MODE must be OFFLINE_DEMO or PARALLEL_LIVE');
+  }
+  if (env.SWARM_MIGRATION_MODE === 'PARALLEL_LIVE') {
+    if (env.SWARM_LIVE_ACK !== 'FRESH_PARALLEL_LIVE') throw Error('Fresh parallel-live acknowledgement required');
+    if (!/^[a-z0-9-]{1,100}$/.test(env.SWARM_CONNECTOR_ID || '') || env.SWARM_CONNECTOR_ID === env.HANDOFF_CONNECTOR_ID) {
+      throw Error('SWARM_CONNECTOR_ID must be unique and different from the Compose connector');
+    }
+    const feed = (() => { try { return new URL(env.SWARM_FEED_URL); } catch { return null; } })();
+    if (!feed || feed.protocol !== 'https:' || feed.username || feed.password || feed.hash) throw Error('SWARM_FEED_URL must be HTTPS without embedded credentials');
+    if (!/^[0-9a-f-]{36}$/i.test(env.SWARM_FEED_ID || '')) throw Error('SWARM_FEED_ID is required');
+    if (!/^(0|[1-9]\d*)$/.test(env.SWARM_INITIAL_AFTER_SEQ || '') || !Number.isSafeInteger(Number(env.SWARM_INITIAL_AFTER_SEQ))) {
+      throw Error('SWARM_INITIAL_AFTER_SEQ must be a safe nonnegative integer');
+    }
+    if (!env.HANDOFF_FEED_TOKEN || !env.HANDOFF_CATALOG_KEY || !env.HANDOFF_DASHSCOPE_API_KEY) {
+      throw Error('Feed, catalog and Qwen credentials are required for isolated Swarm secrets');
+    }
+    for (const [key, protocols] of [['SWARM_CATALOG_URL', ['https:']], ['SWARM_DASHSCOPE_BASE_URL', ['https:']]]) {
+      let url;
+      try { url = new URL(env[key]); } catch { throw Error(`${key} must be a reviewed HTTPS URL`); }
+      if (!protocols.includes(url.protocol) || url.username || url.password || url.hash) throw Error(`${key} must be a reviewed HTTPS URL`);
+    }
   }
   const images = {};
   for (const [name, key] of Object.entries({ api: 'SWARM_API_IMAGE', web: 'SWARM_WEB_IMAGE', workers: 'SWARM_WORKERS_IMAGE' })) {
@@ -54,7 +74,7 @@ export function validateSwarmCandidate(env) {
     images[name] = ref;
   }
   return Object.freeze({
-    status: 'PLANNING_ONLY', stackName, mode: 'OFFLINE_DEMO', images,
+    status: 'PLANNING_ONLY', stackName, mode: env.SWARM_MIGRATION_MODE, images,
     unverified: Object.freeze([
       'IMAGE_DIGEST_SOURCE_MATCH', 'PRIVATE_REGISTRY_PULL', 'SWARM_SECRETS',
       'STATE_AND_PORT_ISOLATION', 'CAPACITY_AND_PLACEMENT', 'STACK_RUNTIME',
