@@ -34,6 +34,19 @@ export function dockerEnvironment(systemEnv, deployEnv) {
   return result;
 }
 
+export function stackDeployArgs(stackFiles, stackName) {
+  return ['stack', 'deploy', '--with-registry-auth',
+    ...stackFiles.flatMap(file => ['--compose-file', file]), stackName];
+}
+
+export function stackFilesForCommand(command, appPlan) {
+  if (command === 'check-internal' || command === 'deploy-internal') {
+    return [stackFile, workersFile, appFile];
+  }
+  if (appPlan) return [stackFile, workersFile, appFile, edgeFiles[appPlan.tlsMode]];
+  return [stackFile];
+}
+
 export function validateDbSecret(env) {
   const value = env.SWARM_DB_PASSWORD || '';
   if (value.length < 24 || /[\r\n]/.test(value)) throw Error('Set a new SWARM_DB_PASSWORD of at least 24 single-line characters');
@@ -100,17 +113,18 @@ export async function run(command) {
   const plan = validateSwarmCandidate(parsed);
   parsed.SWARM_EXPECTED_SCHEMA_DIGEST = await localSchemaDigest();
   const env = dockerEnvironment(process.env, parsed);
-  const withApp = ['check-app', 'create-app-secrets', 'create-tls-secrets', 'deploy-app'].includes(command);
+  const internalOnly = ['check-internal', 'deploy-internal'].includes(command);
+  const withApp = internalOnly || ['check-app', 'create-app-secrets', 'create-tls-secrets', 'deploy-app'].includes(command);
   const appPlan = withApp ? validateSwarmApp(parsed) : null;
-  const stackFiles = withApp ? [stackFile, workersFile, appFile, edgeFiles[appPlan.tlsMode]] : [stackFile];
+  const stackFiles = stackFilesForCommand(command, appPlan);
   const files = stackFiles.flatMap(file => ['-c', file]);
-  if (command === 'check' || command === 'check-app') {
+  if (command === 'check' || command === 'check-app' || command === 'check-internal') {
     await docker(['stack', 'config', ...files], env);
-    console.log(`PASS: ${plan.stackName} ${withApp ? 'HTTPS app' : 'phase-1 data'} stack renders; runtime, DNS and image pulls unverified`);
+    console.log(`PASS: ${plan.stackName} ${internalOnly ? 'internal-only app' : withApp ? 'HTTPS app' : 'phase-1 data'} stack renders; runtime, DNS and image pulls unverified`);
     return;
   }
-  if (!['create-db-secret', 'create-app-secrets', 'create-tls-secrets', 'deploy', 'deploy-app'].includes(command)) {
-    throw Error('Usage: node runtime/swarm.mjs check|check-app|create-db-secret|create-app-secrets|create-tls-secrets|deploy|deploy-app');
+  if (!['create-db-secret', 'create-app-secrets', 'create-tls-secrets', 'deploy', 'deploy-internal', 'deploy-app'].includes(command)) {
+    throw Error('Usage: node runtime/swarm.mjs check|check-internal|check-app|create-db-secret|create-app-secrets|create-tls-secrets|deploy|deploy-internal|deploy-app');
   }
   await managerReady(env);
   const secretName = `${plan.stackName}_db_password_v1`;
@@ -154,25 +168,30 @@ export async function run(command) {
     return;
   }
   if (!await secretExists(secretName, env)) throw Error('Swarm DB secret is missing');
-  if (command === 'deploy' && await serviceExists(`${plan.stackName}_edge`, env)) {
-    throw Error('HTTPS app already exists; use deploy-app so a data-only deploy cannot remove it');
+  if (command === 'deploy' && (await serviceExists(`${plan.stackName}_dashboard-api`, env)
+    || await serviceExists(`${plan.stackName}_edge`, env))) {
+    throw Error('Application services already exist; use deploy-internal or deploy-app so a data-only deploy cannot remove them');
+  }
+  if (internalOnly && await serviceExists(`${plan.stackName}_edge`, env)) {
+    throw Error('HTTPS edge already exists; use deploy-app so internal-only deploy cannot remove it');
   }
   if (withApp) {
     for (const name of ['jwt_secret', 'admin_password']) {
       if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
     }
-    if (appPlan.tlsMode === 'local') {
-      for (const name of ['tls_cert', 'tls_key']) {
-        if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
+    if (!internalOnly) {
+      if (appPlan.tlsMode === 'local') {
+        for (const name of ['tls_cert', 'tls_key']) {
+          if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
+        }
+      } else if (parsed.SWARM_ACME_READY_ACK !== 'DNS_AND_PORTS_CONFIRMED') {
+        throw Error('ACME deployment requires reviewed public DNS and TCP 80/443 reachability');
       }
-    } else if (parsed.SWARM_ACME_READY_ACK !== 'DNS_AND_PORTS_CONFIRMED') {
-      throw Error('ACME deployment requires reviewed public DNS and TCP 80/443 reachability');
     }
   }
   await docker(['stack', 'config', ...files], env);
-  const composeArgs = stackFiles.flatMap(file => ['--compose-file', file]);
-  await docker(['stack', 'deploy', ...composeArgs, plan.stackName], env);
-  console.log(`Submitted ${plan.stackName} ${withApp ? 'HTTPS app' : 'phase-1 data'} stack; verify tasks, TLS and readiness before live feed.`);
+  await docker(stackDeployArgs(stackFiles, plan.stackName), env);
+  console.log(`Submitted ${plan.stackName} ${internalOnly ? 'internal-only app' : withApp ? 'HTTPS app' : 'phase-1 data'} stack; verify tasks and readiness before live feed.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

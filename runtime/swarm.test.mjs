@@ -1,8 +1,36 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dockerEnvironment, validateAppSecrets, validateDbSecret, validateTlsFilePath } from './swarm.mjs';
+import { dockerEnvironment, stackDeployArgs, stackFilesForCommand, validateAppSecrets, validateDbSecret, validateTlsFilePath } from './swarm.mjs';
+
+test('Swarm deploy forwards client registry credentials for pinned private images', () => {
+  assert.deepEqual(stackDeployArgs(['data.yml', 'app.yml'], 'candidate'), [
+    'stack', 'deploy', '--with-registry-auth', '--compose-file', 'data.yml',
+    '--compose-file', 'app.yml', 'candidate',
+  ]);
+});
+
+test('internal-only candidate adds API and workers without publishing an edge', () => {
+  assert.deepEqual(stackFilesForCommand('deploy-internal', { tlsMode: 'local' }).map(file => file.split(/[\\/]/).at(-1)),
+    ['swarm-stack.yml', 'swarm-workers.yml', 'swarm-app.yml']);
+  assert.deepEqual(stackFilesForCommand('deploy-app', { tlsMode: 'local' }).map(file => file.split(/[\\/]/).at(-1)),
+    ['swarm-stack.yml', 'swarm-workers.yml', 'swarm-app.yml', 'swarm-edge-local.yml']);
+});
+
+test('single-node Kafka controller registration does not depend on its own Swarm VIP', () => {
+  const stack = readFileSync(fileURLToPath(new URL('../infra/swarm-stack.yml', import.meta.url)), 'utf8');
+  assert.match(stack, /KAFKA_CONTROLLER_QUORUM_VOTERS: 1@127\.0\.0\.1:9093/);
+  assert.match(stack, /echo > \/dev\/tcp\/127\.0\.0\.1\/9092/);
+});
+
+test('Swarm API readiness probes worker health endpoints instead of returning NOT_CONFIGURED', () => {
+  const app = readFileSync(fileURLToPath(new URL('../infra/swarm-app.yml', import.meta.url)), 'utf8');
+  const workers = readFileSync(fileURLToPath(new URL('../infra/swarm-workers.yml', import.meta.url)), 'utf8');
+  assert.match(app, /DASHBOARD_WORKER_HEALTH_ENABLED: 'true'/);
+  assert.match(app, /type: tmpfs\s+target: \/tmp\s+tmpfs:\s+size: 33554432/);
+  assert.match(workers, /WORKER_HEALTH_PORT: '32110'/);
+});
 
 test('Docker environment renders only selected deploy keys and strips inherited secrets', () => {
   const env = dockerEnvironment({ Path: 'C:\\bin', HANDOFF_DB_PASSWORD: 'old', GH_TOKEN: 'sensitive' },
@@ -40,9 +68,4 @@ test('Swarm app secrets are independent and never passed to stack renderer', () 
 test('local TLS private key path cannot be inside repository', () => {
   assert.throws(() => validateTlsFilePath('relative/key.pem'), /absolute/);
   assert.throws(() => validateTlsFilePath(fileURLToPath(new URL('../infra/swarm-stack.yml', import.meta.url))), /outside the repository/);
-});
-
-test('single-node Kafka controller does not depend on its own healthy Swarm DNS record', async () => {
-  const stack = await readFile(new URL('../infra/swarm-stack.yml', import.meta.url), 'utf8');
-  assert.match(stack, /KAFKA_CONTROLLER_QUORUM_VOTERS:\s*1@127\.0\.0\.1:9093/);
 });

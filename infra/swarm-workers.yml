@@ -20,6 +20,7 @@ x-worker-env: &worker-env
   KAFKA_TOPIC_JOURNEY_RESOLVED: funnelmetry.journey.resolved.v1
   KAFKA_TOPIC_FUNNEL_UPDATED: funnelmetry.funnel.updated.v1
   KAFKA_TOPIC_KPI_UPDATED: funnelmetry.kpi.updated.v1
+  WORKER_HEALTH_PORT: '32110'
 
 x-worker: &worker
   image: ${SWARM_WORKERS_IMAGE:?Pin the Workers image digest}

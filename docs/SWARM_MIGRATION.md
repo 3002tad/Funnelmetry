@@ -1,8 +1,23 @@
 # Docker Swarm migration
 
-Trạng thái 2026-10-13: đã có **phase 1 OFFLINE_DEMO data substrate**, chưa phải hệ thống Swarm đầy đủ hoặc production. [Backbone DEC-126–130](../../System_Backbone/docs/governance/DOCKER_SWARM_DEPLOYMENT_BASELINE_V1.md) là baseline; [DEC-125](../../System_Backbone/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md) kiểm soát cutover. [`infra/compose.yaml`](../infra/compose.yaml) và [`runtime/deploy.mjs`](../runtime/deploy.mjs) chỉ còn là artifact rollback/provenance, **không phải đường chạy demo hay triển khai mới**. Launcher Compose bị khóa mặc định; không chạy hai hệ cùng ghi state.
+> Bằng chứng chạy candidate local ngày 2026-10-13: [SWARM_CANDIDATE_VALIDATION_2026-10-13.md](SWARM_CANDIDATE_VALIDATION_2026-10-13.md). Đây là kiểm thử `OFFLINE_DEMO`, không phải live cutover.
 
-Lần chạy candidate đầu tiên ngày 2026-10-13: PostgreSQL và bootstrap schema hoàn thành, nhưng Kafka không healthy vì controller tự truy vấn DNS `kafka` trước khi Swarm công bố task. Cấu hình controller đã sửa sang loopback và có test; **chưa xác nhận lại runtime sau khi sửa**. Không bật API/worker/UI hoặc live feed cho đến khi Kafka và topic init thực sự đạt.
+## Internal-only application smoke (không publish port)
+
+Khi chưa có HTTPS domain/certificate được review, có thể kiểm thử API, Web và worker bên trong overlay của **candidate cô lập** bằng `check-internal` rồi `deploy-internal`. Profile này dùng cùng image và stack contract ứng dụng, nhưng không thêm Traefik và không publish port. Nó vẫn cần `SWARM_PUBLIC_DOMAIN`, `SWARM_TLS_MODE`, `SWARM_TRAEFIK_IMAGE`, `SWARM_ADMIN_EMAIL` hợp lệ cho app preflight/CORS và hai Docker Secrets app độc lập; certificate/key chưa cần. Không dùng đây làm đường truy cập cho người dùng hoặc claim full deployment.
+
+```text
+node runtime/swarm.mjs check-internal
+node runtime/swarm.mjs deploy-internal
+```
+
+Sau khi app nội bộ đã có, `deploy` data-only sẽ từ chối để tránh xóa app services. `deploy-internal` cũng từ chối nếu HTTPS edge đã tồn tại. Các smoke script `runtime/swarm-smoke.cjs` và `runtime/swarm-fixture.mjs` chỉ dành cho candidate `OFFLINE_DEMO`; script đầu kiểm tra API bằng secret gắn trong container và vô hiệu hóa analyst test, script sau inject 4 event synthetic trực tiếp vào Kafka, **bỏ qua Source Connector**. Chúng cần acknowledgement tương ứng `SWARM_SMOKE_ACK=OFFLINE_DEMO_INTERNAL` và `SWARM_FIXTURE_ACK=OFFLINE_DEMO_SYNTHETIC` khi chạy trong container, không được chạy trên live.
+
+Khi deploy image GHCR private, launcher dùng `docker stack deploy --with-registry-auth` để Swarm task có quyền pull. Với Kafka broker/controller single-node, quorum dùng `127.0.0.1:9093`; healthcheck dùng TCP local vì Kafka admin CLI phụ thuộc advertised hostname Swarm trước khi service healthy. Web dùng Swarm `volumes` kiểu `tmpfs` cho `/tmp` vì top-level Compose `tmpfs` không được `docker stack deploy` đưa vào service spec. API bật worker health probe và các worker mở cổng health nội bộ `32110` để endpoint readiness có ý nghĩa thực.
+
+Trạng thái 2026-10-13: đã có **phase 1 OFFLINE_DEMO data substrate** và đã kiểm thử overlay ứng dụng internal-only trên single-node local; chưa phải hệ thống Swarm đầy đủ hoặc production. [Backbone DEC-126–130](../../System_Backbone/docs/governance/DOCKER_SWARM_DEPLOYMENT_BASELINE_V1.md) là baseline; [DEC-125](../../System_Backbone/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md) kiểm soát cutover. [`infra/compose.yaml`](../infra/compose.yaml) và [`runtime/deploy.mjs`](../runtime/deploy.mjs) chỉ còn là artifact rollback/provenance, **không phải đường chạy demo hay triển khai mới**. Launcher Compose bị khóa mặc định; không chạy hai hệ cùng ghi state.
+
+Lần chạy candidate đầu tiên ngày 2026-10-13: PostgreSQL và bootstrap schema hoàn thành, nhưng Kafka không healthy vì controller tự truy vấn DNS `kafka` trước khi Swarm công bố task. Cấu hình controller đã sửa sang loopback; lần kiểm thử tiếp theo xác nhận Kafka, topic init, API/worker/UI nội bộ hoạt động như báo cáo validation ở trên. Live feed vẫn chưa được bật.
 
 ## Phase 1 đã có trong code
 
@@ -11,9 +26,9 @@ Lần chạy candidate đầu tiên ngày 2026-10-13: PostgreSQL và bootstrap s
 - [`runtime/swarm.mjs`](../runtime/swarm.mjs): lệnh `check`, `create-db-secret`, `deploy` chạy được trên Windows/Linux từ **cùng một** `runtime/deploy.env` cục bộ. `check` chỉ render stack. `create-db-secret` gửi password mới vào Docker qua stdin, không ghi plaintext vào Compose/YAML/CLI arguments. Secret hiện có sẽ không bị ghi đè. `deploy` không tạo/đổi secret hoặc đụng Compose stack.
 - [`runtime/swarm-preflight.mjs`](../runtime/swarm-preflight.mjs): yêu cầu stack name riêng, mode `OFFLINE_DEMO`, image ứng dụng GHCR pin full Git SHA/digest và image stateful pin digest. Đây là kiểm tra cú pháp/thẩm quyền tĩnh, **không** chứng minh image đã được push hoặc source/digest khớp nhau.
 - Bootstrap chỉ cài trên DB mới trống. DB có schema/digest khác sẽ dừng để người vận hành review; không xóa dữ liệu. Launcher tính digest từ SQL trong checkout và bootstrap so khớp với SQL đóng gói trong image trước khi ghi DB. Sau schema, bootstrap cài ba analytical releases; chỉ ghi `swarm_release_bootstrap` khi các binding/release đã được kiểm tra thành công. Topic init không tự repartition hay đổi cleanup policy của topic đã có.
-- [`infra/docker/swarm-readiness.mjs`](../infra/docker/swarm-readiness.mjs) là startup gate dành cho API/worker Swarm: phải có schema READY, analytical release marker, đúng digest đã duyệt và đủ Kafka topics. Lệnh `deploy` chỉ dựng data substrate; lệnh `deploy-app` mới thêm API/UI, worker và HTTPS edge.
+- [`infra/docker/swarm-readiness.mjs`](../infra/docker/swarm-readiness.mjs) là startup gate dành cho API/worker Swarm: phải có schema READY, analytical release marker, đúng digest đã duyệt và đủ Kafka topics. Lệnh `deploy` chỉ dựng data substrate; `deploy-internal` thêm API/UI/worker không publish port; `deploy-app` thêm cả HTTPS edge.
 
-Stack data phase 1 **chưa chứa API/UI hoặc worker**. Overlay ứng dụng đã chuẩn bị API/UI, worker xử lý nội bộ và Traefik HTTPS, nhưng **chưa triển khai/kiểm chứng runtime**. Source Connector live, catalog, Qwen, monitoring, autoscaler và Recovery Controller chưa có trong Swarm candidate; chưa được gọi là full capability. Medusa chưa xác nhận `event_feed_id`, `initial_after_seq` và retention floor nên live connector cố ý không nằm trong overlay. Không chạy cùng lúc hai hệ thống ghi vào state authoritative.
+Stack **data-only** phase 1 không chứa API/UI hoặc worker. Candidate local đã triển khai/kiểm thử API/UI và worker xử lý nội bộ bằng `deploy-internal`; Traefik HTTPS vẫn chưa kiểm chứng runtime. Source Connector live, catalog synchronization, Qwen, monitoring, autoscaler và Recovery Controller chưa có trong Swarm candidate; chưa được gọi là full capability. Medusa chưa xác nhận `event_feed_id`, `initial_after_seq` và retention floor nên live connector cố ý không nằm trong overlay. Không chạy cùng lúc hai hệ thống ghi vào state authoritative.
 
 ## Lớp ứng dụng HTTPS tùy chọn, vẫn cùng một Swarm stack
 

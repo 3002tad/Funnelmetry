@@ -29,6 +29,7 @@ services:
       DASHBOARD_ENABLE_ORDER_CHAT_STAGING: 'true'
       DASHBOARD_ENABLE_ORDER_RANKING_STAGING: 'true'
       DASHBOARD_ENABLE_PRODUCT_RANKING_STAGING: 'true'
+      DASHBOARD_WORKER_HEALTH_ENABLED: 'true'
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     secrets:
       - db_password
@@ -57,8 +58,13 @@ services:
     networks:
       - data
     read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=32m
+    # docker stack deploy ignores Compose's top-level tmpfs key for this
+    # service; use a Swarm volume mount so nginx can create client_temp.
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 33554432
     healthcheck:
       test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8080/healthz']
       interval: 15s
