@@ -1,6 +1,6 @@
 # Vận hành Compose cũ — chỉ cho rollback
 
-> **Không dùng cho triển khai hoặc demo mới.** Docker Swarm là đường chạy duy nhất đang được xây dựng theo DEC-126. Xem [Swarm migration](SWARM_MIGRATION.md). `runtime/deploy.mjs` từ chối chạy mặc định; chỉ người vận hành thực hiện rollback có kế hoạch DEC-125 mới có thể mở khóa bằng `FUNNELMETRY_LEGACY_COMPOSE_ACK=ROLLBACK_ONLY`. Stack Swarm hiện chưa có đầy đủ API/UI/worker, vì vậy không coi phase 1 là hệ thống demo hoàn chỉnh.
+> **Không dùng cho triển khai hoặc demo mới.** Docker Swarm là đường chạy mới theo DEC-126. Xem [Swarm migration](SWARM_MIGRATION.md). `runtime/deploy.mjs` từ chối chạy mặc định; chỉ người vận hành thực hiện rollback có kế hoạch DEC-125 mới có thể mở khóa bằng `FUNNELMETRY_LEGACY_COMPOSE_ACK=ROLLBACK_ONLY`. Candidate Swarm đã kiểm thử API/UI/worker và HTTPS local, nhưng chưa có Medusa Live Feed nên chưa phải demo live đầy đủ.
 
 > **LEGACY COMPOSE RUNBOOK — migration in progress (2026-10-13).** Hướng dẫn này chỉ áp dụng cho demo Compose đã có và đường rollback; không còn là baseline triển khai mới theo Backbone DEC-126–130. Xem [kế hoạch chuyển Swarm](SWARM_MIGRATION.md) trước khi tạo môi trường mới. Không chạy Compose và Swarm cùng ghi state authoritative. Quy tắc [DEC-125](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md) vẫn áp dụng.
 
@@ -8,7 +8,7 @@
 
 | Thành phần | Vai trò |
 |---|---|
-| [`infra/compose.yaml`](../infra/compose.yaml) | Core services và các profile `live`, `catalog`, `monitoring` trên Windows/Linux |
+| [`infra/legacy/compose.yaml`](../infra/legacy/compose.yaml) | Core services và các profile `live`, `catalog`, `monitoring` trên Windows/Linux |
 | [`runtime/deploy.env.example`](../runtime/deploy.env.example) | Mẫu biến môi trường, không chứa key thật |
 | `runtime/deploy.env` | Env duy nhất của từng máy/project, Git-ignored; không đưa vào chat hoặc Git |
 | [`runtime/deploy.mjs`](../runtime/deploy.mjs) | Lệnh check/start/status/stop chung Windows/Linux, dùng profile khai báo trong env |
@@ -180,15 +180,15 @@ Nếu chưa có quyền đọc Feed, Admin catalog hoặc Qwen, để profile/fl
 Compose hiện hành chỉ publish Dashboard Web trên loopback ở `http://localhost:${HANDOFF_UI_PORT:-5181}` (mặc định `5181`). Dashboard API (`32000`), Kafka (`9092`) và PostgreSQL (`5432`) là cổng **nội bộ container**, không phải URL/port mặc định để truy cập từ host. Input Gateway `31000` thuộc topology cũ, không có service đó trong Compose hiện hành. Cổng UI thực tế lấy từ `runtime/deploy.env`.
 
 ```text
-docker compose --env-file runtime/deploy.env -f infra/compose.yaml config --quiet
-docker compose --env-file runtime/deploy.env -f infra/compose.yaml up -d --wait
-docker compose --env-file runtime/deploy.env -f infra/compose.yaml ps -a
+docker compose --env-file runtime/deploy.env -f infra/legacy/compose.yaml config --quiet
+docker compose --env-file runtime/deploy.env -f infra/legacy/compose.yaml up -d --wait
+docker compose --env-file runtime/deploy.env -f infra/legacy/compose.yaml ps -a
 ```
 
 Thêm **cùng một bộ** `--profile live`, `--profile catalog`, `--profile monitoring` vào `config`, `up`, `ps` khi profile đó đã được duyệt. Ví dụ deployment đã duyệt Live Feed + Catalog:
 
 ```text
-docker compose --env-file runtime/deploy.env -f infra/compose.yaml --profile live --profile catalog up -d --wait
+docker compose --env-file runtime/deploy.env -f infra/legacy/compose.yaml --profile live --profile catalog up -d --wait
 ```
 
 - `live`: xác minh HTTPS Feed URL, read token, `event_feed_id`, initial sequence, retention/coverage và quyền đọc trước khi bật. Fresh `PARALLEL_LIVE` cần `HANDOFF_LIVE_ACK=FRESH_PARALLEL_LIVE`; không gắn feed vào DB restored/cursor cũ khi chưa qua replay gate. Source→Pipeline là pull-based Long Polling, không cần private Pipeline ingress/Tailscale như baseline.
@@ -201,7 +201,7 @@ Sau đổi image/env/code, chạy lại `up -d --wait` cùng project/profile đ�
 Ưu tiên quy trình launcher ở mục **Dừng hệ thống an toàn**. Nếu buộc phải dùng Compose thủ công, lệnh `stop` phải lặp lại **đúng toàn bộ profile đã dùng khi start**. Ví dụ deployment đã chạy cả ba profile:
 
 ```text
-docker compose --env-file runtime/deploy.env -f infra/compose.yaml --profile live --profile catalog --profile monitoring stop
+docker compose --env-file runtime/deploy.env -f infra/legacy/compose.yaml --profile live --profile catalog --profile monitoring stop
 ```
 
 Không dùng `down -v`, `prune`, reset cursor, copy Kafka volume hoặc đổi initial sequence để “sửa” deployment đã có dữ liệu. `config --quiet`, HTTP 200 và container healthy không chứng minh event đã canonical đầy đủ hay chat đã dùng Qwen; xem [ma trận kiểm thử](TESTING.md). Fresh demo khác restore/migration authoritative state theo DEC-125. Chỉ một integration writer được phép authoritative.
@@ -214,7 +214,7 @@ Hai biến này chỉ chuẩn bị điều kiện topology, **không bật autos
 
 ## Giới hạn tài nguyên worker
 
-[`infra/compose.yaml`](../infra/compose.yaml) đặt giới hạn **mỗi replica** cho chín service dưới đây; mặc định mỗi service 1 CPU, 512 MiB RAM và 128 PID. Đây là mức cấu hình thử nghiệm, không phải SLA, reservation hay số replica an toàn cho host. Chỉnh trong `runtime/deploy.env` và recreate đúng service; không cần build lại image khi chỉ thay quota.
+[`infra/legacy/compose.yaml`](../infra/legacy/compose.yaml) đặt giới hạn **mỗi replica** cho chín service dưới đây; mặc định mỗi service 1 CPU, 512 MiB RAM và 128 PID. Đây là mức cấu hình thử nghiệm, không phải SLA, reservation hay số replica an toàn cho host. Chỉnh trong `runtime/deploy.env` và recreate đúng service; không cần build lại image khi chỉ thay quota.
 
 | Service | Prefix biến `_CPUS`, `_MEMORY`, `_PIDS` |
 |---|---|

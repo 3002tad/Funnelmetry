@@ -53,7 +53,7 @@ try {
       let docker
       for(const candidate of dockerCandidates){try{await access(candidate);docker=candidate;break}catch{}}
       if(!docker)throw Error('Docker not found')
-      const args=['compose','--env-file','runtime/deploy.env','-f','infra/compose.yaml','--profile','monitoring']
+      const args=['compose','--env-file','runtime/deploy.env','-f','infra/legacy/compose.yaml','--profile','monitoring']
       const run=async extra=>promisify(execFile)(docker,[...args,...extra],{cwd:root,windowsHide:true,timeout:180000,maxBuffer:1024*1024})
       stage='compose_preflight'
       await run(['config','--quiet'])

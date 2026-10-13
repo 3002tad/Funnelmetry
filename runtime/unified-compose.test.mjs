@@ -9,7 +9,7 @@ import { promisify } from 'node:util';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const exec = promisify(execFile);
 const docker = process.env.TEST_COMPOSE_EXE;
-const args = ['compose', '--env-file', 'runtime/deploy.env.example', '-f', 'infra/compose.yaml'];
+const args = ['compose', '--env-file', 'runtime/deploy.env.example', '-f', 'infra/legacy/compose.yaml'];
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
   !/^(HANDOFF_|MONITORING_|COMPOSE_)/i.test(key)));
 Object.assign(env, {

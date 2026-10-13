@@ -8,7 +8,9 @@ x-stateful-deploy: &stateful-deploy
     constraints:
       - node.labels.funnelmetry.stateful == true
   restart_policy:
-    condition: on-failure
+    # Docker/Desktop shutdown can stop a task cleanly; stateful services must
+    # still be rescheduled when the node becomes available again.
+    condition: any
     delay: 5s
     max_attempts: 5
   update_config:
@@ -69,7 +71,7 @@ services:
       # resolvable until this task is healthy. Probe the local socket instead.
       test: [CMD-SHELL, "bash -c 'echo > /dev/tcp/127.0.0.1/9092'"]
       interval: 15s
-      timeout: 10s
+      timeout: 5s
       retries: 12
       start_period: 45s
     deploy:

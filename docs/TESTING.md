@@ -1,12 +1,12 @@
 # Kiểm thử Pipeline và mức bằng chứng
 
-> **CURRENT TEST MAP — 2026-10-12.** Chạy từ root `Streaming_Pipeline`. Không dùng DB/volume demo thật cho test có ghi dữ liệu; không gửi event thật hoặc dùng key live khi test không yêu cầu. Một lệnh `npm test`/build thành công không chứng nhận end-to-end, production hoặc toàn bộ Master.
+> **CURRENT TEST MAP — 2026-10-13.** Chạy từ root `Streaming_Pipeline`. Không dùng DB/volume demo thật cho test có ghi dữ liệu; không gửi event thật hoặc dùng key live khi test không yêu cầu. Một lệnh `npm test`/build thành công không chứng nhận end-to-end, production hoặc toàn bộ Master. Swarm là đường triển khai mới; các bài Compose bên dưới chỉ kiểm tra legacy/rollback.
 
 ## Kiểm tra nhanh không làm thay đổi dữ liệu demo
 
 | Mục tiêu | Lệnh / vị trí | Kết luận tối đa |
 |---|---|---|
-| Cú pháp stack Swarm phase 1 | `node runtime/swarm.mjs check` | Chỉ chứng minh render hợp lệ; chưa chứng minh service/UI chạy. Compose config là evidence legacy, không phải đường test triển khai mới. |
+| Cú pháp stack Swarm data/app nội bộ | `node runtime/swarm.mjs check` và `node runtime/swarm.mjs check-internal` | Chỉ chứng minh render hợp lệ; runtime evidence của candidate ở [báo cáo Swarm](SWARM_CANDIDATE_VALIDATION_2026-10-13.md). Compose config là evidence legacy. |
 | Quy tắc Compose/monitoring runtime | `node --test runtime/unified-compose.test.mjs runtime/monitoring-rotation.test.mjs` | Test cấu hình/hành vi fixture, không bật dịch vụ |
 | Dashboard API | `npm test --prefix apps/dashboard-api` | Unit/route tests; các bài PostgreSQL tùy cấu hình có thể skip |
 | Chat semantic tool IDs | `node --test apps/dashboard-api/test/event-count-tool.test.js apps/dashboard-api/test/chat-v2.test.js` | Mock planner → HTTP route → registered runner/evidence cho ba tool; không gọi Qwen hoặc PostgreSQL thật |
@@ -23,7 +23,9 @@ Hai bài Compose trong `runtime/unified-compose.test.mjs` tự SKIP nếu `TEST_
 
 Với deployment mới hoặc sau khi build image chứa worker Traffic, kiểm tra `traffic-schema` hoàn tất, `traffic-source-writer` ready và Kafka group `funnelmetry-traffic-source-raw-v1` có offset tiến. Đối chiếu vài `event_id` đã biết trong `traffic_source_raw_events_v1` chỉ bằng truy vấn đọc, không in raw UTM. Hàng thiếu có thể do producer khác browser SDK, Raw Kafka đã hết retention hoặc worker chưa bắt kịp; không dùng số hàng làm tổng traffic/campaign chính thức.
 
-## Tra cứu event trên Compose hiện hành (chỉ đọc)
+## Tra cứu event trên Compose rollback (legacy, chỉ đọc)
+
+CLI `trace-event.mjs` bên dưới vẫn dùng `docker compose exec`; **không** chạy nó để kết luận về Swarm candidate. Với Swarm, xem [bằng chứng nội bộ đã kiểm thử](SWARM_CANDIDATE_VALIDATION_2026-10-13.md) hoặc dùng API Event Trace sau khi có đường truy cập/phiên đăng nhập phù hợp. Chưa có CLI Event Trace riêng cho Swarm.
 
 Khi đã có `source_id` và `event_id` từ một event được gửi hợp lệ, chạy:
 
@@ -75,6 +77,6 @@ Monitoring profile cũng đã provision trên project cục bộ. Lần đầu l
 
 ## Hướng dẫn test cũ chưa dùng trực tiếp
 
-[`tools/v2-e2e/README.md`](../tests/tools/v2-e2e/README.md) hiện còn lệnh `infra/compose.v2.yml` và profile `smoke` đã bị loại khỏi bộ Compose thống nhất. Đó là hướng dẫn cho topology cũ, **không chạy nguyên lệnh trên deployment hiện tại**. Trước khi có runner E2E mới cho `infra/compose.yaml`, dùng project test riêng và acceptance có kiểm soát; không reset cursor/volume demo để chạy lại bài test cũ. Các ghi nhận test ngày 08–10/10 trong [hồ sơ Admin/monitoring](archive/MONITORING_HISTORY.md) là bằng chứng theo phiên bản, không phải kết quả chạy hôm nay.
+[`tools/v2-e2e/README.md`](../tests/tools/v2-e2e/README.md) hiện còn lệnh `infra/compose.v2.yml` và profile `smoke` đã bị loại khỏi bộ Compose thống nhất. Đó là hướng dẫn cho topology cũ, **không chạy nguyên lệnh trên deployment hiện tại**. Trước khi có runner E2E mới cho `infra/legacy/compose.yaml`, dùng project test riêng và acceptance có kiểm soát; không reset cursor/volume demo để chạy lại bài test cũ. Các ghi nhận test ngày 08–10/10 trong [hồ sơ Admin/monitoring](archive/MONITORING_HISTORY.md) là bằng chứng theo phiên bản, không phải kết quả chạy hôm nay.
 
 Nguồn chuẩn cho semantics/test acceptance: [Master Specification](https://github.com/3002tad/System_Backbone/blob/main/MASTER_SPECIFICATION.md) và [Core Implementation Contracts](https://github.com/3002tad/System_Backbone/blob/main/docs/implementation/CORE_IMPLEMENTATION_CONTRACTS_V1.md).

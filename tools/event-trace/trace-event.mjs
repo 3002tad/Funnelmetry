@@ -137,7 +137,7 @@ export function traceEvent({ sourceId, eventId, sourceReference = null }) {
     !/^(HANDOFF_|MONITORING_|COMPOSE_)/i.test(key)));
   const command = 'PGPASSWORD="$POSTGRES_PASSWORD" exec psql -X -A -t -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" "$@"';
   const result = spawnSync('docker', [
-    'compose', '--env-file', join(root, 'runtime', 'deploy.env'), '-f', join(root, 'infra', 'compose.yaml'),
+    'compose', '--env-file', join(root, 'runtime', 'deploy.env'), '-f', join(root, 'infra', 'legacy', 'compose.yaml'),
     'exec', '-T', 'postgres', 'sh', '-c', command, 'sh',
     '-v', `source_id=${sourceId}`, '-v', `event_id=${eventId}`,
     '-v', `connector_id=${sourceReference?.connectorId ?? ''}`,

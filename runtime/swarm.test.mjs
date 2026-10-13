@@ -24,6 +24,11 @@ test('single-node Kafka controller registration does not depend on its own Swarm
   assert.match(stack, /echo > \/dev\/tcp\/127\.0\.0\.1\/9092/);
 });
 
+test('stateful Swarm tasks restart after a clean Docker shutdown', () => {
+  const stack = readFileSync(fileURLToPath(new URL('../infra/swarm-stack.yml', import.meta.url)), 'utf8');
+  assert.match(stack, /x-stateful-deploy:[\s\S]*?restart_policy:\s*\n(?:\s*#[^\n]*\n)*\s*condition: any/);
+});
+
 test('Swarm API readiness probes worker health endpoints instead of returning NOT_CONFIGURED', () => {
   const app = readFileSync(fileURLToPath(new URL('../infra/swarm-app.yml', import.meta.url)), 'utf8');
   const workers = readFileSync(fileURLToPath(new URL('../infra/swarm-workers.yml', import.meta.url)), 'utf8');

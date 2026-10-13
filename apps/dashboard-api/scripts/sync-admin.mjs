@@ -1,6 +1,6 @@
 /**
  * Compatibility command: bootstrap only an empty account store, never reset existing users.
- * Run locally with the required environment already set; deployment bootstrap is managed by infra/compose.yaml.
+ * Run locally with the required environment already set; legacy Compose bootstrap is in infra/legacy/compose.yaml.
  */
 import { seedAdminUser } from "../src/seed.js";
 import { query, closeDatabase } from '../src/db.js';

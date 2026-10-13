@@ -1,6 +1,6 @@
 # Resilience tools: autoscaler and watchdog
 
-> Hai công cụ host-side/opt-in có policy khác nhau; không tự bật trong Compose hiện hành và không cấp Docker control cho Dashboard/AI.
+> Hai công cụ host-side/opt-in có policy khác nhau. Các lệnh Compose bên dưới là bằng chứng legacy, không phải triển khai Swarm; autoscaler/Recovery Controller chưa bật trong candidate Swarm. Không cấp Docker control cho Dashboard/AI.
 
 ## Mục lục
 
@@ -18,7 +18,7 @@
 
 # Single-host autoscaler — decision policy (2026-10-11)
 
-> The `compose.handoff-pipeline.yml` findings below describe an older sandbox and are not deployment instructions. Current deployment uses [`infra/compose.yaml`](../../infra/compose.yaml); see [operations](../OPERATIONS.md) and [feature status](../FEATURE_STATUS.md). The actuator is not automatically enabled.
+> The `compose.handoff-pipeline.yml` findings below describe an older sandbox and are not deployment instructions. Swarm is the deployment baseline; see [Swarm migration](../SWARM_MIGRATION.md) and [feature status](../FEATURE_STATUS.md). The actuator is not automatically enabled.
 
 Authority: Master §24.3.5 / DEC-122; Cookbook pipeline-recovery-observability.
 **Decision policy + read-only observer + opt-in replica sandbox, not an enabled autoscaler.**
@@ -57,7 +57,7 @@ and must not be cleared blindly in production.
 
 ## Findings before actuator implementation
 
-1. The current `infra/compose.yaml` assigns a fixed
+1. The current `infra/legacy/compose.yaml` assigns a fixed
    `CANONICAL_NORMALIZER_INSTANCE_ID=handoff-canonical-normalizer` by default. Worker runtime uses
    `${clientId}-${instanceId}` as Kafka transactional ID. Blindly scaling this Compose
    service would let concurrent replicas fence each other's producers. New opt-in

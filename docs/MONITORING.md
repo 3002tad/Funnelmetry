@@ -1,8 +1,8 @@
 # Monitoring Pipeline
 
-> Cập nhật runtime 12/10: `runtime/deploy.env` chọn profile `monitoring` cùng `live,catalog`; launcher chuẩn là `node runtime/deploy.mjs start`. Sau khi provision credential cục bộ, `node runtime/check-monitoring.mjs` xác nhận Grafana 8 panel, Prometheus `UP=1` và đúng 7 worker hiện hành (bao gồm `traffic-source-writer`) đều ready. Các đoạn runbook `new-demo.ps1` và “6 worker” bên dưới là lịch sử, không dùng làm lệnh triển khai mới. Credential metrics hết hạn theo TTL, phải xoay vòng trước khi hết hạn; kết quả này không chứng minh end-to-end hay host-level HA.
+> **LỊCH SỬ COMPOSE (12/10), không phải runbook Swarm.** Lần chạy cũ dùng `runtime/deploy.env` với profile `monitoring,live,catalog` và `node runtime/deploy.mjs start`; sau khi provision credential, `node runtime/check-monitoring.mjs` xác nhận Grafana 8 panel, Prometheus `UP=1` và 7 worker ready. Swarm candidate hiện chưa triển khai monitoring; xem [trạng thái Swarm](SWARM_MIGRATION.md). Không chạy lại các lệnh Compose bên dưới cho demo mới. Credential metrics hết hạn theo TTL, phải xoay vòng trước khi hết hạn; bằng chứng cũ không chứng minh end-to-end hay host-level HA.
 
-> Hợp nhất contract khóa metrics và tài liệu Prometheus/Grafana. Các lệnh demo trong phần lịch sử có thể dùng cấu hình cũ; chỉ triển khai theo docs/OPERATIONS.md.
+> Hợp nhất contract khóa metrics và tài liệu Prometheus/Grafana. Các lệnh demo trong phần lịch sử có thể dùng cấu hình cũ; `docs/OPERATIONS.md` chỉ là runbook Compose rollback, không phải triển khai mới.
 
 Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Artifact Prometheus/Grafana vẫn nằm ở `infra/observability/` trong source repo.
 
@@ -19,7 +19,7 @@
 
 # Metrics-only machine credentials and local monitoring
 
-> **Cập nhật đường chạy:** các ví dụ `demo-new.env`/overlay bên dưới là lịch sử. Monitoring hiện dùng `runtime/deploy.env` và profile `monitoring` của [`infra/compose.yaml`](../infra/compose.yaml); các script runtime đã chuyển sang env này.
+> **Cập nhật phạm vi:** các ví dụ `demo-new.env`/overlay bên dưới là lịch sử. Profile `monitoring` của [`infra/legacy/compose.yaml`](../infra/legacy/compose.yaml) thuộc đường Compose rollback; chưa được chuyển và nghiệm thu trên Swarm.
 
 Implements user-approved separate monitoring credentials under Master §24.3.4 /
 DEC-103 and Cookbook security / pipeline-recovery-observability boundaries.

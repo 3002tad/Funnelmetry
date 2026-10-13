@@ -139,7 +139,7 @@ The old `infra/compose.source-connector.yml` overlay and `infra/compose.v2.yml`
 belonged to the private demo; those instructions are archived in the
 [demo/handoff history](../../archive/DEMO_HANDOFF_HISTORY.md#private-demo).
 The current Source Connector runs under the `live` profile in
-[`infra/compose.yaml`](../../../infra/compose.yaml); follow [current operations](../../OPERATIONS.md)
+[`infra/legacy/compose.yaml`](../../../infra/legacy/compose.yaml); follow [current operations](../../OPERATIONS.md)
 and its preflight instead of the old launcher. No connector port is published to the host.
 
 Next: real-service integration tests through the

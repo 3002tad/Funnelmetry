@@ -57,7 +57,7 @@ Nguồn gốc trong Git history: `docs/ADMIN_EVENT_FEED_2026-10-08.md`, `ADMIN_P
 
 # Bàn giao test Admin monitoring — 10/10/2026
 
-> **Lưu trữ lịch sử:** overlay monitoring handoff cũ đã bỏ. Profile monitoring hiện nằm trong [`infra/compose.yaml`](../../infra/compose.yaml); xem [vận hành](../OPERATIONS.md).
+> **Lưu trữ lịch sử:** overlay monitoring handoff cũ đã bỏ. Profile monitoring hiện nằm trong [`infra/legacy/compose.yaml`](../../infra/legacy/compose.yaml); xem [vận hành](../OPERATIONS.md).
 
 > Điểm bắt đầu chung cho team: [bản bàn giao trong System_Backbone](https://github.com/3002tad/System_Backbone/blob/main/docs/implementation/PIPELINE_MONITORING_HANDOFF_2026-10-10.md).
 > File này giữ lệnh vận hành theo version code Pipeline; Backbone tổng hợp tiến độ,

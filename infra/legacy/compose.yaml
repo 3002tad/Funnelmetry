@@ -24,19 +24,19 @@ x-worker-env: &worker-env
 x-api-image: &api-image
   image: ${HANDOFF_API_IMAGE:?Set a pinned API image or a local development tag}
   build:
-    context: ..
+    context: ../..
     dockerfile: infra/docker/dashboard-api.Dockerfile
   pull_policy: ${HANDOFF_IMAGE_POLICY:-always}
 x-web-image: &web-image
   image: ${HANDOFF_WEB_IMAGE:?Set a pinned Web image or a local development tag}
   build:
-    context: ..
+    context: ../..
     dockerfile: infra/docker/dashboard-web.Dockerfile
   pull_policy: ${HANDOFF_IMAGE_POLICY:-always}
 x-worker: &worker
   image: ${HANDOFF_WORKERS_IMAGE:?Set a pinned Workers image or a local development tag}
   build:
-    context: ..
+    context: ../..
     dockerfile: infra/docker/pipeline-workers.Dockerfile
   pull_policy: ${HANDOFF_IMAGE_POLICY:-always}
   read_only: true
@@ -115,7 +115,7 @@ services:
     environment:
       PGPASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
     volumes:
-      - ./postgres/traffic/001_raw_utm_source.sql:/migration.sql:ro
+      - ../postgres/traffic/001_raw_utm_source.sql:/migration.sql:ro
     entrypoint: [psql, -h, postgres, -U, funnelmetry, -d, funnelmetry_handoff, -v, ON_ERROR_STOP=1, -f, /migration.sql]
     depends_on:
       bootstrap: {condition: service_completed_successfully}
@@ -129,7 +129,7 @@ services:
     environment:
       PGPASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
     volumes:
-      - ./postgres/traffic/002_source_registry.sql:/migration.sql:ro
+      - ../postgres/traffic/002_source_registry.sql:/migration.sql:ro
     entrypoint: [psql, -h, postgres, -U, funnelmetry, -d, funnelmetry_handoff, -v, ON_ERROR_STOP=1, -f, /migration.sql]
     depends_on:
       traffic-schema: {condition: service_completed_successfully}
@@ -384,7 +384,7 @@ services:
     environment:
       PGPASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
     volumes:
-      - ./postgres/011_monitoring_credentials.sql:/migration.sql:ro
+      - ../postgres/011_monitoring_credentials.sql:/migration.sql:ro
     entrypoint: [psql, -h, postgres, -U, funnelmetry, -d, funnelmetry_handoff, -v, ON_ERROR_STOP=1, -f, /migration.sql]
     depends_on:
       bootstrap: {condition: service_completed_successfully}
@@ -400,7 +400,7 @@ services:
       monitoring-schema: {condition: service_completed_successfully}
     command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus, --storage.tsdb.retention.time=7d, --storage.tsdb.retention.size=1GB]
     volumes:
-      - ./observability/prometheus.yml.example:/etc/prometheus/prometheus.yml:ro
+      - ../observability/prometheus.yml.example:/etc/prometheus/prometheus.yml:ro
       - monitoring-prometheus:/prometheus
     secrets: [funnelmetry_metrics_token]
     read_only: true
@@ -426,8 +426,8 @@ services:
     ports: ['127.0.0.1:${MONITORING_GRAFANA_PORT:-5182}:3000']
     volumes:
       - monitoring-grafana:/var/lib/grafana
-      - ./observability/provisioning:/etc/grafana/provisioning:ro
-      - ../runtime/monitoring/dashboards:/etc/funnelmetry-dashboards:ro
+      - ../observability/provisioning:/etc/grafana/provisioning:ro
+      - ../../runtime/monitoring/dashboards:/etc/funnelmetry-dashboards:ro
     secrets: [grafana_admin_password]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -440,9 +440,9 @@ services:
 
 secrets:
   funnelmetry_metrics_token:
-    file: ../runtime/monitoring/metrics-token
+    file: ../../runtime/monitoring/metrics-token
   grafana_admin_password:
-    file: ../runtime/monitoring/grafana-password
+    file: ../../runtime/monitoring/grafana-password
 volumes:
   handoff-db:
   handoff-kafka:

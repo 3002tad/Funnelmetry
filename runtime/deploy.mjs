@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const envFile = join(root, 'runtime', 'deploy.env');
-const composeFile = join(root, 'infra', 'compose.yaml');
+const composeFile = join(root, 'infra', 'legacy', 'compose.yaml');
 const supportedProfiles = new Set(['live', 'catalog', 'monitoring']);
 const monitoringFiles = [
   'metrics-token', 'grafana-password', 'credential.json', 'dashboards/pipeline.json',

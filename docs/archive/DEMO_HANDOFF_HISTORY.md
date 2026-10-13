@@ -187,7 +187,7 @@ không dùng `down -v` để dừng demo.
 
 # Bàn giao phát triển bằng Docker images
 
-> **Lưu trữ lịch sử:** các Compose handoff nhiều overlay bên dưới đã loại bỏ. Triển khai mới dùng [`compose.yaml`](../../infra/compose.yaml) và [`runtime/deploy.env`](../../runtime/deploy.env.example); xem [vận hành](../OPERATIONS.md).
+> **Lưu trữ lịch sử:** các Compose handoff nhiều overlay bên dưới đã loại bỏ. Triển khai mới dùng [Docker Swarm](../SWARM_MIGRATION.md); [`compose.yaml`](../../infra/legacy/compose.yaml) và [`runtime/deploy.env`](../../runtime/deploy.env.example) chỉ thuộc đường rollback có kiểm soát.
 
 **Cập nhật 04/10/2026:** ba image đã chuyển vào GHCR `3002tad/funnelmetry`.
 Xem [CODEX_HANDOFF](DEMO_HANDOFF_HISTORY.md#codex-handoff) để lấy digest, cấu hình live/AI và checklist
@@ -376,7 +376,7 @@ trong workspace; đây không phải authoritative migration/cutover.
 
 # Bàn giao worker pipeline — 04/10/2026
 
-> **Lưu trữ lịch sử:** không chạy lệnh handoff overlay bên dưới. Bộ hiện hành là [`compose.yaml`](../../infra/compose.yaml) + `runtime/deploy.env`; xem [vận hành](../OPERATIONS.md).
+> **Lưu trữ lịch sử:** không chạy lệnh handoff overlay bên dưới. Bộ Compose rollback là [`compose.yaml`](../../infra/legacy/compose.yaml) + `runtime/deploy.env`; triển khai mới theo [Docker Swarm](../SWARM_MIGRATION.md).
 
 **Release update:** ba image commit `a725fad` đã publish và xác minh digest dưới
 GHCR `3002tad/funnelmetry`; xem [CODEX_HANDOFF](DEMO_HANDOFF_HISTORY.md#codex-handoff) cho digest
@@ -563,7 +563,7 @@ images; chưa được coi là release hoàn chỉnh. Không tự đổi package
 
 # Codex handoff — Pipeline development, 04/10/2026
 
-> **Lưu trữ lịch sử:** quy trình handoff nhiều overlay trong tài liệu này không còn là cấu hình triển khai hiện hành. Dùng [vận hành](../OPERATIONS.md) với `infra/compose.yaml` và `runtime/deploy.env`; không chạy các lệnh `compose.handoff*.yml` bên dưới.
+> **Lưu trữ lịch sử:** quy trình handoff nhiều overlay trong tài liệu này không còn là cấu hình triển khai hiện hành. Dùng [vận hành](../OPERATIONS.md) với `infra/legacy/compose.yaml` và `runtime/deploy.env`; không chạy các lệnh `compose.handoff*.yml` bên dưới.
 
 > **Cập nhật release 10/10/2026:** image mới từ `2fb6b91` đã publish lên GHCR.
 > Dùng [runbook monitoring mới](MONITORING_HISTORY.md#teammate-monitoring-test) để lấy
@@ -787,7 +787,7 @@ Không gửi PAT/API keys trong Git; không merge DB hai máy hoặc chuyển Ka
 
 # Demo mới — 08/10/2026
 
-> **Lưu trữ lịch sử:** launcher và overlay demo trong tài liệu này đã được bỏ. Demo hiện hành dùng [`infra/compose.yaml`](../../infra/compose.yaml) + `runtime/deploy.env`; xem [vận hành](../OPERATIONS.md).
+> **Lưu trữ lịch sử:** launcher và overlay demo trong tài liệu này đã được bỏ. [`infra/legacy/compose.yaml`](../../infra/legacy/compose.yaml) chỉ dành cho rollback; demo mới theo [Docker Swarm](../SWARM_MIGRATION.md).
 
 ## Demo tự phục hồi worker — 11/10/2026
 
