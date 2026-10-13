@@ -54,6 +54,14 @@ services:
   canonical-normalizer:
     <<: *worker
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/canonical-normalizer/src/main.js]
+    healthcheck:
+      # Liveness only. /readyz may fail during Kafka rebalance and must not
+      # cause Swarm to restart a recoverable worker.
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:32110/healthz").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
     environment:
       <<: *worker-env
       CANONICAL_NORMALIZER_INSTANCE_ID: swarm-canonical-normalizer

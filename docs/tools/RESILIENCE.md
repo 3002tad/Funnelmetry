@@ -1,6 +1,6 @@
 # Resilience tools: autoscaler and watchdog
 
-> Hai công cụ host-side/opt-in có policy khác nhau. Các lệnh Compose bên dưới là bằng chứng legacy, không phải triển khai Swarm; autoscaler/Recovery Controller chưa bật trong candidate Swarm. Không cấp Docker control cho Dashboard/AI.
+> Hai công cụ bên dưới là bằng chứng **legacy Compose**. Đường Swarm mới là [host-side Swarm controller](../../tools/swarm-controllers/README.md), hiện chỉ có vertical slice `canonical-normalizer` và live read-only observation; chưa bật tác động tự động trên stack live. Không cấp Docker control cho Dashboard/AI.
 
 ## Mục lục
 

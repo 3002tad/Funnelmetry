@@ -1,0 +1,33 @@
+{
+  "stack": "funnelmetry-live-review",
+  "service": "canonical-normalizer",
+  "image": "ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "groupId": "funnelmetry-canonical-normalizer-v1",
+  "topic": "funnelmetry.raw.v1",
+  "cpuHeadroomNano": 2000000000,
+  "memoryHeadroomBytes": 2147483648,
+  "autoscale": {
+    "project": "funnelmetry-live-review",
+    "service": "canonical-normalizer",
+    "groupId": "funnelmetry-canonical-normalizer-v1",
+    "minReplicas": 1,
+    "maxReplicas": 2,
+    "upLag": "100",
+    "downLag": "5",
+    "upWindowMs": 60000,
+    "downWindowMs": 180000,
+    "cooldownMs": 300000,
+    "maxSampleAgeMs": 30000,
+    "maxGapMs": 120000,
+    "minSamples": 2
+  },
+  "recovery": {
+    "service": "canonical-normalizer",
+    "failureThreshold": 3,
+    "cooldownMs": 300000,
+    "windowMs": 1800000,
+    "maxAttempts": 2,
+    "startupGraceMs": 60000,
+    "maxSampleAgeMs": 30000
+  }
+}

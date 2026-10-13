@@ -6,6 +6,7 @@ runtime/backups/
 runtime/monitoring/
 runtime/credentials/
 runtime/watchdog/
+runtime/swarm-controllers/
 runtime/teammate-demo/
 output/playwright/
 .playwright-cli/
