@@ -7,6 +7,8 @@ runtime/monitoring/
 runtime/credentials/
 runtime/watchdog/
 runtime/teammate-demo/
+output/playwright/
+.playwright-cli/
 
 node_modules/
 dist/
