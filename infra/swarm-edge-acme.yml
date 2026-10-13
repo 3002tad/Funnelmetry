@@ -1,0 +1,46 @@
+# Public hostname only: DNS and TCP 80/443 must reach the pinned edge node.
+version: '3.8'
+services:
+  edge:
+    image: ${SWARM_TRAEFIK_IMAGE:?Pin the Traefik image digest}
+    command:
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --entryPoints.web.address=:80
+      - --entryPoints.websecure.address=:443
+      - --entryPoints.web.http.redirections.entryPoint.to=websecure
+      - --entryPoints.web.http.redirections.entryPoint.scheme=https
+      - --certificatesresolvers.letsencrypt.acme.email=${SWARM_ACME_EMAIL:?Set ACME email}
+      - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --api.dashboard=false
+    environment:
+      SWARM_PUBLIC_DOMAIN: ${SWARM_PUBLIC_DOMAIN:?Set public hostname}
+    configs:
+      - source: edge_dynamic_acme
+        target: /etc/traefik/dynamic.yml
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+    volumes:
+      - edge-acme-data:/data
+    networks: [data]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.labels.funnelmetry.edge == true]
+      restart_policy: {condition: on-failure, delay: 5s}
+      update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
+      resources:
+        reservations: {cpus: '0.10', memory: 64M}
+        limits: {cpus: '0.50', memory: 256M}
+configs:
+  edge_dynamic_acme:
+    file: ./swarm/traefik-acme.yml
+volumes:
+  edge-acme-data:

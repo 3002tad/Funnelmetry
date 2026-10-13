@@ -39,6 +39,7 @@ workers/
   source-connector/          # authenticated HTTPS Event Feed pull
   catalog-sync/              # current descriptive product metadata
   ingress-telemetry-writer/  # accepted/outcome Kafka → durable Data Health evidence
+  traffic-source-writer/     # Raw Kafka → hashed first-touch UTM input lineage
   canonical-ledger-writer/   # canonical Kafka → PostgreSQL source of truth
   journey-processor/         # persisted canonical → progressive journey projection
   funnel-processor/          # journey-resolved -> versioned Funnel Instance projection

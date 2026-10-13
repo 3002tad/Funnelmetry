@@ -2,7 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { parseEnv } from 'node:util';
-import { parseProfiles, profileArgs, validateConfig } from './deploy.mjs';
+import { assertLegacyRollbackAcknowledged, parseProfiles, profileArgs, validateConfig } from './deploy.mjs';
+
+test('legacy Compose launcher is disabled unless rollback is explicitly acknowledged', () => {
+  assert.throws(() => assertLegacyRollbackAcknowledged({}), /disabled for normal deployment/);
+  assert.throws(() => assertLegacyRollbackAcknowledged({ FUNNELMETRY_LEGACY_COMPOSE_ACK: 'true' }), /ROLLBACK_ONLY/);
+  assert.doesNotThrow(() => assertLegacyRollbackAcknowledged({ FUNNELMETRY_LEGACY_COMPOSE_ACK: 'ROLLBACK_ONLY' }));
+});
 
 const template = parseEnv(await readFile(new URL('deploy.env.example', import.meta.url), 'utf8'));
 const base = {
@@ -50,4 +56,16 @@ test('profile list rejects typo and duplicate to avoid a partial deployment', ()
   assert.throws(() => parseProfiles('live,live'), /at most once/);
   assert.throws(() => parseProfiles('live,analytics'), /at most once/);
   assert.throws(() => validateConfig({ ...base, COMPOSE_PROFILES: 'live' }), /COMPOSE_/);
+});
+
+test('raw partitions and transactional identity stay explicit and fail closed', () => {
+  assert.deepEqual(validateConfig(base), []);
+  assert.deepEqual(validateConfig({ ...base, HANDOFF_RAW_PARTITIONS: '2',
+    HANDOFF_NORMALIZER_ID_MODE: 'container' }), []);
+  for (const value of ['0', '-1', '01', '33', 'not-a-number']) {
+    assert.throws(() => validateConfig({ ...base, HANDOFF_RAW_PARTITIONS: value }), /HANDOFF_RAW_PARTITIONS/);
+  }
+  assert.throws(() => validateConfig({ ...base, HANDOFF_RAW_PARTITIONS: '2',
+    HANDOFF_NORMALIZER_ID_MODE: 'explicit' }), /unique container/);
+  assert.throws(() => validateConfig({ ...base, HANDOFF_NORMALIZER_ID_MODE: 'host' }), /HANDOFF_NORMALIZER_ID_MODE/);
 });

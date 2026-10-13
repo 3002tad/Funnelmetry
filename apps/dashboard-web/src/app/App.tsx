@@ -17,6 +17,8 @@ const AdminUsersPage = lazy(() => import('../features/admin/AdminUsersPage'))
 const RegistryPage = lazy(() => import('../features/admin/RegistryPage'))
 const MappingsPage = lazy(() => import('../features/admin/MappingsPage'))
 const RunDiagnosticsPage = lazy(() => import('../features/admin/RunDiagnosticsPage'))
+const ModelProviderPage = lazy(() => import('../features/admin/ModelProviderPage'))
+const AgentObservabilityPage = lazy(() => import('../features/admin/AgentObservabilityPage'))
 const PipelineHealthPage = lazy(() => import('../features/admin/PipelineHealthPage'))
 const SourcesPage = lazy(() => import('../features/admin/SourcesPage'))
 const ChatPage = lazy(() => import('../features/chat/ChatPage').then(module => ({ default: module.ChatPage })))
@@ -26,10 +28,12 @@ const FindingsPage = lazy(() => import('../features/evidence/FindingsPage'))
 const AuditPage = lazy(() => import('../features/admin/AuditPage'))
 const ConnectorsPage = lazy(() => import('../features/admin/ConnectorsPage'))
 const EventFeedPage = lazy(() => import('../features/admin/EventFeedPage'))
+const EventTracePage = lazy(() => import('../features/admin/EventTracePage'))
 const ProcessingPage = lazy(() => import('../features/admin/ProcessingPage'))
 const QuarantinePage = lazy(() => import('../features/admin/QuarantinePage'))
 const WorkspacePage = lazy(() => import('../features/workspace/WorkspacePage'))
 const ProductObservationsPage = lazy(() => import('../features/products/ProductObservationsPage'))
+const TrafficInputPage = lazy(() => import('../features/traffic/TrafficInputPage'))
 
 function Landing() {
   const { user } = useAuth()
@@ -74,6 +78,9 @@ export function App() {
           <Route path="/analysis-runs" element={<EvidencePage runs />} />
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/products" element={<ProductObservationsPage />} />
+          <Route element={<PermissionGate permission="analytics.workspace.use" />}>
+            <Route path="/traffic" element={<TrafficInputPage />} />
+          </Route>
           <Route path="/evidence" element={<EvidencePage />} />
           <Route path="/reports" element={<EvidencePage reports />} />
           <Route path="/findings" element={<FindingsPage />} />
@@ -87,9 +94,12 @@ export function App() {
           <Route path="/admin/pipeline" element={<PipelineHealthPage />} />
           <Route path="/admin/connector" element={<ConnectorsPage />} />
           <Route path="/admin/event-feed" element={<EventFeedPage />} />
+          <Route path="/admin/event-trace" element={<EventTracePage />} />
           <Route path="/admin/processing" element={<ProcessingPage />} />
           <Route path="/admin/quarantine" element={<QuarantinePage />} />
           <Route path="/admin/run-diagnostics" element={<RunDiagnosticsPage />} />
+          <Route path="/admin/model-provider" element={<ModelProviderPage />} />
+          <Route path="/admin/agent" element={<AgentObservabilityPage />} />
           </Route>
           <Route element={<PermissionGate permission="audit.read" />}>
             <Route path="/admin/audit" element={<AuditPage />} />

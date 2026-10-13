@@ -39,5 +39,8 @@ Schema V2 mới nằm trong `v2/`:
 - `v2/018_kpi_handoff_evidence.sql`: lưu danh sách KPI đã thay đổi atomically cùng application/facts,
   dùng gửi lại sau crash; lịch sử thiếu evidence vẫn NULL, không suy diễn từ current projection.
 
-Compose chạy `postgres-migrations` mỗi lần khởi động để áp dụng idempotent toàn bộ migration V2 cho
-cả volume mới lẫn volume đã tồn tại.
+Compose hiện hành chạy `bootstrap` để cài schema V2 trên database demo trống. Với volume đã có, bootstrap chỉ chấp nhận đúng `schema_digest`, không tự nâng cấp hoặc reset. Không còn service `postgres-migrations` trong đường chạy này.
+
+`traffic/001_raw_utm_source.sql` là schema bổ sung, chạy qua job `traffic-schema` sau bootstrap và trước `traffic-source-writer`; không thay đổi digest của bootstrap V2. Job idempotent cho đúng cấu trúc bảng, fail khi gặp bảng cùng tên không tương thích. Dữ liệu chỉ đến từ Raw Kafka còn trong retention, không phải migration/backfill lịch sử. Bảng lưu hash UTM chứ không lưu giá trị rõ; hash không được coi là ẩn danh.
+
+`traffic/002_source_registry.sql` tạo bảng mapping nguồn UTM hiện tại và audit append-only, chạy qua job `traffic-registry-schema` sau `traffic-schema` và trước Dashboard API. Tạo/đổi nhãn không sửa raw/canonical event; phiên bản mapping và audit phục vụ truy vết. Nhãn hiện tại được áp lúc đọc và có thể phân loại lại event cũ. Không dùng kết quả này làm doanh thu theo kênh hoặc attribution đơn hàng.

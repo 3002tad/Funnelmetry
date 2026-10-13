@@ -57,16 +57,21 @@ and must not be cleared blindly in production.
 
 ## Findings before actuator implementation
 
-1. `infra/compose.handoff-pipeline.yml` assigns a fixed
-   `CANONICAL_NORMALIZER_INSTANCE_ID=handoff-canonical-normalizer`. Worker runtime uses
+1. The current `infra/compose.yaml` assigns a fixed
+   `CANONICAL_NORMALIZER_INSTANCE_ID=handoff-canonical-normalizer` by default. Worker runtime uses
    `${clientId}-${instanceId}` as Kafka transactional ID. Blindly scaling this Compose
    service would let concurrent replicas fence each other's producers. New opt-in
    `CANONICAL_NORMALIZER_INSTANCE_ID_MODE=container` appends the default Docker hostname
    to the base ID. Restart of the same container preserves it; recreation changes it.
-   Sandbox verifies distinct actual IDs. Production/default Compose remains unchanged.
-2. The handoff topic initializer creates **one partition**. A single raw-topic partition
-   does not gain consumer-group parallelism by adding replicas. Do not repartition live
-   data as an automatic optimization; test multi-partition semantics in an isolated setup.
+   Sandbox verifies distinct actual IDs. The unified Compose keeps the explicit mode
+   by default. For a **new isolated project only**, set `HANDOFF_NORMALIZER_ID_MODE=container`
+   before first start; the launcher rejects multi-partition Raw with explicit IDs.
+2. The unified topic initializer creates **one Raw partition by default**. For a new
+   isolated project, `HANDOFF_RAW_PARTITIONS=2` provisions two Raw partitions. It
+   verifies the existing topic's partition count and fails on mismatch; it never
+   automatically repartitions an existing topic. A single Raw partition does not gain
+   consumer-group parallelism by adding replicas. Changing partition count on a live
+   project requires a reviewed migration and replay plan.
 3. Current Watchdog discovery is singleton-only and safely refuses ambiguous replicas.
    Multi-replica recovery needs coordinated target identity/budgets and must not race with
    scale-down. No claim of combined auto-healing/autoscaling yet.
@@ -127,6 +132,12 @@ with one consumer and rechecks committed offsets and unchanged order value.
 coordinate; neither switches on autoscaling/healing in the actual demo.
 
 ## Remaining integration
+
+The unified Compose now has an opt-in multi-partition/unique-identity prerequisite,
+but it does **not** start an autoscaling controller. The observer still reports host
+capacity, replay/drain attestation and recovery coordination as unknown. Do not
+interpret a two-partition fresh install as permission to scale automatically. The
+isolated fixture below is the only replica-scale acceptance evidence to date.
 
 Evidence 2026-10-11, sandbox `funnelmetry-handoff-test-6e0b04077e57`:
 

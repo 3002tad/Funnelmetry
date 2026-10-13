@@ -8,6 +8,8 @@ test('three assignable roles with separate admin and business permissions', () =
   assert.equal(permissionsFor('super_admin').includes('analytics.read'), false)
   assert.equal(permissionsFor('staff').includes('user.manage'), false)
   assert.equal(permissionsFor('staff').includes('analytics.workspace.use'), false)
+  assert.equal(permissionsFor('staff').includes('traffic.mapping.write'), false)
+  assert.equal(permissionsFor('analyst').includes('traffic.mapping.write'), true)
   assert.deepEqual(permissionsFor('unknown'), [])
   for (const role of ['super_admin', 'analyst', 'staff', 'viewer', 'unknown']) {
     const business = role === 'analyst' || role === 'staff'
@@ -24,6 +26,10 @@ test('staff reads summaries but cannot access workspace or mutations', () => {
       ['GET', '/api/v2/analytics/journeys', false],
       ['GET', '/api/v2/analytics/events', false],
       ['GET', '/api/v2/analytics/data-health', false],
+      ['GET', '/api/v2/analytics/traffic-input', false],
+      ['GET', '/api/v2/analytics/traffic-input/breakdown', false],
+      ['GET', '/api/v2/analytics/traffic-source-registry', false],
+      ['POST', '/api/v2/analytics/traffic-source-registry', false],
       ['GET', '/api/v2/analytics/funnels/commerce/private', false],
       ['POST', '/api/v2/analytics/overview', false],
     ]) {

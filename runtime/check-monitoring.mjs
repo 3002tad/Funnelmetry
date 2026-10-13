@@ -18,6 +18,11 @@ try {
   const up=await query('up{job="funnelmetry-monitoring"}')
   assert.equal(up.length,1);assert.equal(up[0].value[1],'1')
   const workers=await query('funnelmetry_worker_runtime_ready{job="funnelmetry-monitoring"}')
-  assert.equal(workers.length,6)
+  const expectedWorkers=new Set(['canonical-normalizer','canonical-ledger-writer',
+    'ingress-telemetry-writer','traffic-source-writer','journey-processor',
+    'funnel-processor','kpi-projector'])
+  assert.equal(workers.length,expectedWorkers.size)
+  assert.deepEqual(new Set(workers.map(item=>item.metric.worker)),expectedWorkers)
+  assert.ok(workers.every(item=>item.value[1]==='1'))
   console.log(`PASS: Grafana dashboard provisioned (${dashboard.dashboard.panels.length} panels), Prometheus UP=1, ${workers.length} worker observations.`)
 } catch {console.error('Monitoring check failed; inspect scrape status/credential expiry. No secrets printed.');process.exitCode=1}

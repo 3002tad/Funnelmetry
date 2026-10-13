@@ -12,6 +12,8 @@ test('anonymous and chat-only permissions cannot see analytics navigation', () =
 test('analyst navigation keeps live tools, excludes admin and gates chat', () => {
   const result = paths(['analytics.read'])
   for (const path of ['/overview', '/workspace', '/analysis-runs', '/evidence', '/funnels', '/journeys', '/events', '/data-health', '/metrics', '/assets', '/findings', '/reports']) assert.ok(result.includes(path), path)
+  assert.ok(!result.includes('/traffic'))
+  assert.ok(paths(['analytics.read', 'analytics.workspace.use']).includes('/traffic'))
   assert.ok(!result.includes('/chat'))
   assert.ok(result.every(path => !path.startsWith('/admin/')))
   assert.ok(paths(['analytics.read', 'chat.use']).includes('/chat'))
@@ -20,6 +22,9 @@ test('admin permissions do not implicitly grant analytics or user management', (
   const result = paths(['pipeline.monitor'])
   assert.ok(result.includes('/admin/connector'))
   assert.ok(result.includes('/admin/event-feed'))
+  assert.ok(result.includes('/admin/event-trace'))
+  assert.ok(result.includes('/admin/model-provider'))
+  assert.ok(result.includes('/admin/agent'))
   assert.ok(result.includes('/admin/processing'))
   assert.equal(navigation.flatMap(group => group.items).find(item => item.path === '/admin/processing').unavailable, undefined)
   assert.ok(!result.includes('/admin/users'))
@@ -36,8 +41,9 @@ test('explicitly combined capabilities retain both navigation bundles', () => {
 test('routes are unique and mock-backed surfaces are unavailable', () => {
   const items = navigation.flatMap(group => group.items)
   assert.equal(new Set(items.map(item => item.path)).size, items.length)
-  for (const path of ['/traffic', '/campaigns', '/admin/recovery']) assert.ok(items.find(item => item.path === path)?.unavailable)
-  for (const path of ['/products', '/findings', '/workspace', '/overview', '/events', '/funnels', '/journeys', '/chat', '/admin/users', '/admin/event-feed']) assert.equal(items.find(item => item.path === path)?.unavailable, undefined)
+  for (const path of ['/campaigns', '/admin/recovery']) assert.ok(items.find(item => item.path === path)?.unavailable)
+  assert.equal(items.find(item => item.path === '/traffic')?.unavailable, undefined)
+  for (const path of ['/products', '/findings', '/workspace', '/overview', '/events', '/funnels', '/journeys', '/chat', '/admin/users', '/admin/event-feed', '/admin/model-provider', '/admin/agent']) assert.equal(items.find(item => item.path === path)?.unavailable, undefined)
   assert.ok(items.every(item => !['/implementations', '/evaluations', '/insights'].includes(item.path)))
 })
 test('nginx serves the exact /assets application route without directory redirect', () => {

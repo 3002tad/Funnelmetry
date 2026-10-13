@@ -253,6 +253,15 @@ Route có Cache-Control: no-store. UI integrations chưa nối vào API này.
 - `GET /api/v2/admin/audit`: account audit read-only, yêu cầu `audit.read` của Admin.
 - `GET /api/v2/admin/pipeline?source_id=...`: retained PostgreSQL V2 evidence; không dùng bảng V1,
   không suy ra liveness hay mất dữ liệu từ chênh lệch totals. Thiếu schema/DB trả 503, không dựng số 0.
+- `GET /api/v2/admin/event-trace?source_id=...&event_id=...`: tra cứu theo event ID cho `pipeline.monitor`.
+  Trả receipt, latest canonicalization outcome, canonical ledger, journey và ứng dụng funnel/KPI nếu có;
+  chỉ lấy metadata allowlist, không trả raw payload. `NO_RECEIPT_OBSERVED`/`WAITING_*` chỉ là trạng thái
+  snapshot PostgreSQL, không chứng minh Source Feed/Kafka ACK hoặc event bị mất. API kiểm tra lại session/quyền
+  sau truy vấn và trả 503 khi không thể đọc evidence, không dựng kết quả rỗng.
+- `GET /api/v2/admin/traffic-source-input?source_id=...&event_id=...`: chẩn đoán trạng thái
+  `utm_source` từ bảng raw projection cho cùng quyền `pipeline.monitor`; chỉ trả metadata allowlist,
+  không trả giá trị hoặc hash UTM. `NOT_OBSERVED` không chứng minh event không có UTM; 503 khi
+  bảng/DB chưa sẵn sàng. Không có Traffic channel/attribution metric trong API này.
 - `/api/users`: quản lý tài khoản hiện có; tạo mới yêu cầu mật khẩu >=12 ký tự. PATCH chặn tự thay
   role/trạng thái, DELETE chặn tự khóa. Backend trả UUID tường minh, tương thích schema demo.
 - Login/me trả permissions. Các nhóm admin và analytics trong app kiểm tra role/is_active trong DB

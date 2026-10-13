@@ -1,0 +1,81 @@
+# Optional application layer for the isolated Swarm candidate. The deployment
+# launcher selects exactly one Traefik edge overlay (local trusted TLS or ACME).
+# API and Web stay private. This does not enable Source Event Feed or cutover.
+version: '3.8'
+
+services:
+  dashboard-api:
+    image: ${SWARM_API_IMAGE:?Pin the API image digest}
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/apps/dashboard-api/src/index.js]
+    environment:
+      SWARM_WAIT_ROLE: api
+      SWARM_EXPECTED_SCHEMA_DIGEST: ${SWARM_EXPECTED_SCHEMA_DIGEST:?Set reviewed schema digest}
+      PORT: '32000'
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: funnelmetry_handoff
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      JWT_EXPIRES: 8h
+      DASHBOARD_ADMIN_EMAIL: ${SWARM_ADMIN_EMAIL:?Set an admin email}
+      DASHBOARD_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      CORS_ORIGIN_DASHBOARD: https://${SWARM_PUBLIC_DOMAIN:?Set the reviewed HTTPS domain}
+      DASHBOARD_ENABLE_LEGACY: 'false'
+      DASHBOARD_ENABLE_AI: 'false'
+      DASHBOARD_ENABLE_QWEN: 'false'
+      DASHBOARD_ENABLE_POLARS: 'false'
+      DASHBOARD_ENABLE_ORDER_SUMMARY_STAGING: 'true'
+      DASHBOARD_ENABLE_ORDER_CHAT_STAGING: 'true'
+      DASHBOARD_ENABLE_ORDER_RANKING_STAGING: 'true'
+      DASHBOARD_ENABLE_PRODUCT_RANKING_STAGING: 'true'
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    secrets:
+      - db_password
+      - jwt_secret
+      - admin_password
+    networks:
+      - data
+    read_only: true
+    stop_grace_period: 45s
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:32000/health").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    deploy:
+      replicas: 1
+      restart_policy: {condition: on-failure, delay: 5s}
+      update_config: {parallelism: 1, order: start-first, failure_action: rollback}
+      resources:
+        reservations: {cpus: '0.25', memory: 256M}
+        limits: {cpus: '1.00', memory: 1G}
+
+  dashboard-web:
+    image: ${SWARM_WEB_IMAGE:?Pin the Web image digest}
+    networks:
+      - data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8080/healthz']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      restart_policy: {condition: on-failure, delay: 5s}
+      update_config: {parallelism: 1, order: start-first, failure_action: rollback}
+      resources:
+        reservations: {cpus: '0.10', memory: 64M}
+        limits: {cpus: '0.50', memory: 256M}
+
+secrets:
+  jwt_secret:
+    external: true
+    name: ${SWARM_STACK_NAME:?Set isolated stack name}_jwt_secret_v1
+  admin_password:
+    external: true
+    name: ${SWARM_STACK_NAME:?Set isolated stack name}_admin_password_v1

@@ -1,4 +1,4 @@
-# Ingestion workers: normalize, telemetry, ledger
+# Ingestion workers: normalize, telemetry, traffic, ledger
 
 > Các worker này cùng xử lý đoạn Raw Kafka → canonical outcome/ledger. Mỗi phần vẫn có contract và giới hạn riêng; không suy từ một worker READY rằng toàn chuỗi đã hoàn tất.
 
@@ -6,6 +6,7 @@
 
 - [Canonical normalizer](#canonical-normalizer)
 - [Ingress telemetry writer](#ingress-telemetry-writer)
+- [Traffic source writer](#traffic-source-writer)
 - [Canonical ledger writer](#canonical-ledger-writer)
 
 
@@ -117,6 +118,14 @@ npm start
 
 
 ---
+
+<a id="traffic-source-writer"></a>
+
+## Traffic source writer
+
+`workers/traffic-source-writer` đọc cùng topic Raw Kafka bằng consumer group riêng; không thay thế canonical normalizer. Với record `browser_sdk` hợp lệ, worker ghi duy nhất một hàng cho `(source_id,event_id)` vào `traffic_source_raw_events_v1`, gồm trạng thái `utm_source` (`PRESENT`, `ABSENT`, `INVALID`), hash SHA-256 khi là chuỗi, dấu synthetic và hash raw body. Không ghi giá trị UTM rõ vào bảng mới. PostgreSQL commit xong mới commit Kafka offset; replay cùng nội dung là idempotent, cùng ID nhưng khác raw body dừng để kiểm tra. Bản ghi lỗi dừng worker độc lập, không tự quarantine thay normalizer.
+
+Schema được job `traffic-schema` cài sau bootstrap. Group mới đọc từ đầu nhưng chỉ trong retention hiện có của Raw Kafka; bảng không chứng minh coverage lịch sử, không phải kênh Traffic đã phân loại hay Campaign attribution. Hash của nguồn phổ biến có thể bị đoán, không được coi là ẩn danh. Chạy unit test bằng `npm test --prefix workers/traffic-source-writer`; cần kiểm chứng DB/Kafka thực trên deployment trước khi công bố số liệu.
 
 <a id="canonical-ledger-writer"></a>
 

@@ -1,0 +1,112 @@
+# Internal processing only. Source Connector is intentionally absent until
+# DEC-125 feed lineage, retention and initial cursor are independently reviewed.
+version: '3.8'
+
+x-worker-env: &worker-env
+  SWARM_WAIT_ROLE: worker
+  SWARM_EXPECTED_SCHEMA_DIGEST: ${SWARM_EXPECTED_SCHEMA_DIGEST:?Set reviewed schema digest}
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: '5432'
+  POSTGRES_DB: funnelmetry_handoff
+  POSTGRES_USER: funnelmetry
+  POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  KAFKA_TOPIC_RAW: funnelmetry.raw.v1
+  KAFKA_TOPIC_INGRESS_RECEIPTS: funnelmetry.ingress.receipts.v1
+  KAFKA_TOPIC_CANONICAL: funnelmetry.canonical.v1
+  KAFKA_TOPIC_CANONICALIZATION_OUTCOMES: funnelmetry.canonicalization.outcomes.v1
+  KAFKA_TOPIC_QUARANTINE: funnelmetry.quarantine.v1
+  KAFKA_TOPIC_CANONICAL_PERSISTED: funnelmetry.canonical.persisted.v1
+  KAFKA_TOPIC_JOURNEY_RESOLVED: funnelmetry.journey.resolved.v1
+  KAFKA_TOPIC_FUNNEL_UPDATED: funnelmetry.funnel.updated.v1
+  KAFKA_TOPIC_KPI_UPDATED: funnelmetry.kpi.updated.v1
+
+x-worker: &worker
+  image: ${SWARM_WORKERS_IMAGE:?Pin the Workers image digest}
+  secrets: [db_password]
+  networks: [data]
+  read_only: true
+  stop_grace_period: 45s
+  deploy:
+    replicas: 1
+    restart_policy: {condition: on-failure, delay: 5s}
+    update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
+    resources:
+      reservations: {cpus: '0.10', memory: 128M}
+      limits: {cpus: '1.00', memory: 512M}
+
+services:
+  profile-publisher:
+    <<: *worker
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/funnel-processor/src/publish-reference-profiles.js]
+    environment:
+      <<: *worker-env
+      FUNNEL_PROCESSOR_INSTANCE_ID: swarm-profile-publisher
+      FUNNEL_PROFILE_SOURCE_ID: medusa-reference
+    deploy:
+      replicas: 1
+      restart_policy: {condition: none}
+      resources:
+        reservations: {cpus: '0.10', memory: 128M}
+        limits: {cpus: '0.50', memory: 256M}
+
+  canonical-normalizer:
+    <<: *worker
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/canonical-normalizer/src/main.js]
+    environment:
+      <<: *worker-env
+      CANONICAL_NORMALIZER_INSTANCE_ID: swarm-canonical-normalizer
+      CANONICAL_NORMALIZER_INSTANCE_ID_MODE: explicit
+      CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH: /workspace/integrations/medusa/canonical-mappings.v1.json
+
+  canonical-ledger-writer:
+    <<: *worker
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/canonical-ledger-writer/src/main.js]
+    environment:
+      <<: *worker-env
+      CANONICAL_LEDGER_INSTANCE_ID: swarm-canonical-ledger-writer
+
+  ingress-telemetry-writer:
+    <<: *worker
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/ingress-telemetry-writer/src/main.js]
+    environment:
+      <<: *worker-env
+      INGRESS_TELEMETRY_INSTANCE_ID: swarm-ingress-telemetry-writer
+
+  traffic-source-writer:
+    <<: *worker
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/traffic-source-writer/src/main.js]
+    environment:
+      <<: *worker-env
+      TRAFFIC_SOURCE_INSTANCE_ID: swarm-traffic-source-writer
+
+  journey-processor:
+    <<: *worker
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/journey-processor/src/main.js]
+    environment:
+      <<: *worker-env
+      JOURNEY_PROCESSOR_INSTANCE_ID: swarm-journey-processor
+
+  funnel-processor:
+    <<: *worker
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/funnel-processor/src/main.js]
+    environment:
+      <<: *worker-env
+      FUNNEL_PROCESSOR_INSTANCE_ID: swarm-funnel-processor
+
+  kpi-projector:
+    <<: *worker
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/kpi-projector/src/main.js]
+    environment:
+      <<: *worker-env
+      KPI_PROJECTOR_INSTANCE_ID: swarm-kpi-projector
+
+  funnel-maturity-scheduler:
+    <<: *worker
+    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/funnel-maturity-scheduler/src/main.js]
+    environment:
+      <<: *worker-env
+      MATURITY_SCHEDULER_INSTANCE_ID: swarm-funnel-maturity-scheduler
+      MATURITY_SCHEDULER_POLL_INTERVAL_MS: '5000'
+      MATURITY_SCHEDULER_BATCH_SIZE: '100'
+      MATURITY_SCHEDULER_FINALIZATION_ENABLED: 'false'

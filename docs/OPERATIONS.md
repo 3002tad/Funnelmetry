@@ -1,8 +1,10 @@
-# Vận hành và triển khai Pipeline
+# Vận hành Compose cũ — chỉ cho rollback
 
-> **CURRENT RUNBOOK — 2026-10-12.** Áp dụng cho bộ Compose hiện tại của `Streaming_Pipeline`; không phải chứng nhận production. Chạy lệnh từ root repo. Quy tắc chuẩn về demo song song, backup/restore và cutover nằm ở [Backbone DEC-125](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md); khi mâu thuẫn, Backbone có ưu tiên cao hơn.
+> **Không dùng cho triển khai hoặc demo mới.** Docker Swarm là đường chạy duy nhất đang được xây dựng theo DEC-126. Xem [Swarm migration](SWARM_MIGRATION.md). `runtime/deploy.mjs` từ chối chạy mặc định; chỉ người vận hành thực hiện rollback có kế hoạch DEC-125 mới có thể mở khóa bằng `FUNNELMETRY_LEGACY_COMPOSE_ACK=ROLLBACK_ONLY`. Stack Swarm hiện chưa có đầy đủ API/UI/worker, vì vậy không coi phase 1 là hệ thống demo hoàn chỉnh.
 
-## Một bộ cấu hình
+> **LEGACY COMPOSE RUNBOOK — migration in progress (2026-10-13).** Hướng dẫn này chỉ áp dụng cho demo Compose đã có và đường rollback; không còn là baseline triển khai mới theo Backbone DEC-126–130. Xem [kế hoạch chuyển Swarm](SWARM_MIGRATION.md) trước khi tạo môi trường mới. Không chạy Compose và Swarm cùng ghi state authoritative. Quy tắc [DEC-125](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md) vẫn áp dụng.
+
+## Một bộ cấu hình Compose cũ
 
 | Thành phần | Vai trò |
 |---|---|
@@ -83,7 +85,7 @@ node runtime/deploy.mjs status
 | Profile `live` | `source-connector` ở `Up (healthy)` |
 | Profile `catalog` | `catalog-sync` ở `Up`; nếu healthcheck được khai báo thì phải `healthy` |
 | Profile `monitoring` | `prometheus` và `grafana` ở `Up (healthy)` |
-| Job one-shot | `bootstrap`, `kafka-topics`, `analytical-releases`, `profile-publisher`, `monitoring-schema` có thể ở `Exited (0)`; đây là thành công, không phải service bị chết |
+| Job one-shot | `bootstrap`, `kafka-topics`, `traffic-schema`, `traffic-registry-schema`, `analytical-releases`, `profile-publisher`, `monitoring-schema` có thể ở `Exited (0)`; đây là thành công, không phải service bị chết |
 
 `Restarting`, `unhealthy`, exit khác `0`, hoặc launcher dừng trước dòng `PASS` đều phải được điều tra. Không chạy `down -v`, reset cursor hoặc xóa monitoring artifacts để thử lại.
 
@@ -194,7 +196,7 @@ docker compose --env-file runtime/deploy.env -f infra/compose.yaml --profile liv
 - Qwen: không có Compose profile; `HANDOFF_ENABLE_QWEN=true` cùng Model Studio key trong env sau khi duyệt chi phí và dữ liệu gửi ra provider. Flag không tạo ra tool chưa được implement.
 - `monitoring`: cần chạy job `monitoring-schema` bổ sung, provision token/password/dashboard vào `runtime/monitoring/` qua `node runtime/prepare-monitoring.mjs` rồi mới bật Prometheus/Grafana; launcher ở trên thực hiện đúng thứ tự đó. Bộ secret demo cũ đã bị xóa; **profile chưa sẵn sàng chỉ bằng cách thêm cờ**.
 
-Sau đổi image/env/code, chạy lại `up -d --wait` cùng project/profile để Compose recreate; `restart` không nạp env/image mới. Nếu API bị recreate và Web 502, kiểm tra proxy/upstream và recreate Web; vấn đề DNS proxy chưa được sửa tận gốc.
+Sau đổi image/env/code, chạy lại `up -d --wait` cùng project/profile để Compose recreate; `restart` không nạp env/image mới. Web image mới dùng Docker DNS để resolve lại `dashboard-api` sau khi container API đổi IP; vẫn có thể có 502 thoáng qua trong lúc API chưa sẵn sàng hoặc DNS cache chưa hết hạn. Nếu 502 kéo dài, kiểm tra API readiness, DNS/network và log proxy; không coi `/healthz` của Web là bằng chứng API khỏe. Image Web cũ vẫn giữ cấu hình proxy cũ và cần build/recreate để nhận bản sửa.
 
 Ưu tiên quy trình launcher ở mục **Dừng hệ thống an toàn**. Nếu buộc phải dùng Compose thủ công, lệnh `stop` phải lặp lại **đúng toàn bộ profile đã dùng khi start**. Ví dụ deployment đã chạy cả ba profile:
 
@@ -204,15 +206,22 @@ docker compose --env-file runtime/deploy.env -f infra/compose.yaml --profile liv
 
 Không dùng `down -v`, `prune`, reset cursor, copy Kafka volume hoặc đổi initial sequence để “sửa” deployment đã có dữ liệu. `config --quiet`, HTTP 200 và container healthy không chứng minh event đã canonical đầy đủ hay chat đã dùng Qwen; xem [ma trận kiểm thử](TESTING.md). Fresh demo khác restore/migration authoritative state theo DEC-125. Chỉ một integration writer được phép authoritative.
 
+## Raw Kafka nhiều partition (chỉ project mới)
+
+Mặc định `HANDOFF_RAW_PARTITIONS=1` và `HANDOFF_NORMALIZER_ID_MODE=explicit` giữ nguyên hành vi demo hiện tại. Nếu cần kiểm tra nhiều replica Normalizer trong **project mới, dữ liệu tách biệt**, đặt `HANDOFF_RAW_PARTITIONS=2` và `HANDOFF_NORMALIZER_ID_MODE=container` trong `runtime/deploy.env` trước lần `start` đầu tiên. Launcher từ chối cấu hình nhiều partition nhưng dùng transaction ID cố định; job tạo topic kiểm tra partition count và từ chối sai lệch, không tự repartition topic cũ.
+
+Hai biến này chỉ chuẩn bị điều kiện topology, **không bật autoscaler**. Trước khi scale thực tế vẫn cần chứng minh host capacity, replay/dedupe, drain khi giảm replica và phối hợp Watchdog; xem [Resilience](tools/RESILIENCE.md). Không thay đổi partition của project đang có dữ liệu chỉ bằng cách sửa env.
+
 ## Giới hạn tài nguyên worker
 
-[`infra/compose.yaml`](../infra/compose.yaml) đặt giới hạn **mỗi replica** cho tám service dưới đây; mặc định mỗi service 1 CPU, 512 MiB RAM và 128 PID. Đây là mức cấu hình thử nghiệm, không phải SLA, reservation hay số replica an toàn cho host. Chỉnh trong `runtime/deploy.env` và recreate đúng service; không cần build lại image khi chỉ thay quota.
+[`infra/compose.yaml`](../infra/compose.yaml) đặt giới hạn **mỗi replica** cho chín service dưới đây; mặc định mỗi service 1 CPU, 512 MiB RAM và 128 PID. Đây là mức cấu hình thử nghiệm, không phải SLA, reservation hay số replica an toàn cho host. Chỉnh trong `runtime/deploy.env` và recreate đúng service; không cần build lại image khi chỉ thay quota.
 
 | Service | Prefix biến `_CPUS`, `_MEMORY`, `_PIDS` |
 |---|---|
 | `canonical-normalizer` | `HANDOFF_NORMALIZER` |
 | `canonical-ledger-writer` | `HANDOFF_LEDGER` |
 | `ingress-telemetry-writer` | `HANDOFF_TELEMETRY` |
+| `traffic-source-writer` | `HANDOFF_TRAFFIC` |
 | `journey-processor` | `HANDOFF_JOURNEY` |
 | `funnel-processor` | `HANDOFF_FUNNEL` |
 | `funnel-maturity-scheduler` | `HANDOFF_MATURITY` |
@@ -222,6 +231,12 @@ Không dùng `down -v`, `prune`, reset cursor, copy Kafka volume hoặc đổi i
 Ví dụ: `HANDOFF_JOURNEY_MEMORY=768m`. RAM limit không phải riêng JS heap, CPU quota không phải CPU pinning, PID cap tính cả threads. Theo dõi OOM/restart/lag trước khi giảm quota; các giá trị này không tự bật autoscaling. Watchdog host-side và autoscaler actuator cũng **không tự chạy trong Compose**. Các con số kiểm tra trên `funnelmetry-demo-new` ngày 11/10 chỉ là evidence của demo cũ, không chứng minh limits đã áp dụng trên project mới.
 
 Evidence lịch sử 11/10: trên project demo cũ, bảy container worker/job đã được recreate riêng; Docker HostConfig báo `NanoCpus=1000000000`, `Memory=536870912`, `PidsLimit=128`, sáu worker `/readyz` ready và publisher exit 0 tại thời điểm kiểm tra. Không xóa volume/reset cursor; đây không phải benchmark tải hoặc xác nhận cấu hình của deployment hiện hành.
+
+## Traffic input lineage bổ sung
+
+Compose core chạy `traffic-schema` sau bootstrap, rồi `traffic-source-writer` dùng consumer group độc lập để đọc Raw Kafka. Bảng `traffic_source_raw_events_v1` chỉ ghi trạng thái và SHA-256 của `source_metadata.utm_source` theo `(source_id,event_id)`; không có giá trị UTM rõ trong bảng mới. Kiểm tra bằng `node --test runtime/unified-compose.test.mjs` và `npm test --prefix workers/traffic-source-writer` trước khi build image mới. Triển khai trên project đang chạy cần xác nhận job schema hoàn tất, worker `/readyz` và offset group mới; HTTP ready không chứng minh đã xử lý đủ event. Kafka retention giới hạn phạm vi replay: bản ghi trước retention floor không tự xuất hiện, nên không được coi đây là backfill lịch sử hoàn chỉnh. SHA-256 của một nguồn phổ biến có thể bị đoán, không phải ẩn danh; chỉ cấp quyền DB cần thiết và không đưa bảng này lên public API.
+
+DA có `/traffic` để xem số event browser có/không có `utm_source` trong cửa sổ `received_at` 7/30/90 ngày. Analyst có quyền `traffic.mapping.write` để kiểm tra chính xác raw UTM rồi tạo/đổi nhãn trong Traffic Source Registry; thay đổi phải khớp phiên bản và ghi audit trong cùng transaction. Bảng registry chỉ lưu SHA-256, không trả raw/hash qua API, nhưng hash vẫn có thể bị đoán. Trang cũng hiển thị số **event** theo nhãn hiện tại; nhãn mới/đổi nhãn có thể làm phân nhóm lịch sử thay đổi khi đọc lại, không sửa bản ghi event. Đây không phải số khách, campaign attribution, order conversion hoặc doanh thu theo nguồn. Trên deployment cũ phải build lại API/Web và chạy job `traffic-schema` cùng `traffic-registry-schema` trước khi kiểm tra trang; xác nhận `traffic-source-writer` bắt kịp Raw Kafka. `0` không chứng minh Source không gửi event.
 
 ## Giới hạn và tài liệu liên quan
 

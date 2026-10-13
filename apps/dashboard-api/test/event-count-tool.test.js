@@ -60,4 +60,15 @@ test('planner canonicalizes only registered semantic tool aliases', async () => 
   )
   const disabledProvider = { complete: async () => ({ text: '{"tool":"metric_summary","last_hours":null}' }) }
   await assert.rejects(selectChatTool(disabledProvider, 'analysis', scope), /invalid_tool_plan/)
+  const mismatchedContract = { complete: async messages => {
+    const advertisedIds = JSON.parse(messages.at(-1).content).tools.map(tool => tool.id)
+    assert.ok(!advertisedIds.includes('wrong-order-tool'))
+    assert.ok(!advertisedIds.includes('wrong-product-tool'))
+    assert.doesNotMatch(messages[0].content, /tool\.order_ranking/)
+    return { text: '{"tool":"order_ranking","last_hours":null}' }
+  } }
+  await assert.rejects(selectChatTool(mismatchedContract, 'analysis', scope, undefined,
+    orderTool, { id: 'wrong-order-tool' }, { id: 'wrong-product-tool' }), /invalid_tool_plan/)
+  await assert.rejects(selectChatTool(provider('toString'), 'analysis', scope, undefined,
+    orderTool, rankingTool, productTool), /invalid_tool_plan/)
 })

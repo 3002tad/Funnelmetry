@@ -1,5 +1,6 @@
-# Canonical cross-platform Pipeline stack. Use `node runtime/deploy.mjs start`
-# for a fresh isolated deployment; the same Compose file also supports manual operation.
+# LEGACY COMPOSE RUNTIME during DEC-126 Swarm migration. Do not use for a new
+# authoritative deployment; retained for isolated demo/rollback until Swarm cutover
+# acceptance. See docs/SWARM_MIGRATION.md. Existing project state is not migrated here.
 name: ${HANDOFF_PROJECT:?Set a unique HANDOFF_PROJECT}
 
 x-database: &database
@@ -84,10 +85,15 @@ services:
     image: apache/kafka:3.9.1
     depends_on:
       kafka: {condition: service_healthy}
+    environment:
+      HANDOFF_RAW_PARTITIONS: ${HANDOFF_RAW_PARTITIONS:-1}
     entrypoint: [/bin/bash, -ec]
     command:
       - |
-        for topic in raw canonical quarantine canonical.persisted journey.resolved funnel.updated kpi.updated; do
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --partitions "$$HANDOFF_RAW_PARTITIONS" --replication-factor 1 --topic funnelmetry.raw.v1 --config cleanup.policy=delete
+        actual=$$(/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --describe --topic funnelmetry.raw.v1 | sed -n 's/.*PartitionCount:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)
+        test "$$actual" = "$$HANDOFF_RAW_PARTITIONS" || { echo 'Raw topic partition count differs from configured value; no automatic repartition' >&2; exit 1; }
+        for topic in canonical quarantine canonical.persisted journey.resolved funnel.updated kpi.updated; do
           /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --partitions 1 --replication-factor 1 --topic funnelmetry.$$topic.v1 --config cleanup.policy=delete
         done
         for topic in ingress.receipts canonicalization.outcomes; do
@@ -104,6 +110,33 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+  traffic-schema:
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
+    volumes:
+      - ./postgres/traffic/001_raw_utm_source.sql:/migration.sql:ro
+    entrypoint: [psql, -h, postgres, -U, funnelmetry, -d, funnelmetry_handoff, -v, ON_ERROR_STOP=1, -f, /migration.sql]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+      postgres: {condition: service_healthy}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: 'no'
+  traffic-registry-schema:
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: ${HANDOFF_DB_PASSWORD:?Set HANDOFF_DB_PASSWORD}
+    volumes:
+      - ./postgres/traffic/002_source_registry.sql:/migration.sql:ro
+    entrypoint: [psql, -h, postgres, -U, funnelmetry, -d, funnelmetry_handoff, -v, ON_ERROR_STOP=1, -f, /migration.sql]
+    depends_on:
+      traffic-schema: {condition: service_completed_successfully}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: 'no'
   analytical-releases:
     <<: *api-image
     environment:
@@ -163,6 +196,7 @@ services:
         {"group_id":"funnelmetry-canonical-ledger-v1","topic":"funnelmetry.canonical.v1"},
         {"group_id":"funnelmetry-ingress-telemetry-v1","topic":"funnelmetry.ingress.receipts.v1"},
         {"group_id":"funnelmetry-ingress-telemetry-v1","topic":"funnelmetry.canonicalization.outcomes.v1"},
+        {"group_id":"funnelmetry-traffic-source-raw-v1","topic":"funnelmetry.raw.v1"},
         {"group_id":"funnelmetry-journey-processor-v1","topic":"funnelmetry.canonical.persisted.v1"},
         {"group_id":"funnelmetry-funnel-processor-v1","topic":"funnelmetry.journey.resolved.v1"},
         {"group_id":"funnelmetry-kpi-projector-v1","topic":"funnelmetry.funnel.updated.v1"}]
@@ -171,6 +205,7 @@ services:
       MONITORING_SCRAPE_STALE_SECONDS: ${MONITORING_SCRAPE_STALE_SECONDS:-120}
     depends_on:
       analytical-releases: {condition: service_completed_successfully}
+      traffic-registry-schema: {condition: service_completed_successfully}
       kafka-topics: {condition: service_completed_successfully}
     healthcheck:
       test: [CMD, node, -e, 'fetch("http://127.0.0.1:32000/health").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
@@ -206,6 +241,7 @@ services:
       <<: *worker-env
       WORKER_HEALTH_PORT: '32110'
       CANONICAL_NORMALIZER_INSTANCE_ID: handoff-canonical-normalizer
+      CANONICAL_NORMALIZER_INSTANCE_ID_MODE: ${HANDOFF_NORMALIZER_ID_MODE:-explicit}
       CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH: /workspace/integrations/medusa/canonical-mappings.v1.json
   canonical-ledger-writer:
     <<: *worker
@@ -227,6 +263,20 @@ services:
       <<: *worker-env
       WORKER_HEALTH_PORT: '32110'
       INGRESS_TELEMETRY_INSTANCE_ID: handoff-ingress-telemetry-writer
+  traffic-source-writer:
+    <<: *worker
+    cpus: '${HANDOFF_TRAFFIC_CPUS:-1.0}'
+    mem_limit: ${HANDOFF_TRAFFIC_MEMORY:-512m}
+    pids_limit: ${HANDOFF_TRAFFIC_PIDS:-128}
+    working_dir: /workspace/workers/traffic-source-writer
+    environment:
+      <<: *worker-env
+      WORKER_HEALTH_PORT: '32110'
+      TRAFFIC_SOURCE_INSTANCE_ID: handoff-traffic-source-writer
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+      kafka-topics: {condition: service_completed_successfully}
+      traffic-schema: {condition: service_completed_successfully}
   journey-processor:
     <<: *worker
     cpus: '${HANDOFF_JOURNEY_CPUS:-1.0}'

@@ -1,0 +1,181 @@
+// Cross-platform, single-env launcher for the isolated DEC-126 Swarm candidate.
+// Does not touch Compose state or create any secret unless explicitly requested.
+import { readFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { parseEnv } from 'node:util';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { validateSwarmApp, validateSwarmCandidate } from './swarm-preflight.mjs';
+import { schemaFiles, schemaDigest } from '../infra/bootstrap/bootstrap-swarm.mjs';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const stackFile = join(root, 'infra', 'swarm-stack.yml');
+const appFile = join(root, 'infra', 'swarm-app.yml');
+const workersFile = join(root, 'infra', 'swarm-workers.yml');
+const edgeFiles = Object.freeze({
+  local: join(root, 'infra', 'swarm-edge-local.yml'),
+  acme: join(root, 'infra', 'swarm-edge-acme.yml'),
+});
+const renderKeys = ['SWARM_STACK_NAME', 'SWARM_POSTGRES_IMAGE', 'SWARM_KAFKA_IMAGE',
+  'SWARM_API_IMAGE', 'SWARM_WEB_IMAGE', 'SWARM_WORKERS_IMAGE', 'SWARM_TRAEFIK_IMAGE',
+  'SWARM_PUBLIC_DOMAIN', 'SWARM_ADMIN_EMAIL', 'SWARM_ACME_EMAIL',
+  'HANDOFF_RAW_PARTITIONS', 'SWARM_EXPECTED_SCHEMA_DIGEST'];
+
+export async function localSchemaDigest() {
+  const files = await schemaFiles(root);
+  const sql = await Promise.all(files.map(file => readFile(file, 'utf8')));
+  return schemaDigest(files, sql, root);
+}
+
+export function dockerEnvironment(systemEnv, deployEnv) {
+  const result = Object.fromEntries(Object.entries(systemEnv).filter(([key]) =>
+    !/(?:PASSWORD|TOKEN|SECRET|API_KEY|AUTH|COOKIE|PRIVATE|CREDENTIAL)/i.test(key)));
+  for (const key of renderKeys) if (deployEnv[key]) result[key] = deployEnv[key];
+  return result;
+}
+
+export function validateDbSecret(env) {
+  const value = env.SWARM_DB_PASSWORD || '';
+  if (value.length < 24 || /[\r\n]/.test(value)) throw Error('Set a new SWARM_DB_PASSWORD of at least 24 single-line characters');
+  if (value === env.HANDOFF_DB_PASSWORD) throw Error('Swarm DB password must be independent of the Compose DB password');
+  return value;
+}
+
+export function validateAppSecrets(env) {
+  const jwt = env.SWARM_JWT_SECRET || '';
+  const admin = env.SWARM_ADMIN_PASSWORD || '';
+  if (jwt.length < 32 || /[\r\n]/.test(jwt)) throw Error('Set a new single-line SWARM_JWT_SECRET of at least 32 characters');
+  if (admin.length < 16 || /[\r\n]/.test(admin)) throw Error('Set a new single-line SWARM_ADMIN_PASSWORD of at least 16 characters');
+  if (jwt === env.HANDOFF_JWT_SECRET || admin === env.HANDOFF_ADMIN_PASSWORD) {
+    throw Error('Swarm application secrets must be independent of Compose secrets');
+  }
+  return { jwt, admin };
+}
+
+export function validateTlsFilePath(file) {
+  if (!file || !isAbsolute(file)) throw Error('TLS certificate/key files must use absolute paths outside the repository');
+  const rel = relative(root, resolve(file));
+  if (!rel.startsWith('..') && !isAbsolute(rel)) throw Error('TLS certificate/key files must stay outside the repository');
+  return file;
+}
+
+async function docker(args, env, input) {
+  return await new Promise((resolve, reject) => {
+    const child = spawn('docker', args, { cwd: root, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    let output = '';
+    let error = '';
+    child.stdout.on('data', chunk => { output += chunk; });
+    child.stderr.on('data', chunk => { error += chunk; });
+    child.once('error', reject);
+    child.once('close', code => code === 0 ? resolve(output.trim()) : reject(Error(`Docker ${args.slice(0, 2).join(' ')} failed: ${error.trim().slice(0, 500)}`)));
+    child.stdin.end(input);
+  });
+}
+
+async function managerReady(env) {
+  const state = await docker(['info', '--format', '{{.Swarm.LocalNodeState}}|{{.Swarm.ControlAvailable}}'], env);
+  if (state !== 'active|true') throw Error('This host must be an active Swarm manager');
+  const label = await docker(['node', 'inspect', 'self', '--format', '{{index .Spec.Labels "funnelmetry.stateful"}}'], env);
+  if (label !== 'true') throw Error('Label this dedicated stateful node funnelmetry.stateful=true after reviewing local persistent storage');
+}
+
+async function secretExists(name, env) {
+  try { await docker(['secret', 'inspect', name], env); return true; }
+  catch (error) {
+    if (/No such secret|not found/i.test(error.message)) return false;
+    throw error;
+  }
+}
+
+async function serviceExists(name, env) {
+  try { await docker(['service', 'inspect', name], env); return true; }
+  catch (error) {
+    if (/No such service|not found/i.test(error.message)) return false;
+    throw error;
+  }
+}
+
+export async function run(command) {
+  const parsed = parseEnv(await readFile(join(root, 'runtime', 'deploy.env'), 'utf8'));
+  const plan = validateSwarmCandidate(parsed);
+  parsed.SWARM_EXPECTED_SCHEMA_DIGEST = await localSchemaDigest();
+  const env = dockerEnvironment(process.env, parsed);
+  const withApp = ['check-app', 'create-app-secrets', 'create-tls-secrets', 'deploy-app'].includes(command);
+  const appPlan = withApp ? validateSwarmApp(parsed) : null;
+  const stackFiles = withApp ? [stackFile, workersFile, appFile, edgeFiles[appPlan.tlsMode]] : [stackFile];
+  const files = stackFiles.flatMap(file => ['-c', file]);
+  if (command === 'check' || command === 'check-app') {
+    await docker(['stack', 'config', ...files], env);
+    console.log(`PASS: ${plan.stackName} ${withApp ? 'HTTPS app' : 'phase-1 data'} stack renders; runtime, DNS and image pulls unverified`);
+    return;
+  }
+  if (!['create-db-secret', 'create-app-secrets', 'create-tls-secrets', 'deploy', 'deploy-app'].includes(command)) {
+    throw Error('Usage: node runtime/swarm.mjs check|check-app|create-db-secret|create-app-secrets|create-tls-secrets|deploy|deploy-app');
+  }
+  await managerReady(env);
+  const secretName = `${plan.stackName}_db_password_v1`;
+  if (command === 'create-db-secret') {
+    const password = validateDbSecret(parsed);
+    if (await secretExists(secretName, env)) throw Error('Swarm DB secret already exists; no overwrite performed');
+    await docker(['secret', 'create', secretName, '-'], env, password);
+    console.log(`Created isolated Swarm DB secret ${secretName}`);
+    return;
+  }
+  if (command === 'create-app-secrets') {
+    const values = validateAppSecrets(parsed);
+    const specs = [['jwt_secret', values.jwt], ['admin_password', values.admin]];
+    for (const [name] of specs) {
+      if (await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error('Swarm application secret already exists; no overwrite performed');
+    }
+    for (const [name, value] of specs) await docker(['secret', 'create', `${plan.stackName}_${name}_v1`, '-'], env, value);
+    console.log('Created isolated Swarm application secrets');
+    return;
+  }
+  if (command === 'create-tls-secrets') {
+    if (appPlan.tlsMode !== 'local') throw Error('create-tls-secrets is only for local trusted TLS');
+    const specs = [['tls_cert', 'SWARM_LOCAL_TLS_CERT_FILE'], ['tls_key', 'SWARM_LOCAL_TLS_KEY_FILE']];
+    for (const [name] of specs) {
+      if (await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error('Swarm TLS secret already exists; no overwrite performed');
+    }
+    const values = [];
+    for (const [name, key] of specs) {
+      let value;
+      try { value = await readFile(validateTlsFilePath(parsed[key])); }
+      catch { throw Error(`${key} is unavailable or is inside the repository`); }
+      const pem = value.toString('utf8');
+      if (!(name === 'tls_cert' ? pem.includes('BEGIN CERTIFICATE')
+        : /BEGIN (?:RSA |EC )?PRIVATE KEY/.test(pem))) {
+        throw Error(`${key} is not a PEM certificate/key`);
+      }
+      values.push([name, value]);
+    }
+    for (const [name, value] of values) await docker(['secret', 'create', `${plan.stackName}_${name}_v1`, '-'], env, value);
+    console.log('Created isolated local TLS certificate/key Swarm secrets');
+    return;
+  }
+  if (!await secretExists(secretName, env)) throw Error('Swarm DB secret is missing');
+  if (command === 'deploy' && await serviceExists(`${plan.stackName}_edge`, env)) {
+    throw Error('HTTPS app already exists; use deploy-app so a data-only deploy cannot remove it');
+  }
+  if (withApp) {
+    for (const name of ['jwt_secret', 'admin_password']) {
+      if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
+    }
+    if (appPlan.tlsMode === 'local') {
+      for (const name of ['tls_cert', 'tls_key']) {
+        if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
+      }
+    } else if (parsed.SWARM_ACME_READY_ACK !== 'DNS_AND_PORTS_CONFIRMED') {
+      throw Error('ACME deployment requires reviewed public DNS and TCP 80/443 reachability');
+    }
+  }
+  await docker(['stack', 'config', ...files], env);
+  const composeArgs = stackFiles.flatMap(file => ['--compose-file', file]);
+  await docker(['stack', 'deploy', ...composeArgs, plan.stackName], env);
+  console.log(`Submitted ${plan.stackName} ${withApp ? 'HTTPS app' : 'phase-1 data'} stack; verify tasks, TLS and readiness before live feed.`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  try { await run(process.argv[2]); }
+  catch (error) { console.error(`Swarm candidate stopped: ${error.message}`); process.exitCode = 1; }
+}

@@ -10,9 +10,9 @@ test('fixed worker probe allowlists identity and redacts fields, caches/coalesce
     const worker=new URL(url).hostname; assert.ok(WORKERS.includes(worker));assert.equal(new URL(url).port,'32110')
     return response(worker,'READY',{error:'secret'})
   }})
-  const [a,b]=await Promise.all([probe(),probe()]);assert.deepEqual(a,b);assert.equal(calls,6)
+  const [a,b]=await Promise.all([probe(),probe()]);assert.deepEqual(a,b);assert.equal(calls,WORKERS.length)
   assert.ok(a.workers.every(row=>row.ready===true));assert.ok(!JSON.stringify(a).includes('secret'))
-  await probe();assert.equal(calls,6)
+  await probe();assert.equal(calls,WORKERS.length)
 })
 test('invalid, unavailable, oversized and inconsistent responses are unknown, not stopped',async()=>{
   const cases=[async()=>{throw Error('secret')},async()=>new Response('secret',{status:500}),

@@ -23,7 +23,7 @@ export const navigation: NavigationGroup[] = [
   { label: 'EXPLORE', items: [
     analytics('/funnels', 'Funnels'), analytics('/journeys', 'Journeys'),
     analytics('/products', 'Products'),
-    analytics('/traffic', 'Traffic', 'Chưa kết nối analytical asset và metric nguồn truy cập.'),
+    { path: '/traffic', label: 'Traffic · UTM input', permission: 'analytics.workspace.use' },
     analytics('/campaigns', 'Campaigns', 'Chưa kết nối analytical asset và metric chiến dịch.'),
   ] },
   { label: 'DATA', items: [
@@ -47,6 +47,7 @@ export const navigation: NavigationGroup[] = [
   { label: 'INGESTION', items: [
     admin('sources', 'Source Ingress / Sources', undefined, 'integration.read'),
     admin('event-feed', 'Event Feed · quan sát nguồn'),
+    admin('event-trace', 'Event Trace · theo ID'),
     admin('connector', 'Source Connector / Cursor'),
     admin('processing', 'Processing · dữ liệu đã lưu'),
     admin('quarantine', 'Quarantine / Unsupported'),
@@ -59,9 +60,9 @@ export const navigation: NavigationGroup[] = [
     admin('tools', 'Tool Registry', undefined, 'integration.read'),
   ] },
   { label: 'AI / OBSERVABILITY', items: [
-    admin('agent', 'Agent Observability', 'Chưa kết nối telemetry Agent và tool execution.'),
+    admin('agent', 'Agent Observability · tool evidence'),
     admin('run-diagnostics', 'Analysis Run Diagnostics'),
-    admin('model-provider', 'Model / Provider Configuration', 'Chưa có API cấu hình provider có phân quyền và audit. Không nhập API key vào trang này.'),
+    admin('model-provider', 'Model / Provider · trạng thái'),
   ] },
   { label: 'ACCESS / SETTINGS', items: [
     admin('users', 'Users / Roles', undefined, 'user.manage'),

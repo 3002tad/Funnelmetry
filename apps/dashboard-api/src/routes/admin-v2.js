@@ -11,9 +11,42 @@ import { PROCESSING_OBSERVATION_SQL, parseProcessingSource } from '../lib/proces
 import { kafkaLag } from '../lib/kafka-lag.js'
 import { workerReadiness } from '../lib/worker-readiness.js'
 import { monitoringMetrics } from '../lib/monitoring-metrics.js'
+import { EVENT_TRACE_SQL, parseEventTraceQuery, summarizeEventTrace } from '../lib/event-trace.js'
+import { TRAFFIC_SOURCE_INPUT_SQL, summarizeTrafficSourceInput } from '../lib/traffic-source-observation.js'
 
 export function createAdminV2Router(execute = query, probe = connectorReadiness, probeLag = kafkaLag, probeWorkers = workerReadiness) {
   const router = Router()
+  router.get('/api/v2/admin/event-trace', requireAuth, requireLiveSession(execute),
+    requireLivePermission('pipeline.monitor', execute), async (req, res) => {
+      res.set('Cache-Control', 'no-store')
+      let scope
+      try { scope = parseEventTraceQuery(req.query) }
+      catch { return res.status(400).json({ error: 'invalid_event_trace_query' }) }
+      try {
+        const [row] = await execute(EVENT_TRACE_SQL, [scope.sourceId, scope.eventId])
+        const result = { source_id: scope.sourceId, event_id: scope.eventId,
+          checked_at: new Date().toISOString(), ...summarizeEventTrace(row) }
+        return requireLiveSession(execute)(req, res, () =>
+          requireLivePermission('pipeline.monitor', execute)(req, res, () => res.json(result)))
+      } catch { return res.status(503).json({ error: 'event_trace_unavailable' }) }
+    })
+  router.get('/api/v2/admin/traffic-source-input', requireAuth, requireLiveSession(execute),
+    requireLivePermission('pipeline.monitor', execute), async (req, res) => {
+      res.set('Cache-Control', 'no-store')
+      let scope
+      try { scope = parseEventTraceQuery(req.query) }
+      catch { return res.status(400).json({ error: 'invalid_traffic_source_input_query' }) }
+      try {
+        const [row] = await execute(TRAFFIC_SOURCE_INPUT_SQL, [scope.sourceId, scope.eventId])
+        const result = {
+          source_id: scope.sourceId, event_id: scope.eventId, checked_at: new Date().toISOString(),
+          ...summarizeTrafficSourceInput(row), scope: 'retained_raw_kafka_projection',
+          attribution_verified: false, historical_coverage_verified: false,
+        }
+        return requireLiveSession(execute)(req, res, () =>
+          requireLivePermission('pipeline.monitor', execute)(req, res, () => res.json(result)))
+      } catch { return res.status(503).json({ error: 'traffic_source_input_unavailable' }) }
+    })
   router.get('/api/v2/admin/metrics', requireAuth, requireLiveSession(execute),
     requireLivePermission('pipeline.monitor', execute), async (req, res) => {
       res.set('Cache-Control', 'no-store')

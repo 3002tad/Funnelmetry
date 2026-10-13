@@ -26,6 +26,8 @@ test('unified template keeps isolated build defaults and no real credentials', a
   assert.equal(pairs.HANDOFF_ENABLE_POLARS, 'true');
   assert.equal(pairs.HANDOFF_ENABLE_QWEN, 'false');
   assert.equal(pairs.HANDOFF_DEPLOY_PROFILES, '');
+  assert.equal(pairs.HANDOFF_RAW_PARTITIONS, '1');
+  assert.equal(pairs.HANDOFF_NORMALIZER_ID_MODE, 'explicit');
   assert.equal(pairs.HANDOFF_LIVE_ACK, '');
   for (const key of ['HANDOFF_DB_PASSWORD', 'HANDOFF_JWT_SECRET', 'HANDOFF_ADMIN_PASSWORD',
     'HANDOFF_FEED_TOKEN', 'HANDOFF_CATALOG_KEY', 'HANDOFF_DASHSCOPE_API_KEY']) {
@@ -38,10 +40,11 @@ test('default unified Compose starts core services and enabled internal tools on
     const { stdout } = await exec(docker, [...args, 'config', '--format', 'json'],
       { cwd: root, env, timeout: 30000, windowsHide: true });
     const services = JSON.parse(stdout).services;
-    assert.equal(Object.keys(services).length, 15);
+    assert.equal(Object.keys(services).length, 18);
     for (const name of ['postgres', 'kafka', 'bootstrap', 'analytical-releases',
       'dashboard-api', 'dashboard-web', 'canonical-normalizer', 'canonical-ledger-writer',
-      'ingress-telemetry-writer', 'journey-processor', 'funnel-processor',
+      'ingress-telemetry-writer', 'traffic-schema', 'traffic-registry-schema', 'traffic-source-writer',
+      'journey-processor', 'funnel-processor',
       'funnel-maturity-scheduler', 'kpi-projector']) {
       assert.ok(services[name], name);
     }
@@ -62,6 +65,32 @@ test('default unified Compose starts core services and enabled internal tools on
     assert.equal(services['dashboard-web'].build.context, root);
     assert.equal(services['dashboard-web'].build.dockerfile, 'infra/docker/dashboard-web.Dockerfile');
     assert.equal(services['funnel-maturity-scheduler'].environment.MATURITY_SCHEDULER_FINALIZATION_ENABLED, 'false');
+    assert.equal(services['traffic-schema'].depends_on.bootstrap.condition, 'service_completed_successfully');
+    assert.equal(services['traffic-schema'].volumes[0].source,
+      join(root, 'infra/postgres/traffic/001_raw_utm_source.sql'));
+    assert.equal(services['traffic-registry-schema'].volumes[0].source,
+      join(root, 'infra/postgres/traffic/002_source_registry.sql'));
+    assert.equal(services['traffic-registry-schema'].depends_on['traffic-schema'].condition,
+      'service_completed_successfully');
+    assert.equal(services['dashboard-api'].depends_on['traffic-registry-schema'].condition,
+      'service_completed_successfully');
+    assert.equal(services['traffic-source-writer'].depends_on['traffic-schema'].condition,
+      'service_completed_successfully');
+    assert.equal(services['traffic-source-writer'].environment.TRAFFIC_SOURCE_INSTANCE_ID,
+      'handoff-traffic-source-writer');
+    assert.equal(services['kafka-topics'].environment.HANDOFF_RAW_PARTITIONS, '1');
+    assert.equal(services['canonical-normalizer'].environment.CANONICAL_NORMALIZER_INSTANCE_ID_MODE, 'explicit');
+    assert.match(services['kafka-topics'].command[0], /no automatic repartition/);
+  });
+
+test('fresh multi-partition Compose renders a unique normalizer identity mode',
+  { skip: !docker }, async () => {
+    const { stdout } = await exec(docker, [...args, 'config', '--format', 'json'],
+      { cwd: root, env: { ...env, HANDOFF_RAW_PARTITIONS: '2', HANDOFF_NORMALIZER_ID_MODE: 'container' },
+        timeout: 30000, windowsHide: true });
+    const services = JSON.parse(stdout).services;
+    assert.equal(services['kafka-topics'].environment.HANDOFF_RAW_PARTITIONS, '2');
+    assert.equal(services['canonical-normalizer'].environment.CANONICAL_NORMALIZER_INSTANCE_ID_MODE, 'container');
   });
 
 test('external integration profiles remain separately selectable in same YAML',

@@ -1,5 +1,7 @@
 # Monitoring Pipeline
 
+> Cập nhật runtime 12/10: `runtime/deploy.env` chọn profile `monitoring` cùng `live,catalog`; launcher chuẩn là `node runtime/deploy.mjs start`. Sau khi provision credential cục bộ, `node runtime/check-monitoring.mjs` xác nhận Grafana 8 panel, Prometheus `UP=1` và đúng 7 worker hiện hành (bao gồm `traffic-source-writer`) đều ready. Các đoạn runbook `new-demo.ps1` và “6 worker” bên dưới là lịch sử, không dùng làm lệnh triển khai mới. Credential metrics hết hạn theo TTL, phải xoay vòng trước khi hết hạn; kết quả này không chứng minh end-to-end hay host-level HA.
+
 > Hợp nhất contract khóa metrics và tài liệu Prometheus/Grafana. Các lệnh demo trong phần lịch sử có thể dùng cấu hình cũ; chỉ triển khai theo docs/OPERATIONS.md.
 
 Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Artifact Prometheus/Grafana vẫn nằm ở `infra/observability/` trong source repo.

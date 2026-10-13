@@ -1,4 +1,4 @@
-export const WORKERS = ['canonical-normalizer', 'canonical-ledger-writer', 'ingress-telemetry-writer', 'journey-processor', 'funnel-processor', 'kpi-projector']
+export const WORKERS = ['canonical-normalizer', 'canonical-ledger-writer', 'ingress-telemetry-writer', 'traffic-source-writer', 'journey-processor', 'funnel-processor', 'kpi-projector']
 
 async function probeWorker(worker, fetcher) {
   const checked_at = new Date().toISOString()

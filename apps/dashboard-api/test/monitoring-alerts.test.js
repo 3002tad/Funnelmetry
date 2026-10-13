@@ -9,7 +9,7 @@ const credentials=[{id:'test-key',expires_at:'2026-10-17T00:00:00Z'}]
 test('known ready has no warning, missing evidence is never healthy',()=>{
   const base={workers,credentials,policy,now,scrape:{state:'OK'}}
   assert.equal(monitoringAlerts(base).status,'NO_CURRENT_WARNINGS')
-  assert.equal(monitoringAlerts({...base,workers:{workers:[]}}).items.length,6)
+  assert.equal(monitoringAlerts({...base,workers:{workers:[]}}).items.length,WORKERS.length)
   const uncertain=monitoringAlerts({...base,workers:{workers:[]},credentials:null,scrape:{state:'UNKNOWN'}})
   assert.equal(uncertain.status,'UNVERIFIED');assert.ok(uncertain.items.every(i=>i.level==='UNKNOWN'))
   const w={workers:[...workers.workers.slice(1),{worker:WORKERS[0],status:'DEGRADED',ready:false}]}

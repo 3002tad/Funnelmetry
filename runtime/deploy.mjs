@@ -1,5 +1,5 @@
-// Cross-platform operator entrypoint for an isolated Pipeline deployment.
-// Reads the one ignored env file, never prints credentials, and never deletes volumes.
+// LEGACY COMPOSE rollback only. New deployments use runtime/swarm.mjs.
+// Retained for DEC-125 recovery provenance; never run accidentally.
 import { readFile, access } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -62,6 +62,16 @@ export function validateConfig(env) {
     throw Error('HANDOFF_ADMIN_EMAIL must be a valid email address');
   }
   if (!['true', 'false'].includes(env.HANDOFF_ENABLE_QWEN)) throw Error('HANDOFF_ENABLE_QWEN must be true or false');
+  const rawPartitions = Number(env.HANDOFF_RAW_PARTITIONS ?? '1');
+  if (!/^[1-9][0-9]*$/.test(env.HANDOFF_RAW_PARTITIONS ?? '1') || !Number.isSafeInteger(rawPartitions)
+    || rawPartitions > 32) throw Error('HANDOFF_RAW_PARTITIONS must be 1..32 for a new isolated project');
+  const normalizerMode = env.HANDOFF_NORMALIZER_ID_MODE ?? 'explicit';
+  if (!['explicit', 'container'].includes(normalizerMode)) {
+    throw Error('HANDOFF_NORMALIZER_ID_MODE must be explicit or container');
+  }
+  if (rawPartitions > 1 && normalizerMode !== 'container') {
+    throw Error('Multi-partition Raw Kafka requires unique container normalizer identity');
+  }
   if (!['true', 'false'].includes(env.HANDOFF_MONITORING_ENABLED)) {
     throw Error('HANDOFF_MONITORING_ENABLED must be true or false');
   }
@@ -100,6 +110,12 @@ export function profileArgs(profiles) {
   return profiles.flatMap(profile => ['--profile', profile]);
 }
 
+export function assertLegacyRollbackAcknowledged(env = process.env) {
+  if (env.FUNNELMETRY_LEGACY_COMPOSE_ACK !== 'ROLLBACK_ONLY') {
+    throw Error('Legacy Compose launcher disabled for normal deployment; use runtime/swarm.mjs. Explicit DEC-125 rollback requires FUNNELMETRY_LEGACY_COMPOSE_ACK=ROLLBACK_ONLY');
+  }
+}
+
 function run(executable, args, childEnv) {
   const result = spawnSync(executable, args, { cwd: root, env: childEnv, stdio: 'inherit', windowsHide: true });
   if (result.error || result.status !== 0) throw Error('Deployment command failed; inspect the preceding sanitized output');
@@ -127,6 +143,7 @@ async function waitForMonitoring(childEnv) {
 }
 
 export async function main(action = 'check') {
+  assertLegacyRollbackAcknowledged();
   if (!['check', 'start', 'status', 'stop'].includes(action)) {
     throw Error('Usage: node runtime/deploy.mjs <check|start|status|stop>');
   }

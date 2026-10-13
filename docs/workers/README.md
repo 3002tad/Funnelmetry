@@ -15,6 +15,8 @@ Hiện có:
   ghi terminal outcome và raw consumer offset trong cùng Kafka transaction.
 - [ingress-telemetry-writer](INGESTION.md#ingress-telemetry-writer): persist unique accepted receipt và versioned canonicalization outcome
   để Data Health có durable evidence, rồi mới commit offset của receipt/outcome topic.
+- [traffic-source-writer](INGESTION.md#traffic-source-writer): projection phụ từ Raw Kafka cho trạng thái/hash UTM first-touch;
+  chưa có attribution metric hoặc UI Traffic.
 - [canonical-ledger-writer](INGESTION.md#canonical-ledger-writer): persist CanonicalEvent idempotent vào PostgreSQL rồi mới
   phát canonical-persisted handoff và commit canonical offset trong Kafka transaction.
 - [journey-processor](PROJECTIONS.md#journey-processor): progressive anchoring CanonicalEvent đã persist thành journey

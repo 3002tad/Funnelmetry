@@ -1,0 +1,13 @@
+http:
+  routers:
+    dashboard:
+      rule: 'Host(`{{ env "SWARM_PUBLIC_DOMAIN" }}`)'
+      entryPoints: [websecure]
+      service: dashboard
+      tls:
+        certResolver: letsencrypt
+  services:
+    dashboard:
+      loadBalancer:
+        servers:
+          - url: http://dashboard-web:8080

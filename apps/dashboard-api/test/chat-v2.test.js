@@ -35,6 +35,66 @@ test('ranking HTTP uses registered tool, persists via runner, and has no model s
   }finally{server.closeAllConnections();await new Promise(r=>server.close(r))}
 })
 
+test('chat canonicalizes planner aliases before executing registered semantic tools', async () => {
+  let alias = 'metric_summary', modelCalls = 0
+  const executed = []
+  const contracts = [
+    { id: 'tool.metric_summary', catalog_release: 'summary-test', value_refs: ['measure.gross_order_value@1.0.0'], dimension_refs: ['dimension.currency_code@1.0.0'] },
+    { id: 'tool.order_ranking', catalog_release: 'ranking-test', value_refs: ['measure.gross_order_value@1.0.0'], dimension_refs: ['dimension.currency_code@1.0.0'] },
+    { id: 'tool.product_value_ranking', catalog_release: 'product-test', value_refs: ['measure.ordered_product_unit_value@1.0.0'], dimension_refs: ['dimension.currency_code@1.0.0'] },
+  ]
+  const provider = { enabled: true, complete: async messages => {
+    modelCalls++
+    assert.match(messages[0].content, /Select a read-only analytical tool/)
+    return { text: JSON.stringify({ tool: alias, last_hours: null }) }
+  } }
+  const router = createChatV2Router({ provider, toolsEnabled: false, orderSummaryEnabled: true,
+    orderChatEnabled: true, rankingEnabled: true, productRankingEnabled: true,
+    execute: async () => [{ role: 'analyst', is_active: true, session_version: 0 }],
+    orderToolDiscovery: async () => contracts[0], rankingToolDiscovery: async () => contracts[1],
+    productToolDiscovery: async () => contracts[2],
+    orderRunnerFactory: async () => ({ run: async ({ request }) => {
+      executed.push(request.tool_id)
+      const evidence = { evidence_id: `evidence-${executed.length}`, status: 'PROVISIONAL',
+        quality_state: 'PROVISIONAL', provenance: { parameters: request.parameters,
+          warnings: ['PLACED_ORDER_VALUE_NOT_PAID_REVENUE'] } }
+      if (request.tool_id === contracts[0].id) return { ...evidence, result: { groups: [
+        { currency_code: 'EUR', values: { 'measure.gross_order_value@1.0.0': '20.00' } },
+      ] } }
+      if (request.tool_id === contracts[1].id) return { ...evidence, result: { orders: [
+        { order_id: 'order_test', currency_code: 'EUR', gross_order_value: '20.00', position: '1' },
+      ] } }
+      if (request.tool_id === contracts[2].id) return { ...evidence, result: { products: [
+        { product_id: 'prod_test', currency_code: 'EUR', ordered_product_unit_value: '20.00', position: '1' },
+      ] } }
+      assert.fail('unregistered tool executed')
+    } }),
+  })
+  const app = express(); app.use(express.json(), router)
+  const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve))
+  const token = jwt.sign({ sub: 'alias-user', role: 'analyst', session_version: 0 }, process.env.JWT_SECRET)
+  try {
+    for (const [shortId, expectedId] of [
+      ['metric_summary', 'tool.metric_summary'],
+      ['order_ranking', 'tool.order_ranking'],
+      ['product_value_ranking', 'tool.product_value_ranking'],
+    ]) {
+      alias = shortId
+      const response = await fetch(`http://127.0.0.1:${server.address().port}/api/v2/chat`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      })
+      assert.equal(response.status, 200, shortId)
+      const result = await response.json()
+      assert.equal(result.answer_verification, 'DETERMINISTIC_TEMPLATE')
+      assert.match(result.answer, /20\.00 EUR/)
+      assert.equal(result.evidence[0].evidence_id, `evidence-${executed.length}`)
+      assert.equal(executed.at(-1), expectedId)
+    }
+    assert.equal(modelCalls, 3, 'the model selects a tool but never synthesizes authoritative numbers')
+  } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
+})
+
 test('order chat routes via catalog, renders evidence without synthesis, no fallback on quality/error', async () => {
   let mode = 'PROVISIONAL', synthesis = 0, runs = 0, version = 0, revoke = false
   const tool = { id: 'tool.metric_summary', catalog_release: 'test-pinned-release',

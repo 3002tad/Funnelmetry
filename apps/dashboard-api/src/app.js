@@ -14,8 +14,12 @@ import { analyticsV2Router } from "./routes/analytics-v2.js";
 import { createAdminV2Router } from "./routes/admin-v2.js";
 import { createCatalogV2Router } from './routes/catalog-v2.js';
 import { createRunDiagnosticsRouter } from './routes/run-diagnostics.js';
+import { createModelProviderRouter } from './routes/model-provider.js';
+import { createAgentObservabilityRouter } from './routes/agent-observability.js';
 import { createEvidenceV2Router } from './routes/evidence-v2.js';
 import { createProductsV2Router } from './routes/products-v2.js';
+import { createTrafficInputRouter } from './routes/traffic-input.js';
+import { createTrafficSourceRegistryRouter } from './routes/traffic-source-registry.js';
 import { requireLivePermission } from "./middleware/live-permission.js";
 import { requireAnalyticsCapability } from './middleware/analytics-capability.js';
 import { requireLiveSession } from './middleware/live-session.js';
@@ -59,6 +63,8 @@ export function createApp() {
   app.use(createAdminV2Router());
   app.use(createCatalogV2Router());
   app.use(createRunDiagnosticsRouter());
+  app.use(createModelProviderRouter());
+  app.use(createAgentObservabilityRouter());
   app.use(createEvidenceV2Router());
   app.use(createProductsV2Router());
 
@@ -74,6 +80,8 @@ export function createApp() {
   shop.use(requireAuth, requireLivePermission('analytics.read'), requireShopRole);
   shop.use(requireAnalyticsCapability);
   shop.use(analyticsV2Router);
+  shop.use(createTrafficInputRouter());
+  shop.use(createTrafficSourceRegistryRouter());
   for (const router of legacyRouters) shop.use(router);
   if (!config.features.legacy) shop.use((req, res, next) => {
     if (req.path.startsWith('/api/v2/analytics')) return next();

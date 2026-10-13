@@ -4,7 +4,8 @@
 
 | Cần biết gì | Đọc file | Phạm vi |
 |---|---|---|
-| Chạy, dừng, cấu hình, profile và tài nguyên | [Vận hành](OPERATIONS.md) | Một Compose `infra/compose.yaml` + một `runtime/deploy.env`; Windows/Linux |
+| Triển khai Swarm và trạng thái migration | [Docker Swarm](SWARM_MIGRATION.md) | Swarm là baseline; stack hiện mới có phase 1, chưa phải demo đầy đủ |
+| Runbook Compose cũ | [Vận hành legacy](OPERATIONS.md) | Chỉ dùng khi rollback DEC-125 được xác nhận; không dùng cho triển khai mới |
 | Chức năng đã có, còn thiếu và giới hạn | [Chức năng](FEATURE_STATUS.md) | Phân biệt code, demo evidence và production acceptance |
 | Test an toàn và cách chứng minh demo | [Kiểm thử](TESTING.md) | Unit/build/config khác với E2E và restore acceptance |
 | Cấu trúc repo | [Repository layout](REPOSITORY_LAYOUT.md) | Đường dẫn code và ownership |
