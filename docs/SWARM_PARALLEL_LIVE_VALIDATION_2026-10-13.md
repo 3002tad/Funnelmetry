@@ -9,7 +9,7 @@ API, Web and Workers images were built from Pipeline commit `7fa5c6a3305198b9f85
 ## Runtime evidence
 
 - Feed read-only preflight matched `event_feed_id=5143bee7-b883-453f-a045-e696621dbd1d`, retention floor `0`, latest sequence `450`; fresh cursor started at `0`. Connector `/readyz` was `200 READY`, observed matching feed ID and cursor `450` with no connector error.
-- New PostgreSQL holds 450 ingress accepted receipts and 450 canonicalization outcomes: `435 normalized`, `4 quarantined/mapping_failed`, `11 unsupported/mapping_not_found`. The 435 canonical and journey records include 2 canonical `order.placed` events. Do **not** interpret cursor 450 as 450 analytically accepted events.
+- New PostgreSQL holds 450 ingress accepted receipts and 450 canonicalization outcomes: `435 normalized`, `4 quarantined/mapping_failed`, `11 unsupported/mapping_not_found`. Read-only aggregate comparison against the HTTPS Feed matched all 15 non-normalized event IDs without printing payloads: 4 `behavior.product_viewed` schema `1.0` were quarantined; 5 `cart.add_clicked` schema `1.0` and 6 `medusa.order_placed` schema `1.0` were unsupported. These are legacy contract records, not a missing connector batch. The 435 canonical and journey records include 2 canonical `order.placed` events from the supported contract. Do **not** interpret cursor 450 as 450 analytically accepted events.
 - Catalog Sync saved one Medusa Admin snapshot with 104 products.
 - All 17 continuous services in the 20-service stack reached `1/1` at final check. Bootstrap, Kafka topic initialization and profile publisher are one-shot jobs and correctly show `0/1` after task `Complete`.
 - Admin login, registry, worker readiness (7 workers), Kafka lag, analyst catalog, overview, events, data health, traffic-source registry and evidence returned HTTP 200. Temporary analyst account used for test was disabled. A user-authorized single chat request returned HTTP 200 with `status=generated`, `model=deterministic`; this exercised provider-backed tool selection but did not prove a free-form Qwen answer. No raw event or PII was printed.
@@ -18,7 +18,7 @@ API, Web and Workers images were built from Pipeline commit `7fa5c6a3305198b9f85
 
 ## Outstanding acceptance gates
 
-1. Diagnose the 4 mapping failures and decide whether the 11 unsupported events are intentionally outside the catalog; verify required event coverage with fresh source activity, not only historical replay.
+1. Explicitly decide historical schema `1.0` coverage/backfill policy; current V2 mapping does not accept those 15 records. Verify required current-contract event coverage with fresh source activity, not only historical replay. Do not silently remap legacy order events to the V2 `order.placed` fact.
 2. Swarm Autoscaler Controller and Level-2 Recovery Controller have no reviewed Swarm actuator/acceptance yet. Existing `tools/autoscaler` is decision-only and `tools/resilience-watchdog` targets Compose container IDs. Do not grant them a Docker socket or claim full resilience by treating Swarm task restart as a substitute.
 3. Establish secrets/DB backup and restore evidence, monitoring credential rotation, fault-injection and rolling rollback acceptance. Current local secret files are ignored artifacts, not a managed backup.
 4. Resolve local hostname/Windows Schannel browser check before calling HTTPS UI accessible on this host. No public/multi-node access is claimed.
