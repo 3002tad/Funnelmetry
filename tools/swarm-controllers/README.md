@@ -80,6 +80,25 @@ override is valid only for observation; it drops any old release attestation
 in memory and reports `configuredImageMatchesRuntime=false`. It never calls
 the Swarm actuator or changes the config/state files.
 
+To check live enablement gates without modifying the service or persisted
+controller state, run `live-preflight.mjs` against the ignored local config and
+state. It reports only bounded diagnostic fields and exits nonzero while any
+gate is unverified. It never grants `--apply`: even a present Docker AuthZ
+plugin does not prove that the controller identity is restricted to the
+allowlisted service. On Docker Desktop for Windows, that boundary needs a
+separately reviewed local broker/daemon policy and a negative test showing
+that this identity cannot control any unrelated Docker resource.
+
+```powershell
+node tools/swarm-controllers/live-preflight.mjs runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json
+```
+
+Do not replace the pinned digest, add release evidence, or reset the old state
+merely to clear a preflight blocker. Review the exact-image replay/drain
+evidence and migrate the controller state with an audit trail first. A live
+scale-up test also needs sustained real backlog; an idle probe cannot force a
+valid policy decision.
+
 ```powershell
 node tools/swarm-controllers/measure.mjs runtime/swarm-controllers/config.json --image=ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:<current-digest> --samples=3 --interval-ms=5000
 ```

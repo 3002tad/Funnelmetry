@@ -436,3 +436,21 @@ the exact-image evidence/state review and the least-privilege Docker-manager
 actuator boundary required by DEC-129. Do not rewrite the ignored state,
 invent evidence references, or give an unrestricted manager socket to the
 controller to make the test pass.
+
+## Read-only live preflight follow-up
+
+The new `tools/swarm-controllers/live-preflight.mjs` checks manager status,
+the live service's immutable image, persisted controller state, active runner
+lease, readiness/group identity, partition/capacity ceiling, memory probe,
+release evidence and Docker actuator isolation. It reads state but does not
+write state, scale a service, start a runner, or attest authorization.
+
+On this Docker Desktop live stack it reported `observedReplicas=1`,
+`observedConsumableLag=0`, `controllerImageMatchesRuntime=false` and three
+blockers: `IMAGE_DIGEST_MISMATCH`,
+`RELEASE_REPLAY_DRAIN_EVIDENCE_MISSING`, and
+`RESTRICTED_DOCKER_ACTUATOR_NOT_ATTESTED`. The local controller must not be
+pointed at an unrestricted Docker daemon just to clear these gates. A
+restricted Windows broker or daemon authorization policy, exact-image
+replay/drain review, and audited state migration remain separate work before
+an automatic live 1-to-2-to-1 acceptance test.
