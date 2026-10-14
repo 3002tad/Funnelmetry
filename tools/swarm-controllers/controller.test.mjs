@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { initialize, metrics, run, tick, validateConfig } from './controller.mjs';
+import { initialize, metrics, run, status, tick, validateConfig } from './controller.mjs';
 
 const image = `example/workers@sha256:${'a'.repeat(64)}`;
 const config = { stack: 'funnelmetry-live-test', service: 'canonical-normalizer', image,
@@ -121,7 +121,25 @@ test('Level-2 only updates persistently not-ready application; uncertain action 
   await assert.rejects(tick(config, file, a, { apply: true, clock: () => 120 }), /UNCERTAIN_ACTION_OPERATOR_REVIEW/);
   assert.notEqual(JSON.parse(await readFile(file, 'utf8')).pending, null);
   assert.match(await metrics(config, file), /funnelmetry_swarm_controller_pending_action\{[^}]+\} 1/);
+  const report = await status(config, file, 121);
+  assert.equal(report.pendingOperatorReview, true);
+  assert.equal(report.liveProbe, false);
   await assert.rejects(tick(config, file, a, { apply: true, clock: () => 140 }), /UNCERTAIN_ACTION_OPERATOR_REVIEW/);
+}));
+
+test('operator status is read-only and marks old persisted health as STALE', async () => withState(async file => {
+  const a = adapter();
+  await tick(config, file, a, { clock: () => 100 });
+  const before = await readFile(file, 'utf8');
+  const fresh = await status(config, file, 101);
+  assert.equal(fresh.source, 'persisted_controller_state');
+  assert.equal(fresh.recovery.status, 'HEALTHY');
+  assert.equal(fresh.autoscale.observation, 'OBSERVED');
+  const old = await status(config, file, 1000);
+  assert.equal(old.recovery.status, 'STALE');
+  assert.equal(old.recovery.persistedStatus, 'HEALTHY');
+  assert.equal(old.autoscale.observation, 'STALE');
+  assert.equal(await readFile(file, 'utf8'), before);
 }));
 
 test('accepted Level-2 update is not called healthy until a later ready probe', async () => withState(async file => {

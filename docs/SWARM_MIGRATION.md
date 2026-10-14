@@ -57,7 +57,7 @@ node runtime/swarm.mjs create-tls-secrets   # chỉ local
 node runtime/swarm.mjs deploy-app
 ```
 
-`check-app` chỉ render. `deploy-app` không tạo secret và chưa xác nhận TLS: kiểm tra `docker stack services`, task/log `edge`, `dashboard-api`, `dashboard-web`, worker, rồi truy cập `https://<SWARM_PUBLIC_DOMAIN>/healthz` từ client có trust cert. Sau khi đã có `edge`, lệnh data-only `deploy` sẽ từ chối để tránh vô tình xóa dịch vụ ứng dụng. Không chạy `deploy-app` nếu chưa xác nhận DNS/port/certificate hoặc image provenance. Static render pass không chứng minh cert được cấp hay worker đã xử lý event.
+`check-app` chỉ render. `deploy-app` không tạo secret và chưa xác nhận TLS: kiểm tra `docker stack services`, task/log `edge`, `dashboard-api`, `dashboard-web`, worker, rồi truy cập `https://<SWARM_PUBLIC_DOMAIN>/healthz` từ client có trust cert. Sau khi đã có `edge`, lệnh data-only `deploy` sẽ từ chối để tránh vô tình xóa dịch vụ ứng dụng. Không chạy `deploy-app` nếu chưa xác nhận DNS/port/certificate hoặc image provenance. Static render pass không chứng minh cert được cấp hay worker đã xử lý event. YAML worker khai báo `/healthz` liveness-only cho bảy worker chạy liên tục. Bản cập nhật 2026-10-14 đã deploy và bảy worker báo healthy; chỉ normalizer có fault-test, sáu worker còn lại chưa có fault-injection acceptance riêng. `/readyz` vẫn là tín hiệu quan sát, không dùng làm healthcheck thay task. Chi tiết: [autoscale/health follow-up](SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
 
 ## Chuẩn bị một Swarm candidate mới
 

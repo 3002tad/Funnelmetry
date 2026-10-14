@@ -46,6 +46,41 @@ test('Swarm API readiness probes worker health endpoints instead of returning NO
   assert.match(app, /type: tmpfs\s+target: \/tmp\s+tmpfs:\s+size: 33554432/);
   assert.match(workers, /WORKER_HEALTH_PORT: '32110'/);
   assert.match(workers, /CANONICAL_NORMALIZER_INSTANCE_ID_MODE: \$\{SWARM_NORMALIZER_ID_MODE:-explicit\}/);
+  assert.match(workers, /CANONICAL_NORMALIZER_TRANSACTION_BATCH_SIZE: \$\{SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE:-64\}/);
+});
+
+test('continuous Swarm workers have liveness-only healthchecks; jobs and scheduler do not inherit them', () => {
+  const workers = readFileSync(fileURLToPath(new URL('../infra/swarm-workers.yml', import.meta.url)), 'utf8');
+  assert.match(workers, /x-worker-liveness: &worker-liveness[\s\S]*?\/healthz/);
+  assert.doesNotMatch(workers.match(/x-worker-liveness: &worker-liveness([\s\S]*?)(?=\nservices:)/)?.[1] ?? '', /\/readyz/);
+  const serviceBlock = name => workers.match(new RegExp(`\\n  ${name}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`))?.[1] ?? '';
+  for (const name of ['canonical-normalizer', 'canonical-ledger-writer', 'ingress-telemetry-writer',
+    'traffic-source-writer', 'journey-processor', 'funnel-processor', 'kpi-projector']) {
+    assert.match(serviceBlock(name), /healthcheck: \*worker-liveness/, name);
+  }
+  for (const name of ['profile-publisher', 'funnel-maturity-scheduler']) {
+    assert.doesNotMatch(serviceBlock(name), /healthcheck:/, name);
+  }
+});
+
+test('long-running Swarm workers replace even clean exits; one-shot publisher does not restart', () => {
+  const workers = readFileSync(fileURLToPath(new URL('../infra/swarm-workers.yml', import.meta.url)), 'utf8');
+  const fixture = readFileSync(fileURLToPath(new URL('../tools/swarm-controllers/fixtures/swarm-scale.yml', import.meta.url)), 'utf8');
+  assert.match(workers, /x-worker: &worker[\s\S]*?restart_policy: \{condition: any, delay: 5s\}/);
+  assert.match(workers, /profile-publisher:[\s\S]*?restart_policy: \{condition: none\}/);
+  assert.match(fixture, /canonical-normalizer:[\s\S]*?restart_policy: \{condition: any, delay: 5s\}/);
+});
+
+test('continuous app, edge and live services replace clean exits without treating feed readiness as liveness', () => {
+  const app = readFileSync(fileURLToPath(new URL('../infra/swarm-app.yml', import.meta.url)), 'utf8');
+  const live = readFileSync(fileURLToPath(new URL('../infra/swarm-live.yml', import.meta.url)), 'utf8');
+  const localEdge = readFileSync(fileURLToPath(new URL('../infra/swarm-edge-local.yml', import.meta.url)), 'utf8');
+  const acmeEdge = readFileSync(fileURLToPath(new URL('../infra/swarm-edge-acme.yml', import.meta.url)), 'utf8');
+  assert.equal((app.match(/restart_policy: \{condition: any, delay: 5s\}/g) ?? []).length, 2);
+  assert.equal((live.match(/restart_policy: \{condition: any, delay: 10s\}/g) ?? []).length, 2);
+  assert.match(live, /source-connector:[\s\S]*?healthcheck:[\s\S]*?\/healthz/);
+  assert.doesNotMatch(live.match(/source-connector:([\s\S]*?)(?=\n  catalog-sync:)/)?.[1] ?? '', /\/readyz/);
+  for (const edge of [localEdge, acmeEdge]) assert.match(edge, /restart_policy: \{condition: any, delay: 5s\}/);
 });
 
 test('Docker environment renders only selected deploy keys and strips inherited secrets', () => {

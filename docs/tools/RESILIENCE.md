@@ -55,7 +55,13 @@ and recovery status. Current observer covers only the runtime subset below; ther
 no persistent action reconciliation yet. A proposed scale sets `pending`
 and must not be cleared blindly in production.
 
-## Findings before actuator implementation
+## Historical findings before actuator implementation
+
+The transactional-ID finding below describes the older per-instance runtime.
+The current Swarm Normalizer candidate uses a stable ID derived from consumer
+group and Raw partition and bounded Kafka transactions; see
+[the 2026-10-14 validation](../SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
+The legacy Compose guidance is not the Swarm rollout path.
 
 1. The current `infra/legacy/compose.yaml` assigns a fixed
    `CANONICAL_NORMALIZER_INSTANCE_ID=handoff-canonical-normalizer` by default. Worker runtime uses

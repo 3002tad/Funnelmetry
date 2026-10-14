@@ -236,6 +236,39 @@ export async function metrics(config, path) {
   ].join('\n') + '\n';
 }
 
+// Operator-only read of persisted evidence. This never probes Docker/Kafka and
+// deliberately marks an old HEALTHY state as STALE rather than live health.
+export async function status(config, path, now = Date.now()) {
+  validateConfig(config);
+  if (!integer(now)) throw Error('Invalid status clock');
+  const data = readState(config, JSON.parse(await readFile(path, 'utf8')), { allowPending: true });
+  const fresh = (at, maxAge) => integer(at) && at <= now && now - at <= maxAge;
+  const lastScale = data.audit.findLast(event => event.signal === 'kafka_lag');
+  return {
+    scope: { stack: config.stack, service: config.service },
+    checkedAt: new Date(now).toISOString(), source: 'persisted_controller_state', liveProbe: false,
+    pendingOperatorReview: data.pending !== null,
+    recovery: {
+      status: fresh(data.recovery.lastObservedAt, config.recovery.maxSampleAgeMs)
+        ? data.recovery.status : 'STALE',
+      persistedStatus: data.recovery.status,
+      lastObservedAt: data.recovery.lastObservedAt,
+      circuitOpen: data.recovery.circuitOpen,
+      recentAttempts: data.recovery.attempts.filter(at => integer(at) && at <= now && now - at < config.recovery.windowMs).length,
+    },
+    autoscale: {
+      observation: fresh(data.autoscale.lastObservedAt, config.autoscale.maxSampleAgeMs)
+        ? 'OBSERVED' : 'STALE',
+      lastObservedAt: data.autoscale.lastObservedAt,
+      replicas: data.autoscale.replicas,
+      pending: data.autoscale.pending,
+      lastDecisionAt: data.autoscale.lastDecisionAt,
+      lastReason: lastScale?.reason ?? null,
+      lastResult: lastScale?.result ?? null,
+    },
+  };
+}
+
 export async function run(config, path, adapter, { apply = false, intervalMs = 30000,
   clock = Date.now, signal } = {}) {
   validateConfig(config);
@@ -257,17 +290,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     const intervalFlags = flags.filter(f => /^--interval-ms=[0-9]+$/.test(f));
     const applyFlags = flags.filter(f => f === '--apply');
-    if (!['init', 'once', 'metrics', 'run'].includes(command) || !configPath || !statePath ||
+    if (!['init', 'once', 'metrics', 'status', 'run'].includes(command) || !configPath || !statePath ||
       intervalFlags.length > 1 || applyFlags.length > 1 ||
       intervalFlags.length + applyFlags.length !== flags.length ||
-      ((command === 'init' || command === 'metrics') && flags.length) ||
+      ((command === 'init' || command === 'metrics' || command === 'status') && flags.length) ||
       (command === 'once' && intervalFlags.length)) {
-      throw Error('Usage: controller.mjs init|once|metrics|run config.json state.json [--apply] [--interval-ms=30000]');
+      throw Error('Usage: controller.mjs init|once|metrics|status|run config.json state.json [--apply] [--interval-ms=30000]');
     }
     const config = JSON.parse(await readFile(configPath, 'utf8'));
     const state = resolve(statePath);
     if (command === 'init') { await initialize(config, state); console.log('Swarm controller state initialized'); }
     else if (command === 'metrics') process.stdout.write(await metrics(config, state));
+    else if (command === 'status') console.log(JSON.stringify(await status(config, state)));
     else if (command === 'once') console.log(JSON.stringify(await tick(config, state, dockerClient(config), { apply: applyFlags.length === 1 })));
     else {
       const abort = new AbortController();

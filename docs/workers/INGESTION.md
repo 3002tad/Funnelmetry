@@ -62,7 +62,7 @@ npm start
 
 - canonical và quarantine topic dùng delete retention;
 - canonicalization outcome topic dùng compaction;
-- `CANONICAL_NORMALIZER_INSTANCE_ID` phải duy nhất và ổn định cho transactional producer;
+- `CANONICAL_NORMALIZER_INSTANCE_ID` phân biệt replica để giám sát; transactional ID của Normalizer được tạo ổn định theo consumer group và Raw partition để fence worker cũ khi rebalance;
 - consumer group phải ổn định qua restart để raw offset tiếp tục đúng vị trí.
 
 ### Opt-in identity cho replica Docker
@@ -72,8 +72,15 @@ Base ID được kiểm tra 1–128 ký tự chữ/số/dấu chấm/gạch dư�
 Chế độ `container` nối base `CANONICAL_NORMALIZER_INSTANCE_ID` với hostname mặc định
 dạng container ID của Docker. Hai container có ID khác nhau; restart cùng container
 giữ ID. Không dùng `hostname:` cố định/chung khi scale. Container bị recreate có ID
-mới: transaction cũ có thể cần timeout, không claim ID ổn định qua recreate hoặc host
-migration. Vẫn giữ consumer group và committed offsets; không đổi source event IDs.
+mới, nhưng Kafka transactional ID hiện được tính theo consumer group + Raw partition,
+không theo container ID; owner mới sẽ fence producer cũ. Vẫn giữ consumer group và
+committed offsets; không đổi source event IDs.
+
+Normalizer xử lý tối đa `CANONICAL_NORMALIZER_TRANSACTION_BATCH_SIZE` (mặc định 64,
+giới hạn 1–256) Raw records trong một Kafka transaction: canonical/quarantine,
+outcome và offset cuối lô commit cùng nhau. Khi lỗi hoặc batch stale, không commit
+offset của lô chưa hoàn thành. Giá trị này đang thử nghiệm; cần benchmark và
+fault-injection trên image mới trước khi bật autoscale live.
 
 Tính năng này chưa bật trong Compose demo/live. Xem
 [sandbox autoscaling](../tools/RESILIENCE.md#autoscaler); không tự tăng replica nếu

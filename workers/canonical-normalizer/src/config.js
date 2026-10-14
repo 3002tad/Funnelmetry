@@ -40,6 +40,7 @@ export function loadConfig(env = process.env, containerHostname = hostname()) {
     quarantineTopic: required(env, "KAFKA_TOPIC_QUARANTINE"),
     mappingConfigPath: env.CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH?.trim() || null,
     transactionTimeoutMs: positiveInteger(env, "CANONICAL_NORMALIZER_TRANSACTION_TIMEOUT_MS", 30_000),
+    transactionBatchSize: positiveInteger(env, "CANONICAL_NORMALIZER_TRANSACTION_BATCH_SIZE", 64),
     shutdownTimeoutMs: positiveInteger(env, "CANONICAL_NORMALIZER_SHUTDOWN_TIMEOUT_MS", 10_000),
   })
 }

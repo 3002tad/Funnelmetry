@@ -5,13 +5,15 @@ import { randomUUID } from 'node:crypto';
 
 const require = createRequire('/workspace/workers/canonical-normalizer/package.json');
 const { Kafka, logLevel } = require('kafkajs');
-const [command, countArg, runId, startArg] = process.argv.slice(2);
+const [command, countArg, runId, startArg, paceArg] = process.argv.slice(2);
 const count = Number(countArg);
 const startIndex = startArg === undefined ? 0 : Number(startArg);
+const paceMs = paceArg === undefined ? 0 : Number(paceArg);
 if (!['produce', 'verify'].includes(command) || !Number.isSafeInteger(count) ||
-  count < 1 || count > 10000 || !/^[a-z0-9-]{8,48}$/.test(runId || '') ||
-  !Number.isSafeInteger(startIndex) || startIndex < 0 || startIndex + count > 10000 ||
-  (command === 'verify' && startArg !== undefined) ||
+  count < 1 || count > 60000 || !/^[a-z0-9-]{8,48}$/.test(runId || '') ||
+  !Number.isSafeInteger(startIndex) || startIndex < 0 || startIndex + count > 60000 ||
+  !Number.isSafeInteger(paceMs) || paceMs < 0 || paceMs > 1000 ||
+  (command === 'verify' && (startArg !== undefined || paceArg !== undefined)) ||
   process.env.SWARM_SCALE_FIXTURE_ACK !== 'OFFLINE_DEMO_SYNTHETIC' ||
   process.env.KAFKA_TOPIC_RAW !== 'swarm.scale.raw.v1') {
   throw Error('Disposable Swarm scale fixture and explicit synthetic acknowledgement required');
@@ -47,6 +49,11 @@ if (command === 'produce') {
             raw_body: JSON.stringify(event) }) });
       }
       await producer.send({ topic: topics.raw, acks: -1, messages });
+      const published = Math.min(start + 100, startIndex + count) - startIndex;
+      if (published % 1000 === 0 || published === count) {
+        console.log(JSON.stringify({ result: 'PROGRESS', runId, published, count }));
+      }
+      if (paceMs > 0) await new Promise(resolve => setTimeout(resolve, paceMs));
     }
     console.log(JSON.stringify({ result: 'RAW_PUBLISHED', runId, count, startIndex }));
   } finally { await producer.disconnect(); }
@@ -78,7 +85,7 @@ if (command === 'produce') {
     let violation = null;
     let finish, fail;
     const complete = new Promise((resolve, reject) => { finish = resolve; fail = reject; });
-    const timer = setTimeout(() => fail(Error('Timed out verifying canonical/outcome identities')), 45000);
+    const timer = setTimeout(() => fail(Error('Timed out verifying canonical/outcome identities')), 120000);
     try {
       await consumer.run({ eachMessage: async ({ topic, message }) => {
         const kind = topic === topics.canonical ? 'canonical' : 'outcomes';

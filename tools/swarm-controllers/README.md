@@ -40,11 +40,14 @@ API, Agent, browser and worker containers receive no Docker socket.
   Its acceptance is not called HEALTHY until a later observation. When more than
   one replica is healthy, Level-2 reports an out-of-scope hold; that is not an
   active recovery attempt and does not itself block safe scale-down.
-- `infra/swarm-workers.yml` now declares a liveness-only `/healthz` check for this
-  worker. `/readyz` is intentionally not a Swarm healthcheck because Kafka rebalance
-  and dependency degradation must not cause a task-replacement loop. Existing
-  stacks need a reviewed `deploy-app` for this change; the 2026-10-13 live stack
-  received it and passed a controlled healthcheck fault test.
+- `infra/swarm-workers.yml` declares liveness-only `/healthz` checks for the seven
+  continuous workers that implement the shared health server. `/readyz` is
+  intentionally not a Swarm healthcheck because Kafka rebalance and dependency
+  degradation must not cause a task-replacement loop. The normalizer check was
+  deployed and fault-tested on the 2026-10-13 live stack; checks for the other
+  six workers were deployed and observed healthy on the 2026-10-14 local live
+  stack, but have not each had a fault-injection acceptance test.
+  This does not expand the Level-2/autoscale allowlist beyond the normalizer.
 - State, cooldown, circuit and a bounded sanitized audit are persisted with a lock
   and an action-intent latch. An uncertain Docker result stops the controller and
   requires operator review; do not delete state or lock files to bypass it.
@@ -63,9 +66,15 @@ fails closed; migrate/review state rather than reinitializing to clear a circuit
 ```powershell
 node tools/swarm-controllers/controller.mjs init runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json
 node tools/swarm-controllers/controller.mjs once runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json
+node tools/swarm-controllers/controller.mjs status runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json
 node tools/swarm-controllers/controller.mjs metrics runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json
 node tools/swarm-controllers/controller.mjs run runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json --interval-ms=30000
 ```
+
+`status` reads persisted controller state only: `liveProbe=false` and an old
+observation is `STALE`, never a live health assertion. It can expose an uncertain
+pending action for operator review without changing the latch. It requires an
+initialized state file and does not replace `once` or Docker/Kafka inspection.
 
 After reviewing release evidence and a disposable fault-injection run, `once` or
 `run` can receive `--apply`. Do not start a second runner or manually update/scale
@@ -89,13 +98,15 @@ subtracts a presumed fixed marker count, and retains the zero-backlog guard.
 The updated controller probe still needs a live read-only acceptance run before
 any live actuator authorization.
 
-For the current local live stack (2026-10-13), Raw has **one partition**, the
-normalizer uses explicit rather than per-container transactional identity, and no
-current-image replay/drain attestation is configured. Autoscale correctly holds at
-one replica. Read-only controller observations show worker live/ready and no Level-2
+For the historical 2026-10-13 local live stack, Raw had **one partition**, the
+normalizer used explicit rather than per-container transactional identity, and no
+current-image replay/drain attestation was configured. Autoscale correctly held at
+one replica. Read-only controller observations showed worker live/ready and no Level-2
 action. The new liveness check was deployed: a stopped worker child produced three
 failed probes, Swarm replaced the unhealthy task, and the replacement became ready.
 An independent SIGKILL also caused task replacement. This verifies Swarm Level 1,
 **not** a policy-triggered Level-2 `--apply` action. Live `--apply` was not run; its
 authorization was blocked separately from the approved fault injection. Neither
-live scale 1→N→1 nor live Level-2 recovery is accepted yet.
+live scale 1→N→1 nor live Level-2 recovery is accepted yet. The later local
+two-partition live stack and isolated current-image tests are documented in
+[the 2026-10-14 follow-up](../../docs/SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).

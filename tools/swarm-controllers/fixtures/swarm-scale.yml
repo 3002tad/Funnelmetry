@@ -61,7 +61,7 @@ services:
     deploy:
       # Topic creation is an explicit fixture step; start worker only afterward.
       replicas: 0
-      restart_policy: {condition: on-failure, delay: 5s}
+      restart_policy: {condition: any, delay: 5s}
       resources:
         reservations: {cpus: '0.10', memory: 128M}
         limits: {cpus: '1.00', memory: 512M}

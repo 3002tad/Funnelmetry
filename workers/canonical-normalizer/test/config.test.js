@@ -16,11 +16,13 @@ test("loads canonical-normalizer Kafka configuration", () => {
   assert.deepEqual(config.brokers, ["kafka-1:9092", "kafka-2:9092"])
   assert.equal(config.consumerGroupId, "funnelmetry-canonical-normalizer-v1")
   assert.equal(config.mappingConfigPath, "/mappings/medusa.json")
+  assert.equal(config.transactionBatchSize, 64)
 })
 
 test("requires a stable transactional instance identity and all output topics", () => {
   assert.throws(() => loadConfig({}), /CANONICAL_NORMALIZER_INSTANCE_ID is required/)
   assert.throws(() => loadConfig({ ...env, KAFKA_TOPIC_QUARANTINE: "" }), /KAFKA_TOPIC_QUARANTINE is required/)
+  assert.throws(() => loadConfig({ ...env, CANONICAL_NORMALIZER_TRANSACTION_BATCH_SIZE: "0" }), /positive integer/)
 })
 
 test('explicit identity remains default; container mode is stable per container and distinct per replica', () => {

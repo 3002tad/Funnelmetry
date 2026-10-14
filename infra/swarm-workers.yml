@@ -30,11 +30,22 @@ x-worker: &worker
   stop_grace_period: 45s
   deploy:
     replicas: 1
-    restart_policy: {condition: on-failure, delay: 5s}
+    # A long-running worker that exits cleanly after SIGTERM still needs a
+    # replacement. One-shot jobs override this policy with condition: none.
+    restart_policy: {condition: any, delay: 5s}
     update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
     resources:
       reservations: {cpus: '0.10', memory: 128M}
       limits: {cpus: '1.00', memory: 512M}
+
+# Only continuous workers that implement workers/shared/health-server.mjs use
+# this probe. Readiness is observed separately and never restarts a task.
+x-worker-liveness: &worker-liveness
+  test: [CMD, node, -e, 'fetch("http://127.0.0.1:32110/healthz").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+  interval: 15s
+  timeout: 5s
+  start_period: 60s
+  retries: 3
 
 services:
   profile-publisher:
@@ -54,23 +65,18 @@ services:
   canonical-normalizer:
     <<: *worker
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/canonical-normalizer/src/main.js]
-    healthcheck:
-      # Liveness only. /readyz may fail during Kafka rebalance and must not
-      # cause Swarm to restart a recoverable worker.
-      test: [CMD, node, -e, 'fetch("http://127.0.0.1:32110/healthz").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
-      interval: 15s
-      timeout: 5s
-      start_period: 60s
-      retries: 3
+    healthcheck: *worker-liveness
     environment:
       <<: *worker-env
       CANONICAL_NORMALIZER_INSTANCE_ID: swarm-canonical-normalizer
       CANONICAL_NORMALIZER_INSTANCE_ID_MODE: ${SWARM_NORMALIZER_ID_MODE:-explicit}
+      CANONICAL_NORMALIZER_TRANSACTION_BATCH_SIZE: ${SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE:-64}
       CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH: /workspace/integrations/medusa/canonical-mappings.v1.json
 
   canonical-ledger-writer:
     <<: *worker
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/canonical-ledger-writer/src/main.js]
+    healthcheck: *worker-liveness
     environment:
       <<: *worker-env
       CANONICAL_LEDGER_INSTANCE_ID: swarm-canonical-ledger-writer
@@ -78,6 +84,7 @@ services:
   ingress-telemetry-writer:
     <<: *worker
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/ingress-telemetry-writer/src/main.js]
+    healthcheck: *worker-liveness
     environment:
       <<: *worker-env
       INGRESS_TELEMETRY_INSTANCE_ID: swarm-ingress-telemetry-writer
@@ -85,6 +92,7 @@ services:
   traffic-source-writer:
     <<: *worker
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/traffic-source-writer/src/main.js]
+    healthcheck: *worker-liveness
     environment:
       <<: *worker-env
       TRAFFIC_SOURCE_INSTANCE_ID: swarm-traffic-source-writer
@@ -92,6 +100,7 @@ services:
   journey-processor:
     <<: *worker
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/journey-processor/src/main.js]
+    healthcheck: *worker-liveness
     environment:
       <<: *worker-env
       JOURNEY_PROCESSOR_INSTANCE_ID: swarm-journey-processor
@@ -99,6 +108,7 @@ services:
   funnel-processor:
     <<: *worker
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/funnel-processor/src/main.js]
+    healthcheck: *worker-liveness
     environment:
       <<: *worker-env
       FUNNEL_PROCESSOR_INSTANCE_ID: swarm-funnel-processor
@@ -106,6 +116,7 @@ services:
   kpi-projector:
     <<: *worker
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/kpi-projector/src/main.js]
+    healthcheck: *worker-liveness
     environment:
       <<: *worker-env
       KPI_PROJECTOR_INSTANCE_ID: swarm-kpi-projector
