@@ -53,7 +53,12 @@ API, Agent, browser and worker containers receive no Docker socket.
   requires operator review; do not delete state or lock files to bypass it.
 - Code-level allowlisting does **not** reduce the host operator's Docker-manager
   privilege. A dedicated OS identity / constrained Docker authorization boundary is
-  still needed before unattended production enablement. Exact thresholds are
+  still needed before unattended production enablement. Docker's default daemon
+  authorization is all-or-nothing; a Docker-group membership, socket mount,
+  client certificate, or code-level allowlist alone is not a restricted actuator.
+  The current local engine reported no authorization plugin in the
+  [sustained in-flight fixture](../../docs/SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
+  Exact thresholds are
   EXPERIMENTAL and belong in a reviewed config, not an architectural SLA.
 
 ## Operator use

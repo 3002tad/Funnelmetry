@@ -64,7 +64,8 @@ services:
       restart_policy: {condition: any, delay: 5s}
       resources:
         reservations: {cpus: '0.10', memory: 128M}
-        limits: {cpus: '1.00', memory: 512M}
+        # Deliberately constrained to keep synthetic backlog during handoff.
+        limits: {cpus: '0.25', memory: 512M}
 
 networks:
   data:

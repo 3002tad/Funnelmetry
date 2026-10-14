@@ -131,3 +131,49 @@ reached the group after the backlog had already drained, so this is **not**
 proof of in-flight partition handoff under sustained load. The second fixture
 and its synthetic Kafka volume were also removed. The locally built image is
 still not an immutable published release; live autoscale remains OFF.
+
+## Published image and sustained in-flight fixture
+
+Commit `bfd8061f3b3b5f9eaaebfbb8b8046a22568cbc10` was pushed to GitHub.
+The Worker was built from that committed worker/Dockerfile content, pushed to
+GHCR as `ghcr.io/3002tad/funnelmetry/handoff-workers:sha-bfd8061f3b3b5f9eaaebfbb8b8046a22568cbc10`,
+and the remote digest was verified as
+`sha256:f61aa962eae67c8133c26d29bba68567abf001836b8d2bc19e48c4e691c901b9`.
+The local live stack still runs its previous Worker digest; publishing is not
+deployment.
+
+A new isolated stack `funnelmetry-scale-paced-20261014` used this exact GHCR
+digest, a separate Kafka volume, no Source Connector and no published ports.
+The fixture Worker CPU limit was deliberately reduced to 0.25 CPU per replica
+and a bounded producer sent 50,000 synthetic Raw events with 50 ms pacing per
+100 messages. This load profile is a fault-injection tool, not a live resource
+recommendation. Immediately before manually scaling 1→2, the two Raw
+partitions had 4,402 and 5,094 unprocessed records. With two healthy replicas,
+each member owned one partition; a subsequent sample still showed 3,353 and
+5,010 lag while the producer was active. Thus the partition handoff really
+overlapped backlog, unlike the earlier fixture.
+
+One fixture replica was then sent SIGTERM while the producer and backlog were
+still active. The old task ended `Complete`; Swarm created a replacement that
+became healthy. Both partitions reached committed log end. Fresh
+`read_committed` verification found exactly **50,000 unique canonical** and
+**50,000 unique outcome** source-event IDs, matching Raw identities, zero
+quarantine, and no missing/duplicate identities. After lag was zero, manual
+2→1 scale converged to one member owning both partitions; the verifier passed
+again. Worker logs contained five transient `AddPartitionsToTxn`/
+`ConcurrentTransactions` error lines around rebalance, but zero normalizer
+runtime-failure lines. This establishes data convergence for the tested
+single-node synthetic workload; it does **not** establish a zero-error
+transaction SLA, multi-node behavior or live Source Feed replay acceptance.
+The fixture stack and its synthetic Kafka volume were removed afterward;
+their data cannot be recovered. The live stack was not modified.
+
+Unattended live `--apply` is still blocked by the Docker-manager permission
+boundary. `docker info` on the current engine reported no authorization plugin.
+Code-level target allowlisting does not constrain the operator's full daemon
+access. Docker's default authorization is all-or-nothing; a reviewed daemon
+authorization mechanism or equivalent constrained manager boundary must be
+provided and tested before running the controller unattended. See the
+[Docker authorization documentation](https://docs.docker.com/engine/extend/plugins_authorization).
+Release-specific **live** in-flight replay/rollback, capacity/error-rate
+thresholds and controller actuator acceptance are also not yet approved.
