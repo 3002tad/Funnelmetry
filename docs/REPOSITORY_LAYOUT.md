@@ -64,7 +64,6 @@ infra/
   swarm/                     # Traefik config cho edge Swarm
   docker/                    # Dockerfile và startup gate
   observability/             # Prometheus/Grafana config
-  legacy/compose.yaml        # Compose rollback DEC-125, không dùng cho demo mới
 tests/
 analytics/                   # metadata, analytical SQL, tools/evidence
 runtime/                     # local launcher/config; ignored secrets/logs/backups

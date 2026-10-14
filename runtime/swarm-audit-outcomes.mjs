@@ -4,11 +4,13 @@ import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { parseEnv } from 'node:util';
+import { normalizeSwarmEnv } from './swarm-config.mjs';
 
 const exec = promisify(execFile);
-const env = parseEnv(await readFile(new URL('./deploy.env', import.meta.url), 'utf8'));
+const env = normalizeSwarmEnv(parseEnv(await readFile(new URL('./deploy.env', import.meta.url), 'utf8')));
 if (!/^[a-z][a-z0-9_-]{2,40}$/.test(env.SWARM_STACK_NAME || '') ||
     env.SWARM_MIGRATION_MODE !== 'PARALLEL_LIVE') throw Error('A reviewed live stack is required');
+if (!env.SWARM_FEED_TOKEN) throw Error('SWARM_FEED_TOKEN is required for read-only feed audit');
 const run = async args => (await exec('docker', args, { windowsHide: true, maxBuffer: 65536 })).stdout.trim();
 const ids = (await run(['ps', '--filter', `label=com.docker.swarm.service.name=${env.SWARM_STACK_NAME}_postgres`,
   '--format', '{{.ID}}'])).split(/\s+/).filter(Boolean);
@@ -25,7 +27,7 @@ if (!Number.isSafeInteger(after) || after < 0) throw Error('Invalid initial curs
 while (pages++ < 50) {
   const url = new URL(env.SWARM_FEED_URL);
   url.search = new URLSearchParams({ after_seq: String(after), limit: '100', wait: '0' }).toString();
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${env.HANDOFF_FEED_TOKEN}`,
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${env.SWARM_FEED_TOKEN}`,
     Accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw Error(`Feed HTTP ${response.status}`);
   const feed = await response.json();

@@ -32,6 +32,7 @@ test('single-node Kafka controller registration does not depend on its own Swarm
   const stack = readFileSync(fileURLToPath(new URL('../infra/swarm-stack.yml', import.meta.url)), 'utf8');
   assert.match(stack, /KAFKA_CONTROLLER_QUORUM_VOTERS: 1@127\.0\.0\.1:9093/);
   assert.match(stack, /echo > \/dev\/tcp\/127\.0\.0\.1\/9092/);
+  assert.match(stack, /HANDOFF_RAW_PARTITIONS: \$\{SWARM_RAW_PARTITIONS:-1\}/);
 });
 
 test('stateful Swarm tasks restart after a clean Docker shutdown', () => {
@@ -96,11 +97,12 @@ test('continuous app, edge and live services replace clean exits without treatin
 
 test('Docker environment renders only selected deploy keys and strips inherited secrets', () => {
   const env = dockerEnvironment({ Path: 'C:\\bin', HANDOFF_DB_PASSWORD: 'old', GH_TOKEN: 'sensitive' },
-    { SWARM_STACK_NAME: 'fresh-stack', SWARM_DB_PASSWORD: 'new-secret', HANDOFF_RAW_PARTITIONS: '2',
+    { SWARM_STACK_NAME: 'fresh-stack', SWARM_DB_PASSWORD: 'new-secret', SWARM_RAW_PARTITIONS: '2',
       SWARM_NORMALIZER_ID_MODE: 'container', SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE: '32' });
   assert.equal(env.Path, 'C:\\bin');
   assert.equal(env.SWARM_STACK_NAME, 'fresh-stack');
-  assert.equal(env.HANDOFF_RAW_PARTITIONS, '2');
+  assert.equal(env.SWARM_RAW_PARTITIONS, '2');
+  assert.equal(env.HANDOFF_RAW_PARTITIONS, undefined);
   assert.equal(env.SWARM_NORMALIZER_ID_MODE, 'container');
   assert.equal(env.SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE, '32');
   assert.equal(env.HANDOFF_DB_PASSWORD, undefined);

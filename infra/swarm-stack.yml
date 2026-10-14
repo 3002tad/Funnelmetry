@@ -110,7 +110,8 @@ services:
     command: [node, /workspace/infra/docker/swarm-kafka-topics.mjs]
     environment:
       HANDOFF_MODE: ${SWARM_MIGRATION_MODE:?Set reviewed mode}
-      HANDOFF_RAW_PARTITIONS: ${HANDOFF_RAW_PARTITIONS:-1}
+      # Historical process variable consumed by swarm-kafka-topics.mjs; operator input is SWARM_RAW_PARTITIONS.
+      HANDOFF_RAW_PARTITIONS: ${SWARM_RAW_PARTITIONS:-1}
     networks:
       - data
     read_only: true

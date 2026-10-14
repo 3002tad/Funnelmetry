@@ -12,7 +12,7 @@ This document retains chronological implementation stages. Statements such as â€
 | Admin registry/diagnostics | [Admin inspection](../archive/ANALYTICS_AI_HISTORY.md#admin-registry) | Read-only; acceptance limits per page |
 | Product names | [Catalog sync](../workers/catalog-sync/README.md) | Current descriptive reference; not historical price authority |
 | Tests / earlier readiness | [Staging readiness](../../tests/evidence/ANALYTICS_AI_EVIDENCE_2026-09-25.md#staging-readiness), [Qwen evaluation](../../tests/evidence/ANALYTICS_AI_EVIDENCE_2026-09-25.md#qwen-evaluation) | Dated evidence, not general accuracy claims |
-| Runtime / deployment | [Operations](../OPERATIONS.md) | Activation is separate from code installation |
+| Runtime / deployment | [Swarm operations](../SWARM_MIGRATION.md) | Activation is separate from code installation |
 
 Code under repository-root `analytics/metadata/` contains versioned definitions, `analytics/sql/` staged assets/catalog/evidence schema, `analytics/src/` deterministic execution and registry code, and `analytics/test/` analytical tests. No code or SQL was moved during documentation cleanup.
 

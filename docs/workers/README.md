@@ -2,7 +2,7 @@
 
 Worker V2 tách theo capability; không đặt V1 `streaming-processor` nguyên khối vào đây.
 Đây là danh mục code, không xác nhận tất cả worker đang chạy trên demo.
-Xem [mục lục tài liệu](../README.md) và [vận hành/config runtime](../OPERATIONS.md).
+Xem [mục lục tài liệu](../README.md) và [vận hành/config Swarm](../SWARM_MIGRATION.md).
 
 Hiện có:
 

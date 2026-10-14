@@ -36,12 +36,12 @@ test('candidate cannot share the Compose project identity or claim live cutover'
 });
 
 test('multi-partition Raw requires per-container Normalizer identity in a new Swarm stack', () => {
-  assert.throws(() => validateSwarmCandidate({ ...candidate, HANDOFF_RAW_PARTITIONS: '2' }), /SWARM_NORMALIZER_ID_MODE=container/);
-  assert.equal(validateSwarmCandidate({ ...candidate, HANDOFF_RAW_PARTITIONS: '2',
+  assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_RAW_PARTITIONS: '2' }), /SWARM_NORMALIZER_ID_MODE=container/);
+  assert.equal(validateSwarmCandidate({ ...candidate, SWARM_RAW_PARTITIONS: '2',
     SWARM_NORMALIZER_ID_MODE: 'container' }).status, 'PLANNING_ONLY');
-  assert.throws(() => validateSwarmCandidate({ ...candidate, HANDOFF_RAW_PARTITIONS: '0' }), /HANDOFF_RAW_PARTITIONS/);
-  assert.throws(() => validateSwarmCandidate({ ...candidate, HANDOFF_RAW_PARTITIONS: '65',
-    SWARM_NORMALIZER_ID_MODE: 'container' }), /HANDOFF_RAW_PARTITIONS/);
+  assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_RAW_PARTITIONS: '0' }), /SWARM_RAW_PARTITIONS/);
+  assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_RAW_PARTITIONS: '65',
+    SWARM_NORMALIZER_ID_MODE: 'container' }), /SWARM_RAW_PARTITIONS/);
   assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_NORMALIZER_ID_MODE: 'auto' }), /SWARM_NORMALIZER_ID_MODE/);
 });
 
@@ -50,8 +50,8 @@ test('fresh parallel-live candidate requires isolated connector, observed feed a
     SWARM_LIVE_ACK: 'FRESH_PARALLEL_LIVE', SWARM_CONNECTOR_ID: 'fresh-live-source',
     HANDOFF_CONNECTOR_ID: 'old-source', SWARM_FEED_URL: 'https://feed.example.com/v1/events',
     SWARM_FEED_ID: '5143bee7-b883-453f-a045-e696621dbd1d', SWARM_INITIAL_AFTER_SEQ: '0',
-    HANDOFF_FEED_TOKEN: 'secret-feed', HANDOFF_CATALOG_KEY: 'secret-catalog',
-    HANDOFF_DASHSCOPE_API_KEY: 'secret-ai', SWARM_CATALOG_URL: 'https://store.example.com/',
+    SWARM_FEED_TOKEN: 'secret-feed', SWARM_CATALOG_KEY: 'secret-catalog',
+    SWARM_DASHSCOPE_API_KEY: 'secret-ai', SWARM_CATALOG_URL: 'https://store.example.com/',
     SWARM_DASHSCOPE_BASE_URL: 'https://ai.example.com/v1' };
   const plan = validateSwarmCandidate(live);
   assert.equal(plan.mode, 'PARALLEL_LIVE');

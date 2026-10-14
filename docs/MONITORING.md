@@ -1,8 +1,8 @@
 # Monitoring Pipeline
 
-> **LỊCH SỬ COMPOSE (12/10), không phải runbook Swarm.** Lần chạy cũ dùng `runtime/deploy.env` với profile `monitoring,live,catalog` và `node runtime/deploy.mjs start`; sau khi provision credential, `node runtime/check-monitoring.mjs` xác nhận Grafana 8 panel, Prometheus `UP=1` và 7 worker ready. Swarm candidate hiện chưa triển khai monitoring; xem [trạng thái Swarm](SWARM_MIGRATION.md). Không chạy lại các lệnh Compose bên dưới cho demo mới. Credential metrics hết hạn theo TTL, phải xoay vòng trước khi hết hạn; bằng chứng cũ không chứng minh end-to-end hay host-level HA.
+> **LỊCH SỬ COMPOSE (12/10), không phải runbook Swarm.** Lần chạy cũ dùng profile `monitoring,live,catalog`; sau khi provision credential, kiểm tra Grafana 8 panel, Prometheus `UP=1` và 7 worker ready. Đường triển khai/launcher Compose cũ đã bị gỡ ngày 2026-10-15; các lệnh bên dưới chỉ là provenance, **không chạy được trên phiên bản hiện tại**. Xem [trạng thái Swarm](SWARM_MIGRATION.md). Credential metrics hết hạn theo TTL; bằng chứng cũ không chứng minh end-to-end hay host-level HA.
 
-> Hợp nhất contract khóa metrics và tài liệu Prometheus/Grafana. Các lệnh demo trong phần lịch sử có thể dùng cấu hình cũ; `docs/OPERATIONS.md` chỉ là runbook Compose rollback, không phải triển khai mới.
+> Hợp nhất contract khóa metrics và tài liệu Prometheus/Grafana. Phần lịch sử không còn là runbook; thao tác Swarm dùng [SWARM_MIGRATION.md](SWARM_MIGRATION.md).
 
 Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Artifact Prometheus/Grafana vẫn nằm ở `infra/observability/` trong source repo.
 
@@ -19,7 +19,7 @@
 
 # Metrics-only machine credentials and local monitoring
 
-> **Cập nhật phạm vi:** các ví dụ `demo-new.env`/overlay bên dưới là lịch sử. Profile `monitoring` của [`infra/legacy/compose.yaml`](../infra/legacy/compose.yaml) thuộc đường Compose rollback; chưa được chuyển và nghiệm thu trên Swarm.
+> **Cập nhật phạm vi:** các ví dụ `demo-new.env`/overlay bên dưới là lịch sử. Không dùng các lệnh Compose đã gỡ để provision monitoring trên Swarm.
 
 Implements user-approved separate monitoring credentials under Master §24.3.4 /
 DEC-103 and Cookbook security / pipeline-recovery-observability boundaries.
@@ -59,10 +59,9 @@ an explicit follow-up before provisioning monitoring credentials. Without it,
 the new endpoints fail closed with 503; normal existing endpoints keep working.
 Do not modify the handoff bootstrap digest manually to bypass compatibility.
 
-Trong bộ Compose hiện hành, `node runtime/deploy.mjs start` chạy one-shot job
-`monitoring-schema` để áp migration bổ sung này **sau** core bootstrap và **trước**
-`prepare-monitoring.mjs`. Job dùng `CREATE TABLE IF NOT EXISTS`, không reset event,
-cursor hoặc database; operator chạy Compose thủ công phải giữ cùng thứ tự.
+Trong deployment Compose cũ, one-shot job `monitoring-schema` áp migration bổ sung
+**sau** core bootstrap và **trước** `prepare-monitoring.mjs`. Đây là provenance;
+deployment Swarm phải kiểm tra migration/schema riêng, không chạy launcher cũ.
 
 Rollback: stop monitoring services, revert API image if needed; leave the additive
 tables/audit intact. No down-migration or data deletion is required.
@@ -96,18 +95,11 @@ for an existing Grafana volume. Use Grafana account controls to change it.
 
 ## Issue, rotate, revoke
 
-### Local operator commands
+### Historical operator workflow (removed)
 
-From `Streaming_Pipeline`, with Docker Desktop and the demo running:
-
-```powershell
-node runtime/manage-monitoring-key.mjs status
-node runtime/manage-monitoring-key.mjs rotate
-# Emergency revoke: deliberately stops successful scraping.
-node runtime/manage-monitoring-key.mjs revoke
-```
-
-Alternatively run `node runtime/manage-monitoring-key.mjs rotate`. Status reads local receipt,
+The Compose-only key-management launcher was removed with the retired demo.
+The following describes its historical behavior, not a runnable Swarm rotation procedure.
+Status read a local receipt,
 not authoritative server revocation state. Rotation logs in through the existing
 Admin API, writes a pending journal before installing the replacement, recreates
 only Prometheus and waits for a successful target scrape newer than that restart.
@@ -189,8 +181,8 @@ and [Docker secret-file configuration](https://grafana.com/docs/grafana/latest/s
 # Pipeline monitoring artifacts
 
 Implements the visualization preparation for Master §24.3.4 / DEC-103.
-The optional `../compose.yaml` monitoring profile defines Prometheus and Grafana with a
-metrics-only machine credential. See [current operations](OPERATIONS.md) and [historical key-lifecycle evidence](MONITORING.md#machine-credentials).
+The retired Compose monitoring profile defined Prometheus and Grafana with a
+metrics-only machine credential. See [Swarm operations](SWARM_MIGRATION.md) and [historical key-lifecycle evidence](MONITORING.md#machine-credentials).
 No recovery/autoscaling is enabled.
 
 ## Files

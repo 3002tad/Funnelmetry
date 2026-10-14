@@ -63,17 +63,16 @@ group and Raw partition and bounded Kafka transactions; see
 [the 2026-10-14 validation](../SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
 The legacy Compose guidance is not the Swarm rollout path.
 
-1. The current `infra/legacy/compose.yaml` assigns a fixed
+1. The retired Compose deployment assigned a fixed
    `CANONICAL_NORMALIZER_INSTANCE_ID=handoff-canonical-normalizer` by default. Worker runtime uses
    `${clientId}-${instanceId}` as Kafka transactional ID. Blindly scaling this Compose
    service would let concurrent replicas fence each other's producers. New opt-in
    `CANONICAL_NORMALIZER_INSTANCE_ID_MODE=container` appends the default Docker hostname
    to the base ID. Restart of the same container preserves it; recreation changes it.
-   Sandbox verifies distinct actual IDs. The unified Compose keeps the explicit mode
-   by default. For a **new isolated project only**, set `HANDOFF_NORMALIZER_ID_MODE=container`
-   before first start; the launcher rejects multi-partition Raw with explicit IDs.
+   Sandbox verified distinct actual IDs. This historical guidance is not a
+   Swarm Normalizer configuration; use the current Swarm preflight instead.
 2. The unified topic initializer creates **one Raw partition by default**. For a new
-   isolated project, `HANDOFF_RAW_PARTITIONS=2` provisions two Raw partitions. It
+   isolated Swarm stack, `SWARM_RAW_PARTITIONS=2` provisions two Raw partitions. It
    verifies the existing topic's partition count and fails on mismatch; it never
    automatically repartitions an existing topic. A single Raw partition does not gain
    consumer-group parallelism by adding replicas. Changing partition count on a live

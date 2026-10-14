@@ -4,8 +4,7 @@
 
 | Cần biết gì | Đọc file | Phạm vi |
 |---|---|---|
-| Triển khai Swarm và trạng thái migration | [Docker Swarm](SWARM_MIGRATION.md) | Swarm là baseline; API/UI/worker và HTTPS local đã qua smoke, chưa có live feed |
-| Runbook Compose cũ | [Vận hành legacy](OPERATIONS.md) | Chỉ dùng khi rollback DEC-125 được xác nhận; không dùng cho triển khai mới |
+| Triển khai Swarm và trạng thái migration | [Docker Swarm](SWARM_MIGRATION.md) | Swarm là baseline; đọc bằng chứng live và các gate còn thiếu theo ngày, không xem render là nghiệm thu |
 | Chức năng đã có, còn thiếu và giới hạn | [Chức năng](FEATURE_STATUS.md) | Phân biệt code, demo evidence và production acceptance |
 | Test an toàn và cách chứng minh demo | [Kiểm thử](TESTING.md) | Unit/build/config khác với E2E và restore acceptance |
 | Cấu trúc repo | [Repository layout](REPOSITORY_LAYOUT.md) | Đường dẫn code và ownership |
@@ -20,7 +19,7 @@ Thứ tự đọc khi thay đổi semantics hoặc deployment: [Decision Record]
 
 - [Dashboard API](apps/dashboard-api/README.md), [Dashboard Web](apps/dashboard-web/README.md), [Analytics](analytics/README.md).
 - [Source Connector](workers/source-connector/README.md), [Catalog Sync](workers/catalog-sync/README.md), [Workers](workers/README.md), [Packages](packages/README.md).
-- [Vận hành Swarm](SWARM_MIGRATION.md), [Compose rollback](OPERATIONS.md), [tests](../tests/README.md), [autoscaler và watchdog](tools/RESILIENCE.md).
+- [Vận hành Swarm](SWARM_MIGRATION.md), [tests](../tests/README.md), [autoscaler và watchdog](tools/RESILIENCE.md).
 - [Monitoring](MONITORING.md), [hồ sơ Analytics/AI](archive/ANALYTICS_AI_HISTORY.md), [ingestion/recovery](archive/INGESTION_RECOVERY_HISTORY.md), [demo/handoff](archive/DEMO_HANDOFF_HISTORY.md), [UI rollout](archive/UI_HISTORY.md).
 
 Tài liệu component nằm dưới `docs/` theo đường dẫn code tương ứng; code/runtime vẫn ở thư mục cũ. README của npm packages là [ngoại lệ đóng gói](packages/README.md). Tài liệu test nằm ở [tests](../tests/README.md). Các hồ sơ trong [archive](archive/README.md) giữ evidence và hướng dẫn lịch sử theo chủ đề/mốc; không chạy lại lệnh cũ trên project hiện hành. V1 dưới [`docs/legacy/`](legacy/README.md) chỉ dùng truy vết. Không đưa `.env`, log, token hoặc backup thật vào Git/tài liệu.

@@ -7,6 +7,7 @@ import { parseEnv } from 'node:util';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateSwarmApp, validateSwarmCandidate } from './swarm-preflight.mjs';
+import { normalizeSwarmEnv } from './swarm-config.mjs';
 import { schemaFiles, schemaDigest } from '../infra/bootstrap/bootstrap-swarm.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -22,7 +23,7 @@ const edgeFiles = Object.freeze({
 const renderKeys = ['SWARM_STACK_NAME', 'SWARM_POSTGRES_IMAGE', 'SWARM_KAFKA_IMAGE',
   'SWARM_API_IMAGE', 'SWARM_WEB_IMAGE', 'SWARM_WORKERS_IMAGE', 'SWARM_TRAEFIK_IMAGE',
   'SWARM_PUBLIC_DOMAIN', 'SWARM_ADMIN_EMAIL', 'SWARM_ACME_EMAIL',
-  'HANDOFF_RAW_PARTITIONS', 'SWARM_NORMALIZER_ID_MODE', 'SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE',
+  'SWARM_RAW_PARTITIONS', 'SWARM_NORMALIZER_ID_MODE', 'SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE',
   'SWARM_EXPECTED_SCHEMA_DIGEST', 'SWARM_MIGRATION_MODE',
   'SWARM_LIVE_ACK', 'SWARM_CONNECTOR_ID', 'SWARM_FEED_URL', 'SWARM_FEED_ID',
   'SWARM_INITIAL_AFTER_SEQ', 'SWARM_CATALOG_URL', 'SWARM_DASHSCOPE_BASE_URL',
@@ -126,7 +127,7 @@ async function serviceExists(name, env) {
 }
 
 export async function run(command) {
-  const parsed = parseEnv(await readFile(join(root, 'runtime', 'deploy.env'), 'utf8'));
+  const parsed = normalizeSwarmEnv(parseEnv(await readFile(join(root, 'runtime', 'deploy.env'), 'utf8')));
   const plan = validateSwarmCandidate(parsed);
   parsed.SWARM_EXPECTED_SCHEMA_DIGEST = await localSchemaDigest();
   const env = dockerEnvironment(process.env, parsed);
@@ -179,9 +180,9 @@ export async function run(command) {
   if (command === 'create-live-secrets') {
     if (plan.mode !== 'PARALLEL_LIVE') throw Error('Live secrets require PARALLEL_LIVE mode');
     const specs = [
-      ['source_feed_token', parsed.HANDOFF_FEED_TOKEN],
-      ['catalog_key', parsed.HANDOFF_CATALOG_KEY],
-      ['dashscope_api_key', parsed.HANDOFF_DASHSCOPE_API_KEY],
+      ['source_feed_token', parsed.SWARM_FEED_TOKEN],
+      ['catalog_key', parsed.SWARM_CATALOG_KEY],
+      ['dashscope_api_key', parsed.SWARM_DASHSCOPE_API_KEY],
     ];
     if (specs.some(([, value]) => !value || /[\r\n]/.test(value))) throw Error('Live credential values are missing or invalid');
     for (const [name] of specs) {

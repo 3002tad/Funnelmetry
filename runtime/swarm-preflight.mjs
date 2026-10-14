@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { parseEnv } from 'node:util';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { normalizeSwarmEnv } from './swarm-config.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const envPath = join(root, 'runtime', 'deploy.env');
@@ -33,6 +34,7 @@ export function validateSwarmApp(env) {
 }
 
 export function validateSwarmCandidate(env) {
+  env = normalizeSwarmEnv(env);
   const stackName = env.SWARM_STACK_NAME?.trim() || '';
   if (!/^[a-z][a-z0-9_-]{2,40}$/.test(stackName)) {
     throw Error('SWARM_STACK_NAME must be a new lowercase Swarm stack name (3..41 characters)');
@@ -43,9 +45,9 @@ export function validateSwarmCandidate(env) {
   if (!['OFFLINE_DEMO', 'PARALLEL_LIVE'].includes(env.SWARM_MIGRATION_MODE)) {
     throw Error('SWARM_MIGRATION_MODE must be OFFLINE_DEMO or PARALLEL_LIVE');
   }
-  const rawPartitions = env.HANDOFF_RAW_PARTITIONS?.trim() || '1';
+  const rawPartitions = env.SWARM_RAW_PARTITIONS?.trim() || '1';
   if (!/^[1-9]\d*$/.test(rawPartitions) || !Number.isSafeInteger(Number(rawPartitions)) || Number(rawPartitions) > 64) {
-    throw Error('HANDOFF_RAW_PARTITIONS must be an integer from 1 to 64 for a fresh Kafka topic');
+    throw Error('SWARM_RAW_PARTITIONS must be an integer from 1 to 64 for a fresh Kafka topic');
   }
   const normalizerIdMode = env.SWARM_NORMALIZER_ID_MODE?.trim() || 'explicit';
   if (!['explicit', 'container'].includes(normalizerIdMode)) {
@@ -69,7 +71,7 @@ export function validateSwarmCandidate(env) {
     if (!/^(0|[1-9]\d*)$/.test(env.SWARM_INITIAL_AFTER_SEQ || '') || !Number.isSafeInteger(Number(env.SWARM_INITIAL_AFTER_SEQ))) {
       throw Error('SWARM_INITIAL_AFTER_SEQ must be a safe nonnegative integer');
     }
-    if (!env.HANDOFF_FEED_TOKEN || !env.HANDOFF_CATALOG_KEY || !env.HANDOFF_DASHSCOPE_API_KEY) {
+    if (!env.SWARM_FEED_TOKEN || !env.SWARM_CATALOG_KEY || !env.SWARM_DASHSCOPE_API_KEY) {
       throw Error('Feed, catalog and Qwen credentials are required for isolated Swarm secrets');
     }
     for (const [key, protocols] of [['SWARM_CATALOG_URL', ['https:']], ['SWARM_DASHSCOPE_BASE_URL', ['https:']]]) {
@@ -114,6 +116,7 @@ export async function main() {
   let env;
   try { env = parseEnv(await readFile(envPath, 'utf8')); }
   catch { throw Error('Create ignored runtime/deploy.env before Swarm planning'); }
+  env = normalizeSwarmEnv(env);
   const plan = validateSwarmCandidate(env);
   // Do not print image references or values from the ignored env; a digest is not
   // proof that the matching image is available or safe to deploy.
