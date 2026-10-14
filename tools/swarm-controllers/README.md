@@ -73,6 +73,34 @@ API, Agent, browser and worker containers receive no Docker socket.
 
 ## Operator use
 
+### Docker Desktop Windows live actuator boundary
+
+The current live manager uses Docker context `desktop-linux` over
+`npipe:////./pipe/dockerDesktopLinuxEngine` (Linux Engine 29.8.1). Docker
+reports zero authorization plugins. The normal Windows user that launched
+Docker Desktop can issue unrestricted daemon commands through this pipe;
+running the controller under that same identity is not least-privilege.
+
+The proposed implementation path (still requiring team security review) is a
+small allowlisted broker on the manager. Only that broker may reach the Docker
+socket; the controller uses
+an isolated private channel with no published port and no Docker socket or
+named pipe. The broker must independently re-inspect the exact stack,
+service ID, immutable image, version and replica bounds before accepting a
+single scale action. It must reject arbitrary Docker API paths and reject
+updates of any other service, exec, container creation, secret/volume access,
+and stack removal. Audit both accepted and denied actions. Its own Docker
+socket access remains privileged and requires a separate threat review.
+
+Do not substitute a generic Docker socket proxy or a CLI-side allowlist:
+either would leave the controller with broad daemon authority. Before live
+enablement, run negative authorization tests from the controller identity,
+then perform exact-image in-flight drain/replay acceptance, review state
+migration, and finally a bounded automatic live 1-to-2-to-1 test. The current
+`live-preflight.mjs` deliberately reports `applyAuthorized=false` until that
+boundary is implemented and separately attested. No Docker Desktop restart
+or live service mutation is performed by this plan.
+
 For a bounded, read-only live baseline without touching the persisted
 controller state, use `measure.mjs`. If the local controller config still pins
 an older image, pass the **exact current service digest** explicitly. This
