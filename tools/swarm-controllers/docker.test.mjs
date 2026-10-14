@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { capacityLimit, kafkaSummary, verifyService } from './docker.mjs';
+import { SERVICE_VIEW, capacityLimit, kafkaSummary, verifyService } from './docker.mjs';
 
 const scope = { stack: 'funnelmetry-live-test', service: 'canonical-normalizer',
   image: `example/workers@sha256:${'a'.repeat(64)}`, groupId: 'normalizer-v1', topic: 'raw.v1' };
@@ -17,6 +17,13 @@ test('exact stack, digest and replicated service required', () => {
     { ...service, Spec: { ...service.Spec, Mode: { Global: {} } } },
     { ...service, Spec: { ...service.Spec, TaskTemplate: { ContainerSpec: { Image: 'workers:latest' } } } },
   ]) assert.throws(() => verifyService(scope, altered));
+});
+
+test('fresh service without UpdateStatus remains observable, active update fails closed', () => {
+  assert.match(SERVICE_VIEW, /UpdateStatus":\{\{with \.UpdateStatus\}\}\{\{json \.\}\}\{\{else\}\}null\{\{end\}\}/);
+  assert.equal(verifyService(scope, { ...service, UpdateStatus: null }).replicas, 1);
+  assert.throws(() => verifyService(scope, { ...service, UpdateStatus: { State: 'updating' } }), /SERVICE_SCOPE_OR_UPDATE_UNVERIFIED/);
+  assert.throws(() => verifyService(scope, { ...service, UpdateStatus: { State: 'rollback_started' } }), /SERVICE_SCOPE_OR_UPDATE_UNVERIFIED/);
 });
 
 test('capacity is reserved-resource bound and unknown fails closed', () => {

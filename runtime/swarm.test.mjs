@@ -47,6 +47,7 @@ test('Swarm API readiness probes worker health endpoints instead of returning NO
   assert.match(workers, /WORKER_HEALTH_PORT: '32110'/);
   assert.match(workers, /CANONICAL_NORMALIZER_INSTANCE_ID_MODE: \$\{SWARM_NORMALIZER_ID_MODE:-explicit\}/);
   assert.match(workers, /CANONICAL_NORMALIZER_TRANSACTION_BATCH_SIZE: \$\{SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE:-64\}/);
+  assert.match(workers, /canonical-normalizer:[\s\S]*?image: \$\{SWARM_NORMALIZER_IMAGE:\?Pin the Normalizer image digest\}/);
 });
 
 test('continuous Swarm workers have liveness-only healthchecks; jobs and scheduler do not inherit them', () => {
@@ -86,14 +87,26 @@ test('continuous app, edge and live services replace clean exits without treatin
 test('Docker environment renders only selected deploy keys and strips inherited secrets', () => {
   const env = dockerEnvironment({ Path: 'C:\\bin', HANDOFF_DB_PASSWORD: 'old', GH_TOKEN: 'sensitive' },
     { SWARM_STACK_NAME: 'fresh-stack', SWARM_DB_PASSWORD: 'new-secret', HANDOFF_RAW_PARTITIONS: '2',
-      SWARM_NORMALIZER_ID_MODE: 'container' });
+      SWARM_NORMALIZER_ID_MODE: 'container', SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE: '32' });
   assert.equal(env.Path, 'C:\\bin');
   assert.equal(env.SWARM_STACK_NAME, 'fresh-stack');
   assert.equal(env.HANDOFF_RAW_PARTITIONS, '2');
   assert.equal(env.SWARM_NORMALIZER_ID_MODE, 'container');
+  assert.equal(env.SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE, '32');
   assert.equal(env.HANDOFF_DB_PASSWORD, undefined);
   assert.equal(env.GH_TOKEN, undefined);
   assert.equal(env.SWARM_DB_PASSWORD, undefined);
+  assert.equal(env.SWARM_NORMALIZER_IMAGE, undefined);
+});
+
+test('normalizer rollout image is rendered independently, with Workers as default', () => {
+  const workers = 'ghcr.io/example/workers@sha256:' + 'a'.repeat(64);
+  const next = 'ghcr.io/example/workers@sha256:' + 'b'.repeat(64);
+  assert.equal(dockerEnvironment({}, { SWARM_WORKERS_IMAGE: workers }).SWARM_NORMALIZER_IMAGE, workers);
+  assert.equal(dockerEnvironment({}, { SWARM_WORKERS_IMAGE: workers, SWARM_NORMALIZER_IMAGE: '  ' }).SWARM_NORMALIZER_IMAGE, workers);
+  const env = dockerEnvironment({}, { SWARM_WORKERS_IMAGE: workers, SWARM_NORMALIZER_IMAGE: next });
+  assert.equal(env.SWARM_WORKERS_IMAGE, workers);
+  assert.equal(env.SWARM_NORMALIZER_IMAGE, next);
 });
 
 test('Swarm DB secret must be new, independent and single-line', () => {

@@ -7,7 +7,9 @@ const SERVICE = /^[a-z0-9][a-z0-9_-]+$/;
 const KAFKA_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]+$/;
 const DIGEST = /@sha256:[a-f0-9]{64}$/;
 // Docker format templates intentionally omit Env, SecretRefs, mounts and health logs.
-const SERVICE_VIEW = '{"ID":{{json .ID}},"Version":{{json .Version}},"Spec":{"Name":{{json .Spec.Name}},"Labels":{{json .Spec.Labels}},"Mode":{{json .Spec.Mode}},"TaskTemplate":{"ContainerSpec":{"Image":{{json .Spec.TaskTemplate.ContainerSpec.Image}}},"Resources":{"Reservations":{{json .Spec.TaskTemplate.Resources.Reservations}}}}},"UpdateStatus":{{json .UpdateStatus}}}';
+// A freshly deployed service may have no UpdateStatus yet. Keep the projection
+// narrow so Docker inspect never emits environment values or secret references.
+export const SERVICE_VIEW = '{"ID":{{json .ID}},"Version":{{json .Version}},"Spec":{"Name":{{json .Spec.Name}},"Labels":{{json .Spec.Labels}},"Mode":{{json .Spec.Mode}},"TaskTemplate":{"ContainerSpec":{"Image":{{json .Spec.TaskTemplate.ContainerSpec.Image}}},"Resources":{"Reservations":{{json .Spec.TaskTemplate.Resources.Reservations}}}}},"UpdateStatus":{{with .UpdateStatus}}{{json .}}{{else}}null{{end}}}';
 const CONTAINER_VIEW = '{"Id":{{json .Id}},"Config":{"Labels":{{json .Config.Labels}}},"State":{"Running":{{.State.Running}},"Paused":{{.State.Paused}},"Restarting":{{.State.Restarting}},"StartedAt":{{json .State.StartedAt}}}}';
 const NODE_VIEW = '{"Status":{"State":{{json .Status.State}}},"Spec":{"Availability":{{json .Spec.Availability}}},"Description":{"Resources":{{json .Description.Resources}}}}';
 const RESERVATION_VIEW = '{"Spec":{"Mode":{{json .Spec.Mode}},"TaskTemplate":{"Resources":{"Reservations":{{json .Spec.TaskTemplate.Resources.Reservations}}}}}}';

@@ -54,6 +54,10 @@ export function validateSwarmCandidate(env) {
   if (Number(rawPartitions) > 1 && normalizerIdMode !== 'container') {
     throw Error('Multiple Raw partitions require SWARM_NORMALIZER_ID_MODE=container before deploying a fresh stack');
   }
+  const batchSize = env.SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE?.trim() || '64';
+  if (!/^(?:[1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-6])$/.test(batchSize)) {
+    throw Error('SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE must be an integer from 1 to 256');
+  }
   if (env.SWARM_MIGRATION_MODE === 'PARALLEL_LIVE') {
     if (env.SWARM_LIVE_ACK !== 'FRESH_PARALLEL_LIVE') throw Error('Fresh parallel-live acknowledgement required');
     if (!/^[a-z0-9-]{1,100}$/.test(env.SWARM_CONNECTOR_ID || '') || env.SWARM_CONNECTOR_ID === env.HANDOFF_CONNECTOR_ID) {
@@ -88,6 +92,9 @@ export function validateSwarmCandidate(env) {
     if (!imagePattern.test(ref)) throw Error(`${key} must pin a GHCR full Git SHA tag or sha256 digest`);
     images[name] = ref;
   }
+  const normalizer = env.SWARM_NORMALIZER_IMAGE?.trim() || images.workers;
+  if (!imagePattern.test(normalizer)) throw Error('SWARM_NORMALIZER_IMAGE must pin a GHCR full Git SHA tag or sha256 digest');
+  images.normalizer = normalizer;
   for (const [name, key] of Object.entries({ postgres: 'SWARM_POSTGRES_IMAGE', kafka: 'SWARM_KAFKA_IMAGE' })) {
     const ref = env[key]?.trim() || '';
     if (!statefulImagePattern.test(ref)) throw Error(`${key} must pin an official tagged image by sha256 digest`);

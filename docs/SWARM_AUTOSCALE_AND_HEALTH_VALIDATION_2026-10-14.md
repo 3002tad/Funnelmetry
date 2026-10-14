@@ -177,3 +177,107 @@ provided and tested before running the controller unattended. See the
 [Docker authorization documentation](https://docs.docker.com/engine/extend/plugins_authorization).
 Release-specific **live** in-flight replay/rollback, capacity/error-rate
 thresholds and controller actuator acceptance are also not yet approved.
+
+## Scoped live Normalizer image rollout
+
+On the single-node `funnelmetry-live-20261014` stack, the normalizer alone was
+updated from Workers digest `sha256:a23a7597192c16367ac0627390acbc6a18a210bca0ef9ddad3556fd1cfaec93a`
+to `sha256:f61aa962eae67c8133c26d29bba68567abf001836b8d2bc19e48c4e691c901b9`.
+The latter was pulled from GHCR before rollout. The service retained one
+replica, `stop-first` update and automatic rollback-on-failure policy. Docker
+reported `UpdateStatus=completed`; the replacement task was healthy and both
+`/healthz` and `/readyz` returned HTTP 200. A read-only Kafka probe found a
+stable group with one member owning both Raw partitions, consumable lag `0`,
+raw offset delta `2` consisting of two verified control-only tails. Recent
+normalizer logs had zero matching `ERROR`, `ConcurrentTransactions`,
+`AddPartitionsToTxn` or runtime-failure lines. The Connector `/readyz` returned
+HTTP 200. The ledger writer and Connector remained on the older Workers digest.
+
+PostgreSQL counts were 450 canonicalization outcomes and 435 canonical events
+both before and after this rollout. No fresh Medusa event arrived during the
+observation, so this does **not** prove live in-flight Raw-to-canonical behavior
+on the new digest or a live rollback. A separate source-generated event and
+ID-by-ID Raw/outcome/canonical trace are still required. Autoscale and
+unattended controller `--apply` remain OFF. The existing ignored controller
+config/state still belong to the old digest; do not reuse that state with the
+new image or bypass its fingerprint/pending-action guard.
+
+`runtime/deploy.env` now keeps `SWARM_WORKERS_IMAGE` on the old digest and pins
+the new digest in `SWARM_NORMALIZER_IMAGE`. The launcher renders that optional
+override only for `canonical-normalizer`; leaving it blank makes a fresh stack
+use the common Workers image. This prevents a future reviewed `deploy-app`
+from silently reverting the normalizer, while avoiding a rollout of every
+worker. For manual rollback, first restore the old `SWARM_NORMALIZER_IMAGE`
+value in the ignored env, then run `docker service update --image
+ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:a23a7597192c16367ac0627390acbc6a18a210bca0ef9ddad3556fd1cfaec93a
+--detach=false funnelmetry-live-20261014_canonical-normalizer` and recheck
+health, group lag and outcomes. This rollback was documented, not exercised
+against live data.
+
+## Recovery after local Docker restart / absent stack
+
+On the next operator check, Docker Desktop was already running and the Swarm
+manager was active, but `funnelmetry-live-20261014` had no services. The
+previously named PostgreSQL/Kafka volumes, eight Swarm secret names and the
+stateful/edge node labels still existed. This was an absent stack, **not** a
+task-replacement test; the reason the stack disappeared was not established.
+No volume or secret was removed or recreated.
+
+The operator first ran `node runtime/swarm.mjs check-app`, then restored the
+data substrate with `node runtime/swarm.mjs deploy`. The bootstrap job reported
+that the existing schema matched and no reseed/migration occurred. The Kafka
+topic job verified the existing partition layout and completed after transient
+startup connection retries. PostgreSQL and Kafka became healthy; the persisted
+database still had 450 outcomes and 435 canonical events. Only then did the
+operator run `node runtime/swarm.mjs deploy-app` to restore the application,
+HTTPS edge and live Source Connector.
+
+All continuous services reached 1/1; the normalizer retained the new scoped
+digest, one replica and healthy/ready state. Local HTTPS `/healthz` returned
+200 with TLS verification result 0. The connector reported `READY`, matching
+feed ID, cursor `after_seq=450`, retention floor `0`, latest available sequence
+`450` and no new returned event. A read-only Normalizer Kafka probe found one
+stable member owning two Raw partitions, consumable lag `0`, with a raw offset
+delta `2` consisting of verified control-only tails. There were no matching
+recent transaction/runtime-failure log lines. The outcome split remained 435
+normalized, 4 quarantined and 11 unsupported.
+
+This confirms the existing state resumed on this single-node machine. It
+does **not** prove automatic stack recreation after stack removal, a new live
+Medusa event processed on the new digest, replay after loss of persistent
+state, or multi-node HA. A source-generated event ID must still be traced
+through Feed, Raw, canonicalization outcome and canonical ledger. Autoscale
+and unattended controller `--apply` remain OFF.
+
+## New live Medusa events after recovery
+
+After a user-operated Medusa shop action, Source Connector stayed `READY` and
+advanced the same Feed lineage from cursor `450` to `460`; the latest available
+sequence was `460` and the retention floor remained `0`. A bounded, read-only
+`read_committed` fetch of the two live Raw Kafka partitions found exactly ten
+records with ingress sequences `451` through `460`, each with a distinct
+`medusa-reference` event ID. No Raw payload was printed or written to disk.
+
+The same ten IDs were found in `ingress_accepted_receipts`,
+`canonicalization_outcomes` and `canonical_events`: ten normalized outcomes,
+ten receipt-ingestion IDs matching outcome raw-record IDs, and ten matching
+canonical IDs. The new canonical types included `behavior.page_viewed`,
+`behavior.scroll_depth_reached`, `promotion.banner_impression`,
+`behavior.product_viewed` and `cart.item_added`. The `product_viewed` event was
+class `BEHAVIOR_INTENT`; `cart.item_added` was class `BUSINESS_FACT`. Database
+totals advanced from 450 receipts/outcomes and 435 canonical events to
+460/460/445. The canonical `(source_id, source_event_id, mapping_version)`
+duplicate count was zero. The normalizer still had one healthy/ready replica,
+a stable one-member group owning both Raw partitions, consumable lag `0` and
+two verified control-only offset tails. No recent matching transaction/runtime
+failure lines appeared in its service log. This proves the new pinned digest
+processed those ten live records end to end on this single-node stack; it does
+not prove live in-flight 1-to-2-to-1 autoscaling, rollback or multi-node HA.
+
+The read-only controller adapter initially failed after the stack was freshly
+deployed because Docker omits `UpdateStatus` until a service update exists.
+Its narrow service-inspect template now emits JSON `null` for that absent
+field while still rejecting an active `updating` or `rollback_started` state.
+The targeted controller/adapter suite passed 13 tests; a subsequent live
+read-only adapter probe reported one ready replica and zero consumable lag.
+No controller state was reset and no `--apply` action was run.

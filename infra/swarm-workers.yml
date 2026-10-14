@@ -64,6 +64,9 @@ services:
 
   canonical-normalizer:
     <<: *worker
+    # May be promoted independently of the other workers; the launcher falls
+    # back to SWARM_WORKERS_IMAGE when no override is configured.
+    image: ${SWARM_NORMALIZER_IMAGE:?Pin the Normalizer image digest}
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/canonical-normalizer/src/main.js]
     healthcheck: *worker-liveness
     environment:

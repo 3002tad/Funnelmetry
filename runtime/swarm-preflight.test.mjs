@@ -73,6 +73,21 @@ test('application images require GHCR full Git SHA tags or immutable digests', (
   }
 });
 
+test('normalizer image defaults to Workers and validates an independent release pin', () => {
+  assert.equal(validateSwarmCandidate(candidate).images.normalizer, candidate.SWARM_WORKERS_IMAGE);
+  const ref = `ghcr.io/3002tad/funnelmetry/workers@sha256:${'b'.repeat(64)}`;
+  assert.equal(validateSwarmCandidate({ ...candidate, SWARM_NORMALIZER_IMAGE: ref }).images.normalizer, ref);
+  assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_NORMALIZER_IMAGE: 'workers:latest' }), /SWARM_NORMALIZER_IMAGE/);
+});
+
+test('normalizer transaction microbatch is bounded before deployment', () => {
+  assert.equal(validateSwarmCandidate({ ...candidate, SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE: '64' }).status, 'PLANNING_ONLY');
+  for (const value of ['0', '257', '1.5', '-1', 'abc']) {
+    assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE: value }),
+      /SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE/);
+  }
+});
+
 test('stateful images require tagged official references with digests', () => {
   for (const key of ['SWARM_POSTGRES_IMAGE', 'SWARM_KAFKA_IMAGE']) {
     for (const ref of ['', 'postgres:15-alpine', 'apache/kafka:latest',
