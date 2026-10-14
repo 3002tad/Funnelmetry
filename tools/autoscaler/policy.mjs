@@ -1,6 +1,7 @@
 // Decision-only prototype. No Docker calls; input is a trusted, coherent host snapshot.
 const nonnegative = value => Number.isSafeInteger(value) && value >= 0;
 const decimal = value => typeof value === 'string' && /^(0|[1-9][0-9]{0,39})$/.test(value);
+const percent = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
 export function validateConfig(c) {
   if (!c || !/^[a-z0-9][a-z0-9_-]+$/.test(c.project || '') ||
       c.service !== 'canonical-normalizer' || typeof c.groupId !== 'string' || !/^[a-zA-Z0-9._-]+$/.test(c.groupId)) {
@@ -14,6 +15,11 @@ export function validateConfig(c) {
       !decimal(c.upLag) || !decimal(c.downLag) || BigInt(c.upLag) <= BigInt(c.downLag)) {
     throw Error('Invalid limits/hysteresis');
   }
+  const memoryConfigured = c.upMemoryPercent !== undefined || c.downMemoryPercent !== undefined;
+  if (memoryConfigured && (!Number.isSafeInteger(c.upMemoryPercent) || !Number.isSafeInteger(c.downMemoryPercent) ||
+      c.downMemoryPercent < 1 || c.downMemoryPercent >= c.upMemoryPercent || c.upMemoryPercent > 100)) {
+    throw Error('Invalid memory hysteresis');
+  }
 }
 export function initialState(c) {
   validateConfig(c);
@@ -23,6 +29,7 @@ export function initialState(c) {
 
 export function evaluate(c, previous, observation, now) {
   validateConfig(c);
+  const memoryConfigured = c.upMemoryPercent !== undefined;
   if (!nonnegative(now) || !previous || previous.version !== 1 || previous.binding !== JSON.stringify(c) ||
       !nonnegative(previous.samples) || ![null, 'UP', 'DOWN'].includes(previous.direction) ||
       typeof previous.pending !== 'boolean') throw Error('Invalid state/config; do not reset implicitly');
@@ -37,6 +44,7 @@ export function evaluate(c, previous, observation, now) {
     audit: { project: c.project, service: c.service, groupId: c.groupId, at: now,
       signal: 'kafka_lag', observedValue: decimal(s.lag) ? s.lag : null,
       rawOffsetLag: decimal(s.rawOffsetLag) ? s.rawOffsetLag : null,
+      observedMemoryPercent: percent(s.memoryPercentMax) ? s.memoryPercentMax : null,
       controlOnlyPartitions: nonnegative(s.controlOnlyPartitions) ? s.controlOnlyPartitions : null,
       previousReplicas: nonnegative(s.replicas) ? s.replicas : null,
       desiredReplicas: nonnegative(desired) ? desired : null, reason, result: 'DECISION_ONLY' } });
@@ -62,10 +70,19 @@ export function evaluate(c, previous, observation, now) {
   const ceiling = Math.min(c.maxReplicas, s.partitions, s.hostReplicaLimit);
   if (ceiling < c.minReplicas || s.replicas < c.minReplicas || s.replicas > ceiling) return hold('CAPACITY_OR_REPLICA_DRIFT');
   if (state.lastDecisionAt !== null && now - state.lastDecisionAt < c.cooldownMs) return hold('COOLDOWN');
-  const direction = BigInt(s.lag) >= BigInt(c.upLag) ? 'UP' : BigInt(s.lag) <= BigInt(c.downLag) ? 'DOWN' : null;
+  const lagUp = BigInt(s.lag) >= BigInt(c.upLag);
+  // Memory is only a supporting signal for a stream worker: pressure without
+  // consumable backlog may be cache growth or a leak, not parallelizable work.
+  const memoryUp = memoryConfigured && percent(s.memoryPercentMax) &&
+    s.memoryPercentMax >= c.upMemoryPercent && BigInt(s.lag) > BigInt(c.downLag);
+  const direction = lagUp || memoryUp ? 'UP' : BigInt(s.lag) <= BigInt(c.downLag) ? 'DOWN' : null;
   if (!direction) return hold('HYSTERESIS_BAND');
   if (direction === 'UP' && s.replicas >= ceiling) return hold('PARTITION_HOST_OR_MAX_LIMIT');
   if (direction === 'DOWN' && (s.replicas <= c.minReplicas || s.gracefulDownVerified !== true)) return hold('MINIMUM_OR_DRAIN_UNVERIFIED');
+  if (direction === 'DOWN' && memoryConfigured &&
+    (!percent(s.memoryPercentMax) || s.memoryPercentMax > c.downMemoryPercent)) {
+    return hold('MEMORY_PRESSURE_OR_UNVERIFIED');
+  }
   // A release-specific graceful-shutdown test is not a live drain signal.
   // Require zero-offset backlog at every accepted down-window sample.
   if (direction === 'DOWN' && s.lag !== '0') return hold('NONZERO_BACKLOG_DRAIN_UNVERIFIED');
@@ -76,6 +93,6 @@ export function evaluate(c, previous, observation, now) {
   state.lastDecisionAt = now;
   state.pending = true; // must reconcile actual result before another decision; no reset API yet
   clear();
-  return result(direction === 'UP' ? 'SUSTAINED_BACKLOG' : 'SUSTAINED_LOW_BACKLOG',
+  return result(direction === 'UP' ? lagUp ? 'SUSTAINED_BACKLOG' : 'SUSTAINED_MEMORY_AND_BACKLOG' : 'SUSTAINED_LOW_BACKLOG',
     direction === 'UP' ? 'SCALE_UP' : 'SCALE_DOWN', s.replicas + (direction === 'UP' ? 1 : -1));
 }

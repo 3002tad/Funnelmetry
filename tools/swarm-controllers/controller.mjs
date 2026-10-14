@@ -85,13 +85,23 @@ export async function collect(config, adapter, now = Date.now()) {
   const target = targets.length === 1 ? targets[0] : null;
   const healthChecks = await Promise.all(targets.map(t => adapter.health(t)));
   const health = target ? healthChecks[0] : { liveness: 'unknown', readiness: false };
-  let kafka = null, identities = [], hostReplicaLimit = null;
+  let kafka = null, identities = [], hostReplicaLimit = null, memoryPercentMax = null;
   const unavailable = [];
   if (readyTask && targets.length) {
     try { kafka = kafkaSummary(await adapter.kafka(targets[0])); }
     catch { unavailable.push('KAFKA_PROBE'); }
     try { identities = await Promise.all(targets.map(t => adapter.identity(t))); }
     catch { unavailable.push('IDENTITY_PROBE'); }
+    if (typeof adapter.memory === 'function') {
+      try {
+        const readings = await Promise.all(targets.map(t => adapter.memory(t)));
+        if (readings.length !== targets.length || readings.some(value =>
+          typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100)) {
+          throw Error('Invalid memory sample');
+        }
+        memoryPercentMax = Math.max(...readings);
+      } catch { unavailable.push('MEMORY_PROBE'); }
+    } else if (config.autoscale.upMemoryPercent !== undefined) unavailable.push('MEMORY_PROBE');
     try {
       const capacity = await adapter.capacity(service.reservation, service.replicas);
       hostReplicaLimit = capacityLimit(capacity, config.cpuHeadroomNano, config.memoryHeadroomBytes);
@@ -119,6 +129,7 @@ export async function collect(config, adapter, now = Date.now()) {
     autoscale: { project: config.stack, service: config.service, groupId: config.groupId,
       observedAt: now, lag: kafka?.lag ?? null,
       rawOffsetLag: kafka?.rawOffsetLag ?? null,
+      memoryPercentMax,
       controlOnlyPartitions: kafka?.controlOnlyPartitions ?? null,
       partitions: kafka?.partitions ?? null,
       replicas: service.replicas, memberCount: kafka?.memberCount ?? null,
@@ -233,6 +244,8 @@ export async function metrics(config, path) {
     `funnelmetry_swarm_controller_observed_replicas${label} ${lastScale?.previousReplicas ?? 'NaN'}`,
     '# TYPE funnelmetry_swarm_controller_decided_replicas gauge',
     `funnelmetry_swarm_controller_decided_replicas${label} ${lastScale?.desiredReplicas ?? 'NaN'}`,
+    '# TYPE funnelmetry_swarm_controller_observed_memory_percent gauge',
+    `funnelmetry_swarm_controller_observed_memory_percent${label} ${lastScale?.observedMemoryPercent ?? 'NaN'}`,
   ].join('\n') + '\n';
 }
 

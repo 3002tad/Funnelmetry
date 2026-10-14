@@ -281,3 +281,158 @@ field while still rejecting an active `updating` or `rollback_started` state.
 The targeted controller/adapter suite passed 13 tests; a subsequent live
 read-only adapter probe reported one ready replica and zero consumable lag.
 No controller state was reset and no `--apply` action was run.
+
+## Manual live 1-to-2-to-1 replica rehearsal after release
+
+The operator manually scaled only `funnelmetry-live-20261014_canonical-normalizer`
+from one to two replicas and back to one, on the new Workers digest above.
+Before scale-out, the single task was live/ready, its group was stable on two
+Raw partitions, consumable lag was `0`, and the reservation/headroom probe
+allowed at least two replicas. No controller runner/session or `--apply` was
+active. The two tasks became live/ready with distinct container-mode instance
+IDs; Kafka reported a stable two-member group with assignments `[1]` and
+`[0]`, one partition per member. Consumable lag remained `0` (raw offset
+delta `2`, both verified control-only tails). The scale-down precheck again
+required two ready tasks, a stable two-member/two-partition group and zero
+consumable lag. After manual scale-down, one ready task owned both partitions
+with lag `0`. PostgreSQL totals remained 460 receipts, 460 outcomes and 445
+canonical events; no matching transaction/runtime-failure log lines appeared.
+
+The Source Feed cursor and latest sequence stayed at `460` throughout this
+rehearsal. **No new source event was processed while two replicas were
+running.** This is live service scaling and Kafka rebalance evidence, not
+live in-flight event processing, duplicate-effect acceptance or automatic
+policy/actuator acceptance. The stronger synthetic in-flight fixture evidence
+above remains separate. Autoscale and unattended controller `--apply` stay OFF
+until a source-generated in-flight test, release-specific review and the
+least-privilege Docker-manager boundary are accepted.
+
+## Follow-up: live Medusa events during two normalizer replicas
+
+The first user shop action arrived **after** the rehearsal above had scaled
+back to one replica: the service update to one replica was at
+`2026-10-14T15:21:48Z`, whereas 21 new outcomes were processed between
+`15:25:43Z` and `15:26:28Z`. Those 21 normalized events therefore are not
+counted as two-replica evidence.
+
+For a second, separately bounded manual test, the operator scaled only the
+canonical normalizer to two replicas at `2026-10-14T15:29:01Z`. Both tasks
+were alive and ready, had distinct container-mode instance IDs, and formed a
+stable two-member Kafka group assigning partitions `[1]` and `[0]`. Following
+another user shop action, 34 distinct outcomes were processed from
+`15:29:16Z` through `15:30:19Z`, all with status `normalized`. All 34 IDs
+matched accepted ingress receipts and canonical events; receipt ingestion IDs
+matched outcome raw-record IDs, and outcome canonical IDs matched ledger IDs.
+The observed types were `behavior.page_viewed`, `behavior.product_viewed`,
+`behavior.scroll_depth_reached`, `cart.item_added` and `checkout.started`.
+The canonical `(source_id, source_event_id, mapping_version)` duplicate count
+was zero. Database outcomes reached 515.
+
+Before scale-down, both tasks were still ready and the two-member group was
+stable with consumable lag `0` (raw offset delta `2`, both verified
+control-only tails). The operator then manually restored one replica; the
+remaining task was ready and owned both partitions in a stable one-member
+group, again with consumable lag `0`. This demonstrates live in-flight
+processing during a manual 1-to-2-to-1 transition on this single-node stack.
+It does **not** demonstrate automatic controller action, worker-failure
+recovery, multi-node HA, or production authorization for controller
+`--apply`; those remain separate acceptance gates.
+
+## Read-only live baseline and current-digest automatic fixture
+
+The local controller config/state were preserved: `config.json` still pins the
+older Workers digest `a23a7597...`, while the live normalizer runs digest
+`f61aa962...`. Calling the persisted controller against live with that stale
+config would correctly fail scope/fingerprint checks. The new
+`tools/swarm-controllers/measure.mjs` read-only probe accepts an explicit
+current digest in memory, discards any old-image release attestation, and
+does not write the config/state or invoke a Swarm action. Three live samples
+at `15:37:02Z`, `15:37:09Z` and `15:37:15Z` each showed one ready replica,
+a stable one-member/two-partition group, consumable lag `0`, raw offset delta
+`2` with two verified control-only tails, valid identity and no unavailable
+probes. The single idle CPU/RAM snapshot was `2.48%` and `46.22 MiB` of its
+`512 MiB` limit. This is an idle baseline, **not** a throughput benchmark or
+approval of the experimental scale thresholds. Docker authorization plugins
+were still absent (`null`); no live controller `--apply` was run.
+
+Two fresh, isolated `OFFLINE_DEMO` Swarm fixtures used the exact live Workers
+digest, separate Kafka volumes/topics, no Source Connector and no published
+ports. The first published 60,000 synthetic Raw records. The controller saw
+a `19,643`-record backlog in one sample, but the next sample found lag `0`,
+so it correctly did not scale on an unsustained signal. A fresh
+`read_committed` verifier found 60,000 unique matching canonical and outcome
+IDs, both Raw partitions committed at log end and zero quarantine.
+
+The second fixture ran the controller in the foreground with `--apply`
+**only against that fixture**, sampling every five seconds. Its first 100
+synthetic events established both partition offsets, then another 50,000
+created a sustained backlog. Across 16 audit samples the maximum observed
+lag was `34,953`. The controller accepted 1→2 for `SUSTAINED_BACKLOG` at
+`15:45:15Z`, waited for convergence, and accepted 2→1 for
+`SUSTAINED_LOW_BACKLOG` at `15:45:50Z` after zero lag persisted. The runner
+was stopped; persisted state had no pending action or open recovery circuit,
+and the fixture ended at one ready replica. A fresh `read_committed` verifier
+found exactly 50,100 unique canonical and matching outcome IDs, both Raw
+partitions committed at log end, and zero quarantine. The fixture Worker
+service logs contained one `AddPartitionsToTxn` error line, zero
+`ConcurrentTransactions` lines and zero runtime-failure lines. Both fixture
+stacks and their **synthetic-only Kafka volumes** were removed after
+verification; their data cannot be recovered. The live stack remained at one
+normalizer replica.
+
+The fixture deliberately limits each normalizer to `0.25` CPU and uses a
+five-second up/15-second down window. These numbers are fault-injection
+settings, not live performance thresholds or an error-rate SLA. Unattended
+live autoscale remains OFF pending a reviewed restricted Docker-manager
+actuator boundary, release-specific live rollback/drain acceptance, and a
+representative capacity/error-rate benchmark. The old persisted live
+controller state must be reviewed/migrated for the new digest; do not reset
+it merely to bypass its fingerprint guard.
+
+## Live worker RAM rollout and supplementary signal
+
+On 2026-10-14, the live stack `funnelmetry-live-20261014` was redeployed with
+the shared continuous-worker reservation raised from 128 MiB to 256 MiB and
+the hard limit changed from 512 MiB to 516 MiB. Docker reported completed
+updates for the normalizer, ledger, ingress telemetry, traffic source, journey,
+funnel, KPI and maturity workers; each service spec reported reservation
+`268435456` bytes and limit `541065216` bytes, with one running replica.
+The one-shot profile publisher retained its separate 128/256 MiB settings.
+
+Three read-only post-rollout normalizer probes found one ready task, stable
+one-member Kafka group over two partitions, consumable lag `0`, valid identity,
+no unavailable probes, and RAM readings of 6.80%, 6.84% and 6.82% of the new
+limit. These are idle samples; they do not validate behavior near the limit.
+
+The controller policy now accepts an optional 80% up / 60% down RAM hysteresis
+in its example config. High RAM can support scale-up only when there is also
+nonzero consumable backlog; RAM alone cannot trigger it. Downscale holds if
+RAM is high or the RAM probe is unavailable. These values are experimental.
+Unit/adapter tests cover this decision path, but a real high-RAM live
+scale-up/down has **not** been performed. The local controller config still
+pins an older image digest, release evidence for the current image is not
+configured, and the Docker daemon has no authorization plugin. The live
+background controller and `--apply` remain OFF pending the restricted
+Docker-manager actuator boundary and release-specific acceptance. Applying
+resource limits is not the same as enabling autoscale.
+
+## Live auto-enable request: preflight result
+
+At 2026-10-14 16:05 UTC, a fresh read-only three-sample probe of
+`funnelmetry-live-20261014_canonical-normalizer` reported one ready replica,
+stable one-member group across two partitions, consumable lag `0`, valid
+container identity, no unavailable probes, and RAM 6.89%/6.90%/6.86% of
+the 516 MiB limit. The current Worker digest is `f61aa962...c901b9`;
+the ignored local controller config still pins `a23a7597...faec93a`
+and contains no current-image replay/drain evidence. The persisted controller
+state is not pending but its last observation is `STALE`; its last reason is
+`REPLICA_SAFETY_UNVERIFIED`. Docker reported an active manager with no
+authorization plugin. All 45 focused tests passed.
+
+No live `--apply` or background runner was started. A healthy idle probe is
+not an automatic scale acceptance test, and it cannot produce a scale-up
+signal. The requested live automatic 1-to-2-to-1 test remains blocked by
+the exact-image evidence/state review and the least-privilege Docker-manager
+actuator boundary required by DEC-129. Do not rewrite the ignored state,
+invent evidence references, or give an unrestricted manager socket to the
+controller to make the test pass.

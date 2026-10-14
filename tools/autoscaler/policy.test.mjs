@@ -57,6 +57,30 @@ test('large lag retains exact integer meaning', () => {
   const s = sample(10, { lag: '9007199254740992' });
   assert.equal(evaluate(c, initialState(c), s, 10).audit.reason, 'HYSTERESIS_BAND');
 });
+test('memory pressure supplements sustained backlog but never scales an idle worker', () => {
+  const c = { ...config, upMemoryPercent: 80, downMemoryPercent: 60 };
+  const pressured = at => sample(at, { lag: '20', memoryPercentMax: 85 });
+  const first = evaluate(c, initialState(c), pressured(10), 10);
+  assert.equal(first.audit.reason, 'OBSERVATION_WINDOW');
+  const next = evaluate(c, first.state, pressured(20), 20);
+  assert.equal(next.action, 'SCALE_UP');
+  assert.equal(next.audit.reason, 'SUSTAINED_MEMORY_AND_BACKLOG');
+  assert.equal(next.audit.observedMemoryPercent, 85);
+  const idle = evaluate(c, initialState(c), sample(10, { lag: '0', memoryPercentMax: 95 }), 10);
+  assert.equal(idle.action, 'HOLD');
+  assert.equal(idle.audit.reason, 'MEMORY_PRESSURE_OR_UNVERIFIED');
+  const lagOnly = evaluate(c, initialState(c), sample(10, { lag: '150', memoryPercentMax: null }), 10);
+  assert.equal(lagOnly.audit.reason, 'OBSERVATION_WINDOW');
+});
+test('memory pressure or missing memory sample blocks scale-down', () => {
+  const c = { ...config, upMemoryPercent: 80, downMemoryPercent: 60 };
+  for (const memoryPercentMax of [null, 61]) {
+    const r = evaluate(c, initialState(c), sample(10, { lag: '0', memoryPercentMax }), 10);
+    assert.equal(r.audit.reason, 'MEMORY_PRESSURE_OR_UNVERIFIED');
+  }
+  const safe = evaluate(c, initialState(c), sample(10, { lag: '0', memoryPercentMax: 45 }), 10);
+  assert.equal(safe.audit.reason, 'OBSERVATION_WINDOW');
+});
 test('audit distinguishes consumed backlog from verified transaction-marker offsets', () => {
   const decision = run(initialState(config), 10,
     { lag: '0', rawOffsetLag: '2', controlOnlyPartitions: 2 });
@@ -69,6 +93,8 @@ test('non-worker targets, implicit thresholds, zero replica and corrupt binding 
   for (const service of ['postgres', 'kafka', 'qdrant', 'source-connector']) assert.throws(() => validateConfig({ ...config, service }));
   assert.throws(() => validateConfig({ ...config, minReplicas: 0 }));
   assert.throws(() => validateConfig({ ...config, upWindowMs: undefined }));
+  assert.throws(() => validateConfig({ ...config, upMemoryPercent: 80 }));
+  assert.throws(() => validateConfig({ ...config, upMemoryPercent: 60, downMemoryPercent: 80 }));
   assert.throws(() => evaluate({ ...config, maxReplicas: 5 }, initialState(config), sample(10), 10));
   assert.throws(() => run({ ...initialState(config), lastDecisionAt: 30 }, 20));
 });

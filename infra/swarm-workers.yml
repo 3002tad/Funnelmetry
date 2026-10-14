@@ -35,8 +35,8 @@ x-worker: &worker
     restart_policy: {condition: any, delay: 5s}
     update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
     resources:
-      reservations: {cpus: '0.10', memory: 128M}
-      limits: {cpus: '1.00', memory: 512M}
+      reservations: {cpus: '0.10', memory: 256M}
+      limits: {cpus: '1.00', memory: 516M}
 
 # Only continuous workers that implement workers/shared/health-server.mjs use
 # this probe. Readiness is observed separately and never restarts a task.

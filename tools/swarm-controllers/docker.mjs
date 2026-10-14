@@ -47,6 +47,14 @@ export function verifyService(scope, service) {
     reservation: service.Spec.TaskTemplate.Resources?.Reservations || {} };
 }
 
+export function parseMemoryPercent(value) {
+  if (typeof value !== 'string' || !/^(?:100(?:\.0+)?|[0-9]{1,2}(?:\.[0-9]{1,4})?)%$/.test(value.trim())) {
+    return null;
+  }
+  const percent = Number(value.trim().slice(0, -1));
+  return Number.isFinite(percent) && percent >= 0 && percent <= 100 ? percent : null;
+}
+
 export function dockerClient(scope, executable = 'docker') {
   validateScope(scope);
   const run = async args => {
@@ -80,6 +88,12 @@ export function dockerClient(scope, executable = 'docker') {
     },
     async identity(target) {
       return json(['exec', target.id, 'node', '--input-type=module', '-e', IDENTITY]);
+    },
+    async memory(target) {
+      if (!/^[a-f0-9]{64}$/.test(target.id)) throw Error('Invalid container ID');
+      const value = parseMemoryPercent(await run(['stats', '--no-stream', '--format', '{{.MemPerc}}', target.id]));
+      if (value === null) throw Error('MEMORY_PROBE_UNAVAILABLE');
+      return value;
     },
     async kafka(target) {
       return json(['exec', target.id, 'node', '--input-type=module', '-e', KAFKA_PROBE,

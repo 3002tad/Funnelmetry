@@ -18,6 +18,16 @@ API, Agent, browser and worker containers receive no Docker socket.
   cooldown/window/hysteresis and partition ceiling. Effective topic partition count
   is read from Kafka, never inferred from a YAML variable. Multi-node capacity is
   deliberately unknown/blocked until a placement-aware collector is reviewed.
+- The optional RAM signal samples each task with Docker stats and uses the highest
+  memory percentage. With the example 80% up / 60% down hysteresis, high RAM may
+  supplement an existing, nonzero consumable backlog; RAM alone never scales an
+  idle worker. Scale-down requires a valid RAM sample below the down threshold.
+  A missing probe fails closed for scale-down. These are experimental thresholds,
+  not a promise that replica growth fixes leaks, cache pressure, or OOM.
+- The continuous live workers reserve 256 MiB and are capped at 516 MiB per task
+  in `infra/swarm-workers.yml`; the one-shot profile publisher keeps its own
+  resource settings. A reservation is placement capacity, while a limit is a
+  hard ceiling. Neither number enables a background autoscaler by itself.
 - Scale-down additionally requires zero verified consumable Kafka lag at every
   accepted sample in its decision window. The observer reports the raw offset
   delta separately; it excludes only a complete, ordered `read_committed`
@@ -62,6 +72,21 @@ API, Agent, browser and worker containers receive no Docker socket.
   EXPERIMENTAL and belong in a reviewed config, not an architectural SLA.
 
 ## Operator use
+
+For a bounded, read-only live baseline without touching the persisted
+controller state, use `measure.mjs`. If the local controller config still pins
+an older image, pass the **exact current service digest** explicitly. This
+override is valid only for observation; it drops any old release attestation
+in memory and reports `configuredImageMatchesRuntime=false`. It never calls
+the Swarm actuator or changes the config/state files.
+
+```powershell
+node tools/swarm-controllers/measure.mjs runtime/swarm-controllers/config.json --image=ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:<current-digest> --samples=3 --interval-ms=5000
+```
+
+Idle samples are not a throughput benchmark or approval for `--apply`.
+Measure representative backlog, processing rate, errors and recovery under a
+separate synthetic fixture before reviewing experimental thresholds.
 
 Create `runtime/swarm-controllers/config.json` from the example, set an exact
 `stack` and immutable image digest, and keep state in this ignored, operator-only

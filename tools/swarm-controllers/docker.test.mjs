@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SERVICE_VIEW, capacityLimit, kafkaSummary, verifyService } from './docker.mjs';
+import { SERVICE_VIEW, capacityLimit, kafkaSummary, parseMemoryPercent, verifyService } from './docker.mjs';
 
 const scope = { stack: 'funnelmetry-live-test', service: 'canonical-normalizer',
   image: `example/workers@sha256:${'a'.repeat(64)}`, groupId: 'normalizer-v1', topic: 'raw.v1' };
@@ -33,6 +33,14 @@ test('capacity is reserved-resource bound and unknown fails closed', () => {
   assert.equal(capacityLimit(c, 5e8, 512 * 1024 ** 2), 2);
   assert.equal(capacityLimit(null, 5e8, 512 * 1024 ** 2), null);
   assert.equal(capacityLimit(c, undefined, 0), null);
+});
+
+test('Docker memory percentage accepts bounded Linux stats and rejects unavailable readings', () => {
+  assert.equal(parseMemoryPercent('80.25%'), 80.25);
+  assert.equal(parseMemoryPercent(' 100.00% '), 100);
+  for (const value of ['N/A', '101%', '-1%', 'NaN%', '80 MB', '80.12345%']) {
+    assert.equal(parseMemoryPercent(value), null);
+  }
 });
 
 test('Kafka lag does not interpret unknown offsets as zero', () => {

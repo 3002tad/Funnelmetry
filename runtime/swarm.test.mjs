@@ -72,6 +72,16 @@ test('long-running Swarm workers replace even clean exits; one-shot publisher do
   assert.match(fixture, /canonical-normalizer:[\s\S]*?restart_policy: \{condition: any, delay: 5s\}/);
 });
 
+test('continuous workers reserve 256 MiB and cap at 516 MiB; one-shot job stays separate', () => {
+  const workers = readFileSync(fileURLToPath(new URL('../infra/swarm-workers.yml', import.meta.url)), 'utf8');
+  const common = workers.match(/x-worker: &worker([\s\S]*?)(?=\nx-worker-liveness:)/)?.[1] ?? '';
+  const oneShot = workers.match(/\n  profile-publisher:([\s\S]*?)(?=\n  canonical-normalizer:)/)?.[1] ?? '';
+  assert.match(common, /reservations: \{cpus: '0\.10', memory: 256M\}/);
+  assert.match(common, /limits: \{cpus: '1\.00', memory: 516M\}/);
+  assert.match(oneShot, /reservations: \{cpus: '0\.10', memory: 128M\}/);
+  assert.match(oneShot, /limits: \{cpus: '0\.50', memory: 256M\}/);
+});
+
 test('continuous app, edge and live services replace clean exits without treating feed readiness as liveness', () => {
   const app = readFileSync(fileURLToPath(new URL('../infra/swarm-app.yml', import.meta.url)), 'utf8');
   const live = readFileSync(fileURLToPath(new URL('../infra/swarm-live.yml', import.meta.url)), 'utf8');

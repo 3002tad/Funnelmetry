@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { initialize, metrics, run, status, tick, validateConfig } from './controller.mjs';
+import { collect, initialize, metrics, run, status, tick, validateConfig } from './controller.mjs';
 
 const image = `example/workers@sha256:${'a'.repeat(64)}`;
 const config = { stack: 'funnelmetry-live-test', service: 'canonical-normalizer', image,
@@ -18,7 +18,7 @@ const config = { stack: 'funnelmetry-live-test', service: 'canonical-normalizer'
     windowMs: 500, maxAttempts: 2, startupGraceMs: 10, maxSampleAgeMs: 10 },
 };
 
-function adapter({ ready = true, partitions = 2, failForce = false } = {}) {
+function adapter({ ready = true, partitions = 2, failForce = false, memoryPercent = 85 } = {}) {
   let version = 1, replicas = 1, settledReplicas = 1, scales = 0, updates = 0, lag = 100;
   const tasks = Array.from({ length: 2 }, (_, i) => ({ id: String(i + 1).repeat(64),
     taskId: String(i + 1).repeat(25), startedAt: 0,
@@ -39,6 +39,7 @@ function adapter({ ready = true, partitions = 2, failForce = false } = {}) {
       Array.from({ length: partitions }, (_, i) => i).filter(i => i % settledReplicas === member)) }; },
     async identity(task) { return { instanceId: `worker-${task.taskId}`, clientId: 'client',
       groupId: config.groupId, topic: config.topic, mode: 'container' }; },
+    async memory() { return memoryPercent; },
     async capacity() { return { nodeCpu: 4e9, nodeMem: 4 * 1024 ** 3,
       usedCpu: 1e9, usedMem: 1 * 1024 ** 3, cpuPerReplica: 100000000,
       memPerReplica: 134217728, currentReplicas: replicas }; },
@@ -52,6 +53,18 @@ function adapter({ ready = true, partitions = 2, failForce = false } = {}) {
     } }; },
   };
 }
+
+test('controller observes per-task memory and fails closed when the probe is unavailable', async () => {
+  const c = { ...config, autoscale: { ...config.autoscale,
+    upMemoryPercent: 80, downMemoryPercent: 60 } };
+  const observed = await collect(c, adapter(), 100);
+  assert.equal(observed.autoscale.memoryPercentMax, 85);
+  const unavailable = adapter();
+  unavailable.memory = async () => { throw Error('stats unavailable'); };
+  const missing = await collect(c, unavailable, 100);
+  assert.equal(missing.autoscale.memoryPercentMax, null);
+  assert.ok(missing.unavailable.includes('MEMORY_PROBE'));
+});
 
 async function withState(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'funnelmetry-swarm-controller-'));
