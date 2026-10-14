@@ -35,6 +35,16 @@ test('candidate cannot share the Compose project identity or claim live cutover'
   assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_MIGRATION_MODE: 'MIGRATION_CUTOVER' }), /OFFLINE_DEMO/);
 });
 
+test('multi-partition Raw requires per-container Normalizer identity in a new Swarm stack', () => {
+  assert.throws(() => validateSwarmCandidate({ ...candidate, HANDOFF_RAW_PARTITIONS: '2' }), /SWARM_NORMALIZER_ID_MODE=container/);
+  assert.equal(validateSwarmCandidate({ ...candidate, HANDOFF_RAW_PARTITIONS: '2',
+    SWARM_NORMALIZER_ID_MODE: 'container' }).status, 'PLANNING_ONLY');
+  assert.throws(() => validateSwarmCandidate({ ...candidate, HANDOFF_RAW_PARTITIONS: '0' }), /HANDOFF_RAW_PARTITIONS/);
+  assert.throws(() => validateSwarmCandidate({ ...candidate, HANDOFF_RAW_PARTITIONS: '65',
+    SWARM_NORMALIZER_ID_MODE: 'container' }), /HANDOFF_RAW_PARTITIONS/);
+  assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_NORMALIZER_ID_MODE: 'auto' }), /SWARM_NORMALIZER_ID_MODE/);
+});
+
 test('fresh parallel-live candidate requires isolated connector, observed feed and credentials', () => {
   const live = { ...candidate, SWARM_MIGRATION_MODE: 'PARALLEL_LIVE',
     SWARM_LIVE_ACK: 'FRESH_PARALLEL_LIVE', SWARM_CONNECTOR_ID: 'fresh-live-source',

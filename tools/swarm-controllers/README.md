@@ -18,6 +18,17 @@ API, Agent, browser and worker containers receive no Docker socket.
   cooldown/window/hysteresis and partition ceiling. Effective topic partition count
   is read from Kafka, never inferred from a YAML variable. Multi-node capacity is
   deliberately unknown/blocked until a placement-aware collector is reviewed.
+- Scale-down additionally requires zero verified consumable Kafka lag at every
+  accepted sample in its decision window. The observer reports the raw offset
+  delta separately; it excludes only a complete, ordered `read_committed`
+  control-record tail confirmed against the same partition's high watermark.
+  Missing, partial, unsupported or inconsistent tail evidence retains raw lag.
+  The action audit includes both `observedValue` (conservative consumable lag)
+  and `rawOffsetLag`, plus the count of verified control-only partitions.
+  Release-specific graceful-shutdown attestation alone does not prove the live
+  group is drained; nonzero verified lag holds even below the down threshold.
+  This does not replace a live in-flight/transaction drain check or disposable
+  Swarm 1-to-N-to-1 acceptance.
 - Release-specific replay/drain evidence is required as `evidence` with the exact
   image digest and reviewed test references. Without it, autoscaling holds. This is
   an operator-owned attestation, not independent runtime proof; do not populate it
@@ -26,7 +37,9 @@ API, Agent, browser and worker containers receive no Docker socket.
   failed `/readyz`, and a successful Kafka admin probe. Failed liveness, task loss,
   service update and dependency outage are left to Swarm or escalation. A Level-2
   action is `docker service update --force`, never `docker restart` on a Swarm task.
-  Its acceptance is not called HEALTHY until a later observation.
+  Its acceptance is not called HEALTHY until a later observation. When more than
+  one replica is healthy, Level-2 reports an out-of-scope hold; that is not an
+  active recovery attempt and does not itself block safe scale-down.
 - `infra/swarm-workers.yml` now declares a liveness-only `/healthz` check for this
   worker. `/readyz` is intentionally not a Swarm healthcheck because Kafka rebalance
   and dependency degradation must not cause a task-replacement loop. Existing
@@ -60,6 +73,21 @@ the same service concurrently. The runner holds a session directory; after an
 unclean stop, inspect the process/action state before manually releasing the stale
 session directory. State/audit is local evidence, not a durable incident archive or
 an HA controller. `metrics` is Prometheus text, not yet wired into Prometheus.
+
+An isolated adapter fixture exercises 1-to-2-to-1 controller decisions, including
+holding while tasks/group have not converged and while backlog is nonzero. This
+is a deterministic code test, **not** a Docker/Kafka acceptance result.
+The separate [2026-10-14 disposable Swarm fixture validation](../../docs/SWARM_AUTOSCALE_FIXTURE_VALIDATION_2026-10-14.md)
+records an actual single-node synthetic Raw→canonical 1-to-2-to-1 run. Its
+release evidence and thresholds apply only to that isolated stack/image.
+The [current-image rerun](../../docs/SWARM_AUTOSCALE_CURRENT_IMAGE_VALIDATION_2026-10-14.md)
+confirms manual 1-to-2-to-1 with the newer Worker digest, but it is not a
+live `--apply` or in-flight drain acceptance. A separate read-only Fetch probe
+confirmed the then-current live Raw group's two-offset tail was two control
+records. The controller now verifies each tail before discounting it, never
+subtracts a presumed fixed marker count, and retains the zero-backlog guard.
+The updated controller probe still needs a live read-only acceptance run before
+any live actuator authorization.
 
 For the current local live stack (2026-10-13), Raw has **one partition**, the
 normalizer uses explicit rather than per-container transactional identity, and no

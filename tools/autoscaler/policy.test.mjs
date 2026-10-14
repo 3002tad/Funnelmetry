@@ -50,11 +50,20 @@ test('sample gaps and replica changes restart observation window', () => {
 test('cooldown and unverified graceful drain block changes', () => {
   assert.equal(run({ ...initialState(config), lastDecisionAt: 5 }, 20).audit.reason, 'COOLDOWN');
   assert.equal(run(initialState(config), 10, { lag: '0', gracefulDownVerified: false }).action, 'HOLD');
+  assert.equal(run(initialState(config), 10, { lag: '1' }).audit.reason, 'NONZERO_BACKLOG_DRAIN_UNVERIFIED');
 });
 test('large lag retains exact integer meaning', () => {
   const c = { ...config, upLag: '9007199254740993' };
   const s = sample(10, { lag: '9007199254740992' });
   assert.equal(evaluate(c, initialState(c), s, 10).audit.reason, 'HYSTERESIS_BAND');
+});
+test('audit distinguishes consumed backlog from verified transaction-marker offsets', () => {
+  const decision = run(initialState(config), 10,
+    { lag: '0', rawOffsetLag: '2', controlOnlyPartitions: 2 });
+  assert.equal(decision.audit.observedValue, '0');
+  assert.equal(decision.audit.rawOffsetLag, '2');
+  assert.equal(decision.audit.controlOnlyPartitions, 2);
+  assert.equal(decision.action, 'HOLD');
 });
 test('non-worker targets, implicit thresholds, zero replica and corrupt binding rejected', () => {
   for (const service of ['postgres', 'kafka', 'qdrant', 'source-connector']) assert.throws(() => validateConfig({ ...config, service }));

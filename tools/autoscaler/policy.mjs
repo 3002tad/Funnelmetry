@@ -36,6 +36,8 @@ export function evaluate(c, previous, observation, now) {
   const result = (reason, action = 'HOLD', desired = s.replicas) => ({ state, action,
     audit: { project: c.project, service: c.service, groupId: c.groupId, at: now,
       signal: 'kafka_lag', observedValue: decimal(s.lag) ? s.lag : null,
+      rawOffsetLag: decimal(s.rawOffsetLag) ? s.rawOffsetLag : null,
+      controlOnlyPartitions: nonnegative(s.controlOnlyPartitions) ? s.controlOnlyPartitions : null,
       previousReplicas: nonnegative(s.replicas) ? s.replicas : null,
       desiredReplicas: nonnegative(desired) ? desired : null, reason, result: 'DECISION_ONLY' } });
   const hold = reason => { clear(); return result(reason); };
@@ -64,6 +66,9 @@ export function evaluate(c, previous, observation, now) {
   if (!direction) return hold('HYSTERESIS_BAND');
   if (direction === 'UP' && s.replicas >= ceiling) return hold('PARTITION_HOST_OR_MAX_LIMIT');
   if (direction === 'DOWN' && (s.replicas <= c.minReplicas || s.gracefulDownVerified !== true)) return hold('MINIMUM_OR_DRAIN_UNVERIFIED');
+  // A release-specific graceful-shutdown test is not a live drain signal.
+  // Require zero-offset backlog at every accepted down-window sample.
+  if (direction === 'DOWN' && s.lag !== '0') return hold('NONZERO_BACKLOG_DRAIN_UNVERIFIED');
   if (state.direction !== direction) { state.direction = direction; state.since = s.observedAt; state.samples = 0; }
   state.samples = Math.min(state.samples + 1, c.minSamples);
   const window = direction === 'UP' ? c.upWindowMs : c.downWindowMs;

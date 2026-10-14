@@ -125,7 +125,7 @@ export function capacityLimit(capacity, cpuHeadroom, memoryHeadroom) {
 
 export function kafkaSummary(probe) {
   if (probe?.probeFailure || !Array.isArray(probe?.assignments)) return null;
-  const offsets = summarizeOffsets(probe.ends, probe.commits);
+  const offsets = summarizeOffsets(probe.ends, probe.commits, probe.tails);
   const assigned = probe.assignments.flat();
   const partitions = probe.ends?.map(p => p.partition) || [];
   return { ...offsets, memberCount: probe.memberCount,

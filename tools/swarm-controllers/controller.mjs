@@ -117,7 +117,10 @@ export async function collect(config, adapter, now = Date.now()) {
       dependenciesReady: kafka?.stable === true && kafka.memberCount === service.replicas &&
         kafka.lag !== null },
     autoscale: { project: config.stack, service: config.service, groupId: config.groupId,
-      observedAt: now, lag: kafka?.lag ?? null, partitions: kafka?.partitions ?? null,
+      observedAt: now, lag: kafka?.lag ?? null,
+      rawOffsetLag: kafka?.rawOffsetLag ?? null,
+      controlOnlyPartitions: kafka?.controlOnlyPartitions ?? null,
+      partitions: kafka?.partitions ?? null,
       replicas: service.replicas, memberCount: kafka?.memberCount ?? null,
       groupStable: same && readyTask && kafka?.stable === true,
       ready: same && readyTask && targets.length === service.replicas &&
@@ -136,8 +139,12 @@ export async function tick(config, path, adapter, { apply = false, clock = Date.
     const now = clock();
     const observation = await collect(config, adapter, now);
     const recovery = evaluateRecovery(config.recovery, data.recovery, observation.recovery, now);
+    // Level-2 recovery deliberately does not target multi-replica services. Its
+    // DEGRADED/hold observation there is not an active recovery attempt; the
+    // autoscaler still requires every replica to be ready and the group stable.
     observation.autoscale.recoveryActive = recovery.action === 'FORCE_UPDATE' ||
-      recovery.state.status !== 'HEALTHY' || data.recovery.pending !== null;
+      ['UNHEALTHY', 'RECOVERING'].includes(recovery.state.status) ||
+      recovery.state.circuitOpen === true || data.recovery.pending !== null;
     const autoscale = evaluateAutoscale(config.autoscale, data.autoscale, observation.autoscale, now);
     let selected = recovery.action === 'FORCE_UPDATE' ? { kind: 'RECOVERY', decision: recovery } :
       ['SCALE_UP', 'SCALE_DOWN'].includes(autoscale.action) ? { kind: 'AUTOSCALE', decision: autoscale } : null;

@@ -1,5 +1,7 @@
 # Docker Swarm migration
 
+Current isolated live-stack evidence: [SWARM_PARALLEL_LIVE_VALIDATION_2026-10-14.md](SWARM_PARALLEL_LIVE_VALIDATION_2026-10-14.md). Current-image manual 1→2→1 fixture evidence and live autoscale blockers: [SWARM_AUTOSCALE_CURRENT_IMAGE_VALIDATION_2026-10-14.md](SWARM_AUTOSCALE_CURRENT_IMAGE_VALIDATION_2026-10-14.md). These runs do not supersede the remaining autoscale, monitoring, restore or cutover gates below.
+
 > Bằng chứng chạy candidate local ngày 2026-10-13: [SWARM_CANDIDATE_VALIDATION_2026-10-13.md](SWARM_CANDIDATE_VALIDATION_2026-10-13.md). Đây là kiểm thử `OFFLINE_DEMO`, không phải live cutover.
 > Bằng chứng candidate `PARALLEL_LIVE` và các gate còn thiếu: [SWARM_PARALLEL_LIVE_VALIDATION_2026-10-13.md](SWARM_PARALLEL_LIVE_VALIDATION_2026-10-13.md). Stack mới không phải authoritative cutover hoặc full-capability acceptance.
 

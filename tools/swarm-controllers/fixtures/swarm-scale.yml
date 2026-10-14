@@ -1,0 +1,74 @@
+# Disposable OFFLINE_DEMO-only autoscale fixture. Never attach Source Connector.
+# Deploy with a unique stack name and immutable image digests; no published ports.
+version: '3.8'
+
+services:
+  kafka:
+    image: ${SWARM_SCALE_KAFKA_IMAGE:?Pin Kafka image digest}
+    environment:
+      KAFKA_NODE_ID: '1'
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@127.0.0.1:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: '1'
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: '1'
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: '1'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks: [data]
+    stop_grace_period: 60s
+    healthcheck:
+      test: [CMD-SHELL, "bash -c 'echo > /dev/tcp/127.0.0.1/9092'"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 12
+    deploy:
+      replicas: 1
+      restart_policy: {condition: any, delay: 5s}
+      resources:
+        reservations: {cpus: '0.50', memory: 512M}
+        limits: {cpus: '2.00', memory: 2G}
+
+  canonical-normalizer:
+    image: ${SWARM_SCALE_WORKERS_IMAGE:?Pin Workers image digest}
+    command: [node, /workspace/workers/canonical-normalizer/src/main.js]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_RAW: swarm.scale.raw.v1
+      KAFKA_TOPIC_CANONICAL: swarm.scale.canonical.v1
+      KAFKA_TOPIC_CANONICALIZATION_OUTCOMES: swarm.scale.outcomes.v1
+      KAFKA_TOPIC_QUARANTINE: swarm.scale.quarantine.v1
+      CANONICAL_NORMALIZER_CONSUMER_GROUP_ID: swarm-scale-normalizer-v1
+      CANONICAL_NORMALIZER_INSTANCE_ID: swarm-scale-fixture
+      CANONICAL_NORMALIZER_INSTANCE_ID_MODE: container
+      CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH: /workspace/integrations/medusa/canonical-mappings.v1.json
+      WORKER_HEALTH_PORT: '32110'
+    networks: [data]
+    read_only: true
+    stop_grace_period: 45s
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:32110/healthz").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    deploy:
+      # Topic creation is an explicit fixture step; start worker only afterward.
+      replicas: 0
+      restart_policy: {condition: on-failure, delay: 5s}
+      resources:
+        reservations: {cpus: '0.10', memory: 128M}
+        limits: {cpus: '1.00', memory: 512M}
+
+networks:
+  data:
+    driver: overlay
+
+volumes:
+  kafka-data:

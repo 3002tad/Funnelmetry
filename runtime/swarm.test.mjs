@@ -45,14 +45,17 @@ test('Swarm API readiness probes worker health endpoints instead of returning NO
   assert.match(app, /DASHBOARD_WORKER_HEALTH_ENABLED: 'true'/);
   assert.match(app, /type: tmpfs\s+target: \/tmp\s+tmpfs:\s+size: 33554432/);
   assert.match(workers, /WORKER_HEALTH_PORT: '32110'/);
+  assert.match(workers, /CANONICAL_NORMALIZER_INSTANCE_ID_MODE: \$\{SWARM_NORMALIZER_ID_MODE:-explicit\}/);
 });
 
 test('Docker environment renders only selected deploy keys and strips inherited secrets', () => {
   const env = dockerEnvironment({ Path: 'C:\\bin', HANDOFF_DB_PASSWORD: 'old', GH_TOKEN: 'sensitive' },
-    { SWARM_STACK_NAME: 'fresh-stack', SWARM_DB_PASSWORD: 'new-secret', HANDOFF_RAW_PARTITIONS: '2' });
+    { SWARM_STACK_NAME: 'fresh-stack', SWARM_DB_PASSWORD: 'new-secret', HANDOFF_RAW_PARTITIONS: '2',
+      SWARM_NORMALIZER_ID_MODE: 'container' });
   assert.equal(env.Path, 'C:\\bin');
   assert.equal(env.SWARM_STACK_NAME, 'fresh-stack');
   assert.equal(env.HANDOFF_RAW_PARTITIONS, '2');
+  assert.equal(env.SWARM_NORMALIZER_ID_MODE, 'container');
   assert.equal(env.HANDOFF_DB_PASSWORD, undefined);
   assert.equal(env.GH_TOKEN, undefined);
   assert.equal(env.SWARM_DB_PASSWORD, undefined);

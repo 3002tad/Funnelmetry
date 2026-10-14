@@ -34,3 +34,12 @@ test('Kafka lag does not interpret unknown offsets as zero', () => {
   assert.equal(kafkaSummary(probe).lag, null);
   assert.equal(kafkaSummary({ probeFailure: 'connect' }), null);
 });
+test('Kafka summary distinguishes verified control tail from raw offset delta', () => {
+  const probe = { ends: [{ partition: 0, low: '0', high: '8' }],
+    commits: [{ partition: 0, offset: '7' }], memberCount: 1, stable: true, assignments: [[0]],
+    tails: [{ partition: 0, fetchOffset: '7', highWatermark: '8', lastStableOffset: '8',
+      errorCode: 0, messages: [{ offset: '7', control: true }] }] };
+  assert.equal(kafkaSummary(probe).lag, '0');
+  assert.equal(kafkaSummary(probe).rawOffsetLag, '1');
+  assert.equal(kafkaSummary({ ...probe, tails: [] }).lag, '1');
+});

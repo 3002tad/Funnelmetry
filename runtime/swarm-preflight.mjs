@@ -43,6 +43,17 @@ export function validateSwarmCandidate(env) {
   if (!['OFFLINE_DEMO', 'PARALLEL_LIVE'].includes(env.SWARM_MIGRATION_MODE)) {
     throw Error('SWARM_MIGRATION_MODE must be OFFLINE_DEMO or PARALLEL_LIVE');
   }
+  const rawPartitions = env.HANDOFF_RAW_PARTITIONS?.trim() || '1';
+  if (!/^[1-9]\d*$/.test(rawPartitions) || !Number.isSafeInteger(Number(rawPartitions)) || Number(rawPartitions) > 64) {
+    throw Error('HANDOFF_RAW_PARTITIONS must be an integer from 1 to 64 for a fresh Kafka topic');
+  }
+  const normalizerIdMode = env.SWARM_NORMALIZER_ID_MODE?.trim() || 'explicit';
+  if (!['explicit', 'container'].includes(normalizerIdMode)) {
+    throw Error('SWARM_NORMALIZER_ID_MODE must be explicit or container');
+  }
+  if (Number(rawPartitions) > 1 && normalizerIdMode !== 'container') {
+    throw Error('Multiple Raw partitions require SWARM_NORMALIZER_ID_MODE=container before deploying a fresh stack');
+  }
   if (env.SWARM_MIGRATION_MODE === 'PARALLEL_LIVE') {
     if (env.SWARM_LIVE_ACK !== 'FRESH_PARALLEL_LIVE') throw Error('Fresh parallel-live acknowledgement required');
     if (!/^[a-z0-9-]{1,100}$/.test(env.SWARM_CONNECTOR_ID || '') || env.SWARM_CONNECTOR_ID === env.HANDOFF_CONNECTOR_ID) {

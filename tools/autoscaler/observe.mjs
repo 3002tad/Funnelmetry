@@ -5,21 +5,34 @@ import { pathToFileURL } from 'node:url';
 const exec = promisify(execFile);
 const decimal = value => typeof value === 'string' && /^(0|[1-9][0-9]{0,39})$/.test(value);
 
-// Offset -1 is unknown, not zero. Retention gaps and offsets ahead of log end fail closed.
-export function summarizeOffsets(ends, commits) {
-  if (!Array.isArray(ends) || !ends.length || !Array.isArray(commits) || ends.length !== commits.length) return { lag: null, partitions: null };
+// Offset -1 is unknown, not zero. Only a complete, read_committed, control-only
+// tail may be excluded from lag; an absent/partial tail remains conservative.
+export function summarizeOffsets(ends, commits, tails = []) {
+  const unknown = partitions => ({ lag: null, rawOffsetLag: null, partitions, controlOnlyPartitions: 0 });
+  if (!Array.isArray(ends) || !ends.length || !Array.isArray(commits) || ends.length !== commits.length) return unknown(null);
   const seen = new Set();
-  let lag = 0n;
+  let lag = 0n, rawOffsetLag = 0n, controlOnlyPartitions = 0;
   for (const end of ends) {
-    if (!Number.isSafeInteger(end.partition) || end.partition < 0 || seen.has(end.partition)) return { lag: null, partitions: null };
+    if (!Number.isSafeInteger(end.partition) || end.partition < 0 || seen.has(end.partition)) return unknown(null);
     seen.add(end.partition);
     const matched = commits.filter(p => p.partition === end.partition);
-    if (matched.length !== 1 || !decimal(end.high) || !decimal(end.low) || !decimal(matched[0].offset)) return { lag: null, partitions: ends.length };
+    if (matched.length !== 1 || !decimal(end.high) || !decimal(end.low) || !decimal(matched[0].offset)) return unknown(ends.length);
     const offset = BigInt(matched[0].offset), low = BigInt(end.low), high = BigInt(end.high);
-    if (low > high || offset < low || offset > high) return { lag: null, partitions: ends.length };
-    lag += high - offset;
+    if (low > high || offset < low || offset > high) return unknown(ends.length);
+    const delta = high - offset;
+    rawOffsetLag += delta;
+    const matchingTails = Array.isArray(tails) ? tails.filter(t => t.partition === end.partition) : [];
+    const tail = matchingTails.length === 1 ? matchingTails[0] : null;
+    const controlOnly = delta > 0n && delta <= 16n && tail?.errorCode === 0 &&
+      tail.fetchOffset === offset.toString() && tail.highWatermark === high.toString() &&
+      tail.lastStableOffset === high.toString() && Array.isArray(tail.messages) &&
+      tail.messages.length === Number(delta) && tail.messages.every((message, index) =>
+        message.control === true && message.offset === (offset + BigInt(index)).toString());
+    if (controlOnly) controlOnlyPartitions++;
+    else lag += delta;
   }
-  return { lag: lag.toString(), partitions: ends.length };
+  return { lag: lag.toString(), rawOffsetLag: rawOffsetLag.toString(),
+    partitions: ends.length, controlOnlyPartitions };
 }
 
 export function validateScope(scope) {
@@ -36,15 +49,37 @@ const deadline=setTimeout(()=>process.exit(2),20000);deadline.unref();
 const require=createRequire('/workspace/workers/source-connector/package.json');
 const {Kafka,logLevel,AssignerProtocol}=require('kafkajs');
 const topic=process.argv[1],groupId=process.argv[2];
-const admin=new Kafka({brokers:process.env.KAFKA_BOOTSTRAP_SERVERS.split(','),logLevel:logLevel.NOTHING,requestTimeout:5000,retry:{retries:2,initialRetryTime:100,maxRetryTime:1000}}).admin();
+const client=new Kafka({brokers:process.env.KAFKA_BOOTSTRAP_SERVERS.split(','),logLevel:logLevel.NOTHING,requestTimeout:5000,retry:{retries:2,initialRetryTime:100,maxRetryTime:1000}});
+const admin=client.admin();
 const fingerprint=g=>JSON.stringify({state:g.state,members:g.members.map(m=>({id:m.memberId,a:m.memberAssignment.toString('base64')})).sort((a,b)=>a.id.localeCompare(b.id))});
 let phase='connect';
 try{await admin.connect();phase='describe';const before=(await admin.describeGroups([groupId])).groups[0];
 phase='offsets';const ends=await admin.fetchTopicOffsets(topic);const groups=await admin.fetchOffsets({groupId,topics:[topic]});
+const commits=groups.find(t=>t.topic===topic)?.partitions||[];
+let tails=[];
+// KafkaJS 2.2.4 has no public read_committed random-access API. Its pinned
+// Cluster/Broker Fetch API is read-only; unsupported versions retain raw lag.
+try{if(require('kafkajs/package.json').version==='2.2.4'){
+const factory=Object.getOwnPropertySymbols(client).find(s=>s.description==='private:Kafka:createCluster');
+if(factory){const cluster=client[factory]({allowAutoTopicCreation:false,isolationLevel:1});
+try{await cluster.connect();await cluster.addTargetTopic(topic);await cluster.refreshMetadataIfNecessary();
+for(const end of ends){const commit=commits.find(p=>p.partition===end.partition);
+if(!commit||!/^(0|[1-9][0-9]*)$/.test(commit.offset))continue;
+const gap=BigInt(end.high)-BigInt(commit.offset);if(gap<1n||gap>16n)continue;
+const leader=Object.keys(cluster.findLeaderForPartitions(topic,[end.partition]))[0];
+const broker=await cluster.findBroker({nodeId:leader});
+const response=await broker.fetch({replicaId:-1,isolationLevel:1,maxWaitTime:100,minBytes:1,maxBytes:1048576,
+topics:[{topic,partitions:[{partition:end.partition,fetchOffset:commit.offset,maxBytes:1048576}]}]});
+const part=response.responses.find(t=>t.topicName===topic)?.partitions.find(p=>p.partition===end.partition);
+if(part)tails.push({partition:end.partition,fetchOffset:commit.offset,errorCode:part.errorCode,
+highWatermark:part.highWatermark,lastStableOffset:part.lastStableOffset,
+messages:part.messages.map(m=>({offset:m.offset,control:m.isControlRecord===true}))});
+}}finally{await cluster.disconnect().catch(()=>{})}}}
+}catch{tails=[]}
 phase='assignments';
 const after=(await admin.describeGroups([groupId])).groups[0];
 const assignments=after.members.map(m=>AssignerProtocol.MemberAssignment.decode(m.memberAssignment).assignment[topic]||[]);
-console.log(JSON.stringify({ends,commits:groups.find(t=>t.topic===topic)?.partitions||[],memberCount:after.members.length,
+console.log(JSON.stringify({ends,commits,tails,memberCount:after.members.length,
 stable:before.state==='Stable'&&after.state==='Stable'&&fingerprint(before)===fingerprint(after),assignments}));
 }catch{console.log(JSON.stringify({probeFailure:phase}))}finally{await admin.disconnect().catch(()=>{});clearTimeout(deadline)}`;
 
@@ -73,7 +108,8 @@ export async function observe(scope, reader, clock = Date.now) {
   validateScope(scope);
   const began = clock();
   let phase = 'discovery';
-  const snapshot = { ...scope, observedAt: began, lag: null, partitions: null, replicas: null,
+  const snapshot = { ...scope, observedAt: began, lag: null, rawOffsetLag: null,
+    controlOnlyPartitions: 0, partitions: null, replicas: null,
     memberCount: null, groupStable: false, ready: false, identityVerified: false,
     hostReplicaLimit: null, replayVerified: false, gracefulDownVerified: false, recoveryActive: null };
   const result = reason => ({ snapshot, reason, phase, scope: 'READ_ONLY_OBSERVATION', elapsedMs: clock() - began,
@@ -97,8 +133,10 @@ export async function observe(scope, reader, clock = Date.now) {
     phase = 'topology-recheck';
     if (topology(targets) !== topology(await reader.discover())) return result('TOPOLOGY_CHANGED');
     phase = 'offsets';
-    const offsets = summarizeOffsets(kafka.ends, kafka.commits);
+    const offsets = summarizeOffsets(kafka.ends, kafka.commits, kafka.tails);
     snapshot.lag = offsets.lag;
+    snapshot.rawOffsetLag = offsets.rawOffsetLag;
+    snapshot.controlOnlyPartitions = offsets.controlOnlyPartitions;
     snapshot.partitions = offsets.partitions;
     snapshot.memberCount = Number.isSafeInteger(kafka.memberCount) && kafka.memberCount >= 0 ? kafka.memberCount : null;
     const assigned = Array.isArray(kafka.assignments) ? kafka.assignments.flat() : [];

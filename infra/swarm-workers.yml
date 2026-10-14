@@ -65,7 +65,7 @@ services:
     environment:
       <<: *worker-env
       CANONICAL_NORMALIZER_INSTANCE_ID: swarm-canonical-normalizer
-      CANONICAL_NORMALIZER_INSTANCE_ID_MODE: explicit
+      CANONICAL_NORMALIZER_INSTANCE_ID_MODE: ${SWARM_NORMALIZER_ID_MODE:-explicit}
       CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH: /workspace/integrations/medusa/canonical-mappings.v1.json
 
   canonical-ledger-writer:
