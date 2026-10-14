@@ -454,3 +454,65 @@ pointed at an unrestricted Docker daemon just to clear these gates. A
 restricted Windows broker or daemon authorization policy, exact-image
 replay/drain review, and audited state migration remain separate work before
 an automatic live 1-to-2-to-1 acceptance test.
+
+## 2026-10-15 restricted-broker implementation candidate
+
+Added a separate, default-off private Swarm stack containing a manager-side
+scale broker and a socket-free controller. The broker accepts only bounded
+read probes and one-step `canonical-normalizer` replica updates after
+rechecking the exact stack/service/image, coherent group, readiness, release
+attestation and capacity. Level-2 force-update is not exposed. A dedicated
+token, no published port and an internal overlay are specified; the broker's
+own Docker socket remains a privileged boundary requiring threat review.
+
+The two local images built successfully on Docker Desktop; both imported in
+isolated `--network none` containers. `docker stack config` accepted the new
+manifest. Seventeen focused broker/controller tests passed, including denied
+generic API methods, foreign tasks, missing token, unreviewed release, failed
+Docker update confirmation and disabled recovery. These are implementation
+tests, **not** a live security or in-flight replay acceptance.
+
+The read-only live preflight still reports 1 replica, consumable lag 0 and
+the same three blockers: `IMAGE_DIGEST_MISMATCH`,
+`RELEASE_REPLAY_DRAIN_EVIDENCE_MISSING`,
+`RESTRICTED_DOCKER_ACTUATOR_NOT_ATTESTED`. No controller/broker service was
+deployed, no live scale was issued and the existing controller state/config
+were not rewritten. Next acceptance requires a reviewed exact-image replay
+and drain test, audited migration of the existing controller state, negative
+authorization tests from the isolated controller identity, immutable broker
+image publication, then a bounded real-backlog automatic 1-to-2-to-1 live run.
+
+## 2026-10-15 image/state synchronization and privilege test boundary
+
+The ignored local controller config was changed from Worker digest
+`a23a7597...faec93a` to the exact live normalizer digest
+`f61aa962...c901b9`. A dedicated migration command verified the live Swarm
+service and old state fingerprint, preserved the ten existing audit entries,
+appended one migration audit entry, kept the pending action clear and reset
+old-image observation samples. It did not invent release evidence or grant
+`--apply`. The subsequent read-only live preflight showed
+`controllerImageMatchesRuntime=true`, 1 replica, consumable lag 0, and only
+`RELEASE_REPLAY_DRAIN_EVIDENCE_MISSING` and
+`RESTRICTED_DOCKER_ACTUATOR_NOT_ATTESTED` remaining.
+
+A fresh broker token was generated into an ignored local credential file;
+its value was never printed. Local broker/controller test images built. An
+isolated internal Docker network was created for a negative authorization
+smoke, but the attempted broker container was **rejected by the execution
+approval gate** because mounting the live Docker socket confers
+manager-equivalent privilege. No broker container or Swarm control stack was
+started, no live service was scaled, and the empty temporary network was
+removed. Do not substitute an indirect socket mount. Explicit approval of
+that privileged test and a security review are still required.
+
+After the user explicitly approved the exact temporary Docker-socket test,
+the broker was started on an internal, unpublished Docker network and the
+socket-free controller image ran `boundary-smoke.mjs`. The controller observed
+no Docker socket or CLI. Broker HTTP rejected a generic Docker API path and a
+missing token; authenticated `forceUpdate` and a scale request without release
+evidence were rejected, while the allowlisted service read succeeded. The
+broker audit recorded four denied/failed requests and one accepted read, with
+no token in the log. The broker container and internal network were then
+stopped and removed; live normalizer replicas remained unchanged. This is a
+negative authorization smoke for the candidate broker, not permission to
+leave a Docker-socket broker running unattended or to claim live replay/drain.

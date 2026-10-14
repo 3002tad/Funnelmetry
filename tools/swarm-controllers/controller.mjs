@@ -62,6 +62,49 @@ export async function initialize(config, path) {
   });
 }
 
+// Exact-image handoff only. Never upgrades release evidence or clears a
+// pending action/circuit. Old observations cannot count toward a new release.
+export async function migrateImageState(oldConfig, newConfig, path,
+  { clock = Date.now, verifyRuntime } = {}) {
+  validateConfig(oldConfig);
+  validateConfig(newConfig);
+  if (typeof verifyRuntime !== 'function' || oldConfig.image === newConfig.image) {
+    throw Error('IMAGE_MIGRATION_REVIEW_REQUIRED');
+  }
+  const comparable = structuredClone(newConfig);
+  comparable.image = oldConfig.image;
+  comparable.evidence = oldConfig.evidence;
+  if (JSON.stringify(comparable) !== JSON.stringify(oldConfig) ||
+    newConfig.evidence !== undefined) throw Error('IMAGE_MIGRATION_SCOPE_CHANGED');
+  if (await sessionExists(path)) throw Error('RUNNER_ACTIVE');
+  return locked(path, async () => {
+    const data = readState(oldConfig, JSON.parse(await readFile(path, 'utf8')));
+    if (data.recovery.pending !== null || data.autoscale.pending === true ||
+      data.recovery.circuitOpen === true) throw Error('STATE_REQUIRES_OPERATOR_REVIEW');
+    const runtime = await verifyRuntime(newConfig);
+    if (runtime.image !== newConfig.image || runtime.stack !== newConfig.stack ||
+      runtime.service !== newConfig.service || runtime.replicas < 1) {
+      throw Error('RUNTIME_IMAGE_UNVERIFIED');
+    }
+    const at = clock();
+    if (!integer(at) || (data.recovery.lastObservedAt !== null && at < data.recovery.lastObservedAt) ||
+      (data.autoscale.lastObservedAt !== null && at < data.autoscale.lastObservedAt)) {
+      throw Error('MIGRATION_CLOCK_INVALID');
+    }
+    const lastDecisionAt = data.autoscale.lastDecisionAt;
+    data.fingerprint = hash(newConfig);
+    data.autoscale = { ...initialAutoscaleState(newConfig.autoscale), lastDecisionAt };
+    data.recovery = { ...data.recovery, lastObservedAt: null, taskId: null,
+      failures: 0, status: 'DEGRADED' };
+    data.audit = [...data.audit, { kind: 'IMAGE_CONFIG_MIGRATION', at,
+      fromImage: oldConfig.image, toImage: newConfig.image,
+      result: 'MIGRATED_OBSERVATIONS_RESET_RELEASE_UNVERIFIED' }].slice(-200);
+    await durableSave(path, data);
+    return { migrated: true, fromImage: oldConfig.image, toImage: newConfig.image,
+      auditCount: data.audit.length, releaseVerified: false };
+  });
+}
+
 function readState(config, data, { allowPending = false } = {}) {
   if (data?.version !== 1 || data.fingerprint !== hash(config) || !Array.isArray(data.audit) ||
     !data.recovery || !data.autoscale || !Object.hasOwn(data, 'pending')) {
@@ -142,7 +185,8 @@ export async function collect(config, adapter, now = Date.now()) {
   };
 }
 
-export async function tick(config, path, adapter, { apply = false, clock = Date.now, session = false } = {}) {
+export async function tick(config, path, adapter, { apply = false, clock = Date.now,
+  session = false, recoveryApply = true } = {}) {
   validateConfig(config);
   if (!session && await sessionExists(path)) throw Error('RUNNER_ACTIVE');
   return locked(path, async () => {
@@ -159,6 +203,15 @@ export async function tick(config, path, adapter, { apply = false, clock = Date.
     const autoscale = evaluateAutoscale(config.autoscale, data.autoscale, observation.autoscale, now);
     let selected = recovery.action === 'FORCE_UPDATE' ? { kind: 'RECOVERY', decision: recovery } :
       ['SCALE_UP', 'SCALE_DOWN'].includes(autoscale.action) ? { kind: 'AUTOSCALE', decision: autoscale } : null;
+    if (selected?.kind === 'RECOVERY' && !recoveryApply) {
+      // Broker mode grants scale only. Keep the unhealthy observation but do not
+      // reserve a Level-2 attempt or silently turn a failed restart into a scale.
+      recovery.state = { ...data.recovery, status: 'UNHEALTHY',
+        lastObservedAt: now, taskId: observation.recovery.taskId,
+        failures: config.recovery.failureThreshold };
+      recovery.audit = { ...recovery.audit, action: 'HOLD', reason: 'RECOVERY_ACTUATOR_DISABLED' };
+      selected = null;
+    }
     if (selected && !observation.stableTopology) {
       // Never persist a reserved attempt for an action that was not attempted.
       if (recovery.action === 'FORCE_UPDATE') {
@@ -283,14 +336,14 @@ export async function status(config, path, now = Date.now()) {
 }
 
 export async function run(config, path, adapter, { apply = false, intervalMs = 30000,
-  clock = Date.now, signal } = {}) {
+  clock = Date.now, signal, recoveryApply = true } = {}) {
   validateConfig(config);
   if (!integer(intervalMs, 5000) || intervalMs > 600000) throw Error('Invalid runner interval');
   const sessionPath = `${path}.session`;
   await mkdir(sessionPath); // persistent lease; never steal after an unclean stop
   try {
     while (!signal?.aborted) {
-      const result = await tick(config, path, adapter, { apply, clock, session: true });
+      const result = await tick(config, path, adapter, { apply, clock, session: true, recoveryApply });
       console.log(JSON.stringify(result));
       try { await delay(intervalMs, undefined, { signal }); }
       catch (error) { if (error.name !== 'AbortError') throw error; }

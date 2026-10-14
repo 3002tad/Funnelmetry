@@ -81,8 +81,8 @@ reports zero authorization plugins. The normal Windows user that launched
 Docker Desktop can issue unrestricted daemon commands through this pipe;
 running the controller under that same identity is not least-privilege.
 
-The proposed implementation path (still requiring team security review) is a
-small allowlisted broker on the manager. Only that broker may reach the Docker
+The implementation candidate (still requiring team security review and live
+acceptance) is a small allowlisted broker on the manager. Only that broker may reach the Docker
 socket; the controller uses
 an isolated private channel with no published port and no Docker socket or
 named pipe. The broker must independently re-inspect the exact stack,
@@ -91,6 +91,32 @@ single scale action. It must reject arbitrary Docker API paths and reject
 updates of any other service, exec, container creation, secret/volume access,
 and stack removal. Audit both accepted and denied actions. Its own Docker
 socket access remains privileged and requires a separate threat review.
+
+The candidate is implemented in `broker.mjs`, `broker-client.mjs` and
+`broker-runner.mjs`; `infra/swarm-scale-controller.yml` defines a **separate**
+private overlay stack. Both services default to zero replicas. The broker is
+the sole service with `/var/run/docker.sock`; the controller image has no Docker
+CLI and no socket mount. Requests use a dedicated Swarm secret, bounded RPC,
+single-flight execution and sanitized accepted/denied logs. Only one-step
+normalizer scale is exposed. Level-2 recovery is explicitly disabled in this
+mode and continues to require its own authorization review. The broker's
+socket mount is still manager-equivalent privilege if the broker is compromised;
+an internal network and token do not change that fact.
+The local-live risk boundary and negative container smoke are recorded in
+[the broker risk review](../../docs/SWARM_SCALE_BROKER_RISK_2026-10-15.md).
+
+Build the two images from their Dockerfiles, publish immutable digests to the
+approved registry, and set `SWARM_SCALE_BROKER_IMAGE` and
+`SWARM_SCALE_CONTROLLER_IMAGE`. The candidate manifest reads an operator-owned
+controller config from ignored `runtime/swarm-controllers/config.json`, a new
+independent token from ignored `runtime/credentials/swarm-scale-broker-token`,
+and persisted state from the named `scale_controller_state` volume. Do not reuse
+Medusa, Qwen, database, JWT or ingress keys for this token. Do not set
+`SWARM_SCALE_*_REPLICAS=1` or `SWARM_CONTROLLER_APPLY=reviewed-live-autoscale`
+until the security review, exact-image replay/drain, audited state migration
+and negative access tests below are completed. A freshly empty volume is not
+an acceptable replacement for a prior controller state; the runner refuses to
+initialize it silently. This is not yet deployed or accepted on live.
 
 Do not substitute a generic Docker socket proxy or a CLI-side allowlist:
 either would leave the controller with broad daemon authority. Before live
@@ -119,6 +145,21 @@ that this identity cannot control any unrelated Docker resource.
 
 ```powershell
 node tools/swarm-controllers/live-preflight.mjs runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json
+```
+
+When an already-deployed normalizer changes immutable image, do not simply
+reset controller state. The one-time `migrate-image.mjs` command checks the
+old state's config fingerprint, absence of pending actions/session, the new
+digest against the actual Swarm service, and writes an audit record. It keeps
+the previous audit/circuit/cooldown, but resets old-image observation samples.
+The reviewed new config must be edited first; the command requires the exact
+**old** digest as its last argument. It never adds release evidence or starts
+the controller. `generate-broker-token.mjs` creates a separate ignored token
+once without printing or replacing it.
+
+```powershell
+node tools/swarm-controllers/migrate-image.mjs runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:<old-digest>
+node tools/swarm-controllers/generate-broker-token.mjs
 ```
 
 Do not replace the pinned digest, add release evidence, or reset the old state

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { collect, initialize, metrics, run, status, tick, validateConfig } from './controller.mjs';
+import { collect, initialize, metrics, migrateImageState, run, status, tick, validateConfig } from './controller.mjs';
 
 const image = `example/workers@sha256:${'a'.repeat(64)}`;
 const config = { stack: 'funnelmetry-live-test', service: 'canonical-normalizer', image,
@@ -140,6 +140,20 @@ test('Level-2 only updates persistently not-ready application; uncertain action 
   await assert.rejects(tick(config, file, a, { apply: true, clock: () => 140 }), /UNCERTAIN_ACTION_OPERATOR_REVIEW/);
 }));
 
+test('scale-only broker mode holds Level-2 recovery without reserving an action', async () => withState(async file => {
+  const a = adapter({ ready: false });
+  await tick(config, file, a, { apply: true, recoveryApply: false, clock: () => 100 });
+  const held = await tick(config, file, a, { apply: true, recoveryApply: false, clock: () => 120 });
+  assert.equal(held.selected, null);
+  assert.equal(held.applied, false);
+  assert.equal(held.events[0].reason, 'RECOVERY_ACTUATOR_DISABLED');
+  assert.equal(a.updates, 0);
+  const saved = JSON.parse(await readFile(file, 'utf8'));
+  assert.equal(saved.pending, null);
+  assert.deepEqual(saved.recovery.attempts, []);
+  assert.equal(saved.recovery.status, 'UNHEALTHY');
+}));
+
 test('operator status is read-only and marks old persisted health as STALE', async () => withState(async file => {
   const a = adapter();
   await tick(config, file, a, { clock: () => 100 });
@@ -183,3 +197,38 @@ test('missing release-specific evidence forbids scale, foreign scope is invalid'
   assert.throws(() => validateConfig({ ...config, stack: 'other' }));
   assert.throws(() => validateConfig({ ...config, image: 'workers:latest' }));
 });
+
+test('image migration preserves audit and resets old-release observations without granting apply', async () => withState(async file => {
+  const a = adapter();
+  await tick(config, file, a, { clock: () => 100 });
+  const next = { ...config, image: `example/workers@sha256:${'b'.repeat(64)}`, evidence: undefined };
+  const report = await migrateImageState(config, next, file, { clock: () => 200,
+    verifyRuntime: async () => ({ image: next.image, stack: next.stack,
+      service: next.service, replicas: 1 }) });
+  assert.equal(report.releaseVerified, false);
+  const saved = JSON.parse(await readFile(file, 'utf8'));
+  assert.equal(saved.audit.at(-1).kind, 'IMAGE_CONFIG_MIGRATION');
+  assert.equal(saved.autoscale.lastObservedAt, null);
+  assert.equal(saved.recovery.lastObservedAt, null);
+  assert.equal(saved.pending, null);
+  assert.equal((await status(next, file, 201)).pendingOperatorReview, false);
+  await assert.rejects(status(config, file, 201), /STATE_CONFIG_MISMATCH/);
+}));
+
+test('image migration refuses unverified runtime or pending action without rewriting state', async () => withState(async file => {
+  const next = { ...config, image: `example/workers@sha256:${'b'.repeat(64)}`, evidence: undefined };
+  const before = await readFile(file, 'utf8');
+  await assert.rejects(migrateImageState(config, next, file, { clock: () => 200,
+    verifyRuntime: async () => ({ image: config.image, stack: next.stack,
+      service: next.service, replicas: 1 }) }), /RUNTIME_IMAGE_UNVERIFIED/);
+  assert.equal(await readFile(file, 'utf8'), before);
+  const a = adapter({ ready: false, failForce: true });
+  await tick(config, file, a, { apply: true, clock: () => 100 });
+  await assert.rejects(tick(config, file, a, { apply: true, clock: () => 120 }),
+    /UNCERTAIN_ACTION_OPERATOR_REVIEW/);
+  const pending = await readFile(file, 'utf8');
+  await assert.rejects(migrateImageState(config, next, file, { clock: () => 200,
+    verifyRuntime: async () => ({ image: next.image, stack: next.stack,
+      service: next.service, replicas: 1 }) }), /UNCERTAIN_ACTION_OPERATOR_REVIEW/);
+  assert.equal(await readFile(file, 'utf8'), pending);
+}));

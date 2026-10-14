@@ -1,0 +1,69 @@
+# Separate, opt-in manager stack. Never merge into the public application edge.
+# Default replicas are zero until release/state/security gates are reviewed.
+version: '3.8'
+
+services:
+  swarm-scale-broker:
+    image: ${SWARM_SCALE_BROKER_IMAGE:?Pin immutable broker image digest}
+    command: [node, /workspace/tools/swarm-controllers/broker.mjs, /run/config/controller.json, /run/secrets/broker_token]
+    configs:
+      - source: scale_controller_config
+        target: /run/config/controller.json
+    secrets:
+      - source: scale_broker_token
+        target: broker_token
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+    networks: [controller_private]
+    read_only: true
+    deploy:
+      replicas: ${SWARM_SCALE_BROKER_REPLICAS:-0}
+      placement:
+        constraints: [node.role == manager]
+      restart_policy: {condition: on-failure, delay: 10s}
+      resources:
+        reservations: {cpus: '0.05', memory: 64M}
+        limits: {cpus: '0.50', memory: 256M}
+
+  swarm-scale-controller:
+    image: ${SWARM_SCALE_CONTROLLER_IMAGE:?Pin immutable controller image digest}
+    command: [node, /workspace/tools/swarm-controllers/broker-runner.mjs, /run/config/controller.json, /state/state.json, /run/secrets/broker_token]
+    environment:
+      SWARM_CONTROLLER_APPLY: ${SWARM_CONTROLLER_APPLY:-off}
+      SWARM_BROKER_ENDPOINT: http://swarm-scale-broker:32130/
+    configs:
+      - source: scale_controller_config
+        target: /run/config/controller.json
+    secrets:
+      - source: scale_broker_token
+        target: broker_token
+    volumes: [scale_controller_state:/state]
+    networks: [controller_private]
+    read_only: true
+    deploy:
+      replicas: ${SWARM_SCALE_CONTROLLER_REPLICAS:-0}
+      placement:
+        constraints: [node.role == manager]
+      restart_policy: {condition: on-failure, delay: 10s}
+      resources:
+        reservations: {cpus: '0.05', memory: 64M}
+        limits: {cpus: '0.50', memory: 256M}
+
+networks:
+  controller_private:
+    driver: overlay
+    internal: true
+    attachable: false
+
+volumes:
+  scale_controller_state:
+
+configs:
+  scale_controller_config:
+    file: ../runtime/swarm-controllers/config.json
+
+secrets:
+  scale_broker_token:
+    file: ../runtime/credentials/swarm-scale-broker-token
