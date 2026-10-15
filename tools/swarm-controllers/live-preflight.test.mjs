@@ -39,3 +39,12 @@ test('pending action, unknown probes and insufficient capacity fail closed', () 
     'REPLICA_READINESS_UNVERIFIED', 'PARTITION_OR_CAPACITY_CEILING', 'LIVE_PROBE_UNAVAILABLE',
     'MEMORY_PROBE_UNAVAILABLE']) assert.ok(report.blockers.includes(blocker), blocker);
 });
+
+test('reviewed local-demo boundary clears only the demo actuator gate', () => {
+  const report = evaluateLivePreflight({ config: { ...config, evidence }, runtimeImage: config.image,
+    managerReady: true, authorizationPlugins: [], persisted, observation, sessionActive: false,
+    localDemoBoundaryAttested: true });
+  assert.deepEqual(report.blockers, []);
+  assert.equal(report.applyAuthorized, true);
+  assert.equal(report.authorizationScope, 'LOCAL_DOCKER_DESKTOP_DEMO');
+});

@@ -516,3 +516,61 @@ no token in the log. The broker container and internal network were then
 stopped and removed; live normalizer replicas remained unchanged. This is a
 negative authorization smoke for the candidate broker, not permission to
 leave a Docker-socket broker running unattended or to claim live replay/drain.
+
+## 2026-10-15 exact-image live replay and manual replica drain
+
+Evidence references for the local demo controller: `live-replay-20261015`
+and `live-drain-20261015`. These refer only to the bounded observations below.
+
+With the user's explicit approval, the local live stack
+`funnelmetry-live-20261014` was tested against the **currently deployed**
+normalizer image `ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:f61aa962eae67c8133c26d29bba68567abf001836b8d2bc19e48c4e691c901b9`.
+The initial Medusa Source Connector cursor was 518; PostgreSQL held 503
+`medusa-reference` canonical events, 503 normalized outcomes, 11 unsupported
+outcomes and 4 quarantined outcomes. The normalizer was the only live service
+scaled to 0/0; Source Connector, Kafka and PostgreSQL stayed up. While the user
+generated real shop traffic, Kafka consumer-group lag rose to 5 and 9 on its
+two Raw partitions. The normalizer was promptly restored to 1/1; the cursor
+advanced to 534 and canonical/normalized counts to 519. A read-only probe
+reported one ready, identity-verified group member and **zero consumable lag**;
+the raw offset delta of 2 was a verified control-record-only tail.
+
+The normalizer was then manually scaled 1 to 2 replicas. At 2/2, a read-only
+probe reported two ready, identity-verified members, two partitions and zero
+consumable lag. The user generated more real shop events; the cursor advanced
+from 540 to 554 and canonical/normalized counts from 525 to 539, with no new
+unsupported or quarantined outcomes. Only after the zero-lag check was the
+service manually scaled back to 1/1. Final cursor was 555, canonical and
+normalized counts 540, and 37 of 37 canonical rows added since the initial
+baseline had distinct source event IDs. Final read-only probe showed 1/1,
+ready, stable group, zero consumable lag and two verified control-only tails.
+
+This proves bounded live Kafka backlog replay and a manual 1-to-2-to-1
+rebalance/drain with real Source Feed traffic for this image. It does **not**
+prove automatic scale triggering at the configured 100-record/60-second
+threshold, an in-flight transaction specifically interrupted by scale-down,
+production security certification, or multi-node behavior. The release
+evidence and restricted-actuator preflight gates remain unset at this point;
+the controller service is 0/0 and only the approved private broker is 1/1.
+
+### Follow-up: local-demo controller enablement
+
+After the replay/drain observations were reviewed, the ignored controller
+config received the two evidence references above. The one-time
+`attest-release.mjs` migration preserved prior state and cooldown, appended
+an audit entry (12 total), and reset old observations only after a fresh
+exact-image, ready, zero-consumable-lag check. Its state was copied to the
+dedicated Swarm volume with a matching SHA-256. The separate broker stack was
+redeployed with that config; an initial Docker overlay-removal race caused
+the first redeploy attempt to fail, and the retry completed after network
+cleanup. The application live stack was not removed.
+
+The local-demo preflight then reported no blockers after verifying the actual
+broker/controller service specs and an explicit local risk attestation. The
+scale-only controller was enabled 1/1; the broker is 1/1. Its first live
+observation reported one ready normalizer replica, zero consumable lag, and
+`HOLD`/no scale action. This proves the controller is running and observing,
+**not** that the automatic 100-record/60-second scale-up and subsequent
+scale-down have occurred. Those require a separate bounded sustained-load
+test. The broker still has privileged Docker-manager socket access; no
+production security claim is made.

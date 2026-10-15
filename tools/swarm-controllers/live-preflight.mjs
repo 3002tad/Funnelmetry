@@ -1,4 +1,6 @@
-// Read-only diagnostic for a live Swarm controller candidate. Never authorizes --apply.
+// Read-only diagnostic for a live Swarm controller candidate. An explicit
+// local-demo attestation can report operator-apply eligibility; this tool
+// never starts or scales a service and does not certify production security.
 import { execFile } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -6,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { status, validateConfig } from './controller.mjs';
 import { measure, prepareMeasureConfig } from './measure.mjs';
+import { inspectLocalDemoBoundary } from './local-demo-attestation.mjs';
 
 const exec = promisify(execFile);
 const digest = value => typeof value === 'string' && /@sha256:[a-f0-9]{64}$/.test(value);
@@ -23,7 +26,7 @@ async function exists(path) {
 }
 
 export function evaluateLivePreflight({ config, runtimeImage, managerReady, authorizationPlugins,
-  persisted, observation, sessionActive }) {
+  persisted, observation, sessionActive, localDemoBoundaryAttested = false }) {
   validateConfig(config);
   const blockers = [];
   if (managerReady !== true) blockers.push('SWARM_MANAGER_UNVERIFIED');
@@ -50,9 +53,9 @@ export function evaluateLivePreflight({ config, runtimeImage, managerReady, auth
       blockers.push('MEMORY_PROBE_UNAVAILABLE');
     }
   }
-  // A plugin being present does not prove that its policy constrains this
-  // controller. Windows account/pipe and broker isolation require separate review.
-  blockers.push('RESTRICTED_DOCKER_ACTUATOR_NOT_ATTESTED');
+  // This narrow attestation is local-demo risk acceptance only. A plugin alone
+  // never proves restricted authority; the broker still owns a privileged socket.
+  if (!localDemoBoundaryAttested) blockers.push('RESTRICTED_DOCKER_ACTUATOR_NOT_ATTESTED');
   return {
     source: 'live_read_only_preflight', stack: config.stack, service: config.service,
     controllerImageMatchesRuntime: runtimeImage === config.image,
@@ -60,11 +63,12 @@ export function evaluateLivePreflight({ config, runtimeImage, managerReady, auth
     observedReplicas: observation?.replicas ?? null,
     observedConsumableLag: observation?.consumableLag ?? null,
     blockers,
-    applyAuthorized: false,
+    applyAuthorized: blockers.length === 0 && localDemoBoundaryAttested,
+    authorizationScope: localDemoBoundaryAttested ? 'LOCAL_DOCKER_DESKTOP_DEMO' : null,
   };
 }
 
-export async function livePreflight(configPath, statePath) {
+export async function livePreflight(configPath, statePath, attestationPath) {
   const config = JSON.parse(await readFile(configPath, 'utf8'));
   validateConfig(config);
   const manager = await docker(['info', '--format',
@@ -86,14 +90,24 @@ export async function livePreflight(configPath, statePath) {
       [observation] = await measure(scoped, { configuredImage: config.image });
     } catch { /* fail closed in report */ }
   }
+  let localDemoBoundaryAttested = false;
+  if (attestationPath) {
+    try {
+      const attestation = JSON.parse(await readFile(attestationPath, 'utf8'));
+      if (attestation.targetStack === config.stack && attestation.targetService === config.service &&
+        attestation.targetImage === config.image) {
+        localDemoBoundaryAttested = await inspectLocalDemoBoundary(attestation);
+      }
+    } catch { /* fail closed in report */ }
+  }
   return evaluateLivePreflight({ config, runtimeImage, managerReady: state === 'active' && control === 'true',
-    authorizationPlugins, persisted, observation, sessionActive });
+    authorizationPlugins, persisted, observation, sessionActive, localDemoBoundaryAttested });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
-    if (process.argv.length !== 4) throw Error('Expected config and state paths');
-    const report = await livePreflight(process.argv[2], process.argv[3]);
+    if (process.argv.length < 4 || process.argv.length > 5) throw Error('Expected config, state and optional attestation paths');
+    const report = await livePreflight(process.argv[2], process.argv[3], process.argv[4]);
     console.log(JSON.stringify(report));
     if (report.blockers.length) process.exitCode = 2;
   } catch {

@@ -1,0 +1,11 @@
+{
+  "kind": "LOCAL_DOCKER_DESKTOP_DEMO",
+  "stack": "funnelmetry-scale-control-review",
+  "targetStack": "funnelmetry-live-review",
+  "targetService": "canonical-normalizer",
+  "targetImage": "ghcr.io/example/workers@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "brokerImage": "ghcr.io/example/scale-broker@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "controllerImage": "ghcr.io/example/scale-controller@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "negativeTestRef": "swarm-overlay-boundary-20261015",
+  "riskAccepted": false
+}

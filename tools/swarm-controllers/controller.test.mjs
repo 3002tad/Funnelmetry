@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { collect, initialize, metrics, migrateImageState, run, status, tick, validateConfig } from './controller.mjs';
+import { attestReleaseState, collect, initialize, metrics, migrateImageState, run, status, tick, validateConfig } from './controller.mjs';
 
 const image = `example/workers@sha256:${'a'.repeat(64)}`;
 const config = { stack: 'funnelmetry-live-test', service: 'canonical-normalizer', image,
@@ -232,3 +232,44 @@ test('image migration refuses unverified runtime or pending action without rewri
       service: next.service, replicas: 1 }) }), /UNCERTAIN_ACTION_OPERATOR_REVIEW/);
   assert.equal(await readFile(file, 'utf8'), pending);
 }));
+
+test('release attestation preserves old audit and resets observations only after healthy exact-image drain', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'funnelmetry-swarm-release-'));
+  const file = join(dir, 'state.json');
+  const old = structuredClone(config);
+  delete old.evidence;
+  try {
+    await initialize(old, file);
+    const report = await attestReleaseState(old, config, file, { clock: () => 200,
+      verifyRuntime: async () => ({ image, stack: config.stack, service: config.service,
+        replicas: 1, ready: true, groupStable: true, identityVerified: true, consumableLag: '0' }) });
+    assert.equal(report.attested, true);
+    const saved = JSON.parse(await readFile(file, 'utf8'));
+    assert.equal(saved.audit.at(-1).kind, 'RELEASE_EVIDENCE_ATTESTATION');
+    assert.equal(saved.audit.at(-1).replayTestRef, config.evidence.replayTestRef);
+    assert.equal(saved.autoscale.lastObservedAt, null);
+    assert.equal(saved.pending, null);
+    assert.equal((await status(config, file, 201)).pendingOperatorReview, false);
+    await assert.rejects(status(old, file, 201), /STATE_CONFIG_MISMATCH/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('release attestation refuses lag or changed policy and leaves old state untouched', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'funnelmetry-swarm-release-'));
+  const file = join(dir, 'state.json');
+  const old = structuredClone(config);
+  delete old.evidence;
+  try {
+    await initialize(old, file);
+    const before = await readFile(file, 'utf8');
+    await assert.rejects(attestReleaseState(old, config, file, { clock: () => 200,
+      verifyRuntime: async () => ({ image, stack: config.stack, service: config.service,
+        replicas: 1, ready: true, groupStable: true, identityVerified: true, consumableLag: '1' }) }),
+    /RELEASE_RUNTIME_UNVERIFIED/);
+    assert.equal(await readFile(file, 'utf8'), before);
+    await assert.rejects(attestReleaseState(old, { ...config,
+      autoscale: { ...config.autoscale, upLag: '99' } }, file, { verifyRuntime: async () => null }),
+    /RELEASE_ATTESTATION_SCOPE_CHANGED/);
+    assert.equal(await readFile(file, 'utf8'), before);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

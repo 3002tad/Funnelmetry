@@ -40,4 +40,30 @@ publication; persisted state mounted into the controller volume; explicit
 acknowledgement in the deployment configuration; and an observed, bounded
 automatic 1→2→1 test. Multi-node, production and node-level HA are not
 covered by this review. A separate independent security review is still
-recommended before production use.
+recommended before production use. The remaining-items list below is the
+pre-deployment checkpoint; the dated follow-up records what was completed.
+
+## Local-live deployment and overlay boundary check
+
+After explicit user approval, the separate stack
+`funnelmetry-scale-control-20261015` was deployed on the single-node Docker
+Desktop Swarm. The broker runs 1/1 from immutable digest
+`sha256:06b09a41783fa4bdd7d8662d9aa398a695d2ba7780f508d35f993e25614b5e3f`;
+the controller image is pinned to digest
+`sha256:a41d268ca8e98d7dd001c1bc78f45569845add41303cf18c1d670a955c2fffe5`
+and was initially held at 0/0. The broker has one internal overlay and no
+published port.
+
+An ephemeral task using the actual controller image and overlay completed a
+negative boundary smoke: its Docker socket and Docker CLI were absent; a
+generic API request, unauthenticated request, Level-2 recovery request and
+unreviewed scale request were denied; an allowlisted read succeeded. The
+ephemeral task was removed. This verifies the tested network/API boundary,
+not independent least-privilege enforcement on the broker's Docker socket.
+The broker remains manager-equivalent if compromised, and production security
+review remains open. The release evidence was added through an audited state
+migration (12 audit entries; previous history preserved). The copied volume
+state matched the host state SHA-256, and the local-demo preflight reported no
+blockers. The controller was then enabled 1/1 with Level-2 recovery disabled.
+Its first live log recorded `HOLD` at one replica, zero consumable lag and no
+action. No automatic scale action has yet been observed on live.

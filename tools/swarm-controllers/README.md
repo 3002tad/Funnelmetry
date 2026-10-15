@@ -116,16 +116,23 @@ Medusa, Qwen, database, JWT or ingress keys for this token. Do not set
 until the security review, exact-image replay/drain, audited state migration
 and negative access tests below are completed. A freshly empty volume is not
 an acceptable replacement for a prior controller state; the runner refuses to
-initialize it silently. This is not yet deployed or accepted on live.
+initialize it silently. On the 2026-10-15 local live demo, the broker and
+controller are both deployed 1/1 with pinned images. This is **not** a
+production security or automatic scale-trigger acceptance.
 
 Do not substitute a generic Docker socket proxy or a CLI-side allowlist:
 either would leave the controller with broad daemon authority. Before live
 enablement, run negative authorization tests from the controller identity,
-then perform exact-image in-flight drain/replay acceptance, review state
-migration, and finally a bounded automatic live 1-to-2-to-1 test. The current
-`live-preflight.mjs` deliberately reports `applyAuthorized=false` until that
-boundary is implemented and separately attested. No Docker Desktop restart
-or live service mutation is performed by this plan.
+then perform exact-image drain/replay acceptance, review state migration, and
+finally a bounded automatic live 1-to-2-to-1 test. The local-demo preflight
+checks the actual broker/controller service specs, private overlay, token
+mount, immutable images, controller socket absence and a separate operator
+risk attestation. It cannot certify the broker's privileged socket or replace
+an independent production security review. The mount check fails closed if
+the controller has anything beyond its single state volume (including a broad
+host bind such as `/var/run`); the broker is restricted to known Docker
+Desktop/Linux socket source paths. This is a configuration check, not a sandbox
+against a compromised broker image.
 
 For a bounded, read-only live baseline without touching the persisted
 controller state, use `measure.mjs`. If the local controller config still pins
@@ -136,15 +143,22 @@ the Swarm actuator or changes the config/state files.
 
 To check live enablement gates without modifying the service or persisted
 controller state, run `live-preflight.mjs` against the ignored local config and
-state. It reports only bounded diagnostic fields and exits nonzero while any
-gate is unverified. It never grants `--apply`: even a present Docker AuthZ
-plugin does not prove that the controller identity is restricted to the
-allowlisted service. On Docker Desktop for Windows, that boundary needs a
-separately reviewed local broker/daemon policy and a negative test showing
-that this identity cannot control any unrelated Docker resource.
+state **before enabling the controller**. It reports only bounded diagnostic
+fields and exits nonzero while any gate is unverified. An optional ignored
+`local-demo-attestation.json` enables the narrow local-demo gate only after
+the operator accepts the residual broker-socket risk and negative boundary
+smoke has been performed. Copy
+`tools/swarm-controllers/local-demo-attestation.example.json` into the ignored
+runtime path and fill the actual stack and immutable digests only after those
+checks; its default `riskAccepted=false` deliberately fails closed. Without
+that file, the actuator gate stays closed.
+Do not interpret `applyAuthorized=true` as production approval. Once the
+container controller is running, inspect its mounted state/logs instead of
+the stale host-side state copy.
 
 ```powershell
 node tools/swarm-controllers/live-preflight.mjs runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json
+node tools/swarm-controllers/live-preflight.mjs runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json runtime/swarm-controllers/local-demo-attestation.json
 ```
 
 When an already-deployed normalizer changes immutable image, do not simply
@@ -160,6 +174,56 @@ once without printing or replacing it.
 ```powershell
 node tools/swarm-controllers/migrate-image.mjs runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:<old-digest>
 node tools/swarm-controllers/generate-broker-token.mjs
+```
+
+After reviewing exact-image replay and manual drain evidence, add the two
+references and image digest to the ignored config, then migrate the **existing**
+state with `attest-release.mjs`. It rejects changed policy, active runner,
+pending action, nonzero consumable lag, unready identity or wrong image, and
+preserves audit/cooldown while resetting prior observations. The 2026-10-15
+local demo used `live-replay-20261015` and `live-drain-20261015` from
+[the validation record](../../docs/SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
+
+```powershell
+node tools/swarm-controllers/attest-release.mjs runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json
+```
+
+The local demo state was copied byte-for-byte into the named controller volume
+and its SHA-256 was checked before the controller was enabled. Swarm retains
+the desired 1/1 service across an ordinary Docker Desktop restart. If the
+control stack is removed, do not initialize a fresh state volume or silently
+reuse an old attestation; inspect the preserved volume, live worker digest,
+config fingerprint and pending-action latch first. Automatic live 1-to-2-to-1
+has **not** yet been demonstrated because current real traffic has not kept
+the 100-record lag threshold above the 60-second up-window.
+
+For a bounded live trigger test, use the existing Source Ingress bot in
+`behavior` mode on the Medusa side, with that side's dedicated Source Ingress
+URL, Source Key ID and Browser Write Key supplied through its private
+environment. Do not use the Pipeline's Event Feed token as a write key, do
+not pass credentials on the command line, and do not use
+`fixtures/kafka-scale-smoke.mjs` against a live Kafka topic. Start with at most
+150 journeys (300 synthetic-labeled behavior events), inspect acceptance and
+Kafka/controller logs, and stop if the Source Ingress rejects/rate-limits or
+quality counters rise. This initial batch may drain too fast to cross the
+60-second up-window; do not report automatic scaling unless the controller
+audit and Swarm replicas actually show 1-to-2-to-1.
+
+For the local-machine option, fill the five `FUNNELMETRY_*`/`SWARM_LIVE_LOAD_ACK`
+entries in the **ignored** `runtime/deploy.env`. The Source Ingress URL must
+be HTTPS, `FUNNELMETRY_SOURCE_ID` must be `medusa-reference`, and the Browser
+Write Key must be the source-side write credential, not the Pipeline's
+`SWARM_FEED_URL`/token. The wrapper checks `/readyz` and requires its
+`event_feed_id` to match the configured `SWARM_FEED_ID` before any write.
+`check` sends zero events; `run` is behavior-only and capped at 150 journeys
+(at most 300 synthetic events), with no commerce orders. Run one journey first
+to verify acceptance, then the bounded batch. Do not paste the key into a
+terminal command, chat or Git.
+
+```powershell
+node runtime/live-autoscale-load.mjs check
+node runtime/live-autoscale-load.mjs run --journeys=1
+node runtime/live-autoscale-load.mjs run --journeys=150
 ```
 
 Do not replace the pinned digest, add release evidence, or reset the old state

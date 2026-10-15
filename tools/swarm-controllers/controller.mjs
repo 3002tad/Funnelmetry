@@ -105,6 +105,50 @@ export async function migrateImageState(oldConfig, newConfig, path,
   });
 }
 
+// Operator-reviewed release evidence is a config migration, never a silent
+// state reset. Preserve action history/cooldown and discard pre-attestation
+// observations so they cannot trigger an immediate live scale action.
+export async function attestReleaseState(oldConfig, newConfig, path,
+  { clock = Date.now, verifyRuntime } = {}) {
+  validateConfig(oldConfig);
+  validateConfig(newConfig);
+  const comparable = structuredClone(newConfig);
+  delete comparable.evidence;
+  if (oldConfig.evidence !== undefined || newConfig.evidence === undefined ||
+    JSON.stringify(comparable) !== JSON.stringify(oldConfig) ||
+    typeof verifyRuntime !== 'function') throw Error('RELEASE_ATTESTATION_SCOPE_CHANGED');
+  if (await sessionExists(path)) throw Error('RUNNER_ACTIVE');
+  return locked(path, async () => {
+    const data = readState(oldConfig, JSON.parse(await readFile(path, 'utf8')));
+    if (data.recovery.pending !== null || data.autoscale.pending === true ||
+      data.recovery.circuitOpen === true) throw Error('STATE_REQUIRES_OPERATOR_REVIEW');
+    const runtime = await verifyRuntime(newConfig);
+    if (runtime.image !== newConfig.image || runtime.stack !== newConfig.stack ||
+      runtime.service !== newConfig.service || runtime.replicas !== 1 ||
+      runtime.ready !== true || runtime.groupStable !== true ||
+      runtime.identityVerified !== true || runtime.consumableLag !== '0') {
+      throw Error('RELEASE_RUNTIME_UNVERIFIED');
+    }
+    const at = clock();
+    if (!integer(at) || (data.recovery.lastObservedAt !== null && at < data.recovery.lastObservedAt) ||
+      (data.autoscale.lastObservedAt !== null && at < data.autoscale.lastObservedAt)) {
+      throw Error('MIGRATION_CLOCK_INVALID');
+    }
+    const lastDecisionAt = data.autoscale.lastDecisionAt;
+    data.fingerprint = hash(newConfig);
+    data.autoscale = { ...initialAutoscaleState(newConfig.autoscale), lastDecisionAt };
+    data.recovery = { ...data.recovery, lastObservedAt: null, taskId: null,
+      failures: 0, status: 'DEGRADED' };
+    data.audit = [...data.audit, { kind: 'RELEASE_EVIDENCE_ATTESTATION', at,
+      image: newConfig.image, replayTestRef: newConfig.evidence.replayTestRef,
+      drainTestRef: newConfig.evidence.drainTestRef,
+      result: 'MIGRATED_OBSERVATIONS_RESET' }].slice(-200);
+    await durableSave(path, data);
+    return { attested: true, image: newConfig.image, auditCount: data.audit.length,
+      observationsReset: true };
+  });
+}
+
 function readState(config, data, { allowPending = false } = {}) {
   if (data?.version !== 1 || data.fingerprint !== hash(config) || !Array.isArray(data.audit) ||
     !data.recovery || !data.autoscale || !Object.hasOwn(data, 'pending')) {
