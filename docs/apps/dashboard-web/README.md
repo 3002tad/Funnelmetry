@@ -1,10 +1,10 @@
 # Funnelmetry dashboard web
 
-## Giao diện SaaS dễ bắt đầu (local preview)
+## Giao diện SaaS dễ bắt đầu
 
 Menu mặc định chỉ hiện các trang thường dùng; `Xem tất cả chức năng` mở lại đầy đủ route mà tài khoản được cấp quyền. Trang Tổng quan, Phễu, Sản phẩm, Sự kiện, Chất lượng dữ liệu, Tình trạng Pipeline và Xử lý dữ liệu trình bày thông điệp chính trước, còn bảng/mã kỹ thuật nằm trong phần `Xem chi tiết`. Trang đăng nhập dùng minh họa SVG cùng ngôn ngữ thị giác. Không thay đổi quyền backend, metric/event semantics hoặc dữ liệu được lưu. Hình minh họa SVG là trang trí, không phải biểu đồ dữ liệu; các thanh tỷ lệ Phễu lấy từ API và được ghi là số đã quan sát, chưa phải KPI cuối cùng.
 
-Đây là UI tại source/local preview, không tự thay image Web đang chạy trong Swarm. Các trang chuyên sâu khác vẫn giữ toàn bộ khả năng hiện tại và còn cần một lượt rà UX riêng trước khi gọi toàn bộ dashboard là đơn giản cho người mới.
+Bản UI này đã được triển khai trên stack Swarm `funnelmetry-live-20261014` ngày 2026-10-15 bằng image Web `ghcr.io/3002tad/funnelmetry/handoff-web@sha256:4f5be28249e3f3e94445b8695d679f8bf46540f2486a6a8fb38a47f744dfd31f` từ commit `75f58dd`. HTTPS `/login`, asset mới và API chưa đăng nhập đã qua smoke; chưa có nghiệm thu thao tác đăng nhập/điều hướng thực tế trên bản này. Các trang chuyên sâu khác vẫn giữ toàn bộ khả năng hiện tại và còn cần một lượt rà UX riêng trước khi gọi toàn bộ dashboard là đơn giản cho người mới.
 
 ## Account Settings V2
 
