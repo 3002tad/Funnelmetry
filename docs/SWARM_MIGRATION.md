@@ -1,5 +1,47 @@
 # Docker Swarm migration
 
+## Hai máy chạy độc lập (quy trình hiện hành)
+
+Máy của bạn và máy đồng đội là **hai Swarm single-node riêng**, không dùng
+`docker swarm join` để ghép thành một cluster. Cả hai checkout cùng phiên bản
+source và lấy cùng bộ image digest trong [`deploy.env.example`](../runtime/deploy.env.example).
+Các image GHCR trong mẫu đã được kiểm tra manifest `linux/amd64` ngày
+2026-10-15; máy khác kiến trúc phải có bộ image tương ứng trước khi deploy.
+Mỗi máy tự tạo file ignored `runtime/deploy.env`, tên stack, named volumes,
+Swarm secrets, TLS private key và tài khoản admin riêng. Không gửi file env thật
+hay thư mục `runtime/credentials` cho nhau. Không copy PostgreSQL/Kafka volume
+hoặc Source Connector cursor từ máy này sang máy kia.
+
+Trên **mỗi máy**, sau khi cài Docker Engine/Desktop chế độ Linux containers,
+Node và pull source, operator làm theo thứ tự:
+
+1. Tạo `runtime/deploy.env` từ mẫu. Chọn `SWARM_STACK_NAME` riêng; bắt đầu bằng
+   `SWARM_MIGRATION_MODE=OFFLINE_DEMO` nếu chưa có Feed/cursor được Source xác nhận.
+   Điền `SWARM_ADMIN_EMAIL`, hostname/TLS của chính máy đó; để trống các password
+   được launcher sinh tự động. Không dùng `deploy.env` của máy khác.
+2. Chạy `docker swarm init` **chỉ nếu** `docker info` cho biết Swarm chưa active.
+   Kiểm tra `docker node ls` chỉ có một node. Sau khi xem vị trí lưu dữ liệu và
+   cổng HTTPS, chạy `docker node update --label-add funnelmetry.stateful=true <NODE_ID>`
+   và `docker node update --label-add funnelmetry.edge=true <NODE_ID>` trên manager,
+   với `NODE_ID` lấy từ `docker node ls` của chính máy đó.
+3. Với TLS local, đặt certificate/key ở đường dẫn tuyệt đối **ngoài repo** và
+   cấu hình hai `SWARM_LOCAL_TLS_*_FILE`. Máy truy cập phải resolve hostname
+   về node edge và trust certificate. Với ACME, phải có DNS/cổng 80, 443 thực
+   sự thông trước khi đặt acknowledgement. Đăng nhập GHCR trên mỗi máy bằng
+   tài khoản có quyền pull image private; không đưa token vào env mẫu.
+4. Chạy `node runtime/swarm.mjs check-host`. Lệnh này chỉ đọc: render stack,
+   xác nhận manager Linux một node, hai placement label và đường dẫn TLS local.
+   Nó **không** chứng minh pull image, hostname/certificate trust, port trống,
+   secret tồn tại hoặc service healthy. Sau đó theo luồng fresh deployment bên
+   dưới: tạo secrets phù hợp mode, `deploy` data, xác nhận bootstrap/topic jobs
+   Complete, rồi `deploy-app` và đối chiếu UI/API/event.
+
+Nếu cả hai máy cần `PARALLEL_LIVE`, mỗi máy phải có consumer identity/cursor
+độc lập và mốc `initial_after_seq` còn trong retention được Source xác nhận.
+Không bật hai writer như cùng một hệ thống authoritative, và không chuyển mode
+của stack đã có dữ liệu. Lần deploy đầu trên máy đồng đội vẫn cần kiểm chứng
+runtime tại máy đó; preflight trên máy này không thay thế nghiệm thu máy kia.
+
 ## Đường triển khai hiện hành (15/10/2026)
 
 Pipeline dùng **một** file cục bộ `runtime/deploy.env` và launcher `runtime/swarm.mjs` trên Windows/Linux. Tạo file từ [`deploy.env.example`](../runtime/deploy.env.example), điền các biến `SWARM_*` cần cho mode đã chọn và image pin đúng source commit. `infra/swarm-*.yml` là cấu hình stack; không chạy Compose Pipeline cũ. Source Ingress/Edge Relay do phía Medusa vận hành là hệ thống riêng, không bị thay đổi bởi việc bỏ Compose Pipeline.

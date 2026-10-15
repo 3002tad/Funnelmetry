@@ -2,7 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { parseEnv } from 'node:util';
 import { dockerEnvironment, stackDeployArgs, stackFilesForCommand, validateAppSecrets, validateDbSecret, validateTlsFilePath } from './swarm.mjs';
+import { validateSwarmApp, validateSwarmCandidate } from './swarm-preflight.mjs';
+
+test('fresh independent machine can start from the nonsecret pinned release example', () => {
+  const example = parseEnv(readFileSync(fileURLToPath(new URL('./deploy.env.example', import.meta.url)), 'utf8'));
+  assert.equal(validateSwarmCandidate({ ...example, SWARM_STACK_NAME: 'teammate-demo' }).mode, 'OFFLINE_DEMO');
+  assert.equal(validateSwarmApp({ ...example, SWARM_ADMIN_EMAIL: 'admin@example.com' }).tlsMode, 'local');
+  for (const key of ['SWARM_DB_PASSWORD', 'SWARM_JWT_SECRET', 'SWARM_ADMIN_PASSWORD',
+    'SWARM_FEED_TOKEN', 'SWARM_CATALOG_KEY', 'SWARM_DASHSCOPE_API_KEY']) {
+    assert.equal(example[key], '', `${key} must not be shared in the example`);
+  }
+});
 
 test('Swarm deploy forwards client registry credentials for pinned private images', () => {
   assert.deepEqual(stackDeployArgs(['data.yml', 'app.yml'], 'candidate'), [

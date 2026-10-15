@@ -8,6 +8,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateSwarmApp, validateSwarmCandidate } from './swarm-preflight.mjs';
 import { normalizeSwarmEnv } from './swarm-config.mjs';
+import { checkSingleNodeHost } from './swarm-host-check.mjs';
 import { schemaFiles, schemaDigest } from '../infra/bootstrap/bootstrap-swarm.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -132,7 +133,7 @@ export async function run(command) {
   parsed.SWARM_EXPECTED_SCHEMA_DIGEST = await localSchemaDigest();
   const env = dockerEnvironment(process.env, parsed);
   const internalOnly = ['check-internal', 'deploy-internal'].includes(command);
-  const withApp = internalOnly || ['check-app', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'create-monitoring-secrets', 'deploy-app'].includes(command);
+  const withApp = internalOnly || ['check-app', 'check-host', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'create-monitoring-secrets', 'deploy-app'].includes(command);
   const appPlan = withApp ? validateSwarmApp(parsed) : null;
   const monitoring = parsed.SWARM_MONITORING_ENABLED === 'true';
   const stackFiles = stackFilesForCommand(command, appPlan, plan.mode, monitoring);
@@ -142,8 +143,21 @@ export async function run(command) {
     console.log(`PASS: ${plan.stackName} ${internalOnly ? 'internal-only app' : withApp ? 'HTTPS app' : 'phase-1 data'} stack renders; runtime, DNS and image pulls unverified`);
     return;
   }
+  if (command === 'check-host') {
+    await docker(['stack', 'config', ...files], env);
+    await checkSingleNodeHost(docker, env);
+    if (appPlan.tlsMode === 'local') {
+      for (const key of ['SWARM_LOCAL_TLS_CERT_FILE', 'SWARM_LOCAL_TLS_KEY_FILE']) {
+        try { await access(validateTlsFilePath(parsed[key])); }
+        catch { throw Error(`${key} must point to an existing file outside the repository`); }
+      }
+    }
+    console.log(`PASS: ${plan.stackName} single-node Linux manager, placement labels, TLS file paths and stack render`);
+    console.log('UNVERIFIED: registry pull, DNS/certificate trust, ports, secrets, capacity and service health');
+    return;
+  }
   if (!['create-db-secret', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'create-monitoring-secrets', 'deploy', 'deploy-internal', 'deploy-app'].includes(command)) {
-    throw Error('Usage: node runtime/swarm.mjs check|check-internal|check-app|create-db-secret|create-app-secrets|create-tls-secrets|create-live-secrets|create-monitoring-secrets|deploy|deploy-internal|deploy-app');
+    throw Error('Usage: node runtime/swarm.mjs check|check-internal|check-app|check-host|create-db-secret|create-app-secrets|create-tls-secrets|create-live-secrets|create-monitoring-secrets|deploy|deploy-internal|deploy-app');
   }
   await managerReady(env);
   const secretName = `${plan.stackName}_db_password_v1`;
