@@ -32,8 +32,8 @@ export function FunnelsPage() {
   if (profiles.isLoading) return <div className="space-y-4"><div className="skeleton h-16 w-80" /><div className="skeleton h-32" /><div className="skeleton h-96" /></div>
   if (profiles.isError) return <EmptyState icon={<CircleOff size={20} />} title="Không tải được danh sách funnel" detail="Kiểm tra Dashboard API V2 và phiên đăng nhập." />
   if (!selected) return <EmptyState icon={<CircleOff size={20} />} title="Chưa có Funnel Profile data" detail="Publish reference profile và chạy pipeline trước khi mở Funnel analysis." />
-  if (funnel.isLoading || !funnel.data) return <div className="space-y-4"><div className="skeleton h-16 w-80" /><div className="skeleton h-32" /><div className="skeleton h-96" /></div>
   if (funnel.isError) return <EmptyState icon={<CircleOff size={20} />} title="Không tải được funnel projection" detail="Profile có thể chưa active hoặc migration KPI chưa được áp dụng." />
+  if (funnel.isLoading || !funnel.data) return <div className="space-y-4"><div className="skeleton h-16 w-80" /><div className="skeleton h-32" /><div className="skeleton h-96" /></div>
 
   const data = funnel.data
   const active = data.steps[Math.min(activeStep, Math.max(data.steps.length - 1, 0))]
@@ -43,13 +43,13 @@ export function FunnelsPage() {
       {profiles.data?.profiles.map((profile) => <button key={`${profile.funnel_profile_id}:${profile.profile_version}`} onClick={() => setSelectedKey(`${profile.funnel_profile_id}:${profile.profile_version}`)} className={`rounded-lg border px-3 py-2 text-xs ${profile.funnel_profile_id === selected.funnel_profile_id && profile.profile_version === selected.profile_version ? "border-primary/50 bg-primary/10 text-primary" : "bg-card text-muted-foreground"}`}>{profile.display_name} · {profile.profile_version}</button>)}
       <Badge>{range}</Badge><Badge>{sourceId}</Badge>
     </div>
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {[
         ["Funnel entrants", compact.format(data.totals.entrants), Users],
         ["Observed converted", compact.format(data.totals.observed_converted), MousePointerClick],
         ["Observed rate", percent(data.totals.observed_end_to_end_rate), TimerReset],
         ["Pending", compact.format(data.totals.pending), TimerReset],
-      ].map(([label, value, Icon]) => <article key={String(label)} className="panel p-4"><div className="flex items-center justify-between text-muted-foreground"><span className="text-xs">{String(label)}</span><Icon size={16} /></div><strong className="mt-5 block text-2xl">{String(value)}</strong><span className="mt-2 block text-[10px] text-muted-foreground">Entry-at cohort · not final maturity</span></article>)}
+      ].map(([label, value, Icon]) => <article key={String(label)} className="panel relative overflow-hidden p-5"><div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 to-cyan-400 opacity-80" /><div className="flex items-start justify-between gap-3"><span className="text-xs font-semibold text-muted-foreground">{String(label)}</span><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Icon size={17} /></span></div><strong className="mt-5 block text-[28px] font-bold leading-none tracking-tight">{String(value)}</strong><span className="mt-3 block text-[11px] leading-4 text-muted-foreground">Entry-at cohort · not final maturity</span></article>)}
     </div>
 
     <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">

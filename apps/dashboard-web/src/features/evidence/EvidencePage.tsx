@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { apiRequest } from '../../lib/api'
 import { useAuth } from '../../auth/AuthContext'
 import { Button } from '../../components/ui/button'
+import { TabNav } from '../../components/ui/tab-nav'
 import { OrderEvidenceDetails, type OrderEvidence } from '../chat/order-evidence'
 import { ReportPreview } from './ReportPreview'
 import { EvidenceNotes } from './EvidenceNotes'
@@ -33,7 +34,7 @@ export default function EvidencePage({ runs = false, reports = false }: {runs?: 
   return <div className="space-y-5">
     <header className="flex justify-between gap-4"><div><h1 className="text-2xl font-semibold">{reports ? 'Reports · Bản xem từ bằng chứng' : runs ? 'Analysis Runs' : 'Evidence Explorer'}</h1><p className="mt-2 text-sm text-muted-foreground">Kết quả phân tích đã lưu của tài khoản hiện tại · Không phụ thuộc lịch sử chat</p></div><Button variant="outline" disabled={list.isFetching || detail.isFetching} onClick={() => {void list.refetch(); if(selected) void detail.refetch()}}>Làm mới</Button></header>
     <p className="panel p-4 text-sm">Chỉ có bản ghi đã kết thúc, mỗi bản ghi chứa một tool call và một bằng chứng. Chưa ghi nhận kế hoạch, thời điểm bắt đầu/kết thúc, model, latency hoặc retry. Mốc bên dưới là thời điểm lưu, không phải toàn bộ thời gian thực thi. Bộ lọc thời gian trên thanh điều hướng không áp dụng cho lịch sử này.</p>
-    <nav className="flex gap-4 text-sm text-primary"><Link to="/analysis-runs">Analysis Runs</Link><Link to="/evidence">Evidence Explorer</Link><Link to="/metrics">Metrics</Link><Link to="/assets">Assets</Link></nav>
+    <TabNav label="Analysis and evidence" items={[{to:'/analysis-runs',label:'Analysis Runs'},{to:'/evidence',label:'Evidence Explorer'},{to:'/metrics',label:'Metrics'},{to:'/assets',label:'Assets'}]} />
     <form className="panel flex flex-wrap items-end gap-3 p-4" onSubmit={e=>{e.preventDefault();setFilters({...draft,source_id:draft.source_id.trim()});setCursors([null])}}>
       <label className="text-sm">Nguồn (ID chính xác)<input aria-label="Lọc nguồn bằng chứng" className="mt-1 block rounded border bg-background p-2" maxLength={200} value={draft.source_id} onChange={e=>setDraft(d=>({...d,source_id:e.target.value}))}/></label>
       <label className="text-sm">Ngày lưu từ (UTC)<input aria-label="Ngày lưu từ" type="date" className="mt-1 block rounded border bg-background p-2" value={draft.saved_from} onChange={e=>setDraft(d=>({...d,saved_from:e.target.value}))}/></label>

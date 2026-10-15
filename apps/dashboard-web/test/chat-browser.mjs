@@ -97,9 +97,12 @@ try {
   } else {
   await command('Page.addScriptToEvaluateOnNewDocument', { source: `
     localStorage.setItem('dashboard_token', 'synthetic-ui-token');
-    const user = { id:'ui-test', email:'test@example.invalid', display_name:'UI test', role:'analyst', permissions:['analytics.read','chat.use'] };
+    const user = { id:'ui-test', email:'test@example.invalid', display_name:'UI test', role:'analyst', permissions:['analytics.read','chat.use','pipeline.monitor'] };
     localStorage.setItem('dashboard_user', JSON.stringify(user));
     window.testDocument = crypto.randomUUID(); window.testCalls = 0; window.testMode = 'PROVISIONAL';
+    window.testPreferences = {theme:'system',language:'vi',timezone:'Asia/Ho_Chi_Minh',
+      date_format:'locale',number_format:'locale',notifications_enabled:true,analytics_default_days:30};
+    window.testPrefsPatches = 0;
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const url = new URL(String(input), location.href);
@@ -108,6 +111,21 @@ try {
         return originalFetch(input, init);
       }
       if (url.pathname.endsWith('/api/auth/me')) return Response.json({user});
+      if (url.pathname.endsWith('/api/account/preferences')) {
+        if (init?.method === 'PATCH') {
+          Object.assign(window.testPreferences, JSON.parse(init.body)); window.testPrefsPatches++;
+        }
+        return Response.json({preferences:window.testPreferences,updated_at:null});
+      }
+      if (url.pathname.endsWith('/api/account/activity')) return Response.json({items:[],next_cursor:null});
+      if (url.pathname.endsWith('/api/v2/analytics/overview')) return Response.json({source_id:'medusa-reference',metric_state:'OBSERVED',profiles:[{funnel_profile_id:'test-funnel',profile_version:'1',display_name:'Test funnel',entrants:10,observed_converted:2,pending:3,provisional:1,degraded:0,reconciled:0,observed_end_to_end_rate:.2}]});
+      if (url.pathname.includes('/api/v2/analytics/funnels/')) return Response.json({profile:{display_name:'Test funnel'},totals:{entrants:10,observed_converted:2,observed_end_to_end_rate:.2,degraded:0,provisional:1},steps:[{step_id:'view',event_type:'behavior.page_viewed',reached:10,observed_reach_rate:1},{step_id:'order',event_type:'order.placed',reached:2,observed_reach_rate:.2}]});
+      if (url.pathname.endsWith('/api/v2/analytics/events')) return Response.json({events:[{canonical_event_id:'ev-ui-test',event_type:'order.placed',event_class:'BUSINESS_FACT',occurred_at:'2026-09-23T00:00:00.000Z',produced_at:null,ingested_at:'2026-09-23T00:00:01.000Z',normalized_at:'2026-09-23T00:00:02.000Z',persisted_at:'2026-09-23T00:00:03.000Z',time_basis:'source_occurred',authoritative_event_time:true,mapping_version:'v1',journey_id:null,business_details:null}]});
+      if (url.pathname.endsWith('/api/v2/analytics/data-health')) return Response.json({canonicalization:{accepted_events:10,normalized:9,quarantined:0,unsupported:0},projection_quality:{degraded:0},reconciliation:{quality_gate:{state:'PROVISIONAL'}}});
+      if (url.pathname.endsWith('/api/v2/products')) return Response.json({items:[{product_id:'prod-ui-test',views:'8',adds:'2',reference:{title:'Áo mẫu'}}]});
+      if (url.pathname.endsWith('/api/v2/admin/pipeline')) return Response.json({checked_at:'2026-09-23T00:00:00.000Z',metrics:{accepted:10,canonical:9,pending_claims:0}});
+      if (url.pathname.endsWith('/api/v2/admin/processing')) return Response.json({checked_at:'2026-09-23T00:00:00.000Z',stages:[{stage:'canonical',retained_count:'9'}]});
+      if (url.pathname.endsWith('/api/v2/admin/worker-readiness')) return Response.json({workers:[{worker:'canonical-normalizer',ready:true}]});
       if (!url.pathname.endsWith('/api/v2/chat')) throw new Error('Unexpected fixture route');
       window.testCalls++;
       const status = window.testMode;
@@ -125,8 +143,51 @@ try {
         }]});
     };` })
   }
+  if (!integration) {
+    await command('Page.navigate', { url: `${origin}/overview` })
+    await waitFor("document.body.innerText.includes('Có bao nhiêu lượt đi tới bước cuối?') && document.body.innerText.includes('20.0%')")
+    assert.ok(!await evaluate("!!document.querySelector('table')"), 'technical overview is hidden by default')
+    assert.ok(!await evaluate("!!document.querySelector('a[href=\"/analysis-runs\"]')"), 'advanced navigation starts collapsed')
+    await evaluate("[...document.querySelectorAll('nav button')].find(button => button.textContent.includes('Xem tất cả chức năng')).click()")
+    await waitFor("!!document.querySelector('a[href=\"/analysis-runs\"]')")
+    await evaluate("[...document.querySelectorAll('nav button')].find(button => button.textContent.includes('Thu gọn menu')).click()")
+    await waitFor("!document.querySelector('a[href=\"/analysis-runs\"]')")
+    await command('Page.navigate', { url: `${origin}/funnels` })
+    await waitFor("document.body.innerText.includes('Các bước trong hành trình') && document.body.innerText.includes('20.0% đi tới bước cuối')")
+    await command('Page.navigate', { url: `${origin}/products` })
+    await waitFor("document.body.innerText.includes('Áo mẫu') && document.body.innerText.includes('8 lượt xem')")
+    await command('Page.navigate', { url: `${origin}/events` })
+    await waitFor("document.body.innerText.includes('Đặt đơn hàng')")
+    assert.ok(!await evaluate("!!document.querySelector('table')"), 'technical event table is hidden by default')
+    await evaluate("[...document.querySelectorAll('button')].find(button => button.textContent.includes('Đặt đơn hàng')).click()")
+    await waitFor("!!document.querySelector('[role=dialog]')")
+    await command('Page.navigate', { url: `${origin}/data-health` })
+    await waitFor("document.body.innerText.includes('Chưa đủ bằng chứng để kết luận')")
+    assert.ok(!await evaluate("!!document.querySelector('svg[aria-label=\"Canonical persistence by hour\"]')"), 'technical charts are hidden by default')
+    await command('Page.navigate', { url: `${origin}/admin/pipeline` })
+    await waitFor("document.body.innerText.includes('Dữ liệu lưu trữ không xác nhận worker đang chạy')")
+    await command('Page.navigate', { url: `${origin}/admin/processing` })
+    await waitFor("document.body.innerText.includes('Worker tự báo sẵn sàng') && document.body.innerText.includes('1/1')")
+  }
   await command('Page.navigate', { url: `${origin}/chat` })
   await waitFor("!!document.querySelector('textarea')")
+  if (!integration) {
+    await waitFor("!!document.querySelector('#theme-preference')")
+    await evaluate(`{ const select=document.querySelector('#theme-preference'); select.value='dark';
+      select.dispatchEvent(new Event('change',{bubbles:true})); }`)
+    await waitFor("window.testPreferences.theme==='dark' && document.documentElement.classList.contains('dark')")
+    await evaluate("document.querySelector('a[href=\"/settings\"]').click()")
+    await waitFor("location.pathname==='/settings' && !!document.querySelector('form select')")
+    assert.equal(await evaluate("document.querySelector('#theme-preference').value"), 'dark')
+    await evaluate("document.querySelector('a[href=\"/chat\"]').click()")
+    await waitFor("location.pathname==='/chat' && !!document.querySelector('textarea')")
+    await command('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true})
+    await evaluate("document.querySelector('[aria-label=\"Mở menu\"]').click()")
+    await waitFor("document.querySelector('#app-navigation').getAttribute('role')==='dialog' && document.querySelector('.app-content').inert")
+    await evaluate("document.querySelector('.app-overlay').click()")
+    await waitFor("!document.querySelector('.app-content').inert && document.activeElement?.getAttribute('aria-label')==='Mở menu'")
+    await command('Emulation.clearDeviceMetricsOverride')
+  }
   async function reload() {
     const previous = await evaluate('window.testDocument')
     await command('Page.reload')
@@ -282,7 +343,7 @@ try {
   assert.equal(await evaluate("localStorage.getItem('dashboard_token')"), null)
   assert.equal(await evaluate("sessionStorage.getItem('funnelmetry:chat:ui-test')"), null)
   assert.deepEqual(errors, [])
-  console.log('PASS: chat/evidence, exact value, reload/reset, quality/empty states, interrupted reload, abort, 403 feedback, 401 logout/history cleanup; no browser exceptions. Synthetic API only.')
+  console.log('PASS: SaaS overview/funnel/products/events/quality/admin quick views, progressive details, theme/account preference, mobile navigation focus, chat/evidence, reload/reset and auth/error states; no browser exceptions. Synthetic API only.')
 } finally {
   socket?.close()
   if (chrome && chrome.exitCode === null) {

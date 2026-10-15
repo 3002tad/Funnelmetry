@@ -1,5 +1,31 @@
 # Funnelmetry dashboard web
 
+## Giao diện SaaS dễ bắt đầu (local preview)
+
+Menu mặc định chỉ hiện các trang thường dùng; `Xem tất cả chức năng` mở lại đầy đủ route mà tài khoản được cấp quyền. Trang Tổng quan, Phễu, Sản phẩm, Sự kiện, Chất lượng dữ liệu, Tình trạng Pipeline và Xử lý dữ liệu trình bày thông điệp chính trước, còn bảng/mã kỹ thuật nằm trong phần `Xem chi tiết`. Trang đăng nhập dùng minh họa SVG cùng ngôn ngữ thị giác. Không thay đổi quyền backend, metric/event semantics hoặc dữ liệu được lưu. Hình minh họa SVG là trang trí, không phải biểu đồ dữ liệu; các thanh tỷ lệ Phễu lấy từ API và được ghi là số đã quan sát, chưa phải KPI cuối cùng.
+
+Đây là UI tại source/local preview, không tự thay image Web đang chạy trong Swarm. Các trang chuyên sâu khác vẫn giữ toàn bộ khả năng hiện tại và còn cần một lượt rà UX riêng trước khi gọi toàn bộ dashboard là đơn giản cho người mới.
+
+## Account Settings V2
+
+`/settings` đọc và lưu `theme` cùng `analytics_default_days` qua
+`GET/PATCH /api/account/preferences`, tách theo tài khoản. Theme chọn trên thanh
+điều hướng cũng lưu về API; nếu ghi thất bại, UI trả về lựa chọn trước và báo lỗi.
+Khoảng thời gian mặc định áp dụng khi tải tài khoản hoặc khi đổi tùy chọn; thay đổi
+khoảng thời gian trên thanh điều hướng chỉ áp dụng tạm cho phiên đang xem.
+
+Trang hiển thị nhật ký thao tác tài khoản qua `GET /api/account/activity` với cursor
+10 bản ghi/trang. Đây là audit đã lưu cho đúng tài khoản, không phải toàn bộ lượt
+đăng nhập hoặc lịch sử phân tích. Mật khẩu mới phải dài ít nhất 12 ký tự, khớp với
+Dashboard API. Ngôn ngữ toàn ứng dụng, định dạng số và thông báo chưa được áp dụng
+xuyên suốt UI nên không có nút lưu giả cho các tùy chọn đó.
+
+Build/test frontend không thay thế kiểm thử tương tác với Dashboard API đang chạy.
+Menu mobile khóa nội dung nền khi mở và trả focus về nút mở khi đóng; browser test
+synthetic kiểm tra thao tác này cùng việc lưu theme. `Pipeline Health` đánh dấu
+snapshot cũ khi lần tải mới lỗi, thay vì trình bày các tổng còn trong cache như
+trạng thái hiện thời.
+
 ## Events auto-refresh
 
 Events mặc định polling mỗi 5 giây khi tab đang hiển thị; có checkbox bật/tắt và

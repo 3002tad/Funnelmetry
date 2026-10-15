@@ -1,9 +1,9 @@
 import {useState} from 'react'
 import {useQuery} from '@tanstack/react-query'
-import {Link} from 'react-router-dom'
 import {useAuth} from '../../auth/AuthContext'
 import {apiRequest} from '../../lib/api'
 import {Button} from '../../components/ui/button'
+import {TabNav} from '../../components/ui/tab-nav'
 import {MetricDefinitions} from './MetricDefinitions'
 
 type Entry={id:string;verification:string;chat_configured:boolean;provider_enabled:boolean;document:Record<string,unknown>|null}
@@ -17,7 +17,7 @@ export default function RegistryPage({kind}:{kind:'metadata'|'tools'|'metrics'})
   const items=data?.items.filter(item=>`${item.id} ${labels[item.id]} ${JSON.stringify(item.document??{})}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
   return <div className="space-y-5">
     <header className="flex items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold">{kind==='metrics'?'Metric / Dimension / Relationship Catalog':kind==='metadata'?'Metadata Catalog':'Tool Registry'}</h1><p className="mt-2 text-sm text-muted-foreground">Tra cứu registry phân tích thử nghiệm · Chỉ đọc · Không gọi AI</p></div><Button variant="outline" disabled={query.isFetching} onClick={()=>void query.refetch()}>Làm mới</Button></header>
-    <nav className="flex flex-wrap gap-4 text-primary"><Link to="/admin/metadata">Metadata</Link><Link to="/admin/tools">Tools</Link><Link to="/admin/metric-catalog">Chỉ tiêu và dimensions</Link></nav>
+    <TabNav label="Registry" items={[{to:'/admin/metadata',label:'Metadata'},{to:'/admin/tools',label:'Tools'},{to:'/admin/metric-catalog',label:'Chỉ tiêu và dimensions'}]} />
     <div className="panel space-y-2 p-5 text-sm"><p>Chỉ hiển thị 3 tool phân tích staging được hỗ trợ, không phải toàn bộ tool của hệ thống.</p><p>VERIFIED xác nhận định nghĩa và liên kết dữ liệu tương ứng, không xác nhận dữ liệu đầy đủ hoặc đã đối soát. Cờ chat/provider không chứng minh kết nối model đang khỏe.</p><p>Chưa hỗ trợ sửa, xóa hay công bố metadata. Giá trị đơn và đơn giá × số lượng không phải doanh thu thanh toán.</p></div>
     <label className="block text-sm">Tìm tên hoặc ID<input className="mt-2 block w-full rounded-lg border bg-background p-3" value={search} onChange={e=>setSearch(e.target.value)}/></label>
     {query.isPending&&<p role="status">Đang đọc registry…</p>}

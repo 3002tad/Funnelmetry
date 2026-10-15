@@ -8,13 +8,13 @@ const tones: Record<Tone, string> = {
   success: "border-success/25 bg-success/10 text-success",
   warning: "border-warning/25 bg-warning/10 text-warning",
   danger: "border-destructive/25 bg-destructive/10 text-destructive",
-  commerce: "border-emerald-500/25 bg-emerald-500/10 text-emerald-400",
-  behavior: "border-sky-500/25 bg-sky-500/10 text-sky-400",
+  commerce: "border-emerald-600/25 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300",
+  behavior: "border-sky-600/25 bg-sky-600/10 text-sky-700 dark:text-sky-300",
 }
 
 export function Badge({ children, tone = "neutral", dot, className }: { children: ReactNode; tone?: Tone; dot?: boolean; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium", tones[tone], className)}>
+    <span className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold", tones[tone], className)}>
       {dot && <span className="h-1.5 w-1.5 rounded-full bg-current" />}{children}
     </span>
   )

@@ -3,6 +3,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useAuth} from '../../auth/AuthContext'
 import {apiRequest,analyticsSourceId} from '../../lib/api'
 import {Button} from '../../components/ui/button'
+import {PageHeader} from '../../components/ui/page'
 type Outcome={source_id:string;source_event_id:string;mapping_version:string;status:string;reason_code:string;processed_at:string}
 export default function QuarantinePage(){
   const {user}=useAuth();const [draft,setDraft]=useState(analyticsSourceId),[source,setSource]=useState(analyticsSourceId),[status,setStatus]=useState(''),[offset,setOffset]=useState(0)
@@ -10,7 +11,7 @@ export default function QuarantinePage(){
     const params=new URLSearchParams({source_id:source,offset:String(offset)});if(status)params.set('status',status)
     return apiRequest<{items:Outcome[];next_offset:number|null;checked_at:string}>(`/api/v2/admin/quarantine?${params}`,{signal})
   },retry:false,gcTime:0})
-  return <div className="space-y-5"><h1 className="text-2xl font-semibold">Quarantine / Unsupported</h1>
+  return <div className="space-y-5"><PageHeader title="Quarantine / Unsupported" description="Kết quả chuẩn hóa mới nhất theo event · Chỉ đọc, không replay" />
     <p className="panel p-4">Kết quả chuẩn hóa mới nhất của từng event. Quarantined: bị cách ly; Unsupported: chưa được hỗ trợ bởi mapping. Không phải toàn bộ Kafka DLQ hoặc request ingress bị từ chối. Không hiển thị raw payload, không có replay/xóa. Event đã được chuẩn hóa thành công sau đó không nằm trong danh sách này.</p>
     <form className="flex flex-wrap gap-3" onSubmit={e=>{e.preventDefault();setSource(draft.trim());setOffset(0)}}><label>Nguồn<input required maxLength={200} className="ml-2 rounded border bg-background p-2" value={draft} onChange={e=>setDraft(e.target.value)}/></label><Button type="submit" disabled={!draft.trim()}>Áp dụng</Button><select aria-label="Trạng thái chuẩn hóa" className="rounded border bg-background p-2" value={status} onChange={e=>{setStatus(e.target.value);setOffset(0)}}><option value="">Cả hai trạng thái</option><option value="quarantined">Quarantined</option><option value="unsupported">Unsupported</option></select><Button type="button" variant="outline" disabled={result.isFetching} onClick={()=>void result.refetch()}>Làm mới</Button></form>
     <p className="text-sm text-muted-foreground">Nguồn đang áp dụng: {source}. Phân trang trên dữ liệu đang thay đổi có thể dịch chuyển bản ghi; tối đa offset 10000.</p>

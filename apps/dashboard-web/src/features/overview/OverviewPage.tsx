@@ -31,13 +31,13 @@ export function OverviewPage() {
   return <>
     <PageHeader title="Overview" description="Observed Funnel Instance cohorts from the V2 analytics projection." badge={<Badge tone="primary" dot>Observed</Badge>} actions={<Button variant="outline" onClick={() => overview.refetch()}><RefreshCw size={14} /> Refresh</Button>} />
     <div className="mb-5 flex flex-wrap gap-2 text-xs"><Badge>{range}</Badge><Badge>{sourceId}</Badge><Badge tone="warning">Entry-at cohort · not matured</Badge></div>
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {[
         ["Profile entrants", compact.format(totals.entrants), Route],
         ["Observed converted", compact.format(totals.converted), MousePointerClick],
         ["Observed conversion", percent(observedRate), Activity],
         ["Pending instances", compact.format(totals.pending), TimerReset],
-      ].map(([label, value, Icon]) => <article key={String(label)} className="panel p-4"><div className="flex items-center justify-between text-muted-foreground"><span className="text-xs font-medium">{String(label)}</span><Icon size={16} /></div><strong className="mt-5 block text-2xl font-semibold">{String(value)}</strong><p className="mt-2 text-[10px] text-muted-foreground">Funnel Profile instances in selected cohort</p></article>)}
+      ].map(([label, value, Icon]) => <article key={String(label)} className="panel relative overflow-hidden p-5"><div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 to-cyan-400 opacity-80" /><div className="flex items-start justify-between gap-3"><span className="text-xs font-semibold text-muted-foreground">{String(label)}</span><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Icon size={17} /></span></div><strong className="mt-5 block text-[28px] font-bold leading-none tracking-tight">{String(value)}</strong><p className="mt-3 text-[11px] leading-4 text-muted-foreground">Funnel Profile instances in selected cohort</p></article>)}
     </div>
 
     {profiles.length === 0 ? <div className="mt-4"><EmptyState icon={<CircleOff size={20} />} title="Chưa có Funnel Instance" detail="Hãy chạy pipeline, publish reference profile và gửi event cho source đang chọn." /></div> : <section className="panel mt-4 overflow-hidden">

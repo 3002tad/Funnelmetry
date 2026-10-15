@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import { apiRequest } from '../../lib/api'
 import { Button } from '../../components/ui/button'
+import { PageHeader } from '../../components/ui/page'
 type Cursor={connector_id:string;event_feed_id:string;after_seq:string;updated_at:string}
 export default function ConnectorsPage(){
   const {user}=useAuth();const [draft,setDraft]=useState(''),[filter,setFilter]=useState(''),[pages,setPages]=useState<Array<string|null>>([null])
@@ -12,7 +13,7 @@ export default function ConnectorsPage(){
     const params=new URLSearchParams();if(filter)params.set('connector_id',filter);if(after)params.set('after',after)
     return apiRequest<{items:Cursor[];next_after:string|null;checked_at:string}>(`/api/v2/admin/connectors?${params}`,{signal})
   },retry:false,gcTime:0})
-  return <div className="space-y-5"><h1 className="text-2xl font-semibold">Source Connector · Cursor đã lưu</h1>
+  return <div className="space-y-5"><PageHeader title="Source Connector · Cursor đã lưu" description="Theo dõi readiness và cursor đã lưu · Không reset hoặc replay" />
     <section className="panel space-y-2 p-4"><h2 className="font-semibold">Readiness tiến trình được cấu hình giám sát</h2><Button variant="outline" disabled={readiness.isFetching} onClick={()=>void readiness.refetch()}>Kiểm tra readiness</Button>
       {readiness.isPending&&<p>Đang kiểm tra…</p>}{readiness.isError&&<p role="alert">Không tải được kiểm tra readiness.</p>}
       {readiness.data&&!readiness.isError&&<><p>Trạng thái: {readiness.data.status} · Kiểm tra lúc: {readiness.data.checked_at}</p><p>Poll thành công gần nhất: {readiness.data.last_success_at??'Chưa ghi nhận'}</p>{!readiness.data.reachable&&<p>Không xác minh được endpoint giám sát. Không đồng nghĩa tiến trình đã tắt.</p>}{readiness.data.error_present&&<p>Connector báo lỗi. Chi tiết đã được ẩn; cần kiểm tra phía vận hành.</p>}</>}

@@ -14,37 +14,37 @@ const admin = (path: string, label: string, unavailable?: string, permission = '
 // Availability reflects implemented screens, not backend service health.
 // Optional evaluation capabilities are deliberately absent until implemented.
 export const navigation: NavigationGroup[] = [
-  { label: 'OVERVIEW', items: [analytics('/overview', 'Overview')] },
-  { label: 'ANALYZE', items: [
+  { label: 'BẮT ĐẦU', items: [analytics('/overview', 'Tổng quan')] },
+  { label: 'PHÂN TÍCH', items: [
     analytics('/workspace', 'Data Workspace'),
     analytics('/analysis-runs', 'Analysis Runs'),
     analytics('/evidence', 'Evidence Explorer'),
   ] },
-  { label: 'EXPLORE', items: [
-    analytics('/funnels', 'Funnels'), analytics('/journeys', 'Journeys'),
-    analytics('/products', 'Products'),
+  { label: 'KHÁM PHÁ', items: [
+    analytics('/funnels', 'Hành trình chuyển đổi'), analytics('/journeys', 'Hành trình'),
+    analytics('/products', 'Sản phẩm'),
     { path: '/traffic', label: 'Traffic · UTM input', permission: 'analytics.workspace.use' },
     analytics('/campaigns', 'Campaigns', 'Chưa kết nối analytical asset và metric chiến dịch.'),
   ] },
-  { label: 'DATA', items: [
+  { label: 'DỮ LIỆU', items: [
     analytics('/metrics', 'Metrics'),
     analytics('/assets', 'Analytical Assets'),
   ] },
-  { label: 'KNOWLEDGE', items: [
+  { label: 'KẾT QUẢ', items: [
     analytics('/findings', 'Findings · đánh giá DA'),
     analytics('/reports', 'Reports · bản xem'),
   ] },
-  { label: 'CURRENT TOOLS', items: [
-    analytics('/events', 'Events'), analytics('/data-health', 'Data Health'),
+  { label: 'CÔNG CỤ', items: [
+    analytics('/events', 'Sự kiện'), analytics('/data-health', 'Chất lượng dữ liệu'),
     { path: '/chat', label: 'AI Chat · hiện tại', permission: 'chat.use' },
   ] },
-  { label: 'SYSTEM', items: [
-    admin('pipeline', 'System Health'),
+  { label: 'HỆ THỐNG', items: [
+    admin('pipeline', 'Tình trạng Pipeline'),
     admin('recovery', 'Recovery / Auto-Healing', 'Chưa kết nối watchdog và lịch sử phục hồi. Không có thao tác khởi động lại hoặc điều khiển Docker tại đây.'),
     admin('resources', 'Host / Container Resources', 'Chưa kết nối telemetry tài nguyên host/container. Không hiển thị số liệu giả hoặc claim tự động mở rộng tài nguyên.'),
     admin('audit', 'Audit tài khoản', undefined, 'audit.read'),
   ] },
-  { label: 'INGESTION', items: [
+  { label: 'TIẾP NHẬN', items: [
     admin('sources', 'Source Ingress / Sources', undefined, 'integration.read'),
     admin('event-feed', 'Event Feed · quan sát nguồn'),
     admin('event-trace', 'Event Trace · theo ID'),
@@ -52,19 +52,19 @@ export const navigation: NavigationGroup[] = [
     admin('processing', 'Processing · dữ liệu đã lưu'),
     admin('quarantine', 'Quarantine / Unsupported'),
   ] },
-  { label: 'GOVERNANCE', items: [
+  { label: 'QUẢN TRỊ DỮ LIỆU', items: [
     admin('schemas', 'Schemas / Mappings', undefined, 'integration.read'),
     admin('metadata', 'Metadata Catalog', undefined, 'integration.read'),
     admin('metric-catalog', 'Metric / Dimension / Relationship Catalog', undefined, 'integration.read'),
     admin('recipes', 'Analysis Recipes', 'Chưa có giao diện quản trị recipe và compatibility.'),
     admin('tools', 'Tool Registry', undefined, 'integration.read'),
   ] },
-  { label: 'AI / OBSERVABILITY', items: [
+  { label: 'AI / GIÁM SÁT', items: [
     admin('agent', 'Agent Observability · tool evidence'),
     admin('run-diagnostics', 'Analysis Run Diagnostics'),
     admin('model-provider', 'Model / Provider · trạng thái'),
   ] },
-  { label: 'ACCESS / SETTINGS', items: [
+  { label: 'QUYỀN / THIẾT LẬP', items: [
     admin('users', 'Users / Roles', undefined, 'user.manage'),
     admin('integration-settings', 'Secrets / Integration Settings', 'Chưa có API quản lý cấu hình tích hợp và secret an toàn.'),
     admin('system-settings', 'System Settings', 'Chưa có API thay đổi cấu hình hệ thống có audit.'),

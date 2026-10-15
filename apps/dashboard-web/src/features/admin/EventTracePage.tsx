@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest, analyticsSourceId } from '../../lib/api'
 import { Button } from '../../components/ui/button'
+import { PageHeader } from '../../components/ui/page'
 
 type Trace = {
   source_id: string; event_id: string; checked_at: string; state: string
@@ -36,7 +37,7 @@ export default function EventTracePage() {
     }, retry: false })
 
   return <div className="space-y-5">
-    <h1 className="text-2xl font-semibold">Event Trace</h1>
+    <PageHeader title="Event Trace" description="Tra cứu từng event theo ID trên bằng chứng PostgreSQL đã lưu" />
     <p className="panel p-4 text-sm">Tra cứu một event theo ID trên dữ liệu PostgreSQL còn lưu. Không hiển thị raw payload; không gửi lại event hoặc điều khiển worker. Không thấy một chặng có thể do xử lý đang chờ, không tự chứng minh event bị mất.</p>
     <form className="panel flex flex-wrap items-end gap-3 p-4" onSubmit={event => {
       event.preventDefault(); setTarget({ source: sourceDraft.trim(), event: eventDraft.trim() })

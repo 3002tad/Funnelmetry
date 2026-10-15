@@ -126,13 +126,13 @@ function ChatConversation({ accountId }: { accountId: string }) {
     }
   }
 
-  return <div className="flex h-[calc(100dvh-6rem)] min-h-[520px] flex-col md:h-[calc(100dvh-7rem)] lg:h-[calc(100dvh-8rem)]">
+  return <div className="chat-page flex flex-col">
     <header className="flex shrink-0 items-center justify-between gap-3 border-b pb-4">
       <div className="flex items-center gap-3"><div className="rounded-xl bg-primary/10 p-2 text-primary"><Sparkles size={20} /></div>
         <div><h1 className="text-base font-semibold">Funnelmetry Assistant</h1><p className="text-xs text-muted-foreground">Qwen Flash · Trợ lý phân tích dữ liệu</p></div></div>
       <Button variant="outline" onClick={reset} aria-label="Cuộc trò chuyện mới"><Plus size={16} /><span className="hidden sm:inline">Chat mới</span></Button>
     </header>
-    <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto py-6">
+    <div className="scrollbar-thin chat-transcript min-h-0 flex-1 overflow-y-auto py-6">
       {!turns.length ? <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-2 pb-6 text-center">
         <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/5 to-primary/15 text-primary shadow-sm"><Sparkles size={30} strokeWidth={1.5} /></div>
         <p className="mb-3 text-xs font-medium uppercase tracking-[.18em] text-primary">Từ dữ liệu đến góc nhìn</p>
@@ -164,7 +164,7 @@ function ChatConversation({ accountId }: { accountId: string }) {
       </div>}
       <div ref={bottom} />
     </div>
-    <div className="mx-auto w-full max-w-3xl shrink-0 pt-3">
+    <div className="chat-composer mx-auto w-full max-w-3xl shrink-0 pt-3">
       <details className="mb-3 text-xs text-muted-foreground"><summary className="cursor-pointer"><Database size={13} className="mr-1 inline" /> {source || 'Chọn nguồn'} · {range} · Phạm vi dữ liệu</summary>
         <label className="mt-3 block rounded-xl border bg-card p-3">Source ID (áp dụng cho câu hỏi tiếp theo)
           <input aria-label="Source ID" value={source} maxLength={63} onChange={e => setSource(e.target.value)} className="mt-2 block w-full rounded-lg border bg-background p-2 focus:ring-2 focus:ring-primary" />

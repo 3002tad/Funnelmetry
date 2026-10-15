@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { apiRequest } from '../../lib/api'
 import { Button } from '../../components/ui/button'
+import { TabNav } from '../../components/ui/tab-nav'
 
 type Definition = { id: string; aggregation?: string; unit?: string; field?: string; fields?: string[]; numerator?: string; denominator?: string; zero_denominator?: string }
 type Catalog = {
@@ -29,7 +30,7 @@ export default function CatalogPage({ kind }: { kind: 'metrics' | 'assets' }) {
   const definitions = meta ? [...meta.measures, ...meta.metrics].filter(item => `${item.id} ${names[item.id] ?? ''}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())) : []
   return <div className="space-y-5">
     <header className="flex items-start justify-between gap-4"><div><h1 className="text-2xl font-semibold">{kind === 'metrics' ? 'Metrics' : 'Analytical Assets'}</h1><p className="mt-2 text-sm text-muted-foreground">Tra cứu định nghĩa và nguồn gốc dữ liệu · Chỉ đọc · Không gọi AI</p></div><Button variant="outline" disabled={query.isFetching} onClick={() => void query.refetch()}>Làm mới</Button></header>
-    <nav className="flex gap-4 text-sm text-primary"><Link to="/metrics">Chỉ tiêu</Link><Link to="/assets">Dữ liệu phân tích</Link></nav>
+    <TabNav label="Catalog" items={[{ to: '/metrics', label: 'Chỉ tiêu' }, { to: '/assets', label: 'Dữ liệu phân tích' }]} />
     {query.isPending && <p role="status">Đang đọc catalog…</p>}
     {query.isError && <p role="alert" className="panel p-5">Không đọc được catalog hoặc chưa xác minh được bảng dữ liệu. Kiểm tra quyền truy cập và API rồi thử lại; đây không phải catalog rỗng.</p>}
     {catalog && meta && <>

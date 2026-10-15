@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import { Button } from '../../components/ui/button'
+import { StatusBadge } from '../../components/ui/status-badge'
 import { apiRequest } from '../../lib/api'
 
 type ProviderSnapshot = {
@@ -33,7 +34,7 @@ export default function ModelProviderPage() {
     {query.isPending && <p role="status">Đang kiểm tra…</p>}
     {query.isError && <p role="alert">Không đọc được trạng thái provider. Kiểm tra quyền và Dashboard API; không suy ra Qwen đã tắt.</p>}
     {snapshot && <section className="panel space-y-4 p-5">
-      <p>Trạng thái cấu hình: <strong>{snapshot.configuration_state}</strong></p>
+      <p className="flex flex-wrap items-center gap-2">Trạng thái cấu hình: <StatusBadge status={snapshot.configuration_state} /></p>
       <dl className="grid gap-3 sm:grid-cols-2">
         {[
           ['Provider', snapshot.provider_id], ['Model', snapshot.model_id],
