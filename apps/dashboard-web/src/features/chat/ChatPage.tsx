@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { ApiError, apiRequest } from '../../lib/api'
 import type { OverviewResponse } from '../../lib/analytics-api'
 import { OrderEvidenceDetails, type OrderEvidence } from './order-evidence'
+import { EvidenceChart, type EvidenceBarChart } from './EvidenceChart'
 import { chatResponseText } from './response-text'
 import { Button } from '../../components/ui/button'
 import { ArrowUp, BarChart3, Database, Plus, Sparkles, Square, TrendingDown, Clock3 } from 'lucide-react'
@@ -14,6 +15,8 @@ type ChatResponse = {
   status: 'generated' | 'no_evidence' | 'PROVISIONAL' | 'BLOCKED_BY_QUALITY' | 'INSUFFICIENT_DATA' | 'ERROR' | 'unsupported'
   answer_verification?: string
   model?: string
+  chart?: EvidenceBarChart
+  chart_notice?: string
   evidence: Array<{
     evidence_id: string; origin: string; retrieved_at: string
     scope: { sourceId: string; from: string; to: string }
@@ -142,7 +145,7 @@ function ChatConversation({ accountId }: { accountId: string }) {
           {[
             { icon: BarChart3, title: 'Nhìn lại tổng quan', text: 'Tóm tắt số liệu chuyển đổi trong khoảng thời gian đã chọn.' },
             { icon: Clock3, title: 'Hiểu trạng thái pending', text: 'Có bao nhiêu trường hợp còn pending? Khác dropped như thế nào?' },
-            { icon: TrendingDown, title: 'So sánh các funnel', text: 'So sánh số entrants, converted và dropped giữa các profile.' },
+            { icon: TrendingDown, title: 'Vẽ biểu đồ sản phẩm', text: 'Vẽ biểu đồ 5 sản phẩm có tổng đơn giá lúc đặt × số lượng cao nhất trong khoảng thời gian đang chọn.' },
           ].map(({ icon: Icon, title, text }) => <button key={title} onClick={() => { setMessage(text); input.current?.focus() }} className="group rounded-2xl border bg-card p-4 text-left transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary">
             <Icon size={19} className="mb-4 text-primary" /><span className="block text-sm font-medium">{title}</span><span className="mt-2 block text-xs leading-5 text-muted-foreground">{text}</span>
           </button>)}
@@ -155,6 +158,8 @@ function ChatConversation({ accountId }: { accountId: string }) {
               {turn.error ? <p role="alert" className="rounded-xl border bg-card p-4 text-muted-foreground">{turn.error}</p> : turn.result ? <>
                 <p className="whitespace-pre-wrap break-words">{chatResponseText(turn.result)}</p>
                 <p className="text-xs text-muted-foreground">{turn.result.answer_verification === 'DETERMINISTIC_TEMPLATE' ? 'Trình bày bằng mẫu cố định · Chất lượng dữ liệu vẫn tạm thời' : 'Chưa xác minh'} · Không phải insight chính thức</p>
+                {turn.result.chart && <EvidenceChart chart={turn.result.chart} />}
+                {turn.result.chart_notice && <p className="rounded-xl border bg-card p-3 text-xs text-muted-foreground">{turn.result.chart_notice}</p>}
                 <Evidence result={turn.result} />
                 {turn.restored && <p className="text-xs text-muted-foreground">Bản khôi phục trong tab, không phải dữ liệu mới truy xuất. Evidence chi tiết không được lưu.</p>}
               </> : <p role="status" className="animate-pulse text-muted-foreground">Đang đọc dữ liệu và chờ Qwen…</p>}

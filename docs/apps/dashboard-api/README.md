@@ -506,6 +506,17 @@ this helper is not a substitute for JWT verification at the HTTP boundary.
 
 ## Chat V2 HTTP contract
 
+Current bounded visualization extension: a question explicitly asking for a chart
+still selects one registered analytical data tool. For `event_counts`,
+`tool.order_ranking` and `tool.product_value_ranking`, a successful response may
+include a deterministic `chart` object (`evidence-bars-v1`) derived only from that
+response's evidence. It has a fixed horizontal-bar presentation, bounded rows,
+exact decimal strings, per-currency panels for money and an evidence ID. A quality-
+blocked/empty result has no chart. Other analytical requests may return a
+`chart_notice` instead. Chart rendering does not create a new numeric tool, a
+Plotly tool, a trend series, or a versioned/published DashboardSpec; DEC-132
+Dashboard Composer acceptance remains separate.
+
 `POST /api/v2/chat`, authenticated bearer token, active/versioned session and
 chat.use + analytics.read. Analyst/Staff allowed; Admin denied by default. Separate
 from `/api/chat` and its legacy AI feature switch. Request example:

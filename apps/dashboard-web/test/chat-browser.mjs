@@ -135,7 +135,9 @@ try {
       });
       if (status === '401' || status === '403') return Response.json({error:'denied'}, {status:Number(status)});
       return Response.json({status: status === 'PROVISIONAL' ? 'generated' : status, answer: status === 'PROVISIONAL' ? 'Giá trị đơn hàng đã đặt: 20.10 EUR' : null,
-        answer_verification:'DETERMINISTIC_TEMPLATE', evidence:[{
+        answer_verification:'DETERMINISTIC_TEMPLATE',
+        ...(status === 'PROVISIONAL' ? {chart:{schema_version:'evidence-bars-v1',kind:'horizontal_bar',evidence_id:'ev-browser',title:'Đơn hàng đã đặt',meaning:'Không phải thanh toán.',truncated:false,panels:[{label:'EUR',unit:'EUR',items:[{label:'order_test',value:'20.10'}]}]}} : {}),
+        evidence:[{
           evidence_id:'ev-browser', status, quality_state:'PROVISIONAL',
           result:{groups:[{currency_code:'EUR',values:{'measure.gross_order_value@1.0.0':'20.10'}}]},
           provenance:{parameters:{source_id:'medusa-reference',from:'2026-09-01',to:'2026-09-02'},warnings:['Synthetic warning']},
@@ -298,17 +300,20 @@ try {
   }
   await submit('PROVISIONAL')
   await waitFor("document.body.innerText.includes('20.10 EUR')")
+  assert.ok(await evaluate("!!document.querySelector('figure[aria-label=\"Đơn hàng đã đặt\"]')"))
   await evaluate("[...document.querySelectorAll('summary')].find(x=>x.textContent.includes('ev-browser')).click()")
   await waitFor("document.body.innerText.includes('Synthetic warning')")
   assert.ok(await evaluate("document.body.innerText.includes('staging-test')"))
   await reload()
   await waitFor("document.body.innerText.includes('Bản khôi phục trong tab')")
+  assert.ok(!await evaluate("!!document.querySelector('figure[aria-label=\"Đơn hàng đã đặt\"]')"), 'chart evidence is not persisted in tab history')
   assert.equal(await evaluate('window.testCalls'), 0, 'reload must not resend chat')
   assert.ok(await evaluate("document.body.innerText.includes('20.10 EUR')"))
   await evaluate("document.querySelector('[aria-label=\"Cuộc trò chuyện mới\"]').click()")
   await waitFor("!document.body.innerText.includes('20.10 EUR')")
   await submit('BLOCKED_BY_QUALITY')
   await waitFor("document.body.innerText.includes('Kết quả bị chặn')")
+  assert.ok(!await evaluate("!!document.querySelector('figure[aria-label=\"Đơn hàng đã đặt\"]')"))
   assert.ok(!await evaluate("document.body.textContent.includes('20.10')"))
   await reload()
   await waitFor("document.body.innerText.includes('Kết quả bị chặn')")

@@ -19,6 +19,7 @@ async function load(relativePath) {
 }
 const { chatResponseText } = await load('../src/features/chat/response-text.ts')
 const { OrderEvidenceDetails } = await load('../src/features/chat/order-evidence.tsx')
+const { EvidenceChart } = await load('../src/features/chat/EvidenceChart.tsx')
 const { reportMarkdown } = await load('../src/features/evidence/report-markdown.ts')
 const { MetricDefinitions } = await load('../src/features/admin/MetricDefinitions.tsx')
 
@@ -43,6 +44,23 @@ test('product evidence and export retain proxy semantics, precision and safe nam
   const md=reportMarkdown(item)
   assert.match(md,/measure.ordered_product_unit_value/);assert.doesNotMatch(md,/measure.gross_order_value/)
   assert.doesNotMatch(reportMarkdown({...item,status:'BLOCKED_BY_QUALITY'}),/9007199254740993/)
+})
+
+test('evidence chart keeps exact decimals, escapes labels and refuses malformed values', () => {
+  const chart = { schema_version: 'evidence-bars-v1', kind: 'horizontal_bar', evidence_id: 'evidence-1',
+    title: 'Sản phẩm theo giá trị đã đặt', meaning: 'Không phải doanh thu đã thanh toán.', truncated: false,
+    panels: [{ label: 'EUR', unit: 'EUR', items: [
+      { label: '<script>bad</script>', value: '9007199254740993.123' },
+      { label: 'prod_other', value: '10.10' },
+    ] }] }
+  const html = renderToStaticMarkup(React.createElement(EvidenceChart, { chart }))
+  assert.match(html, /9007199254740993\.123/)
+  assert.match(html, /evidence-1/)
+  assert.match(html, /&lt;script&gt;bad&lt;\/script&gt;/)
+  assert.doesNotMatch(html, /<script>/)
+  assert.equal(renderToStaticMarkup(React.createElement(EvidenceChart, { chart: {
+    ...chart, panels: [{ ...chart.panels[0], items: [{ label: 'bad', value: 'NaN' }] }],
+  } })), '')
 })
 
 test('blocked and empty responses override an unsafe supplied answer', () => {

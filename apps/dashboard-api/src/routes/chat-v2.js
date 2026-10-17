@@ -13,6 +13,7 @@ import { createV2AnalyticsRepository } from '../lib/v2-analytics-repository.js'
 import { parseV2AnalyticsQuery } from '../lib/v2-analytics-query.js'
 import { createDashScopeClient } from '../lib/ai/dashscope.js'
 import { assertEvidenceAccess, loadOverviewEvidence } from '../lib/ai/overview-evidence.js'
+import { buildEvidenceChart, wantsEvidenceChart } from '../lib/ai/evidence-chart.js'
 
 const fields = ['entrants', 'observed_converted', 'pending', 'dropped', 'terminated', 'invalid',
   'matured_converted', 'finalized_dropped', 'provisional', 'reconciling', 'reconciled', 'degraded']
@@ -142,8 +143,11 @@ export function createChatV2Router({ execute = query, repository = createV2Analy
           if (evidence.status !== 'PROVISIONAL') return res.json({ status: evidence.status, answer: null, official: false, evidence: [evidence] })
           const answer = plan.tool === 'tool.product_value_ranking' ? renderProductRanking(evidence) : plan.tool === 'tool.order_ranking' ? renderOrderRanking(evidence) : renderOrderSummary(evidence)
           await recheck()
+          const wantsChart = wantsEvidenceChart(body.message)
+          const chart = wantsChart ? buildEvidenceChart(plan.tool, evidence) : null
           return res.json({ status: 'generated', answer, official: false,
-            answer_verification: 'DETERMINISTIC_TEMPLATE', evidence: [evidence] })
+            answer_verification: 'DETERMINISTIC_TEMPLATE', evidence: [evidence], ...(chart ? { chart }
+              : wantsChart ? { chart_notice: 'Chưa có biểu đồ an toàn cho chỉ tiêu này; xem số liệu và bằng chứng ở phần trả lời.' } : {}) })
         }
         if (plan.tool === 'unsupported') return res.json({ status: 'generated', answer: 'Chưa có công cụ đang bật phù hợp hoặc yêu cầu chưa xác định rõ đối tượng và chỉ tiêu. Xếp hạng ngày/khách hàng và doanh thu đã thanh toán chưa được hỗ trợ. Công cụ đơn hàng và sản phẩm chỉ khả dụng khi đã được triển khai, bật và xác minh dữ liệu.', evidence: [], official: false, answer_verification: 'DETERMINISTIC_TEMPLATE' })
         if (plan.tool === 'event_counts') {
@@ -157,8 +161,9 @@ export function createChatV2Router({ execute = query, repository = createV2Analy
           ], { signal: abort.signal })
           await recheck()
           if (typeof result.text !== 'string' || !result.text.trim() || result.text.length > 16000) throw Error('ai_invalid_response')
+          const chart = wantsEvidenceChart(body.message) ? buildEvidenceChart('event_counts', evidence) : null
           return res.json({ answer: result.text, model: result.model, status: 'generated', official: false,
-            answer_verification: 'NOT_VERIFIED', evidence: [evidence] })
+            answer_verification: 'NOT_VERIFIED', evidence: [evidence], ...(chart ? { chart } : {}) })
         }
       }
       const evidence = await loadOverviewEvidence({ actor: req.user, execute, repository,
@@ -177,7 +182,8 @@ export function createChatV2Router({ execute = query, repository = createV2Analy
       await recheck()
       if (typeof result.text !== 'string' || !result.text.trim() || result.text.length > 16000) throw Error('ai_invalid_response')
       return res.json({ answer: result.text, model: result.model, status: 'generated', official: false,
-        answer_verification: 'NOT_VERIFIED', evidence: [evidence] })
+        answer_verification: 'NOT_VERIFIED', evidence: [evidence],
+        ...(wantsEvidenceChart(body.message) ? { chart_notice: 'Biểu đồ phễu theo thời gian chưa có tool xu hướng được xác minh; xem bằng chứng tổng quan bên dưới.' } : {}) })
     } catch (error) {
       if (res.destroyed) return
       const code = error.message

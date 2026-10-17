@@ -50,6 +50,11 @@ Chat mới/đăng xuất xóa lịch sử; đây không phải lịch sử serve
 - Gửi câu hỏi độc lập tới `POST /api/v2/chat`, với source và cohort 7/30/90 ngày từ thanh trên.
 - Hiển thị câu trả lời dưới dạng text an toàn, evidence PostgreSQL và nhãn chưa xác minh.
   `profile-N` ánh xạ theo thứ tự bảng evidence. Pending không phải final drop-off.
+- Khi hỏi rõ "vẽ biểu đồ", chat có thể hiển thị biểu đồ cột cho số dòng event theo loại
+  hoặc xếp hạng đơn/sản phẩm nếu tool tương ứng đã bật và trả evidence hợp lệ. Mỗi
+  tiền tệ nằm trong một nhóm riêng, số gốc giữ nguyên dạng chuỗi thập phân; thanh
+  chỉ là tỷ lệ trình bày. Không vẽ số liệu bị chặn chất lượng, không lưu biểu đồ/evidence
+  vào sessionStorage và chưa có biểu đồ xu hướng hay AI Dashboard Composer đầy đủ.
 - Có trạng thái đang chờ, dừng chờ, thiếu evidence, module tắt, giới hạn yêu cầu và lỗi kết nối.
 - Không lưu hội thoại trên server, không có Qdrant retrieval hoặc recommendation-linked chat ở bước này.
 - Qwen phải được bật/cấu hình riêng trên **backend** theo `runtime/qwen.env.example`.

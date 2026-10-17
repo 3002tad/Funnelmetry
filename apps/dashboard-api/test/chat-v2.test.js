@@ -27,11 +27,14 @@ test('ranking HTTP uses registered tool, persists via runner, and has no model s
   }))
   const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r))
   const token=jwt.sign({sub:'ranking-user',role:'analyst',session_version:0},process.env.JWT_SECRET)
-  const request=()=>fetch(`http://127.0.0.1:${server.address().port}/api/v2/chat`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({...body,message:'Đơn hàng nào có giá trị cao nhất?'})})
+  const request=()=>fetch(`http://127.0.0.1:${server.address().port}/api/v2/chat`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({...body,message:'Vẽ biểu đồ đơn hàng nào có giá trị cao nhất?'})})
   try{
     const result=await (await request()).json();assert.match(result.answer,/order_test — 20.01 EUR/)
     assert.equal(result.answer_verification,'DETERMINISTIC_TEMPLATE');assert.equal(result.evidence[0].evidence_id,'rank-evidence')
-    blocked=true;assert.equal((await (await request()).json()).answer,null);assert.equal(runs,2)
+    assert.equal(result.chart.evidence_id,'rank-evidence')
+    assert.deepEqual(result.chart.panels[0].items,[{label:'order_test',value:'20.01'}])
+    blocked=true;const blockedResult=await (await request()).json();assert.equal(blockedResult.answer,null)
+    assert.equal(blockedResult.chart,undefined);assert.equal(runs,2)
   }finally{server.closeAllConnections();await new Promise(r=>server.close(r))}
 })
 
@@ -82,7 +85,7 @@ test('chat canonicalizes planner aliases before executing registered semantic to
       alias = shortId
       const response = await fetch(`http://127.0.0.1:${server.address().port}/api/v2/chat`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, message: `Vẽ biểu đồ ${shortId}` }),
       })
       assert.equal(response.status, 200, shortId)
       const result = await response.json()
@@ -90,6 +93,8 @@ test('chat canonicalizes planner aliases before executing registered semantic to
       assert.match(result.answer, /20\.00 EUR/)
       assert.equal(result.evidence[0].evidence_id, `evidence-${executed.length}`)
       assert.equal(executed.at(-1), expectedId)
+      if (expectedId === 'tool.metric_summary') assert.match(result.chart_notice, /Chưa có biểu đồ/)
+      else assert.equal(result.chart.panels[0].items.length, 1)
     }
     assert.equal(modelCalls, 3, 'the model selects a tool but never synthesizes authoritative numbers')
   } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
@@ -204,12 +209,14 @@ test('Polars chat selects one bounded tool, exposes evidence, and fails closed',
   const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve))
   const token = jwt.sign({ sub: 'tool-user', role: 'analyst', session_version: 0 }, process.env.JWT_SECRET, { expiresIn: '1h' })
   const request = () => fetch(`http://127.0.0.1:${server.address().port}/api/v2/chat`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body),
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...body, message: 'Vẽ biểu đồ số event theo loại' }),
   })
   try {
     const response = await request()
     assert.equal(response.status, 200)
-    assert.equal((await response.json()).evidence[0].data.total_events, 2)
+    const result = await response.json()
+    assert.equal(result.evidence[0].data.total_events, 2)
+    assert.deepEqual(result.chart.panels[0].items, [{ label: 'order.created', value: '2' }])
     assert.equal(calls, 2); assert.equal(toolReads, 1)
     revoke = true
     assert.equal((await request()).status, 401)
