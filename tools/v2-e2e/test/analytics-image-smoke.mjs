@@ -16,10 +16,12 @@ try {
   assert.equal(typeof createApp(), 'function')
   const { createStagingAnalysisRunner } = await import('/workspace/analytics/src/analysis-run.mjs')
   const { discoverStagingOrderTool } = await import('/workspace/analytics/src/semantic-registry.mjs')
+  const { loadAnalyticalDefinition } = await import('/workspace/analytics/src/analytical-coverage.mjs')
   assert.equal(typeof createStagingAnalysisRunner, 'function')
   assert.equal(typeof discoverStagingOrderTool, 'function')
-  const metadata = JSON.parse(await readFile('/workspace/analytics/metadata/order-value-v1.json', 'utf8'))
+  const metadata = await loadAnalyticalDefinition('asset.fact_order')
   assert.equal(metadata.asset.id, 'asset.fact_order')
+  assert.equal((await loadAnalyticalDefinition('asset.ordered_product_item')).tool_id, 'tool.product_value_ranking')
   for (const file of ['fact-order-v1.sql', 'catalog-v1.sql', 'evidence-v1.sql', 'product-value-v1.sql']) {
     assert.ok((await readFile(`/workspace/analytics/sql/${file}`, 'utf8')).length)
   }

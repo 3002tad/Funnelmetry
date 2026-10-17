@@ -1,9 +1,9 @@
-import { readFile } from 'node:fs/promises'
 import { isDeepStrictEqual } from 'node:util'
 import { discoverStagingOrderTool } from './semantic-registry.mjs'
+import { loadAnalyticalDefinition } from './analytical-coverage.mjs'
 import { attachProductReferences } from '../../apps/dashboard-api/src/lib/product-reference.js'
 
-export const productRankingMetadata = JSON.parse(await readFile(new URL('../metadata/product-value-v1.json', import.meta.url), 'utf8'))
+export const productRankingMetadata = await loadAnalyticalDefinition('asset.ordered_product_item')
 const m = productRankingMetadata
 export async function installProductRankingCatalog(pool) {
   await discoverStagingOrderTool(pool)

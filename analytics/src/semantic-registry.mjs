@@ -1,8 +1,8 @@
-import { readFile } from 'node:fs/promises'
 import { isDeepStrictEqual } from 'node:util'
 import { summarizeOrders } from './order-summary.mjs'
+import { loadAnalyticalDefinition } from './analytical-coverage.mjs'
 
-const metadata = JSON.parse(await readFile(new URL('../metadata/order-value-v1.json', import.meta.url), 'utf8'))
+const metadata = await loadAnalyticalDefinition('asset.fact_order')
 export const ORDER_CATALOG_RELEASE = 'order-analytics-staging-1.0.0'
 const document = {
   metadata,

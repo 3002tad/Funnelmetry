@@ -14,6 +14,7 @@ import { installProductRankingCatalog, rankProducts, productRankingMetadata as p
 import {installRankingCatalog,discoverRankingTool,rankOrders,rankingContract} from '../../../analytics/src/order-ranking.mjs'
 import { installStagingOrderCatalog, executeStagingMetricSummary, discoverStagingOrderTool, ORDER_CATALOG_RELEASE } from '../../../analytics/src/semantic-registry.mjs'
 import { createStagingAnalysisRunner } from '../../../analytics/src/analysis-run.mjs'
+import { loadAnalyticalDefinition } from '../../../analytics/src/analytical-coverage.mjs'
 import { verifyOrderChatHttp } from './order-chat-http.mjs'
 
 // Synthetic records with the published schema 2.0 shape; no remote API or customer data.
@@ -207,17 +208,17 @@ test('isolated DB: Medusa v2 downstream funnel and order-grain monetary asset', 
       assert.equal(row.total_amount, null)
     }
     // Draft bindings must refer to actual columns, not inferred column names.
-    const metadata = JSON.parse(await readFile(new URL('../../../analytics/metadata/order-value-v1.json', import.meta.url), 'utf8'))
-    assert.equal(metadata.status, 'DRAFT')
-    assert.equal(metadata.runtime_published, false)
+    const orderDefinition = await loadAnalyticalDefinition('asset.fact_order')
+    assert.equal(orderDefinition.status, 'DRAFT')
+    assert.equal(orderDefinition.runtime_published, false)
     const columns = new Set((await pool.query(`SELECT column_name FROM information_schema.columns
-      WHERE table_schema='public' AND table_name=$1`, [metadata.asset.relation])).rows.map(row => row.column_name))
-    for (const field of [...metadata.asset.grain, metadata.asset.time_basis, metadata.asset.quality_field,
-      ...metadata.measures.flatMap(item => item.fields ?? [item.field]), ...metadata.dimensions.map(item => item.field)]) {
+      WHERE table_schema='public' AND table_name=$1`, [orderDefinition.asset.relation])).rows.map(row => row.column_name))
+    for (const field of [...orderDefinition.asset.grain, orderDefinition.asset.time_basis, orderDefinition.asset.quality_field,
+      ...orderDefinition.measures.flatMap(item => item.fields ?? [item.field]), ...orderDefinition.dimensions.map(item => item.field)]) {
       assert.ok(columns.has(field), `Missing physical binding: ${field}`)
     }
     const amountType = (await pool.query(`SELECT data_type FROM information_schema.columns
-      WHERE table_schema='public' AND table_name=$1 AND column_name='total_amount'`, [metadata.asset.relation])).rows[0]
+      WHERE table_schema='public' AND table_name=$1 AND column_name='total_amount'`, [orderDefinition.asset.relation])).rows[0]
     assert.equal(amountType.data_type, 'numeric')
     // Schema1 browser replay: independent synthetic journey, delayed checkout,
     // duplicate deliveries with a new normalization timestamp, no real Feed data.

@@ -1,4 +1,20 @@
-# Staged order analytical asset
+# Analytical assets and metadata coverage
+
+## Current V2 analytical metadata inventory (17/10/2026)
+
+[`analytics/metadata/analytical-coverage-v1.json`](../../analytics/metadata/analytical-coverage-v1.json) inventories **16 logical analytical assets** across canonical events, journey, funnel/KPI, placed orders, ordered products, current product names, traffic input and quality/reconciliation. Each entry identifies its physical binding, grain, time basis, authority, required columns, safe dimensions/measures, quality constraints, relationships and whether a tool already exists. It is a **draft coverage inventory**, not a published PostgreSQL catalog release, runtime activation or permission for AI to query an arbitrary table. Operational tables (accounts, secrets, chat history, Docker state) are deliberately excluded.
+
+The same JSON file now embeds the detailed staged order and product definitions under `asset.fact_order.definition` and `asset.ordered_product_item.definition`. The former `order-value-v1.json` and `product-value-v1.json` files were removed; their definition objects are unchanged. Runtime consumers use `loadAnalyticalDefinition(assetId)` to extract those objects, so PostgreSQL staging catalog document shapes remain compatible. The order-summary evidence hash now covers the compact JSON serialization of the embedded definition (`metadata_hash_format: json-stringify-v1`), not the bytes of the deleted standalone file. Historical evidence retains its original hash. Five inventory entries have a code/tool or staged-tool relationship, including product-name enrichment; the other eleven are `DOCUMENTED_ONLY` with **no executable AI tool**. Existing `event_counts` and `overview` still have code-owned descriptions. Adding a catalog entry does not make the Agent able to answer all questions about that asset. A new answer path still needs a reviewed asset/binding, semantic tool, authorization, quality/evidence behavior, planner integration, tests and deployment acceptance.
+
+Static/source validation and negative tests:
+
+```text
+node --test analytics/test/analytical-coverage.test.mjs
+```
+
+`inspectCoverageBindings(pool)` in [`analytics/src/analytical-coverage.mjs`](../../analytics/src/analytical-coverage.mjs) is a **read-only** physical-column check against a chosen PostgreSQL deployment. Missing or mismatched columns return `UNVERIFIED`; it does not install catalog rows or enable tools. It has not been run against a live database merely by adding this file. The inventory also does not claim source-feed completeness, historical backfill, final funnel maturity or paid revenue.
+
+## Historical order-analytics stages
 
 ## Read this first — documentation map (2026-10-03)
 
@@ -22,7 +38,7 @@ Master 14.4.3 / Migration B, first slice only. Not a published catalog or Agent 
 
 `sql/fact-order-v1.sql` defines a read-only view over the canonical ledger. It is
 deliberately outside automatic migrations: existing demo/history remains untouched.
-`metadata/order-value-v1.json` is a DRAFT binding description, not PostgreSQL
+The order definition now embedded in `metadata/analytical-coverage-v1.json` is a DRAFT binding description, not PostgreSQL
 metadata authority or an active semantic registry entry.
 
 Grain: one placed order per `(source_id, order_id)` for Medusa reference. Matching

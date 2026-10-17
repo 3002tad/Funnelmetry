@@ -260,7 +260,7 @@ discount, refund or cancellation allocation is inferred.
 
 ## Implementation
 
-- Draft metadata: `metadata/product-value-v1.json`; separate immutable catalog release.
+- Draft metadata (historical filename `metadata/product-value-v1.json`, now embedded in `metadata/analytical-coverage-v1.json` under `asset.ordered_product_item.definition`); separate immutable catalog release.
 - Staged read-only asset: `sql/product-value-v1.sql`, based on validated order facts
   and canonical item arrays. Repeated identical order deliveries count once.
   Conflicting item arrays, missing/empty items or invalid amounts block the scope.

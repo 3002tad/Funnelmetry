@@ -1,10 +1,9 @@
-import { readFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
+import { loadAnalyticalDefinition } from './analytical-coverage.mjs'
 
 // Internal staged access binding; not an Agent tool or a published metadata resolver.
-const metadataBytes = await readFile(new URL('../metadata/order-value-v1.json', import.meta.url))
-const metadata = JSON.parse(metadataBytes)
-const metadataHash = createHash('sha256').update(metadataBytes).digest('hex')
+const metadata = await loadAnalyticalDefinition('asset.fact_order')
+const metadataHash = createHash('sha256').update(JSON.stringify(metadata)).digest('hex')
 const SQL = `WITH facts AS MATERIALIZED (
   SELECT * FROM public.analytical_fact_order_v1 WHERE source_id=$1
 ), gate AS (
@@ -41,7 +40,7 @@ export async function summarizeOrders({ pool, request, statementTimeoutMs }) {
   }
   const provenance = {
     implementation_version: 'order-summary-staged-v1', metadata_version: metadata.version,
-    metadata_sha256: metadataHash, metadata_status: metadata.status,
+    metadata_sha256: metadataHash, metadata_hash_format: 'json-stringify-v1', metadata_status: metadata.status,
     asset_ref: metadata.asset.id, binding_ref: 'public.analytical_fact_order_v1',
     grain: [...metadata.asset.grain], time_basis: metadata.asset.time_basis,
     parameters: { ...request }, interval: '[from,to)',
