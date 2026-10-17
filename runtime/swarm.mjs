@@ -17,6 +17,7 @@ const appFile = join(root, 'infra', 'swarm-app.yml');
 const workersFile = join(root, 'infra', 'swarm-workers.yml');
 const liveFile = join(root, 'infra', 'swarm-live.yml');
 const monitoringFile = join(root, 'infra', 'swarm-monitoring.yml');
+const knowledgeFile = join(root, 'infra', 'swarm-knowledge.yml');
 const edgeFiles = Object.freeze({
   local: join(root, 'infra', 'swarm-edge-local.yml'),
   acme: join(root, 'infra', 'swarm-edge-acme.yml'),
@@ -28,7 +29,8 @@ const renderKeys = ['SWARM_STACK_NAME', 'SWARM_POSTGRES_IMAGE', 'SWARM_KAFKA_IMA
   'SWARM_EXPECTED_SCHEMA_DIGEST', 'SWARM_MIGRATION_MODE',
   'SWARM_LIVE_ACK', 'SWARM_CONNECTOR_ID', 'SWARM_FEED_URL', 'SWARM_FEED_ID',
   'SWARM_INITIAL_AFTER_SEQ', 'SWARM_CATALOG_URL', 'SWARM_DASHSCOPE_BASE_URL',
-  'MONITORING_PROMETHEUS_IMAGE', 'MONITORING_GRAFANA_IMAGE'];
+  'MONITORING_PROMETHEUS_IMAGE', 'MONITORING_GRAFANA_IMAGE',
+  'SWARM_QDRANT_IMAGE', 'SWARM_VECTOR_KNOWLEDGE_ENABLED'];
 
 export async function localSchemaDigest() {
   const files = await schemaFiles(root);
@@ -49,9 +51,9 @@ export function stackDeployArgs(stackFiles, stackName) {
     ...stackFiles.flatMap(file => ['--compose-file', file]), stackName];
 }
 
-export function stackFilesForCommand(command, appPlan, mode = 'OFFLINE_DEMO', monitoring = false) {
+export function stackFilesForCommand(command, appPlan, mode = 'OFFLINE_DEMO', monitoring = false, knowledge = false) {
   const appFiles = [stackFile, workersFile, appFile, ...(mode === 'PARALLEL_LIVE' ? [liveFile] : []),
-    ...(monitoring ? [monitoringFile] : [])];
+    ...(monitoring ? [monitoringFile] : []), ...(knowledge ? [knowledgeFile] : [])];
   if (command === 'check-internal' || command === 'deploy-internal') {
     return appFiles;
   }
@@ -136,7 +138,8 @@ export async function run(command) {
   const withApp = internalOnly || ['check-app', 'check-host', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'create-monitoring-secrets', 'deploy-app'].includes(command);
   const appPlan = withApp ? validateSwarmApp(parsed) : null;
   const monitoring = parsed.SWARM_MONITORING_ENABLED === 'true';
-  const stackFiles = stackFilesForCommand(command, appPlan, plan.mode, monitoring);
+  const knowledge = parsed.SWARM_VECTOR_KNOWLEDGE_ENABLED === 'true';
+  const stackFiles = stackFilesForCommand(command, appPlan, plan.mode, monitoring, knowledge);
   const files = stackFiles.flatMap(file => ['-c', file]);
   if (command === 'check' || command === 'check-app' || command === 'check-internal') {
     await docker(['stack', 'config', ...files], env);

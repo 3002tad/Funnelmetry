@@ -1,5 +1,26 @@
 # Docker Swarm migration
 
+## Optional Qdrant knowledge for Chat V2
+
+For a reviewed demo stack, set `SWARM_VECTOR_KNOWLEDGE_ENABLED=true` in the
+machine-local ignored `runtime/deploy.env` and pin `SWARM_QDRANT_IMAGE` to the
+official tag+digest shown in `deploy.env.example` (or review a newer digest).
+Run `node runtime/swarm.mjs check-app` before `deploy-app`. This adds the
+private `qdrant` service and the one-shot `knowledge-index` job through
+`infra/swarm-knowledge.yml`. Qdrant uses a named local volume and the
+`funnelmetry.stateful=true` placement label; no host port is published. Verify
+the Qdrant task is running, the index job is `Complete` and reports 16 assets,
+then ask Chat V2: “Giá trị đơn hàng đã đặt là gì?”. A definition answer must
+cite `asset.fact_order@1.0.0` and say it is not paid revenue.
+
+This is derived metadata retrieval, not numeric authority or a production RAG
+corpus. Qdrant is **not** a generic autoscale target. Local volume does not
+provide cross-node HA; after storage loss the index can be rebuilt from the
+version-pinned API image. Do not enable a new stateful service without checking
+node capacity and image availability. If the index job fails, do not claim
+vector retrieval is active; inspect its task/logs and rerun after fixing the
+underlying issue.
+
 ## Hai máy chạy độc lập (quy trình hiện hành)
 
 Máy của bạn và máy đồng đội là **hai Swarm single-node riêng**, không dùng

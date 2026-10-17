@@ -1,0 +1,56 @@
+# Optional derived Qdrant knowledge index. No public ports, no raw events and
+# no numeric authority. The one-shot job can rebuild the index from the API
+# image's versioned metadata after Qdrant storage loss.
+version: '3.8'
+services:
+  qdrant:
+    image: ${SWARM_QDRANT_IMAGE:?Pin the official Qdrant image digest}
+    environment:
+      QDRANT__TELEMETRY_DISABLED: 'true'
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks: [data]
+    healthcheck:
+      test: [CMD-SHELL, "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/6333; printf \"GET /readyz HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3; IFS= read -r reply <&3; [[ \"$$reply\" == *\" 200 \"* ]]'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.funnelmetry.stateful == true
+      restart_policy: {condition: any, delay: 5s}
+      update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
+      resources:
+        reservations: {cpus: '0.25', memory: 256M}
+        limits: {cpus: '1.00', memory: 1G}
+
+  knowledge-index:
+    image: ${SWARM_API_IMAGE:?Pin the API image digest}
+    command: [node, /workspace/apps/dashboard-api/scripts/sync-metadata-vectors.mjs]
+    environment:
+      DASHBOARD_ENABLE_VECTOR_KNOWLEDGE: 'true'
+      QDRANT_KNOWLEDGE_URL: http://qdrant:6333
+      QDRANT_KNOWLEDGE_COLLECTION: funnelmetry_metadata_v1
+    networks: [data]
+    read_only: true
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.funnelmetry.stateful == true
+      restart_policy: {condition: none}
+      resources:
+        reservations: {cpus: '0.10', memory: 64M}
+        limits: {cpus: '0.50', memory: 256M}
+
+  dashboard-api:
+    environment:
+      DASHBOARD_ENABLE_VECTOR_KNOWLEDGE: 'true'
+      QDRANT_KNOWLEDGE_URL: http://qdrant:6333
+      QDRANT_KNOWLEDGE_COLLECTION: funnelmetry_metadata_v1
+
+volumes:
+  qdrant-data:

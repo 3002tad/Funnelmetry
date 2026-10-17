@@ -56,7 +56,9 @@ Chat mới/đăng xuất xóa lịch sử; đây không phải lịch sử serve
   chỉ là tỷ lệ trình bày. Không vẽ số liệu bị chặn chất lượng, không lưu biểu đồ/evidence
   vào sessionStorage và chưa có biểu đồ xu hướng hay AI Dashboard Composer đầy đủ.
 - Có trạng thái đang chờ, dừng chờ, thiếu evidence, module tắt, giới hạn yêu cầu và lỗi kết nối.
-- Không lưu hội thoại trên server, không có Qdrant retrieval hoặc recommendation-linked chat ở bước này.
+- Không lưu hội thoại trên server. Khi `SWARM_VECTOR_KNOWLEDGE_ENABLED=true` và job index thành công,
+  Chat V2 tra cứu Qdrant cho câu hỏi định nghĩa metadata; chưa index báo cáo/findings hoặc
+  recommendation-linked chat. Số liệu vẫn đến từ analytical tools/PostgreSQL, không từ vector.
 - Qwen phải được bật/cấu hình riêng trên **backend** theo `runtime/qwen.env.example`.
   Không đưa DashScope API key vào biến `VITE_*`. Không tự bật model hay gọi trả phí khi mở trang.
 - Kiểm tra thủ công: Analyst/Staff mở Chat; Admin không thấy menu và bị chặn route;

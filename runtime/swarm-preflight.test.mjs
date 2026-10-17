@@ -97,6 +97,18 @@ test('stateful images require tagged official references with digests', () => {
   }
 });
 
+test('Qdrant knowledge requires an official immutable image only when enabled', () => {
+  assert.equal(validateSwarmCandidate({ ...candidate, SWARM_VECTOR_KNOWLEDGE_ENABLED: 'false' }).status, 'PLANNING_ONLY');
+  assert.equal(validateSwarmCandidate({ ...candidate, SWARM_VECTOR_KNOWLEDGE_ENABLED: 'true',
+    SWARM_QDRANT_IMAGE: `qdrant/qdrant:v1.15.5@sha256:${digest}` }).status, 'PLANNING_ONLY');
+  for (const image of ['', 'qdrant/qdrant:latest', `example/qdrant:v1@sha256:${digest}`]) {
+    assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_VECTOR_KNOWLEDGE_ENABLED: 'true',
+      SWARM_QDRANT_IMAGE: image }), /SWARM_QDRANT_IMAGE/);
+  }
+  assert.throws(() => validateSwarmCandidate({ ...candidate, SWARM_VECTOR_KNOWLEDGE_ENABLED: 'maybe' }),
+    /SWARM_VECTOR_KNOWLEDGE_ENABLED/);
+});
+
 test('HTTPS application requires a hostname, pinned Traefik and admin identity', () => {
   const app = { SWARM_TLS_MODE: 'local', SWARM_PUBLIC_DOMAIN: 'funnelmetry.local',
     SWARM_TRAEFIK_IMAGE: `traefik:v3.6.0@sha256:${digest}`, SWARM_ADMIN_EMAIL: 'admin@example.com' };

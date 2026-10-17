@@ -9,7 +9,43 @@ Object.assign(process.env, { PORT: '32000', CORS_ORIGIN_DASHBOARD: 'http://local
   POSTGRES_DB: 'unused', POSTGRES_USER: 'unused', POSTGRES_PASSWORD: 'unused',
   DASHBOARD_ENABLE_AI: 'false', DASHBOARD_ENABLE_LEGACY: 'false' })
 const { createChatV2Router } = await import('../src/routes/chat-v2.js')
+const { buildMetadataVectorIndex } = await import('../src/lib/ai/metadata-vector.js')
+const { loadAnalyticalCoverage } = await import('../../../analytics/src/analytical-coverage.mjs')
 const body = { message: 'Phân tích giúp mình', source_id: 'medusa-reference', from: '2026-09-01', to: '2026-09-02' }
+
+test('Chat V2 uses Qdrant knowledge IDs for definitions, never as numeric evidence', async () => {
+  const index = buildMetadataVectorIndex(await loadAnalyticalCoverage())
+  const entry = index.entries.find(item => item.id === 'asset.fact_order')
+  let searchCount = 0
+  const app = express(); app.use(express.json(), createChatV2Router({ toolsEnabled: false,
+    knowledgeRetriever: { enabled: true, retrieve: async (question) => {
+      searchCount++; assert.match(question, /đơn hàng/)
+      return { index, hits: [{ entry, similarity: 0.8 }] }
+    } },
+    execute: async () => [{ role: 'analyst', is_active: true, session_version: 0 }],
+    repository: { getOverview() { assert.fail('no numeric query for a definition') } },
+    provider: { enabled: true, complete: async messages => messages[0].content.startsWith('Select')
+      ? { text: '{"tool":"knowledge.lookup","last_hours":null}' }
+      : (assert.match(messages[1].content, /Not paid\/captured\/net revenue/i),
+        { text: 'Đây là giá trị đơn hàng đã đặt, chưa phải doanh thu đã thanh toán [asset.fact_order@1.0.0].' }) },
+  }))
+  const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve))
+  const token = jwt.sign({ sub: 'knowledge-user', role: 'analyst', session_version: 0 }, process.env.JWT_SECRET)
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/v2/chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ...body, message: 'Giá trị đơn hàng là gì?' }),
+    })
+    assert.equal(response.status, 200)
+    const result = await response.json()
+    assert.equal(result.answer_verification, 'RAG_METADATA_NOT_VERIFIED')
+    assert.equal(result.knowledge_refs[0].asset_id, 'asset.fact_order')
+    assert.equal(result.knowledge_refs[0].index_type, 'qdrant_derived_vector')
+    assert.match(result.answer, /chưa phải doanh thu đã thanh toán/)
+    assert.deepEqual(result.evidence, [])
+    assert.equal(searchCount, 1)
+  } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
+})
 
 test('ranking HTTP uses registered tool, persists via runner, and has no model synthesis', async()=>{
   let runs=0,blocked=false

@@ -12,6 +12,7 @@ const imagePattern = /^ghcr\.io\/[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+
 const statefulImagePattern = /^(?:docker\.io\/)?(?:library\/)?(?:postgres|apache\/kafka):[a-z0-9._-]+@sha256:[a-f0-9]{64}$/;
 const edgeImagePattern = /^(?:docker\.io\/)?(?:library\/)?traefik:[a-z0-9._-]+@sha256:[a-f0-9]{64}$/;
 const monitoringImagePattern = /^(?:docker\.io\/)?(?:prom\/prometheus|grafana\/grafana):[a-z0-9._-]+@sha256:[a-f0-9]{64}$/;
+const qdrantImagePattern = /^(?:docker\.io\/)?qdrant\/qdrant:[a-z0-9._-]+@sha256:[a-f0-9]{64}$/;
 
 export function validateSwarmApp(env) {
   const domain = env.SWARM_PUBLIC_DOMAIN?.trim() || '';
@@ -87,6 +88,13 @@ export function validateSwarmCandidate(env) {
     for (const key of ['MONITORING_PROMETHEUS_IMAGE', 'MONITORING_GRAFANA_IMAGE']) {
       if (!monitoringImagePattern.test(env[key] || '')) throw Error(`${key} must pin an official image digest`);
     }
+  }
+  if (env.SWARM_VECTOR_KNOWLEDGE_ENABLED && !['true', 'false'].includes(env.SWARM_VECTOR_KNOWLEDGE_ENABLED)) {
+    throw Error('SWARM_VECTOR_KNOWLEDGE_ENABLED must be true or false');
+  }
+  if (env.SWARM_VECTOR_KNOWLEDGE_ENABLED === 'true'
+    && !qdrantImagePattern.test(env.SWARM_QDRANT_IMAGE || '')) {
+    throw Error('SWARM_QDRANT_IMAGE must pin the official Qdrant image by tag and sha256 digest');
   }
   const images = {};
   for (const [name, key] of Object.entries({ api: 'SWARM_API_IMAGE', web: 'SWARM_WEB_IMAGE', workers: 'SWARM_WORKERS_IMAGE' })) {

@@ -1,5 +1,30 @@
 # Analytical assets and metadata coverage
 
+## Chat V2 knowledge lookup (Qdrant, opt-in)
+
+`knowledge.lookup` is a read-only Chat V2 route for definition/meaning questions.
+The `knowledge-index` one-shot Swarm job derives 384-dimensional hashed-token
+vectors from the 16 assets in `analytical-coverage-v1.json` and stores only
+asset IDs, catalog version/hash and embedding version in an isolated Qdrant
+collection. The API searches Qdrant, then resolves returned IDs against the
+versioned metadata file bundled with the **same API image** before asking Qwen
+to explain it. Stale index hashes are rejected; Qdrant never supplies numbers,
+raw events, SQL or authoritative definitions. Numeric questions still require
+the registered deterministic analytical tools and their evidence.
+
+This first embedding is a deterministic lexical feature hash, **not a neural
+semantic embedding model**. It supports known Vietnamese/English analytical
+terms but does not prove broad paraphrase recall. The indexed corpus is the
+draft metadata inventory only: historical reports, findings and arbitrary
+documents are **not** indexed yet. `knowledge.lookup` is not a new permission
+to query every physical table or a published catalog release. Chat answers
+carry `knowledge_refs` and `RAG_METADATA_NOT_VERIFIED`, not official insights.
+
+The index is derived/rebuildable. Re-run
+`apps/dashboard-api/scripts/sync-metadata-vectors.mjs` against the private
+Qdrant service after replacing the API image or restoring Qdrant storage.
+Never expose Qdrant port 6333 publicly or store raw events/secrets in points.
+
 ## Current V2 analytical metadata inventory (17/10/2026)
 
 [`analytics/metadata/analytical-coverage-v1.json`](../../analytics/metadata/analytical-coverage-v1.json) inventories **16 logical analytical assets** across canonical events, journey, funnel/KPI, placed orders, ordered products, current product names, traffic input and quality/reconciliation. Each entry identifies its physical binding, grain, time basis, authority, required columns, safe dimensions/measures, quality constraints, relationships and whether a tool already exists. It is a **draft coverage inventory**, not a published PostgreSQL catalog release, runtime activation or permission for AI to query an arbitrary table. Operational tables (accounts, secrets, chat history, Docker state) are deliberately excluded.

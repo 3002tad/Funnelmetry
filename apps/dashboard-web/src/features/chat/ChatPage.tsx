@@ -17,6 +17,7 @@ type ChatResponse = {
   model?: string
   chart?: EvidenceBarChart
   chart_notice?: string
+  knowledge_refs?: Array<{ asset_id: string; catalog_id: string; catalog_version: string; status: string; index_type: string }>
   evidence: Array<{
     evidence_id: string; origin: string; retrieved_at: string
     scope: { sourceId: string; from: string; to: string }
@@ -146,6 +147,7 @@ function ChatConversation({ accountId }: { accountId: string }) {
             { icon: BarChart3, title: 'Nhìn lại tổng quan', text: 'Tóm tắt số liệu chuyển đổi trong khoảng thời gian đã chọn.' },
             { icon: Clock3, title: 'Hiểu trạng thái pending', text: 'Có bao nhiêu trường hợp còn pending? Khác dropped như thế nào?' },
             { icon: TrendingDown, title: 'Vẽ biểu đồ sản phẩm', text: 'Vẽ biểu đồ 5 sản phẩm có tổng đơn giá lúc đặt × số lượng cao nhất trong khoảng thời gian đang chọn.' },
+            { icon: Database, title: 'Hiểu dữ liệu', text: 'Giá trị đơn hàng đã đặt có nghĩa là gì và khác doanh thu đã thanh toán như thế nào?' },
           ].map(({ icon: Icon, title, text }) => <button key={title} onClick={() => { setMessage(text); input.current?.focus() }} className="group rounded-2xl border bg-card p-4 text-left transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary">
             <Icon size={19} className="mb-4 text-primary" /><span className="block text-sm font-medium">{title}</span><span className="mt-2 block text-xs leading-5 text-muted-foreground">{text}</span>
           </button>)}
@@ -157,7 +159,15 @@ function ChatConversation({ accountId }: { accountId: string }) {
             <div className="min-w-0 flex-1 space-y-3 text-sm leading-7"><p className="font-semibold">Funnelmetry <span className="ml-2 text-xs font-normal text-muted-foreground">Assistant</span></p>
               {turn.error ? <p role="alert" className="rounded-xl border bg-card p-4 text-muted-foreground">{turn.error}</p> : turn.result ? <>
                 <p className="whitespace-pre-wrap break-words">{chatResponseText(turn.result)}</p>
-                <p className="text-xs text-muted-foreground">{turn.result.answer_verification === 'DETERMINISTIC_TEMPLATE' ? 'Trình bày bằng mẫu cố định · Chất lượng dữ liệu vẫn tạm thời' : 'Chưa xác minh'} · Không phải insight chính thức</p>
+                <p className="text-xs text-muted-foreground">{turn.result.answer_verification === 'RAG_METADATA_NOT_VERIFIED'
+                  ? 'Tra cứu Qdrant trên metadata bản nháp · Câu chữ AI chưa kiểm chứng · Không phải số liệu chính thức'
+                  : turn.result.answer_verification === 'DETERMINISTIC_TEMPLATE'
+                    ? 'Trình bày bằng mẫu cố định · Chất lượng dữ liệu vẫn tạm thời · Không phải insight chính thức'
+                    : 'Chưa xác minh · Không phải insight chính thức'}</p>
+                {turn.result.knowledge_refs?.length ? <details className="rounded-xl border bg-card p-3 text-xs text-muted-foreground">
+                  <summary className="cursor-pointer">Nguồn định nghĩa ({turn.result.knowledge_refs.length})</summary>
+                  <ul className="mt-2 space-y-1">{turn.result.knowledge_refs.map(ref => <li key={ref.asset_id}>{ref.asset_id} · {ref.catalog_id}@{ref.catalog_version} · {ref.status}</li>)}</ul>
+                </details> : null}
                 {turn.result.chart && <EvidenceChart chart={turn.result.chart} />}
                 {turn.result.chart_notice && <p className="rounded-xl border bg-card p-3 text-xs text-muted-foreground">{turn.result.chart_notice}</p>}
                 <Evidence result={turn.result} />

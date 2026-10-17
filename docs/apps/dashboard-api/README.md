@@ -559,8 +559,11 @@ exported, quotas, revocation before/after egress and sanitized failures. They do
 prove resistance to every prompt injection or response correctness. Next add UI,
 review data-export consent and evaluate output quality, then an explicitly approved,
 bounded live smoke call using the user's Singapore key. No live call made in this stage.
-RAG retrieval, conversation persistence, recommendation-linked chat, UI and evaluation
-benchmarks are not implemented by this foundation.
+The later opt-in Chat V2 `knowledge.lookup` path retrieves draft metadata IDs
+from Qdrant and resolves them against the bundled versioned catalog; see
+[`docs/analytics/README.md`](../../analytics/README.md). It does not index
+historical reports/findings, replace numeric tools, persist conversations or
+constitute a full recommendation-linked RAG/evaluation capability.
 
 Verification: `node --test test/dashscope.test.js test/ai-evidence.test.js test/chat-v2.test.js`, eight tests,
 mock fetch and mock evidence, container network disabled; not a live-provider benchmark.
