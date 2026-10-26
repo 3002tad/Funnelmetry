@@ -1,0 +1,11 @@
+http:
+  routers:
+    dashboard:
+      rule: 'Host(`{{ env "SWARM_PUBLIC_DOMAIN" }}`)'
+      entryPoints: [web]
+      service: dashboard
+  services:
+    dashboard:
+      loadBalancer:
+        servers:
+          - url: http://dashboard-web:8080

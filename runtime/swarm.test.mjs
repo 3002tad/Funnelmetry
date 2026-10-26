@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
-import { dockerEnvironment, stackDeployArgs, stackFilesForCommand, validateAppSecrets, validateDbSecret, validateTlsFilePath } from './swarm.mjs';
+import { dockerEnvironment, stackDeployArgs, stackFilesForCommand, validateAppSecrets, validateDbSecret, validateTlsFilePath, validateTunnelDeploymentAck } from './swarm.mjs';
 import { validateSwarmApp, validateSwarmCandidate } from './swarm-preflight.mjs';
 
 test('fresh independent machine can start from the nonsecret pinned release example', () => {
@@ -28,6 +28,27 @@ test('internal-only candidate adds API and workers without publishing an edge', 
     ['swarm-stack.yml', 'swarm-workers.yml', 'swarm-app.yml']);
   assert.deepEqual(stackFilesForCommand('deploy-app', { tlsMode: 'local' }).map(file => file.split(/[\\/]/).at(-1)),
     ['swarm-stack.yml', 'swarm-workers.yml', 'swarm-app.yml', 'swarm-edge-local.yml']);
+  assert.deepEqual(stackFilesForCommand('deploy-app', { tlsMode: 'tunnel' }).map(file => file.split(/[\\/]/).at(-1)),
+    ['swarm-stack.yml', 'swarm-workers.yml', 'swarm-app.yml', 'swarm-edge-tunnel.yml']);
+});
+
+test('tunnel edge serves HTTP origin without Swarm TLS secrets or ACME', () => {
+  const edge = readFileSync(fileURLToPath(new URL('../infra/swarm-edge-tunnel.yml', import.meta.url)), 'utf8');
+  const route = readFileSync(fileURLToPath(new URL('../infra/swarm/traefik-tunnel.yml', import.meta.url)), 'utf8');
+  assert.match(edge, /published: \$\{SWARM_TUNNEL_ORIGIN_PORT:-31080\}/);
+  assert.match(edge, /mode: host/);
+  assert.doesNotMatch(edge, /tls_cert|tls_key|certResolver/);
+  assert.match(route, /entryPoints: \[web\]/);
+  assert.doesNotMatch(route, /\btls:/);
+});
+
+test('tunnel deployment requires an explicit external firewall verification', () => {
+  assert.throws(() => validateTunnelDeploymentAck({}), /blocked from external networks/);
+  assert.throws(() => validateTunnelDeploymentAck({ SWARM_TUNNEL_ORIGIN_RESTRICTED_ACK: 'yes' }),
+    /blocked from external networks/);
+  assert.doesNotThrow(() => validateTunnelDeploymentAck({
+    SWARM_TUNNEL_ORIGIN_RESTRICTED_ACK: 'ORIGIN_FIREWALL_VERIFIED',
+  }));
 });
 
 test('parallel-live candidate includes connector/catalog/AI overlay before edge', () => {

@@ -1,5 +1,5 @@
 # Optional application layer for the isolated Swarm candidate. The deployment
-# launcher selects exactly one Traefik edge overlay (local trusted TLS or ACME).
+# launcher selects one Traefik edge overlay (local TLS, ACME or tunnel origin).
 # API and Web stay private. This does not enable Source Event Feed or cutover.
 version: '3.8'
 

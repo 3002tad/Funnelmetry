@@ -121,4 +121,10 @@ test('HTTPS application requires a hostname, pinned Traefik and admin identity',
   assert.throws(() => validateSwarmApp({ ...app, SWARM_TLS_MODE: 'acme' }), /ACME/);
   assert.equal(validateSwarmApp({ ...app, SWARM_TLS_MODE: 'acme',
     SWARM_PUBLIC_DOMAIN: 'demo.example.com', SWARM_ACME_EMAIL: 'ops@example.com' }).tlsMode, 'acme');
+  assert.equal(validateSwarmApp({ ...app, SWARM_TLS_MODE: 'tunnel',
+    SWARM_PUBLIC_DOMAIN: 'analyst.example.com', SWARM_TUNNEL_ORIGIN_PORT: '31080' }).tlsMode, 'tunnel');
+  for (const port of ['0', '443', '65536', 'not-a-port']) {
+    assert.throws(() => validateSwarmApp({ ...app, SWARM_TLS_MODE: 'tunnel',
+      SWARM_TUNNEL_ORIGIN_PORT: port }), /SWARM_TUNNEL_ORIGIN_PORT/);
+  }
 });

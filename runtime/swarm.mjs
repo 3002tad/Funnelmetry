@@ -21,10 +21,11 @@ const knowledgeFile = join(root, 'infra', 'swarm-knowledge.yml');
 const edgeFiles = Object.freeze({
   local: join(root, 'infra', 'swarm-edge-local.yml'),
   acme: join(root, 'infra', 'swarm-edge-acme.yml'),
+  tunnel: join(root, 'infra', 'swarm-edge-tunnel.yml'),
 });
 const renderKeys = ['SWARM_STACK_NAME', 'SWARM_POSTGRES_IMAGE', 'SWARM_KAFKA_IMAGE',
   'SWARM_API_IMAGE', 'SWARM_WEB_IMAGE', 'SWARM_WORKERS_IMAGE', 'SWARM_TRAEFIK_IMAGE',
-  'SWARM_PUBLIC_DOMAIN', 'SWARM_ADMIN_EMAIL', 'SWARM_ACME_EMAIL',
+  'SWARM_PUBLIC_DOMAIN', 'SWARM_ADMIN_EMAIL', 'SWARM_ACME_EMAIL', 'SWARM_TUNNEL_ORIGIN_PORT',
   'SWARM_RAW_PARTITIONS', 'SWARM_NORMALIZER_ID_MODE', 'SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE',
   'SWARM_EXPECTED_SCHEMA_DIGEST', 'SWARM_MIGRATION_MODE',
   'SWARM_LIVE_ACK', 'SWARM_CONNECTOR_ID', 'SWARM_FEED_URL', 'SWARM_FEED_ID',
@@ -84,6 +85,12 @@ export function validateTlsFilePath(file) {
   const rel = relative(root, resolve(file));
   if (!rel.startsWith('..') && !isAbsolute(rel)) throw Error('TLS certificate/key files must stay outside the repository');
   return file;
+}
+
+export function validateTunnelDeploymentAck(env) {
+  if (env.SWARM_TUNNEL_ORIGIN_RESTRICTED_ACK !== 'ORIGIN_FIREWALL_VERIFIED') {
+    throw Error('Tunnel origin port must be blocked from external networks before deploy-app');
+  }
 }
 
 async function saveGeneratedCredential(stackName, kind, value) {
@@ -303,7 +310,9 @@ export async function run(command) {
         for (const name of ['tls_cert', 'tls_key']) {
           if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
         }
-      } else if (parsed.SWARM_ACME_READY_ACK !== 'DNS_AND_PORTS_CONFIRMED') {
+      } else if (appPlan.tlsMode === 'tunnel') {
+        validateTunnelDeploymentAck(parsed);
+      } else if (appPlan.tlsMode === 'acme' && parsed.SWARM_ACME_READY_ACK !== 'DNS_AND_PORTS_CONFIRMED') {
         throw Error('ACME deployment requires reviewed public DNS and TCP 80/443 reachability');
       }
     }

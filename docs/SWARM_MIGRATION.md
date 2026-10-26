@@ -123,17 +123,18 @@ Prometheus/Grafana là overlay tùy chọn `infra/swarm-monitoring.yml`: sau khi
 
 ## Lớp ứng dụng HTTPS tùy chọn, vẫn cùng một Swarm stack
 
-[`infra/swarm-workers.yml`](../infra/swarm-workers.yml) và [`infra/swarm-app.yml`](../infra/swarm-app.yml) thêm worker, API và Web trên mạng overlay nội bộ. Chỉ [`infra/swarm-edge-local.yml`](../infra/swarm-edge-local.yml) hoặc [`infra/swarm-edge-acme.yml`](../infra/swarm-edge-acme.yml) publish cổng. Launcher chọn **một** edge theo `SWARM_TLS_MODE`; Traefik dùng file provider, không gắn Docker socket vào edge, API hay Agent. Hostname lấy từ `SWARM_PUBLIC_DOMAIN` trong `runtime/deploy.env`, không hard-code trong stack. Đường `/api/` được Web proxy tới API nội bộ.
+[`infra/swarm-workers.yml`](../infra/swarm-workers.yml) và [`infra/swarm-app.yml`](../infra/swarm-app.yml) thêm worker, API và Web trên mạng overlay nội bộ. Launcher chọn **một** edge theo `SWARM_TLS_MODE`: [`local`](../infra/swarm-edge-local.yml), [`acme`](../infra/swarm-edge-acme.yml) hoặc [`tunnel`](../infra/swarm-edge-tunnel.yml). Traefik dùng file provider, không gắn Docker socket vào edge, API hay Agent. Hostname lấy từ `SWARM_PUBLIC_DOMAIN` trong `runtime/deploy.env`, không hard-code trong stack. Đường `/api/` được Web proxy tới API nội bộ.
 
 - `local`: dùng `funnelmetry.local` hoặc hostname nội bộ cấu hình trong env, certificate/key đã được máy demo tin cậy. Đặt hai PEM ở đường dẫn tuyệt đối **ngoài repository**, sau đó chạy `create-tls-secrets`; private key không đưa vào Git/chat. Máy truy cập phải resolve hostname về edge node và tin cậy CA/certificate. Chỉ cổng 443 được publish.
 - `acme`: cần domain public đã trỏ DNS tới edge node và TCP 80/443 thông từ Internet. Sau khi xác nhận, đặt `SWARM_ACME_READY_ACK=DNS_AND_PORTS_CONFIRMED`; nếu thiếu, `deploy-app` từ chối. `SWARM_ACME_EMAIL` là email đăng ký Let's Encrypt; Traefik tự xin/gia hạn cert, lưu ACME state trong volume gắn với node `funnelmetry.edge=true`. Chỉ gắn label edge cho một node giữ volume này trong profile hiện tại. Local volume không tạo node HA, nên phải có kế hoạch backup/chuyển node trước khi đổi placement.
+- `tunnel`: Cloudflare Tunnel cung cấp HTTPS public cho `SWARM_PUBLIC_DOMAIN`; origin Traefik dùng HTTP tại `SWARM_TUNNEL_ORIGIN_PORT` (mặc định `31080`). Published application route của `analyst.entidi.io.vn` trỏ tới `http://localhost:31080`, giống cách route Medusa `api`/`store` tới HTTP origin. Không tạo TLS secrets hay mở 80/443 cho Pipeline. **Swarm host-mode publish không hỗ trợ bind riêng `127.0.0.1`; Docker published port có thể vượt qua UFW.** Phải chặn kết nối từ mạng ngoài tới origin port bằng provider firewall hoặc Docker-aware firewall, xác minh từ một máy bên ngoài, rồi mới đặt `SWARM_TUNNEL_ORIGIN_RESTRICTED_ACK=ORIGIN_FIREWALL_VERIFIED` để `deploy-app` cho phép chạy. Giữ tunnel connector trên cùng máy hoặc một private boundary tương đương; không coi origin HTTP là endpoint public.
 
 Trên single-node candidate, gắn thêm `docker node update --label-add funnelmetry.edge=true <NODE_ID>` sau khi kiểm tra host port/firewall. Chọn Traefik image có **tag + digest** đã xác minh, và set `SWARM_ADMIN_EMAIL`, `SWARM_JWT_SECRET`, `SWARM_ADMIN_PASSWORD` mới, độc lập với Compose. Sau `create-db-secret`/`deploy` của data phase, thao tác tiếp theo trên manager là:
 
 ```text
 node runtime/swarm.mjs check-app
 node runtime/swarm.mjs create-app-secrets
-node runtime/swarm.mjs create-tls-secrets   # chỉ local
+node runtime/swarm.mjs create-tls-secrets   # chỉ local; tunnel không cần
 node runtime/swarm.mjs deploy-app
 ```
 

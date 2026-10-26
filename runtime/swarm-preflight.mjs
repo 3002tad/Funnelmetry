@@ -20,13 +20,19 @@ export function validateSwarmApp(env) {
     throw Error('SWARM_PUBLIC_DOMAIN must be a reviewed lowercase public DNS hostname');
   }
   const tlsMode = env.SWARM_TLS_MODE?.trim() || '';
-  if (!['local', 'acme'].includes(tlsMode)) throw Error('SWARM_TLS_MODE must be local or acme');
+  if (!['local', 'acme', 'tunnel'].includes(tlsMode)) throw Error('SWARM_TLS_MODE must be local, acme or tunnel');
   if (tlsMode === 'acme' && domain.endsWith('.local')) throw Error('ACME cannot issue a certificate for a .local hostname');
   if (!edgeImagePattern.test(env.SWARM_TRAEFIK_IMAGE?.trim() || '')) {
     throw Error('SWARM_TRAEFIK_IMAGE must pin the official Traefik image by tag and sha256 digest');
   }
   if (tlsMode === 'acme' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.SWARM_ACME_EMAIL?.trim() || '')) {
     throw Error('SWARM_ACME_EMAIL is required for ACME');
+  }
+  if (tlsMode === 'tunnel') {
+    const port = env.SWARM_TUNNEL_ORIGIN_PORT?.trim() || '31080';
+    if (!/^[1-9]\d*$/.test(port) || Number(port) < 1024 || Number(port) > 65535) {
+      throw Error('SWARM_TUNNEL_ORIGIN_PORT must be an unprivileged TCP port (1024..65535)');
+    }
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.SWARM_ADMIN_EMAIL?.trim() || '')) {
     throw Error('SWARM_ADMIN_EMAIL must be a valid single-line email');

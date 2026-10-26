@@ -1,0 +1,33 @@
+# Cloudflare Tunnel terminates public HTTPS. This HTTP origin is for a trusted
+# connector on the same host; restrict the published port at the host firewall.
+version: '3.8'
+services:
+  edge:
+    image: ${SWARM_TRAEFIK_IMAGE:?Pin the Traefik image digest}
+    command:
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --entryPoints.web.address=:8080
+      - --api.dashboard=false
+    environment:
+      SWARM_PUBLIC_DOMAIN: ${SWARM_PUBLIC_DOMAIN:?Set public hostname}
+    configs:
+      - source: edge_dynamic_tunnel
+        target: /etc/traefik/dynamic.yml
+    ports:
+      - target: 8080
+        published: ${SWARM_TUNNEL_ORIGIN_PORT:-31080}
+        protocol: tcp
+        mode: host
+    networks: [data]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.labels.funnelmetry.edge == true]
+      restart_policy: {condition: any, delay: 5s}
+      update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
+      resources:
+        reservations: {cpus: '0.10', memory: 64M}
+        limits: {cpus: '0.50', memory: 256M}
+configs:
+  edge_dynamic_tunnel:
+    file: ./swarm/traefik-tunnel.yml
