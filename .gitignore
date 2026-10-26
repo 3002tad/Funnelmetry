@@ -2,6 +2,7 @@
 .env.local
 .env.*.local
 runtime/*.env
+apps/edge-relay/deploy/source-ingress.server.env
 runtime/backups/
 runtime/monitoring/
 runtime/credentials/
