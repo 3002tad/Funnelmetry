@@ -1,5 +1,7 @@
 # Docker Swarm migration
 
+Current VPS tunnel deployment evidence: [KLTN_VPS_TUNNEL_LIVE_VALIDATION_2026-10-27.md](KLTN_VPS_TUNNEL_LIVE_VALIDATION_2026-10-27.md).
+
 ## Optional Qdrant knowledge for Chat V2
 
 For a reviewed demo stack, set `SWARM_VECTOR_KNOWLEDGE_ENABLED=true` in the
