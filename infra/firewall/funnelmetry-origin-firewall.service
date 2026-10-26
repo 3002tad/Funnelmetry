@@ -1,0 +1,14 @@
+[Unit]
+Description=Restrict Funnelmetry HTTP tunnel origin to the local connector
+Requires=docker.service
+After=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/funnelmetry/origin-firewall.env
+ExecStart=/usr/local/sbin/funnelmetry-restrict-tunnel-origin ${FUNNELMETRY_ORIGIN_PORT} ${FUNNELMETRY_EXTERNAL_INTERFACE}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=docker.service
