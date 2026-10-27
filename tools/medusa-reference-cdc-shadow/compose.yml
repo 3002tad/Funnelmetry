@@ -1,0 +1,103 @@
+name: funnelmetry_cdc_shadow
+
+# Isolated, local-only semantic experiment. This stack never writes to the
+# authoritative Funnelmetry Kafka/PostgreSQL or Source Event Feed.
+services:
+  postgres:
+    image: postgres:15-alpine
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=2
+      - -c
+      - max_wal_senders=2
+      - -c
+      - max_slot_wal_keep_size=256MB
+    env_file: ./private/postgres.env
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U medusa -d medusa"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [shadow]
+
+  redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --save, "", --appendonly, "no"]
+    networks: [shadow]
+
+  source-ingress:
+    image: funnelmetry_source_ingress-source-ingress:latest
+    env_file: ./private/source-ingress.env
+    volumes:
+      - source-event-log:/var/lib/funnelmetry-source-event-log
+    networks: [shadow]
+
+  backend:
+    image: medusa_reference-backend:latest
+    command: >-
+      sh -c "cd apps/backend && pnpm exec medusa db:migrate &&
+      cd .medusa/server && ../../node_modules/.bin/medusa start"
+    env_file: ./private/backend.env
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_started}
+      source-ingress: {condition: service_started}
+    networks: [shadow]
+
+  kafka:
+    image: apache/kafka:3.9.1@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@127.0.0.1:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: "1"
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: [CMD-SHELL, "bash -c 'echo > /dev/tcp/127.0.0.1/9092'"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    networks: [shadow]
+
+  connect:
+    image: quay.io/debezium/connect:3.6@sha256:ef19acc1188babedc8bee6e890bb6e429903b919c07f5ad509befaec5bcdfb14
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: cdc-shadow-connect
+      CONFIG_STORAGE_TOPIC: cdc_shadow_connect_configs
+      OFFSET_STORAGE_TOPIC: cdc_shadow_connect_offsets
+      STATUS_STORAGE_TOPIC: cdc_shadow_connect_statuses
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      JAVA_OPTS: -Xms256m -Xmx768m
+    depends_on:
+      kafka: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+    networks: [shadow]
+
+networks:
+  shadow:
+    internal: true
+
+volumes:
+  postgres-data:
+  kafka-data:
+  source-event-log:
