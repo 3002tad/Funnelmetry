@@ -7,6 +7,7 @@ No dump file or row payload is written to the host filesystem.
 
 import json
 import subprocess
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -21,6 +22,17 @@ def run(argv: list[str]) -> str:
 source = json.loads(run(["docker", "inspect", SOURCE]))[0]
 if source["Config"]["Labels"].get("com.docker.compose.project") != "medusa_reference":
     raise SystemExit("source is not the expected Medusa Compose PostgreSQL container")
+
+for attempt in range(30):
+    ready = subprocess.run(
+        COMPOSE + ["exec", "-T", "postgres", "pg_isready", "-U", "medusa", "-d", "medusa"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+    )
+    if ready.returncode == 0:
+        break
+    time.sleep(1)
+else:
+    raise SystemExit("shadow PostgreSQL did not become ready within 30 seconds")
 
 wal_level = run(COMPOSE + ["exec", "-T", "postgres", "psql", "-X", "-U", "medusa", "-d", "medusa", "-At", "-c", "SHOW wal_level"])
 if wal_level != "logical":

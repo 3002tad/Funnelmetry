@@ -8,6 +8,65 @@ image, a private Source Ingress, one Kafka broker, and Debezium Kafka Connect.
 The backend keeps the native `order.placed` subscriber. Debezium writes only to
 `cdc_shadow_medusa.*`; there is no consumer into live canonical state.
 
+## Reference CDC installer (approved semantic, shadow runtime only)
+
+`install-reference.py` is the operator-side companion to the Medusa CI installer.
+The CI installer turns `funnelmetry.integration.yaml` into the reviewed,
+non-secret `funnelmetry/cdc-reference-shadow.json`; this CLI consumes that exact
+profile. It installs only the approved three-table/seven-column
+`reference.medusa.order_recorded_state.v1` path into this private Compose stack.
+It refuses changed profile fields, a non-shadow project, published ports,
+non-internal networks, a broad/drifted publication or connector, and orphaned
+slots. It leaves the native subscriber and all live Pipeline resources alone.
+
+Use a **fresh copy of this directory with its own `private/` and Docker volumes**
+for each installer rehearsal. The earlier six-table experimental publication
+is deliberately incompatible; the installer will not silently narrow it.
+`COMPOSE_PROJECT_NAME` may be `funnelmetry_cdc_shadow` or a unique name such as
+`funnelmetry_cdc_shadow_installer1`; set the same variable for every command,
+including `clone-db.py` and the verifier scripts. Never point it at a live
+Medusa or Pipeline project.
+
+```bash
+export COMPOSE_PROJECT_NAME=funnelmetry_cdc_shadow_installer1
+PROFILE=/srv/KLTN/dtc-starter-funnelmetry/funnelmetry/cdc-reference-shadow.json
+python3 install-reference.py plan --profile "$PROFILE"
+
+# Source owner: prepare an isolated clone. clone-db.py reads live Medusa only;
+# it refuses an already populated destination and writes no dump to the host.
+python3 prepare-private.py
+docker compose -f compose.yml up -d postgres
+python3 clone-db.py
+
+# Pipeline operator: installer creates the narrow publication/role, registers
+# one Debezium connector, and starts mapper + analytical sink.
+python3 install-reference.py apply --profile "$PROFILE"
+python3 install-reference.py verify --profile "$PROFILE"
+
+# After synthetic checkout creates facts, run data-level reconciliation too.
+python3 verify-reference-mapper.py
+python3 verify-reference-analytics.py
+
+# Reversible stop: no slot, publication, topic, volume or credential deletion.
+python3 install-reference.py rollback --profile "$PROFILE"
+```
+
+`prepare-private.py` creates a mode-600 `private/connector.env` containing the
+`FUNNELMETRY_CDC_SHADOW_DATABASE_URL` secret referenced by the profile. An old
+`connector.env` without that key must be migrated by the operator in the
+isolated copy; the installer never fills a missing secret from another key or
+prints its value. `apply` records a profile hash and ownership state in
+`private/cdc-reference-installer-state.json`. Reapplying the same profile is
+idempotent; a changed profile or foreign connector fails closed. `verify`
+checks infrastructure and physical tables; the two verifier scripts above
+check data after facts exist. `rollback` stops only reference consumers and
+deletes only an exact owned connector, retaining all durable resources for
+inspection and replay. An owned `STOPPED` installation may be applied again
+with the same profile and private Kafka volumes; this path passed an isolated
+rollback→apply→verify VPS rehearsal. Destructive cleanup is a separate
+operator decision. See [installer runtime evidence](INSTALLER_RUNTIME_EVIDENCE_2026-10-27.md)
+for the fresh-clone checkout and rollback results.
+
 ## Preconditions
 
 - Run on the single VPS that hosts `medusa_reference-postgres-1` and the

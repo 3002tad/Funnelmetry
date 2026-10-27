@@ -630,13 +630,15 @@ function cdcShadowOperatorPlan(manifest) {
     sourceOwner: manifest.cdcShadow.sourceOwner,
     pipelineOwner: manifest.cdcShadow.pipelineOwner,
     sourceDbUrlRef: manifest.cdcShadow.sourceDbUrlRef,
+    runtimeInstaller: "tools/medusa-reference-cdc-shadow/install-reference.py",
+    runtimeInstallerCommands: ["plan", "apply", "verify", "rollback"],
     preconditions: [
       "Verify a separate PostgreSQL clone or explicitly authorized source DB and logical WAL",
       "Verify the exact publication table/column allowlist and replication role with the source owner",
       "Verify a separate Debezium slot, connector, Kafka namespace, mapper state and analytical sink",
       "Reconcile post-activation coverage, compensation, soft delete, duplicate/replay and source lag",
     ],
-    rollback: "Remove only the generated profile by rollback-plan; stop shadow consumers separately; retain slots/topics/volumes until their owners approve cleanup",
+    rollback: "Use the shadow runtime installer's guarded rollback, then remove only the generated profile by rollback-plan; retain slots/topics/volumes until their owners approve cleanup",
     liveOrderAuthority: "medusa.order_placed -> order.placed",
   }
 }

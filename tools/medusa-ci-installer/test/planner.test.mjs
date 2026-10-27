@@ -92,6 +92,7 @@ test("CDC shadow installer plans one owned file, verifies it, and produces guard
     const initial = await createPlan(root, configured)
     assert.equal(initial.capabilities.cdcReferenceState, "SHADOW_ONLY")
     assert.equal(initial.cdcShadowOperatorPlan.status, "SHADOW_ONLY_NO_RUNTIME_ACTIVATION")
+    assert.equal(initial.cdcShadowOperatorPlan.runtimeInstaller, "tools/medusa-reference-cdc-shadow/install-reference.py")
     assert.match(initial.patch, /funnelmetry\/cdc-reference-shadow\.json/)
     assert.match(initial.patch, /"order_fact_authority": "medusa\.order_placed"/)
     assert.doesNotMatch(initial.patch, /postgres:\/\//)

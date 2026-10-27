@@ -1,0 +1,36 @@
+name: CDC reference installer CI
+
+on:
+  push:
+    branches:
+      - feature/cdc-medusa-v1
+    paths:
+      - .github/workflows/cdc-reference-installer-ci.yml
+      - tools/medusa-ci-installer/**
+      - tools/medusa-reference-cdc-shadow/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check CDC installer Python syntax
+        run: |
+          python -m py_compile \
+            tools/medusa-reference-cdc-shadow/install-reference.py \
+            tools/medusa-reference-cdc-shadow/clone-db.py \
+            tools/medusa-reference-cdc-shadow/prepare-private.py
+      - name: Test CDC runtime installer guards
+        run: python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_install_reference.py -v
+      - name: Test Medusa CI planner
+        run: npm test --prefix tools/medusa-ci-installer

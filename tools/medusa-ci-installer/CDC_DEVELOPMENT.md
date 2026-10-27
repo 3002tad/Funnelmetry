@@ -1,6 +1,6 @@
 # Medusa CDC installer profile — development contract
 
-Status: **IN DEVELOPMENT / SHADOW ONLY** under DEC-119/135. Branch: `feature/cdc-medusa-v1` in both Streaming Pipeline and Medusa Reference. The manifest/profile/plan/verify/rollback-plan path below is implemented for the count-only reference state; privileged CDC runtime activation is a separate operator task.
+Status: **IN DEVELOPMENT / SHADOW ONLY** under DEC-119/135. Branch: `feature/cdc-medusa-v1` in both Streaming Pipeline and Medusa Reference. The manifest/profile/plan/verify/rollback-plan path below is implemented for the approved count-only reference semantic. A separate operator-side [shadow runtime installer](../medusa-reference-cdc-shadow/README.md#reference-cdc-installer-approved-semantic-shadow-runtime-only) now packages publication/connector/mapper/sink setup against an isolated clone; no live CDC activation is included.
 
 ## Ownership and inputs
 
@@ -22,6 +22,24 @@ the already-created `feature/cdc-medusa-v1` branch or an existing
 understands `cdc_shadow` before applying a patch; the GitHub repository variable
 `FUNNELMETRY_PLANNER_REF` must be updated to the reviewed commit before CI runs.
 No workflow merges or deploys the branch.
+
+## Operator-side shadow runtime package
+
+From a clean copy of `tools/medusa-reference-cdc-shadow/`,
+`install-reference.py plan --profile <Medusa-generated-profile>` checks the exact
+approved profile without Docker or credentials. The operator prepares a private
+Medusa PostgreSQL clone with `prepare-private.py` and `clone-db.py`; this is a
+separate, read-only-from-live source action. `apply` then validates Compose
+isolation, creates only the approved column-filtered PostgreSQL publication and
+role, registers one pinned Debezium connector, and starts the durable reference
+mapper and analytical sink. `verify` checks runtime topology/connector/physical
+tables; the existing mapper/sink verifiers check synthetic data reconciliation.
+`rollback` stops the two reference consumers and deletes only the exact owned
+connector. It retains the publication, replication slot, topics, volumes and
+credentials for replay and operator-controlled cleanup. The generated profile
+and installer contain no DB password; a mode-600 private env file supplies the
+declared secret reference at runtime. The earlier broad six-table experimental
+publication is incompatible and must not be adopted silently.
 
 ## Acquisition stages
 

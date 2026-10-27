@@ -77,4 +77,8 @@ put("source-ingress.env", {
     }, separators=(",", ":")),
     "SOURCE_INGRESS_ADMIN_TOKEN": secrets.token_hex(32),
 })
-put("connector.env", {"CDC_SHADOW_REPLICATION_PASSWORD": replication_password})
+put("connector.env", {
+    "CDC_SHADOW_REPLICATION_PASSWORD": replication_password,
+    "FUNNELMETRY_CDC_SHADOW_DATABASE_URL":
+        f"postgres://cdc_shadow:{replication_password}@postgres:5432/medusa",
+})
