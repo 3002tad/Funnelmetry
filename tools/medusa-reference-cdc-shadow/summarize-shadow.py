@@ -73,9 +73,10 @@ sql = f"""
 SELECT 'order_status=' || o.status || ',currency=' || o.currency_code || ',cart=' || oc.cart_id || ',total=' || coalesce(s.totals->>'current_order_total','null')
 FROM public."order" o JOIN public.order_cart oc ON oc.order_id=o.id
 JOIN public.order_summary s ON s.order_id=o.id WHERE o.id='{order_id}';
-SELECT 'workflow=' || state FROM public.workflow_execution
+SELECT 'workflow=' || id || ',state=' || state FROM public.workflow_execution
 WHERE workflow_id='complete-cart' AND context #>> '{{data,payload,id}}' = '{cart_id}'
-ORDER BY created_at DESC LIMIT 1;
+  AND context::text LIKE '%{order_id}%'
+ORDER BY created_at, id;
 SELECT 'slot=' || slot_name || ',active=' || active || ',retained_bytes=' || coalesce(pg_wal_lsn_diff(pg_current_wal_lsn(),restart_lsn)::text,'null')
 FROM pg_replication_slots WHERE slot_name='funnelmetry_cdc_shadow';
 """

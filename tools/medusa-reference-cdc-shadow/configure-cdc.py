@@ -117,8 +117,10 @@ current = connect_rest()
 
 if CONNECTOR in current:
     active = connect_rest(f"/{CONNECTOR}/config")
-    if active != config:
-        raise SystemExit("connector exists with different config; refusing silent replacement")
+    mismatched = [key for key, value in config.items() if active.get(key) != value]
+    unexpected = sorted(set(active) - set(config) - {"name"})
+    if mismatched or unexpected:
+        raise SystemExit(f"connector differs at keys {mismatched}; unexpected keys {unexpected}; refusing silent replacement")
     print("preserved existing CDC shadow connector")
 else:
     connect_rest(payload={"name": CONNECTOR, "config": config})

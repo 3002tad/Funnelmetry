@@ -35,6 +35,16 @@ python3 configure-cdc.py
 docker compose -f compose.yml ps
 ```
 
+For the optional workflow-marker experiment, run
+`python3 configure-workflow-marker-probe.py` after the first connector is
+healthy. It uses the second shadow replication slot and publishes only seven
+non-context columns from `workflow_execution`. Run a *new* synthetic checkout
+after enabling it; `snapshot.mode=no_data` does not replay earlier workflows.
+Compare one cart/order with
+`python3 summarize-workflow-marker.py "$CART_ID" "$ORDER_ID"`.
+The observed result and the installed Medusa source-code check are in
+[the marker probe](MARKER_PROBE_2026-10-27.md).
+
 `prepare-private.py` makes mode-600 credentials and refuses a partial rerun.
 `clone-db.py` refuses a populated destination. `configure-cdc.py` creates a
 replication role and column-filtered publication **only in the shadow DB**, then
