@@ -83,3 +83,16 @@ Joining by cart alone is unsafe because a failed attempt leaves an
 
 No live Medusa source, database setting, publication, slot, subscriber or
 Pipeline canonical writer was changed by this probe.
+
+The later [logical WAL message transport probe](WAL_MESSAGE_PROBE_2026-10-27.md)
+showed that a synthetic `pg_logical_emit_message(true, ...)` reaches the main
+Debezium connector as `op=m` without a source table or column. This does not
+resolve the native-event-to-WAL-write gap above or make the marker atomic with
+the completed checkout workflow. The candidate source contract remains
+`UNVERIFIED` until an installer-generated subscriber and recovery path pass
+conformance testing.
+
+The subsequent [native-event WAL probe](NATIVE_WAL_MARKER_CONFORMANCE_2026-10-27.md)
+confirmed normal-path delivery but exposed a missing marker when the
+post-event WAL call failed. Even rethrowing did not retry the subscriber under
+the reference event-emission settings. This blocks sole-authority cutover.

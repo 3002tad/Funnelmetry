@@ -15,6 +15,62 @@ const storefrontServerBindings = new Set([
   "cart.item_added",
 ])
 const medusaBackendBindings = new Set(["medusa.order_placed"])
+const cdcShadowTables = [
+  "public.order:id,deleted_at",
+  "public.order_cart:id,order_id,cart_id",
+  "public.cart:id,completed_at",
+]
+
+function cdcIdentifier(value, name) {
+  const result = requiredString(value, name)
+  if (!/^[a-z][a-z0-9_]{2,62}$/.test(result)) throw new Error(`${name} must be a PostgreSQL/Kafka-safe identifier`)
+  return result
+}
+
+function cdcShadowProfile(value) {
+  if (value === undefined) return null
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("cdc_shadow must be a mapping")
+  const supportedKeys = new Set([
+    "mode", "profile", "source_db_url_ref", "source_owner", "pipeline_owner",
+    "snapshot_mode", "publication", "slot", "topic_prefix", "fact_topic",
+    "table_columns", "rollback_target",
+  ])
+  const unknownKeys = Object.keys(value).filter(key => !supportedKeys.has(key))
+  if (unknownKeys.length) throw new Error(`Unsupported cdc_shadow field(s): ${unknownKeys.join(", ")}`)
+  if (value.profile !== "reference.medusa.order_recorded_state.v1") {
+    throw new Error("cdc_shadow.profile must be reference.medusa.order_recorded_state.v1")
+  }
+  if (value.mode !== "shadow_only" || value.snapshot_mode !== "no_data" ||
+      value.rollback_target !== "native_order_placed") {
+    throw new Error("cdc_shadow requires shadow_only, no_data, and native_order_placed rollback target")
+  }
+  if (!Array.isArray(value.table_columns) || value.table_columns.length !== cdcShadowTables.length ||
+      new Set(value.table_columns).size !== cdcShadowTables.length ||
+      cdcShadowTables.some(table => !value.table_columns.includes(table))) {
+    throw new Error("cdc_shadow.table_columns must be the exact reference order-state allowlist")
+  }
+  const factTopic = requiredString(value.fact_topic, "cdc_shadow.fact_topic")
+  if (factTopic !== "cdc_shadow_reference.order_recorded_state.v1" ||
+      value.topic_prefix !== "cdc_shadow_medusa" ||
+      value.publication !== "funnelmetry_cdc_shadow" ||
+      value.slot !== "funnelmetry_cdc_shadow") {
+    throw new Error("cdc_shadow topic, publication, and slot must match the pinned reference shadow runtime")
+  }
+  return {
+    mode: value.mode,
+    profile: value.profile,
+    sourceDbUrlRef: secretReference(value.source_db_url_ref, "cdc_shadow.source_db_url_ref"),
+    sourceOwner: requiredString(value.source_owner, "cdc_shadow.source_owner"),
+    pipelineOwner: requiredString(value.pipeline_owner, "cdc_shadow.pipeline_owner"),
+    snapshotMode: value.snapshot_mode,
+    publication: cdcIdentifier(value.publication, "cdc_shadow.publication"),
+    slot: cdcIdentifier(value.slot, "cdc_shadow.slot"),
+    topicPrefix: cdcIdentifier(value.topic_prefix, "cdc_shadow.topic_prefix"),
+    factTopic,
+    tableColumns: cdcShadowTables,
+    rollbackTarget: value.rollback_target,
+  }
+}
 
 function requiredString(value, name) {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} is required`)
@@ -104,6 +160,7 @@ export function validateManifest(raw) {
       backendSigningKeyRef: secretReference(auth.backend_signing_key_ref, "auth.backend_signing_key_ref"),
     },
     bindings: { browser, storefrontServer, medusaBackend },
+    cdcShadow: cdcShadowProfile(raw.cdc_shadow),
     // Internal compatibility for the current generator. The public manifest
     // source of truth is the explicit bindings block above.
     frontend: { enabled: true, events: browser },

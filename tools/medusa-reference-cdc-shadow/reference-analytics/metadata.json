@@ -1,0 +1,61 @@
+{
+  "catalog_id": "cdc-shadow-reference-analytics",
+  "version": "1.0.0",
+  "status": "SHADOW_ONLY",
+  "pipeline_catalog_published": false,
+  "asset": {
+    "id": "asset.reference_medusa_order_recorded_current_state",
+    "version": "1.0.0",
+    "description": "One retractable current recorded-state per post-activation Medusa order; reference approximation only.",
+    "contract_id": "reference.medusa.order_recorded_state.v1",
+    "relation": "public.reference_order_current_state",
+    "grain": ["source_instance_id", "order_id"],
+    "primary_keys": ["source_instance_id", "order_id"],
+    "entities": ["source_instance", "order"],
+    "required_columns": {
+      "source_instance_id": "text",
+      "order_id": "text",
+      "cart_id": "text",
+      "active": "boolean",
+      "last_change_id": "text",
+      "last_topic_offset": "bigint"
+    },
+    "time_basis": "current_state_after_last_consumed_kafka_offset; observed_state_at is not order placement time",
+    "authority": "Derived from allowlisted committed Medusa CDC rows; not native order.placed authority.",
+    "dimensions": ["source_instance_id"],
+    "measures": ["measure.reference_currently_recorded_order_count"],
+    "relationships": [],
+    "supported_operations": ["current_count_by_source", "state_lookup", "transition_audit"],
+    "quality_requirements": ["REFERENCE_APPROXIMATE", "POST_ACTIVATION_ONLY", "Check mapper and sink lag before a current-state claim."],
+    "limitations": ["No historical conversion, amount, revenue, payment, shipment, or funnel completion claim."]
+  },
+  "execution_binding": {
+    "id": "binding.reference_medusa_order_recorded_current_state",
+    "version": "1.0.0",
+    "asset_id": "asset.reference_medusa_order_recorded_current_state",
+    "relation": "public.reference_order_current_state",
+    "source_key": "source_instance_id",
+    "entity_key": "order_id",
+    "state_filter": "active = true",
+    "allowed_predicates": ["source_instance_id", "active"],
+    "allowed_aggregations": ["count_rows"],
+    "read_only": true
+  },
+  "metric": {
+    "id": "metric.reference_currently_recorded_order_count",
+    "version": "1.0.0",
+    "display_name": "Đơn hiện được ghi nhận (tham chiếu)",
+    "asset_id": "asset.reference_medusa_order_recorded_current_state",
+    "formula": "COUNT(*) WHERE active = true GROUP BY source_instance_id",
+    "unit": "orders",
+    "unit_of_analysis": "order",
+    "time_basis": "current state at the sink's last applied Kafka offset; not an occurrence-time window",
+    "dimensions": ["source_instance_id"],
+    "filters": ["source_instance_id"],
+    "aggregation_rule": "count active rows at unique source_instance_id + order_id grain",
+    "minimum_data_requirements": ["Post-activation CDC coverage and complete ordered mapper END prefix."],
+    "quality_requirements": ["Show approximation and coverage labels; block authoritative or finalized conversion claims."],
+    "supported_operations": ["current_count_by_source"],
+    "status": "SHADOW_ONLY"
+  }
+}

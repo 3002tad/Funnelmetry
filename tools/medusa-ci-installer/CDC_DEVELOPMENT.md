@@ -1,20 +1,27 @@
 # Medusa CDC installer profile — development contract
 
-Status: **IN DEVELOPMENT / SHADOW ONLY** under DEC-135. Branch: `feature/cdc-medusa-v1` in both Streaming Pipeline and Medusa Reference. This document defines the intended installer behavior; no CDC runtime or CDC manifest schema is implemented yet.
+Status: **IN DEVELOPMENT / SHADOW ONLY** under DEC-119/135. Branch: `feature/cdc-medusa-v1` in both Streaming Pipeline and Medusa Reference. The manifest/profile/plan/verify/rollback-plan path below is implemented for the count-only reference state; privileged CDC runtime activation is a separate operator task.
 
 ## Ownership and inputs
 
-- Extend the existing `medusa-ci-installer` and its `funnelmetry.integration.yaml` input with a versioned business-acquisition profile. The current manifest/subscriber profile remains the default until conformance and cutover are approved.
+- The existing `medusa-ci-installer` accepts an optional `cdc_shadow` block in `funnelmetry.integration.yaml`. It generates only `funnelmetry/cdc-reference-shadow.json` in the Medusa integration branch. The native subscriber profile remains authoritative and required.
 - Keep browser SDK, consent, and storefront server search/cart hooks installed in every profile. The backend order subscriber is the only source-code binding eligible for later CDC replacement.
-- Inputs must identify the exact supported Medusa version/schema, approved source table/column set, Pipeline endpoint/network topology, secret references, snapshot policy, source owner, and rollback target. The manifest contains no DB password or replication token.
+- The pinned profile specifies Medusa 2.19.0, the exact `order`/`order_cart`/`cart` column allowlist, `no_data` snapshot, shadow publication/slot/topic names, source DB URL **secret reference**, source/Pipeline owners and native-subscriber rollback target. The manifest and generated artifact contain no DB password or replication token. The connector's actual private network and credentials are operator-owned runtime settings.
 - Source-side artifacts and Pipeline-side artifacts have separate owners: source PostgreSQL settings/role/publication and optional Compose overlay versus Kafka Connect/slot ownership, raw topics, mapper, offsets, monitoring, and shadow projection.
 
 ## Required installer flow
 
-1. `plan` validates the manifest and source version, inventories generated files and DB preconditions, and reports source footprint and rollback actions without changing runtime.
+1. `plan` validates the manifest and source version, generates the installer-owned CDC shadow JSON patch, and records operator preconditions without changing runtime.
 2. `apply` works only on a pre-created non-main integration branch. It generates/reconciles only installer-owned files, remains idempotent, and refuses partial/stale files it does not own. Privileged SQL and runtime deployment remain separately reviewed operator actions.
-3. `verify` checks generated patch integrity, browser/server hook preservation, source/connector configuration, schema contract, and dry-run rollback. Later conformance must prove CDC transaction → business fact equivalence against native `order.placed`.
-4. `rollback` reverses only installer-owned files. It must not drop a live replication slot, publication, raw topic, or credential until checkpoint/retention ownership and cutover policy authorize those changes.
+3. `verify` checks that the checked-out integration matches the manifest, including existing browser/storefront/native-subscriber files and the exact generated CDC profile. It does **not** claim runtime DB/connector conformance; use the separate shadow verifier for that.
+4. `rollback-plan` generates a deletion patch only for the exact installer-owned CDC profile. Drift fails closed. Runtime slots, publications, topics, volumes and credentials remain owned by operators and are never removed by this installer.
+
+The Medusa `funnelmetry-integration-propose.yml` workflow applies the patch on
+the already-created `feature/cdc-medusa-v1` branch or an existing
+`funnelmetry/integration/**` branch. It checks that the pinned planner SHA
+understands `cdc_shadow` before applying a patch; the GitHub repository variable
+`FUNNELMETRY_PLANNER_REF` must be updated to the reviewed commit before CI runs.
+No workflow merges or deploys the branch.
 
 ## Acquisition stages
 
@@ -24,8 +31,21 @@ Status: **IN DEVELOPMENT / SHADOW ONLY** under DEC-135. Branch: `feature/cdc-med
 | Shadow candidate | Native subscriber remains authoritative | Separate raw topics/projection; no canonical live conversion write |
 | CDC primary candidate | CDC mapper after explicit conformance and cutover decision | Versioned source mapping, effect identity, rollback checkpoint |
 
-The CDC mapper must distinguish snapshot `READ` records from new business occurrences and preserve raw change identity separately from the stable order-placement effect identity. If no database transition proves equivalence to the native event, the subscriber remains the order fact authority while CDC may supply entity state.
+The CDC mapper must distinguish snapshot `READ` records from new business occurrences and preserve raw change identity separately from the stable order-placement effect identity. If no database transition proves equivalence to the native event, the current adapter remains the **live** order fact authority until a CDC-only source contract passes conformance. The shadow [native-event WAL probe](../medusa-reference-cdc-shadow/NATIVE_WAL_MARKER_CONFORMANCE_2026-10-27.md) proved that post-event WAL emission can lose a marker when its write fails; this subscriber must not be generated as the sole-authority CDC binding without a durable commit/replay design. The eventual target still sends ecommerce data to Pipeline through CDC; browser HTTP is separate.
+
+The separate [reference state contract](../medusa-reference-cdc-shadow/REFERENCE_ORDER_RECORDED_STATE_CONTRACT_V1.md)
+has durable mapper and analytical sink evidence. DEC-119/135 now approve its
+retractable, post-activation **current-state** meaning and separate metric/profile
+identity for reference development. It is not a version of `order.placed` or
+an active Commerce Conversion terminal. The installer intentionally emits no
+canonical mapping or live funnel activation for it.
 
 ## First implementation gate
 
-Before adding manifest fields or installer code, record Medusa 2.19.x schema/workflow evidence for `order`, `order_cart`, `order_item`, `order_line_item`, and `order_summary`; compare successful, failed, retry, and rollback checkout cases with the native subscriber and Query Graph total. Select a shadow environment and source DB permissions explicitly. The current VPS reference has PostgreSQL 15.19 with `wal_level=replica` and no replication slot; no change to that live database is implied by this document.
+The first implementation gate is met for the **count-only shadow reference**:
+Medusa 2.19.0 schema and successful/failed/retried order behavior were probed
+in a separate PostgreSQL clone; a PostgreSQL inbox/outbox mapper and analytical
+sink passed ON/OFF, restart, full replay and duplicate checks. Live Medusa
+PostgreSQL remains outside this installer and has no CDC activation. Amount,
+currency, historical bootstrap, load/WAL budget, source-owned cancellation,
+and exact native `order.placed` equivalence remain open gates.

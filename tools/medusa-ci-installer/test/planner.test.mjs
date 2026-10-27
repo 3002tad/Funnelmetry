@@ -5,7 +5,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { validateManifest } from "../src/manifest.mjs"
-import { createPlan } from "../src/planner.mjs"
+import { createCdcRollbackPlan, createPlan, verifyIntegration } from "../src/planner.mjs"
 
 const rawManifest = {
   apiVersion: "funnelmetry.io/v2",
@@ -36,6 +36,81 @@ const rawManifest = {
   },
 }
 const manifest = validateManifest(rawManifest)
+
+function cdcShadowRawManifest() {
+  const raw = structuredClone(rawManifest)
+  raw.cdc_shadow = {
+    mode: "shadow_only",
+    profile: "reference.medusa.order_recorded_state.v1",
+    source_db_url_ref: "FUNNELMETRY_CDC_SHADOW_DATABASE_URL",
+    source_owner: "medusa-operator",
+    pipeline_owner: "pipeline-operator",
+    snapshot_mode: "no_data",
+    publication: "funnelmetry_cdc_shadow",
+    slot: "funnelmetry_cdc_shadow",
+    topic_prefix: "cdc_shadow_medusa",
+    fact_topic: "cdc_shadow_reference.order_recorded_state.v1",
+    table_columns: ["public.order:id,deleted_at", "public.order_cart:id,order_id,cart_id", "public.cart:id,completed_at"],
+    rollback_target: "native_order_placed",
+  }
+  return raw
+}
+
+test("CDC shadow manifest rejects authority, secret, and table-scope drift", () => {
+  const valid = validateManifest(cdcShadowRawManifest())
+  assert.equal(valid.cdcShadow.profile, "reference.medusa.order_recorded_state.v1")
+  assert.deepEqual(valid.bindings.medusaBackend, ["medusa.order_placed"])
+
+  for (const [field, value, pattern] of [
+    ["mode", "primary", /shadow_only/],
+    ["snapshot_mode", "initial", /no_data/],
+    ["source_db_url_ref", "postgres://password@source", /environment\/secret reference/],
+    ["fact_topic", "canonical.order.placed", /pinned reference shadow runtime/],
+  ]) {
+    const bad = cdcShadowRawManifest()
+    bad.cdc_shadow[field] = value
+    assert.throws(() => validateManifest(bad), pattern)
+  }
+  const missingDelete = cdcShadowRawManifest()
+  missingDelete.cdc_shadow.table_columns[0] = "public.order:id"
+  assert.throws(() => validateManifest(missingDelete), /exact reference order-state allowlist/)
+  const undeclaredActivation = cdcShadowRawManifest()
+  undeclaredActivation.cdc_shadow.activate_live = true
+  assert.throws(() => validateManifest(undeclaredActivation), /Unsupported cdc_shadow field/)
+})
+
+test("CDC shadow installer plans one owned file, verifies it, and produces guarded rollback", async (t) => {
+  let root
+  try { root = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-cdc-installer-")) }
+  catch (error) {
+    if (error?.code === "EPERM") { t.skip("temporary directory unavailable"); return }
+    throw error
+  }
+  try {
+    await cp(fixtureRoot, root, { recursive: true })
+    const configured = validateManifest(cdcShadowRawManifest())
+    const initial = await createPlan(root, configured)
+    assert.equal(initial.capabilities.cdcReferenceState, "SHADOW_ONLY")
+    assert.equal(initial.cdcShadowOperatorPlan.status, "SHADOW_ONLY_NO_RUNTIME_ACTIVATION")
+    assert.match(initial.patch, /funnelmetry\/cdc-reference-shadow\.json/)
+    assert.match(initial.patch, /"order_fact_authority": "medusa\.order_placed"/)
+    assert.doesNotMatch(initial.patch, /postgres:\/\//)
+    await applyWholeFilePatch(root, initial.patch)
+    const installed = await readFile(path.join(root, "funnelmetry/cdc-reference-shadow.json"), "utf8")
+    assert.equal(JSON.parse(installed).status, "SHADOW_ONLY")
+    assert.equal((await createPlan(root, configured)).patch, "")
+    assert.equal((await verifyIntegration(root, configured)).cdcReferenceState, "SHADOW_ONLY")
+    const rollback = await createCdcRollbackPlan(root, configured)
+    assert.deepEqual(rollback.changes.map(change => change.path), ["funnelmetry/cdc-reference-shadow.json"])
+    assert.match(rollback.patch, /deleted file mode 100644/)
+    assert.ok(!rollback.patch.includes("apps/backend/src/subscribers"))
+    await writeFile(path.join(root, "funnelmetry/cdc-reference-shadow.json"), installed.replace("SHADOW_ONLY", "LIVE"))
+    await assert.rejects(() => createPlan(root, configured), /differs/)
+    await assert.rejects(() => createCdcRollbackPlan(root, configured), /drifted/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
 
 const fixtureRoot = fileURLToPath(new URL("./fixtures/medusa-dtc/", import.meta.url))
 const fixtureFiles = [

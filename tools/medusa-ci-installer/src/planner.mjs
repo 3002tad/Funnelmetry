@@ -26,6 +26,7 @@ const generatedPaths = {
   managedDeliveryDispatcher: "apps/backend/src/funnelmetry/managed-delivery-dispatcher.ts",
   occurredAt: "apps/backend/src/funnelmetry/occurred-at.ts",
   orderPlacedSubscriber: "apps/backend/src/subscribers/funnelmetry-order-placed.ts",
+  cdcShadowProfile: "funnelmetry/cdc-reference-shadow.json",
 }
 
 const packageVersions = {
@@ -578,6 +579,68 @@ function wholeFilePatch(file, before, after) {
   return `${header}${[...removed, ...added].join("\n")}\n`
 }
 
+function deletedFilePatch(file, before) {
+  const lines = before.replace(/\n$/, "").split("\n")
+  return `diff --git a/${file} b/${file}\ndeleted file mode 100644\n--- a/${file}\n+++ /dev/null\n@@ -1,${lines.length} +0,0 @@\n${lines.map(line => `-${line}`).join("\n")}\n`
+}
+
+function cdcShadowArtifact(manifest) {
+  if (!manifest.cdcShadow) return null
+  return `${JSON.stringify({
+    schema_version: "funnelmetry-medusa-cdc-reference-shadow.v1",
+    generated_by: "funnelmetry-medusa-ci",
+    status: "SHADOW_ONLY",
+    source_id: manifest.source.id,
+    medusa_version: manifest.host.medusaVersion,
+    order_fact_authority: "medusa.order_placed",
+    canonical_live_event: "order.placed",
+    cdc_reference_contract: manifest.cdcShadow.profile,
+    source_db_url_ref: manifest.cdcShadow.sourceDbUrlRef,
+    source_owner: manifest.cdcShadow.sourceOwner,
+    pipeline_owner: manifest.cdcShadow.pipelineOwner,
+    snapshot_mode: manifest.cdcShadow.snapshotMode,
+    publication: manifest.cdcShadow.publication,
+    slot: manifest.cdcShadow.slot,
+    topic_prefix: manifest.cdcShadow.topicPrefix,
+    fact_topic: manifest.cdcShadow.factTopic,
+    table_columns: manifest.cdcShadow.tableColumns,
+    rollback_target: manifest.cdcShadow.rollbackTarget,
+    runtime_activation: "OPERATOR_CONTROLLED_SEPARATE_FROM_INSTALLER",
+  }, null, 2)}\n`
+}
+
+async function cdcShadowChange(projectRoot, manifest) {
+  const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcShadowProfile)
+  const expected = cdcShadowArtifact(manifest)
+  if (!expected) {
+    if (current !== null) throw new Error("Existing CDC shadow profile requires cdc_shadow manifest or explicit rollback plan")
+    return null
+  }
+  if (current === null) return { path: generatedPaths.cdcShadowProfile, before: null, after: expected }
+  if (normalizedText(current) !== normalizedText(expected)) {
+    throw new Error("Existing CDC shadow profile differs; use explicit rollback plan before changing it")
+  }
+  return null
+}
+
+function cdcShadowOperatorPlan(manifest) {
+  if (!manifest.cdcShadow) return null
+  return {
+    status: "SHADOW_ONLY_NO_RUNTIME_ACTIVATION",
+    sourceOwner: manifest.cdcShadow.sourceOwner,
+    pipelineOwner: manifest.cdcShadow.pipelineOwner,
+    sourceDbUrlRef: manifest.cdcShadow.sourceDbUrlRef,
+    preconditions: [
+      "Verify a separate PostgreSQL clone or explicitly authorized source DB and logical WAL",
+      "Verify the exact publication table/column allowlist and replication role with the source owner",
+      "Verify a separate Debezium slot, connector, Kafka namespace, mapper state and analytical sink",
+      "Reconcile post-activation coverage, compensation, soft delete, duplicate/replay and source lag",
+    ],
+    rollback: "Remove only the generated profile by rollback-plan; stop shadow consumers separately; retain slots/topics/volumes until their owners approve cleanup",
+    liveOrderAuthority: "medusa.order_placed -> order.placed",
+  }
+}
+
 async function readProjectFile(projectRoot, relativePath) {
   return readFile(path.join(projectRoot, relativePath), "utf8")
 }
@@ -826,8 +889,11 @@ export async function createPlan(projectRoot, manifest) {
       : await readProjectFile(projectRoot, relativePath)
   }
 
+  originals[generatedPaths.cdcShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcShadowProfile)
+
   const semanticSupported = [originals[paths.cartData], originals[paths.storeSearch], originals[paths.storePage], originals[paths.storeTemplate], originals[paths.paginatedProducts]].every((value) => value !== null)
   const existing = await existingIntegration(projectRoot, originals, manifest)
+  const cdcChange = await cdcShadowChange(projectRoot, manifest)
   const cartItemDeclared = manifest.bindings.storefrontServer.includes("cart.item_added")
   const searchDeclared = manifest.bindings.storefrontServer.includes("behavior.search_submitted")
   const orderPlacedDeclared = manifest.bindings.medusaBackend.includes("medusa.order_placed")
@@ -840,6 +906,7 @@ export async function createPlan(projectRoot, manifest) {
       host,
       manifest,
       sourceFingerprint: sourceFingerprint(originals),
+      cdcShadowOperatorPlan: cdcShadowOperatorPlan(manifest),
       capabilities: {
         behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
         orderPlaced: orderPlacedDeclared ? "ENABLED" : "DISABLED",
@@ -850,9 +917,10 @@ export async function createPlan(projectRoot, manifest) {
         commerceConversion: orderPlacedDeclared ? "SOURCE_READY" : "DISABLED",
         payment: "NOT_REQUESTED",
         refund: "NOT_REQUESTED",
+        cdcReferenceState: manifest.cdcShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
       },
-      changes: [],
-      patch: "",
+      changes: cdcChange ? [{ path: cdcChange.path, ownership: "funnelmetry-installer" }] : [],
+      patch: cdcChange ? wholeFilePatch(cdcChange.path, cdcChange.before, cdcChange.after) : "",
     }
   }
 
@@ -990,6 +1058,8 @@ export async function createPlan(projectRoot, manifest) {
     )
   }
 
+  if (cdcChange) changes.push(cdcChange)
+
   const effectiveChanges = changes.filter(({ before, after }) => before === null || normalizedText(before) !== normalizedText(after))
   return {
     schemaVersion: "funnelmetry-ci-plan.v2",
@@ -999,6 +1069,7 @@ export async function createPlan(projectRoot, manifest) {
     host,
     manifest,
     sourceFingerprint: sourceFingerprint(originals),
+    cdcShadowOperatorPlan: cdcShadowOperatorPlan(manifest),
     capabilities: {
       behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
       orderPlaced: orderPlacedDeclared ? "ENABLED" : "DISABLED",
@@ -1009,8 +1080,42 @@ export async function createPlan(projectRoot, manifest) {
       commerceConversion: orderPlacedDeclared ? "SOURCE_READY" : "DISABLED",
       payment: "NOT_REQUESTED",
       refund: "NOT_REQUESTED",
+      cdcReferenceState: manifest.cdcShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
     },
     changes: effectiveChanges.map(({ path: file }) => ({ path: file, ownership: "funnelmetry-installer" })),
     patch: effectiveChanges.map(({ path: file, before, after }) => wholeFilePatch(file, before, after)).join(""),
+  }
+}
+
+export async function verifyIntegration(projectRoot, manifest) {
+  const plan = await createPlan(projectRoot, manifest)
+  if (plan.changes.length) {
+    throw new Error(`Integration differs from manifest at ${plan.changes.map(change => change.path).join(", ")}`)
+  }
+  return {
+    status: "pass",
+    sourceMutation: false,
+    integrationState: plan.integrationState,
+    cdcReferenceState: plan.capabilities.cdcReferenceState,
+    sourceFingerprint: plan.sourceFingerprint,
+    runtimeConformance: "NOT_CHECKED_BY_INSTALLER",
+  }
+}
+
+export async function createCdcRollbackPlan(projectRoot, manifest) {
+  if (!manifest.cdcShadow) throw new Error("rollback-plan requires a cdc_shadow manifest")
+  await inspectMedusa(projectRoot, manifest)
+  const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcShadowProfile)
+  const expected = cdcShadowArtifact(manifest)
+  if (current === null || normalizedText(current) !== normalizedText(expected)) {
+    throw new Error("CDC shadow profile is missing or has drifted; refusing rollback patch")
+  }
+  return {
+    schemaVersion: "funnelmetry-ci-rollback.v1",
+    mode: "rollback-plan-only",
+    sourceMutation: false,
+    retainedRuntimeResources: ["replication_slot", "publication", "kafka_topics", "postgresql_volumes", "credentials"],
+    changes: [{ path: generatedPaths.cdcShadowProfile, ownership: "funnelmetry-installer" }],
+    patch: deletedFilePatch(generatedPaths.cdcShadowProfile, current),
   }
 }

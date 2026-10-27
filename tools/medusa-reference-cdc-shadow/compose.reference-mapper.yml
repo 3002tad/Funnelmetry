@@ -1,0 +1,25 @@
+# Optional CDC reference projection. Independent Postgres volume, no host ports.
+services:
+  reference-projection-db:
+    image: postgres:15-alpine
+    env_file: ./private/reference-projection-db.env
+    volumes:
+      - reference-projection-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U reference_mapper -d reference_projection"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [shadow]
+
+  reference-mapper:
+    build: ./reference-mapper
+    env_file: ./private/reference-mapper.env
+    depends_on:
+      reference-projection-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [shadow]
+
+volumes:
+  reference-projection-data:

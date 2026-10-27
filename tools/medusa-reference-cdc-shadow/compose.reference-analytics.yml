@@ -1,0 +1,25 @@
+# Optional analytical sink for the reference fact topic; no host ports.
+services:
+  reference-analytics-db:
+    image: postgres:15-alpine
+    env_file: ./private/reference-analytics-db.env
+    volumes:
+      - reference-analytics-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U reference_analytics -d reference_analytics"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [shadow]
+
+  reference-analytics-sink:
+    build: ./reference-analytics
+    env_file: ./private/reference-analytics-sink.env
+    depends_on:
+      reference-analytics-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [shadow]
+
+volumes:
+  reference-analytics-data:

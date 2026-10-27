@@ -3,10 +3,10 @@ import { mkdir, realpath, writeFile } from "node:fs/promises"
 import path from "node:path"
 import process from "node:process"
 import { loadManifest } from "./manifest.mjs"
-import { createPlan, inspectMedusa } from "./planner.mjs"
+import { createCdcRollbackPlan, createPlan, inspectMedusa, verifyIntegration } from "./planner.mjs"
 
 function usage() {
-  return `Usage:\n  funnelmetry-medusa-ci plan --config <manifest.yaml> --project <medusa-checkout> --out <artifact-dir>\n  funnelmetry-medusa-ci doctor --config <manifest.yaml> --project <medusa-checkout>\n\nThis CI prototype never writes to the Medusa checkout.\n`
+  return `Usage:\n  funnelmetry-medusa-ci plan --config <manifest.yaml> --project <medusa-checkout> --out <artifact-dir>\n  funnelmetry-medusa-ci verify --config <manifest.yaml> --project <medusa-checkout>\n  funnelmetry-medusa-ci rollback-plan --config <manifest.yaml> --project <medusa-checkout> --out <artifact-dir>\n  funnelmetry-medusa-ci doctor --config <manifest.yaml> --project <medusa-checkout>\n\nThe CLI never writes to the Medusa checkout or removes runtime CDC resources.\n`
 }
 
 function args(argv) {
@@ -52,17 +52,26 @@ async function main() {
     process.stdout.write(`${JSON.stringify({ status: "pass", sourceMutation: false, host, sourceId: manifest.source.id }, null, 2)}\n`)
     return
   }
-  if (command !== "plan") throw new Error(`Unsupported command '${command}'. Only plan and doctor are available.`)
+  if (command === "verify") {
+    process.stdout.write(`${JSON.stringify(await verifyIntegration(project, manifest), null, 2)}\n`)
+    return
+  }
+  if (command !== "plan" && command !== "rollback-plan") {
+    throw new Error(`Unsupported command '${command}'. Use plan, verify, rollback-plan, or doctor.`)
+  }
 
   const output = required(options, "out")
   await ensureArtifactOutsideProject(project, output)
-  const plan = await createPlan(project, manifest)
+  const plan = command === "plan"
+    ? await createPlan(project, manifest)
+    : await createCdcRollbackPlan(project, manifest)
   await mkdir(output, { recursive: true })
+  const patchName = command === "plan" ? "integration.patch" : "rollback.patch"
   await Promise.all([
     writeFile(path.join(output, "integration-plan.json"), `${JSON.stringify({ ...plan, patch: undefined }, null, 2)}\n`),
-    writeFile(path.join(output, "integration.patch"), plan.patch),
+    writeFile(path.join(output, patchName), plan.patch),
   ])
-  process.stdout.write(`${JSON.stringify({ status: "planned", sourceMutation: false, artifactDirectory: output, changes: plan.changes }, null, 2)}\n`)
+  process.stdout.write(`${JSON.stringify({ status: command === "plan" ? "planned" : "rollback_planned", sourceMutation: false, artifactDirectory: output, changes: plan.changes }, null, 2)}\n`)
 }
 
 main().catch((error) => {

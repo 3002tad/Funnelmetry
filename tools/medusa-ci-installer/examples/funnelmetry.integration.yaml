@@ -28,6 +28,23 @@ bindings:
   medusa_backend:
     - medusa.order_placed
 
+cdc_shadow:
+  mode: shadow_only
+  profile: reference.medusa.order_recorded_state.v1
+  source_db_url_ref: FUNNELMETRY_CDC_SHADOW_DATABASE_URL
+  source_owner: medusa-operator
+  pipeline_owner: pipeline-operator
+  snapshot_mode: no_data
+  publication: funnelmetry_cdc_shadow
+  slot: funnelmetry_cdc_shadow
+  topic_prefix: cdc_shadow_medusa
+  fact_topic: cdc_shadow_reference.order_recorded_state.v1
+  table_columns:
+    - public.order:id,deleted_at
+    - public.order_cart:id,order_id,cart_id
+    - public.cart:id,completed_at
+  rollback_target: native_order_placed
+
 reliability:
   failure_mode: fail_open
   timeout_ms: 800

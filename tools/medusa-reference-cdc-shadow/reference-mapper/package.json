@@ -1,0 +1,16 @@
+{
+  "name": "funnelmetry-cdc-shadow-reference-mapper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node main.mjs"
+  },
+  "dependencies": {
+    "kafkajs": "2.2.4",
+    "pg": "8.13.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

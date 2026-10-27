@@ -44,6 +44,41 @@ Compare one cart/order with
 `python3 summarize-workflow-marker.py "$CART_ID" "$ORDER_ID"`.
 The observed result and the installed Medusa source-code check are in
 [the marker probe](MARKER_PROBE_2026-10-27.md).
+The separate [logical WAL message probe](WAL_MESSAGE_PROBE_2026-10-27.md)
+tests CDC transport for a synthetic business marker without changing source
+tables. It does not implement or validate the Medusa subscriber.
+The [native-event WAL conformance probe](NATIVE_WAL_MARKER_CONFORMANCE_2026-10-27.md)
+uses the opt-in `compose.wal-probe.yml` overlay to bind-mount a shadow-only subscriber and tests success, compensation, retry,
+connector downtime and an injected source-side failure. It found a lost-marker
+case, so the post-event WAL hook cannot yet replace the adapter.
+The [verification-point audit](ORDER_CDC_VERIFICATION_POINT_AUDIT_2026-10-27.md)
+checks other Medusa PostgreSQL and workflow candidates, and separates a
+retractable order-state projection from the native placement event.
+The [order-state gate probe](ORDER_STATE_GATE_PROBE_2026-10-27.md) replays seven
+synthetic shadow orders through `evaluate-order-state-gate.py` and compares
+`ON`/`OFF` corrections with the native event and final DB state. It does not
+authorize replacing the existing `order.placed` terminal event.
+For the optional soft-delete follow-up, run
+`python3 configure-order-state-gate-publication.py` in this isolated directory
+before `evaluate-order-state-gate.py`. This adds `order.deleted_at` only to the
+shadow publication; the [soft-delete probe](ORDER_STATE_SOFT_DELETE_PROBE_2026-10-27.md)
+records the resulting `ON→OFF` transition and its semantic limit.
+The [reference order-state contract candidate](REFERENCE_ORDER_RECORDED_STATE_CONTRACT_V1.md)
+records the dedup, full replay, serialized checkpoint, reversed cross-topic
+arrival, missing-row recovery and shadow connector restart checks. Run
+`verify-order-reference-contract.py order_ID:cart_ID [...]` only for synthetic
+shadow pairs after the `deleted_at` publication step. This is a count-only
+current-state reference proposal, not a live canonical `order.placed` mapping.
+
+To repeat only this probe, use
+`docker compose -f compose.yml -f compose.wal-probe.yml up -d --no-deps backend`,
+then run the synthetic checkout commands below and
+`python3 summarize-wal-markers.py "$ORDER_ID"`. The optional environment
+variable `SHADOW_WAL_PROBE_FAIL_BEFORE_EMIT` accepts `1` (swallow injected
+failure) or `throw-once` (rethrow a one-time injected failure); both are for
+isolated fault tests only. Remove the overlay from the Compose invocation and
+run `docker compose -f compose.yml up -d --no-deps backend` to restore the
+regular shadow backend. The overlay does not belong on the live Medusa stack.
 
 `prepare-private.py` makes mode-600 credentials and refuses a partial rerun.
 `clone-db.py` refuses a populated destination. `configure-cdc.py` creates a
@@ -95,13 +130,49 @@ failed checkout, where the associated `order` row is absent. Only synthetic
 IDs should be passed to these commands. See
 [the 2026-10-27 validation](VALIDATION_2026-10-27.md) for observed results.
 
+## Optional durable reference mapper
+
+The optional durable reference mapper uses `compose.reference-mapper.yml` and
+its own PostgreSQL volume. Run `python3 prepare-reference-mapper-private.py`,
+then `docker compose -f compose.yml -f compose.reference-mapper.yml up -d --build
+reference-projection-db reference-mapper` and `python3 verify-reference-mapper.py`.
+It persists an allowlisted CDC inbox, END checkpoints, state and fact outbox;
+output to `cdc_shadow_reference.order_recorded_state.v1` is at least once with
+stable `fact_change_id`. See [runtime evidence](REFERENCE_MAPPER_RUNTIME_EVIDENCE_2026-10-27.md).
+This count-only shadow projection does not replace the Backend Adapter.
+
+## Optional analytical sink and metadata
+
+The `compose.reference-analytics.yml` overlay consumes the reference fact
+topic into a second PostgreSQL volume. It stores the ON/OFF audit, one current
+row per source/order, and a versioned shadow-only semantic definition with a
+physical binding. Start it on the trusted VPS after the mapper is running:
+
+```bash
+python3 prepare-reference-analytics-private.py
+docker compose -f compose.yml -f compose.reference-mapper.yml -f compose.reference-analytics.yml up -d --build reference-analytics-db reference-analytics-sink
+python3 verify-reference-analytics.py
+```
+
+The metric counts only approximate current `active=true` reference orders.
+See [analytical sink evidence](REFERENCE_ANALYTICS_RUNTIME_EVIDENCE_2026-10-27.md).
+For a physical duplicate-delivery test, run
+`SHADOW_DUPLICATE_FACT_PROBE=1 python3 probe-reference-fact-duplicate.py`;
+this writes one duplicate only to the shadow Kafka topic.
+
 ## Stop / cleanup
 
 `docker compose -f compose.yml down` stops the experiment but retains volumes
 and connector state for inspection. Once evidence has been archived and the
 operator explicitly chooses to discard the experiment, `docker compose -f
 compose.yml down -v` removes **only this Compose project's** containers, network
-and three shadow volumes. The `private/` directory holds disposable credentials
+and its base shadow volumes. If the optional reference mapper is running, use
+both files in the stop command: `docker compose -f compose.yml -f
+compose.reference-mapper.yml down`; include `-v` only when deliberately
+discarding its separate projection volume too. When the analytical overlay is
+active, include `-f compose.reference-analytics.yml` in the same command to
+stop its service; `-v` also discards that analytical volume. The `private/`
+directory holds disposable credentials
 and is not tracked by Git. Do not point either command at the Medusa or Pipeline
 live Compose/Swarm projects.
 

@@ -1,0 +1,7 @@
+# Opt-in shadow-only native event → WAL subscriber. Never use on the live stack.
+services:
+  backend:
+    environment:
+      SHADOW_WAL_PROBE_FAIL_BEFORE_EMIT: ${SHADOW_WAL_PROBE_FAIL_BEFORE_EMIT:-0}
+    volumes:
+      - ./shadow-order-placed-wal.cjs:/app/apps/backend/.medusa/server/src/subscribers/funnelmetry-cdc-wal-shadow.js:ro
