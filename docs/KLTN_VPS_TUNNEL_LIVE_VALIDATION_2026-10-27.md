@@ -4,8 +4,8 @@ Status: **deployed for development/demo; scoped runtime validation passed**. Thi
 
 ## Deployment boundaries
 
-- Medusa and Source Ingress run separately under Docker Compose on the same VPS. Their host origins bind to loopback (`shop/store:8000`, `api:9000`, `ingest:32000`).
-- Cloudflare Tunnel `kltn-vps` routes `shop.entidi.io.vn`, `store.entidi.io.vn`, `api.entidi.io.vn`, `ingest.entidi.io.vn`, and `analyst.entidi.io.vn`. Both storefront hostnames target HTTP `localhost:8000`; the analyst route targets HTTP `localhost:31080`. Cloudflare provides public HTTPS.
+- Medusa and Source Ingress run separately under Docker Compose on the same VPS. Their host origins bind to loopback (`shop:8000`, `api:9000`, `ingest:32000`).
+- Cloudflare Tunnel `kltn-vps` routes `shop.entidi.io.vn`, `api.entidi.io.vn`, `ingest.entidi.io.vn`, and `analyst.entidi.io.vn`. The storefront hostname targets HTTP `localhost:8000`; the analyst route targets HTTP `localhost:31080`. Cloudflare provides public HTTPS.
 - Pipeline uses the `funnelmetry_vps_live` single-node Swarm stack at `/srv/KLTN/Funnelmetry`, source commit `0de191b`. `runtime/deploy.env` and all credentials are ignored/local. The Feed ID and initial cursor were observed before deployment: `22c74ac3-fc46-4b3a-bc65-d4c9e117453e`, `after_seq=0`, retention floor `0`.
 - `SWARM_TLS_MODE=tunnel` uses the HTTP origin edge. The Swarm host-published port is restricted from `eth0` by the Docker-aware IPv4/IPv6 rules in `infra/firewall/restrict-tunnel-origin.sh`, installed as `funnelmetry-origin-firewall.service`. Do not rely on UFW alone for Docker published ports.
 
@@ -19,12 +19,13 @@ Status: **deployed for development/demo; scoped runtime validation passed**. Thi
 6. Edge browser test: after closing the storefront tracking notice, Source Event Feed advanced from sequence `0` to `2`. Connector cursor advanced to `2`. Pipeline PostgreSQL contained one `behavior.page_viewed` and one `promotion.banner_impression` canonical event. The browser session was closed.
 7. Storefront hostname migration check: `shop.entidi.io.vn` and `store.entidi.io.vn` both returned HTTP 200. The rebuilt Medusa storefront emitted canonical links with the `shop` hostname. Medusa Store API and Source Ingress CORS preflights returned HTTP 204 for both origins. A fresh Edge session on `shop` accepted tracking; the HTTPS Feed reached sequence `11`, the connector cursor reached `11`, and canonical counts included three `behavior.page_viewed`, five `behavior.scroll_depth_reached`, and three `promotion.banner_impression` events. These counts include prior checks on both hostnames; they are not a single-session event inventory.
 
-## Storefront hostname transition
+## Storefront hostname cutover
 
-- `shop.entidi.io.vn` is the intended public storefront hostname. The old `store.entidi.io.vn` route remains active during transition; no Cloudflare redirect or DNS removal has been applied.
+- `shop.entidi.io.vn` is the sole public storefront hostname after the 2026-10-27 cutover. The operator removed the `store.entidi.io.vn` published application route and its DNS record from Cloudflare. The old hostname no longer resolved from the VPS during validation; no redirect remains.
 - The Medusa runtime builds and runs the storefront with `NEXT_PUBLIC_BASE_URL=https://shop.entidi.io.vn`. This setting was added to the versioned Compose/Dockerfile configuration in Medusa Reference; the VPS value is in ignored `runtime/.env.local`.
-- The VPS Medusa runtime override allows both storefront origins in `STORE_CORS` and `AUTH_CORS`. The Source Ingress browser-key allowlist also permits both origins. The latter is stored in ignored `apps/edge-relay/deploy/source-ingress.server.env`; neither credential nor browser key is in this document.
-- Existing carts, login cookies, and tracking consent are scoped to the old hostname/browser origin. A visitor moving to `shop` starts a separate browser state. Keep the old route available while active sessions finish; plan any redirect as a separate cutover.
+- The VPS Medusa runtime override allows only `shop` in `STORE_CORS` and allows `api` plus `shop` in `AUTH_CORS`. The Source Ingress browser-key allowlist permits only `shop`. The latter is stored in ignored `apps/edge-relay/deploy/source-ingress.server.env`; neither credential nor browser key is in this document.
+- After restarting only the Medusa backend and Source Ingress, `shop`, `api`, `ingest`, and `analyst` returned HTTP 200. Medusa Store API and Source Ingress preflights from `shop` returned HTTP 204 with `Access-Control-Allow-Origin: https://shop.entidi.io.vn`. The old `store` origin received no allow-origin header from Medusa and HTTP 403 from Source Ingress.
+- Existing carts, login cookies, and tracking consent scoped to `store.entidi.io.vn` do not transfer to `shop.entidi.io.vn`. Visitors to `shop` start a separate browser state. To reverse this cutover, restore the old Cloudflare route/DNS and both server-side origin allowlists; no database migration is involved.
 
 ## Limits and follow-up
 
