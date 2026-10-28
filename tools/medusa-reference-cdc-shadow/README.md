@@ -1,5 +1,46 @@
 # Medusa CDC shadow experiment
 
+## Separate catalog/master-data shadow
+
+The Medusa integration manifest now declares
+`reference.medusa.catalog_master_data.v1` separately from the approved
+`order_recorded_state.v1` profile. The CI planner emits
+`funnelmetry/cdc-catalog-shadow.json` with an exact four-table/column allowlist
+for products, variants, categories and category links. It uses an **initial
+snapshot** so pre-existing products are present before streaming later WAL
+changes. The operator-side `install-catalog-shadow.py` creates a distinct
+private role/publication/slot/connector; `catalog-projector` writes a keyed
+current-state projection, audit and input offsets in a separate database.
+
+On an isolated clone only, prepare the existing `compose.yml` services and
+private credentials, then run:
+
+```bash
+export COMPOSE_PROJECT_NAME=funnelmetry_cdc_catalog_shadow_catalog1
+python3 prepare-private.py
+python3 prepare-catalog-private.py
+python3 prepare-catalog-projection-private.py
+docker compose -f compose.yml up -d postgres
+python3 clone-db.py
+docker compose -f compose.yml up -d kafka connect
+python3 install-catalog-shadow.py plan --profile ./cdc-catalog-shadow.json
+python3 install-catalog-shadow.py apply --profile ./cdc-catalog-shadow.json
+docker compose -f compose.yml -f compose.catalog-projection.yml up -d --build \
+  catalog-projection-db catalog-projector
+python3 install-catalog-shadow.py verify --profile ./cdc-catalog-shadow.json
+python3 verify-catalog-shadow.py --timeout-seconds 90
+python3 probe-catalog-shadow.py --timeout-seconds 90
+```
+
+Use a fresh copy of this directory and its own Compose project/volumes; never
+reuse the order-state shadow project or connect to live PostgreSQL. The probe
+**modifies the clone** and restores its selected records. Rollback deletes only
+the owned connector and retains slot/topics/volumes for replay:
+`python3 install-catalog-shadow.py rollback --profile ./cdc-catalog-shadow.json`.
+See [catalog snapshot/stream evidence](CATALOG_CDC_SHADOW_EVIDENCE_2026-10-28.md)
+and [inventory/price stage-2 scope](CATALOG_CDC_STAGE2_SCOPE.md). This profile
+does not switch the live Dashboard or stop `catalog-sync`.
+
 This is a **disposable, isolated conformance environment** for DEC-135/136. It
 uses a logical dump of the running Medusa PostgreSQL database to avoid changing
 the live database's `wal_level=replica` setting. It starts a private PostgreSQL
@@ -17,7 +58,9 @@ profile. It installs only the approved three-table/seven-column
 `reference.medusa.order_recorded_state.v1` path into this private Compose stack.
 It refuses changed profile fields, a non-shadow project, published ports,
 non-internal networks, a broad/drifted publication or connector, and orphaned
-slots. It leaves the native subscriber and all live Pipeline resources alone.
+slots. An already owned installation also refuses a missing slot or unsafe WAL
+status instead of silently creating a new slot. It leaves the native subscriber
+and all live Pipeline resources alone.
 
 Use a **fresh copy of this directory with its own `private/` and Docker volumes**
 for each installer rehearsal. The earlier six-table experimental publication
@@ -65,7 +108,56 @@ inspection and replay. An owned `STOPPED` installation may be applied again
 with the same profile and private Kafka volumes; this path passed an isolated
 rollback→apply→verify VPS rehearsal. Destructive cleanup is a separate
 operator decision. See [installer runtime evidence](INSTALLER_RUNTIME_EVIDENCE_2026-10-27.md)
-for the fresh-clone checkout and rollback results.
+for the fresh-clone checkout and rollback results, and
+[post-resume data evidence](INSTALLER_RESUME_DATA_EVIDENCE_2026-10-28.md) for
+the fact/offset comparison after `rollback → apply`.
+The [controlled outage and slot-loss evidence](CDC_RECOVERY_FAULT_EVIDENCE_2026-10-28.md)
+records the separate recovery probe. A lost slot requires operator-controlled
+reconciliation; do not delete the installer ownership record or create a new
+slot and continue with `snapshot.mode=no_data` as though capture were continuous.
+The mapper/sink verifier scripts validate projected data and offsets, but do
+not by themselves prove that every source checkout has arrived.
+
+### CDC-10 fault and load probes
+
+The [2026-10-28 CDC-10 evidence](CDC10_LAG_LOAD_RETENTION_EVIDENCE_2026-10-28.md)
+adds a source-transaction catch-up gate, a six-minute Connect outage, bounded
+synthetic checkout load and a real lost-slot test on a **separate disposable
+clone**. `verify-cdc-catchup.py` accepts `--expect-order` for each fresh
+synthetic order and optional `--baseline-lsn` captured **before** the workload.
+It checks the source row versions' transaction IDs against processed Debezium
+END records and the mapper/sink state. Do not pass a post-checkout
+`pg_current_wal_lsn()` as a required flush point: that can include unrelated
+WAL beyond the last captured transaction.
+
+`probe-cdc10-bounded-outage.py` and `probe-cdc10-load.py` require
+`COMPOSE_PROJECT_NAME=funnelmetry_cdc_shadow_cdc10` and bounded order counts.
+They restore Connect after a successful or failed workload. The retention
+probe also requires that exact project and a 256 MB slot cap; it deliberately
+invalidates the clone's slot and leaves Connect stopped when lost. Do not run
+it against the pre-existing shadow project, a live source, or a source whose
+data must be retained. The resulting clone is not safe to apply/restart using
+the same `no_data` lineage. Its volumes are retained until the operator
+explicitly decides how to archive or discard them.
+
+These probes establish only bounded shadow observations. A versioned
+snapshot/rebuild procedure after actual slot loss is still required before
+CDC-10 can be marked complete or the reference path can be activated live.
+
+The operator selected an explicit-gap, new-snapshot-epoch recovery policy.
+[`probe-cdc10-rebaseline.py`](probe-cdc10-rebaseline.py) rehearses this on the
+retained lost-slot clone using a fresh connector, slot and topic prefix. It
+requires `COMPOSE_PROJECT_NAME=funnelmetry_cdc_shadow_cdc10` and keeps the
+old lineage intact. Run `setup` once with only postgres, Kafka and Connect
+running; the snapshot must have an exact seven-column Debezium
+`column.include.list` and source role grants on those same columns. Keep the
+backend stopped while `baseline` compares all selected rows against source.
+After `BASELINE_VERIFIED`, start the clone backend and perform one synthetic
+checkout; run `transition --expect-order order_ID`, then restart Connect and
+repeat to check deterministic current state. See
+[epoch 2 evidence](CDC10_REBASELINE_EVIDENCE_2026-10-28.md). This is an
+in-memory semantic probe; it does not install a durable epoch 2 mapper/sink,
+publish a metric or mark CDC-10 complete.
 
 ## Preconditions
 

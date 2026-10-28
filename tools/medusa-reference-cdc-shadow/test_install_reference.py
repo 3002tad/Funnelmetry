@@ -129,6 +129,37 @@ class ReferenceInstallerTest(unittest.TestCase):
         self.assertEqual(result["status"], "installed")
         self.assertEqual(connect.call_args.kwargs["method"], "POST")
 
+    def test_missing_owned_slot_fails_before_connect_restart(self):
+        document = valid_profile()
+        with patch.object(installer, "state", return_value={"status": "INSTALLED"}), \
+             patch.object(installer, "secret_url", return_value="a" * 32), \
+             patch.object(installer, "run"), \
+             patch.object(installer, "check_runtime_compose"), \
+             patch.object(installer, "compose") as compose, \
+             patch.object(installer, "source_preflight", return_value=False), \
+             patch.object(installer, "connector_state") as connector:
+            with self.assertRaisesRegex(ValueError, "refusing automatic recreation"):
+                installer.install(document)
+        self.assertEqual(compose.call_args_list[-1].args, ("up", "-d", "postgres"))
+        connector.assert_not_called()
+
+        with patch.object(installer, "state", return_value={"status": "INSTALLED"}), \
+             patch.object(installer, "secret_url", return_value="a" * 32), \
+             patch.object(installer, "check_runtime_compose"), \
+             patch.object(installer, "source_preflight", return_value=False):
+            with self.assertRaisesRegex(ValueError, "verification failed"):
+                installer.verify(document)
+
+    def test_unusable_slot_wal_status_fails_preflight(self):
+        for wal_status in ("unreserved", "lost"):
+            slot = [{"slot": installer.CONNECTOR, "plugin": "pgoutput",
+                     "db": "medusa", "wal_status": wal_status}]
+            with self.subTest(wal_status=wal_status), patch.object(
+                installer, "sql", side_effect=["medusa|logical", "t", json.dumps(slot)]
+            ):
+                with self.assertRaisesRegex(ValueError, "unsafe WAL status"):
+                    installer.source_preflight()
+
 
 if __name__ == "__main__":
     unittest.main()

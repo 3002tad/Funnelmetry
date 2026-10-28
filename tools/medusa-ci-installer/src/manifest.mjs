@@ -20,6 +20,12 @@ const cdcShadowTables = [
   "public.order_cart:id,order_id,cart_id",
   "public.cart:id,completed_at",
 ]
+const cdcCatalogTables = [
+  "public.product:id,title,handle,status,collection_id,updated_at,deleted_at",
+  "public.product_variant:id,product_id,title,sku,manage_inventory,allow_backorder,updated_at,deleted_at",
+  "public.product_category:id,name,parent_category_id,is_active,is_internal,updated_at,deleted_at",
+  "public.product_category_product:product_id,product_category_id",
+]
 
 function cdcIdentifier(value, name) {
   const result = requiredString(value, name)
@@ -69,6 +75,41 @@ function cdcShadowProfile(value) {
     factTopic,
     tableColumns: cdcShadowTables,
     rollbackTarget: value.rollback_target,
+  }
+}
+
+function cdcCatalogProfile(value) {
+  if (value === undefined) return null
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("cdc_catalog_shadow must be a mapping")
+  const supported = new Set(["mode", "profile", "source_db_url_ref", "source_owner",
+    "pipeline_owner", "snapshot_mode", "publication", "slot", "topic_prefix", "table_columns"])
+  const unknown = Object.keys(value).filter(key => !supported.has(key))
+  if (unknown.length) throw new Error(`Unsupported cdc_catalog_shadow field(s): ${unknown.join(", ")}`)
+  if (value.mode !== "shadow_only" || value.profile !== "reference.medusa.catalog_master_data.v1" ||
+      value.snapshot_mode !== "initial") {
+    throw new Error("cdc_catalog_shadow requires separate catalog_master_data.v1, shadow_only and initial snapshot")
+  }
+  if (value.publication !== "funnelmetry_cdc_catalog_shadow" ||
+      value.slot !== "funnelmetry_cdc_catalog_shadow" ||
+      value.topic_prefix !== "cdc_shadow_medusa_catalog") {
+    throw new Error("cdc_catalog_shadow needs its own pinned publication, slot and topic prefix")
+  }
+  if (!Array.isArray(value.table_columns) || value.table_columns.length !== cdcCatalogTables.length ||
+      new Set(value.table_columns).size !== cdcCatalogTables.length ||
+      cdcCatalogTables.some(table => !value.table_columns.includes(table))) {
+    throw new Error("cdc_catalog_shadow.table_columns must match the exact catalog stage-1 allowlist")
+  }
+  return {
+    mode: value.mode,
+    profile: value.profile,
+    sourceDbUrlRef: secretReference(value.source_db_url_ref, "cdc_catalog_shadow.source_db_url_ref"),
+    sourceOwner: requiredString(value.source_owner, "cdc_catalog_shadow.source_owner"),
+    pipelineOwner: requiredString(value.pipeline_owner, "cdc_catalog_shadow.pipeline_owner"),
+    snapshotMode: value.snapshot_mode,
+    publication: cdcIdentifier(value.publication, "cdc_catalog_shadow.publication"),
+    slot: cdcIdentifier(value.slot, "cdc_catalog_shadow.slot"),
+    topicPrefix: cdcIdentifier(value.topic_prefix, "cdc_catalog_shadow.topic_prefix"),
+    tableColumns: cdcCatalogTables,
   }
 }
 
@@ -161,6 +202,7 @@ export function validateManifest(raw) {
     },
     bindings: { browser, storefrontServer, medusaBackend },
     cdcShadow: cdcShadowProfile(raw.cdc_shadow),
+    cdcCatalogShadow: cdcCatalogProfile(raw.cdc_catalog_shadow),
     // Internal compatibility for the current generator. The public manifest
     // source of truth is the explicit bindings block above.
     frontend: { enabled: true, events: browser },

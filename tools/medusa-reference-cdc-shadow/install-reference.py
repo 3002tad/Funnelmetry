@@ -133,11 +133,13 @@ def source_preflight():
         raise ValueError("expected isolated Medusa clone with logical WAL")
     if sql("SELECT to_regclass('public.\"order\"') IS NOT NULL;") != "t":
         raise ValueError("Medusa shadow clone has not been restored")
-    slots = sql("SELECT COALESCE(json_agg(json_build_object('slot',slot_name,'plugin',plugin,'db',database))::text,'[]') FROM pg_replication_slots WHERE slot_name='funnelmetry_cdc_shadow';")
+    slots = sql("SELECT COALESCE(json_agg(json_build_object('slot',slot_name,'plugin',plugin,'db',database,'wal_status',wal_status))::text,'[]') FROM pg_replication_slots WHERE slot_name='funnelmetry_cdc_shadow';")
     slot_rows = json.loads(slots)
     if slot_rows and (len(slot_rows) != 1 or slot_rows[0]["plugin"] != "pgoutput"
                       or slot_rows[0]["db"] != "medusa"):
         raise ValueError("shadow replication slot is owned by another configuration")
+    if slot_rows and slot_rows[0]["wal_status"] not in {"reserved", "extended"}:
+        raise ValueError("shadow replication slot has unsafe WAL status; operator recovery required")
     return bool(slot_rows)
 
 
@@ -253,6 +255,8 @@ def install(document):
     check_runtime_compose()
     compose("up", "-d", "postgres", action="start cloned shadow PostgreSQL")
     slot_exists = source_preflight()
+    if existing is not None and not slot_exists:
+        raise ValueError("owned shadow replication slot is missing; refusing automatic recreation")
     compose("up", "-d", "kafka", "connect", action="start private CDC transport")
     connector = connector_state(password)
     if slot_exists and connector == "absent" and (not existing or existing.get("status") != "STOPPED"):
@@ -277,7 +281,8 @@ def verify(document):
         raise ValueError("installer has not completed for this profile")
     password = secret_url(document)
     check_runtime_compose()
-    source_preflight()
+    if not source_preflight():
+        raise ValueError("owned shadow replication slot is missing; CDC verification failed")
     if publication_state() != "exact" or connector_state(password, require=True) != "exact":
         raise ValueError("CDC source or connector is incomplete")
     status = connect(f"/{CONNECTOR}/status")

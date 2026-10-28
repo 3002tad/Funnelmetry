@@ -5,7 +5,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { validateManifest } from "../src/manifest.mjs"
-import { createCdcRollbackPlan, createPlan, verifyIntegration } from "../src/planner.mjs"
+import { createCdcCatalogRollbackPlan, createCdcRollbackPlan, createPlan, verifyIntegration } from "../src/planner.mjs"
 
 const rawManifest = {
   apiVersion: "funnelmetry.io/v2",
@@ -55,6 +55,67 @@ function cdcShadowRawManifest() {
   }
   return raw
 }
+
+function cdcCatalogRawManifest() {
+  const raw = cdcShadowRawManifest()
+  raw.cdc_catalog_shadow = {
+    mode: "shadow_only",
+    profile: "reference.medusa.catalog_master_data.v1",
+    source_db_url_ref: "FUNNELMETRY_CDC_CATALOG_DATABASE_URL",
+    source_owner: "medusa-operator",
+    pipeline_owner: "pipeline-operator",
+    snapshot_mode: "initial",
+    publication: "funnelmetry_cdc_catalog_shadow",
+    slot: "funnelmetry_cdc_catalog_shadow",
+    topic_prefix: "cdc_shadow_medusa_catalog",
+    table_columns: [
+      "public.product:id,title,handle,status,collection_id,updated_at,deleted_at",
+      "public.product_variant:id,product_id,title,sku,manage_inventory,allow_backorder,updated_at,deleted_at",
+      "public.product_category:id,name,parent_category_id,is_active,is_internal,updated_at,deleted_at",
+      "public.product_category_product:product_id,product_category_id",
+    ],
+  }
+  return raw
+}
+
+test("CDC catalog profile is separate, initial-snapshot only, and exact-scoped", async (t) => {
+  const valid = validateManifest(cdcCatalogRawManifest())
+  assert.equal(valid.cdcShadow.snapshotMode, "no_data")
+  assert.equal(valid.cdcCatalogShadow.snapshotMode, "initial")
+  for (const [field, value] of [["snapshot_mode", "no_data"], ["mode", "live"],
+    ["source_db_url_ref", "postgres://secret@host/db"]]) {
+    const bad = cdcCatalogRawManifest()
+    bad.cdc_catalog_shadow[field] = value
+    assert.throws(() => validateManifest(bad))
+  }
+  const broad = cdcCatalogRawManifest()
+  broad.cdc_catalog_shadow.table_columns.push("public.customer:id,email")
+  assert.throws(() => validateManifest(broad), /exact catalog stage-1 allowlist/)
+  let root
+  try { root = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-cdc-catalog-")) }
+  catch (error) {
+    if (error?.code === "EPERM") { t.skip("temporary directory unavailable"); return }
+    throw error
+  }
+  try {
+    await cp(fixtureRoot, root, { recursive: true })
+    const initial = await createPlan(root, valid)
+    assert.equal(initial.capabilities.cdcCatalogState, "SHADOW_ONLY")
+    assert.deepEqual(initial.changes.map(change => change.path).filter(name => name.startsWith("funnelmetry/")),
+      ["funnelmetry/cdc-reference-shadow.json", "funnelmetry/cdc-catalog-shadow.json"])
+    assert.match(initial.patch, /"snapshot_mode": "initial"/)
+    assert.match(initial.patch, /"inventory_price_claims": "NOT_SUPPORTED"/)
+    assert.doesNotMatch(initial.patch, /postgres:\/\//)
+    await applyWholeFilePatch(root, initial.patch)
+    assert.equal((await createPlan(root, valid)).patch, "")
+    assert.equal((await verifyIntegration(root, valid)).cdcCatalogState, "SHADOW_ONLY")
+    const rollback = await createCdcCatalogRollbackPlan(root, valid)
+    assert.deepEqual(rollback.changes.map(change => change.path), ["funnelmetry/cdc-catalog-shadow.json"])
+    assert.doesNotMatch(rollback.patch, /cdc-reference-shadow/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
 
 test("CDC shadow manifest rejects authority, secret, and table-scope drift", () => {
   const valid = validateManifest(cdcShadowRawManifest())

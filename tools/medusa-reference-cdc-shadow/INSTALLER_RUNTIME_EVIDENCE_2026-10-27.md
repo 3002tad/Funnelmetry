@@ -16,7 +16,7 @@ The approved `reference.medusa.order_recorded_state.v1` profile was installed in
 ## Limits
 
 - The synthetic checkout proves one data path through the packaged shadow stack. It does not establish event-rate, latency, WAL-retention, slot-loss or production recovery SLOs.
-- The rollback→apply rehearsal verified infrastructure readiness, but did not create a second checkout after resumption to verify post-resume CDC data. It also did not test a live Medusa DB: source PostgreSQL stayed at its existing non-CDC configuration.
+- This 2026-10-27 rehearsal verified rollback→apply infrastructure readiness but did not create a second checkout after resumption. The [2026-10-28 follow-up](INSTALLER_RESUME_DATA_EVIDENCE_2026-10-28.md) closed that data-level gap in a separate shadow project. Neither rehearsal enabled CDC on live Medusa.
 - The native `order.placed` subscriber remains the live conversion authority. The reference current-state fact is count-only and can be retracted.
 
 ## Local checks

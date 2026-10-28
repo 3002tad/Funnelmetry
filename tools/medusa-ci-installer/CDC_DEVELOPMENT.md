@@ -4,6 +4,19 @@ Status: **IN DEVELOPMENT / SHADOW ONLY** under DEC-119/135. Branch: `feature/cdc
 
 ## Ownership and inputs
 
+The manifest also accepts a **separate** `cdc_catalog_shadow` block. It pins
+`reference.medusa.catalog_master_data.v1`, an initial snapshot and the exact
+product/variant/category/link column allowlist. The planner generates only
+`funnelmetry/cdc-catalog-shadow.json` for that block; `catalog-rollback-plan`
+removes only that exact generated file. It does not expand `cdc_shadow`, the
+approved order-state v1 contract, or any live Medusa binding. The operator
+installer and [snapshot/stream evidence](../medusa-reference-cdc-shadow/CATALOG_CDC_SHADOW_EVIDENCE_2026-10-28.md)
+are shadow-only. Inventory and pricing are a [separately versioned stage-2
+candidate](../medusa-reference-cdc-shadow/CATALOG_CDC_STAGE2_SCOPE.md).
+Before running the Medusa workflows with this new block, publish the planner
+commit and update `FUNNELMETRY_PLANNER_REF` to that commit; both plan and propose
+workflows fail closed when the pinned planner lacks `cdcCatalogState`.
+
 - The existing `medusa-ci-installer` accepts an optional `cdc_shadow` block in `funnelmetry.integration.yaml`. It generates only `funnelmetry/cdc-reference-shadow.json` in the Medusa integration branch. The native subscriber profile remains authoritative and required.
 - Keep browser SDK, consent, and storefront server search/cart hooks installed in every profile. The backend order subscriber is the only source-code binding eligible for later CDC replacement.
 - The pinned profile specifies Medusa 2.19.0, the exact `order`/`order_cart`/`cart` column allowlist, `no_data` snapshot, shadow publication/slot/topic names, source DB URL **secret reference**, source/Pipeline owners and native-subscriber rollback target. The manifest and generated artifact contain no DB password or replication token. The connector's actual private network and credentials are operator-owned runtime settings.
@@ -19,7 +32,8 @@ Status: **IN DEVELOPMENT / SHADOW ONLY** under DEC-119/135. Branch: `feature/cdc
 The Medusa `funnelmetry-integration-propose.yml` workflow applies the patch on
 the already-created `feature/cdc-medusa-v1` branch or an existing
 `funnelmetry/integration/**` branch. It checks that the pinned planner SHA
-understands `cdc_shadow` before applying a patch; the GitHub repository variable
+understands `cdc_shadow` and, when declared, `cdc_catalog_shadow` before applying
+a patch; the GitHub repository variable
 `FUNNELMETRY_PLANNER_REF` must be updated to the reviewed commit before CI runs.
 No workflow merges or deploys the branch.
 

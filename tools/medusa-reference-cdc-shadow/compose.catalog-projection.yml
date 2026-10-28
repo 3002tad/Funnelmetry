@@ -1,0 +1,25 @@
+# Separate catalog source projection, no published ports and no order-state DB.
+services:
+  catalog-projection-db:
+    image: postgres:15-alpine
+    env_file: ./private/catalog-projection-db.env
+    volumes:
+      - catalog-projection-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U catalog_projection -d catalog_projection"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [shadow]
+
+  catalog-projector:
+    build: ./catalog-projector
+    env_file: ./private/catalog-projector.env
+    depends_on:
+      catalog-projection-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [shadow]
+
+volumes:
+  catalog-projection-data:
