@@ -17,6 +17,18 @@ Before running the Medusa workflows with this new block, publish the planner
 commit and update `FUNNELMETRY_PLANNER_REF` to that commit; both plan and propose
 workflows fail closed when the pinned planner lacks `cdcCatalogState`.
 
+The independent `cdc_order_v2_shadow` block generates
+`funnelmetry/cdc-order-v2-shadow.json` for one explicit coverage epoch. It
+requires `reference.medusa.order_recorded_state.v2`, `snapshot_mode=initial`,
+the exact three-table order predicate allowlist and a slot/publication/topic
+namespace distinct from v1, catalog and inventory/price. The generated file
+declares `BASELINE_NEVER_ON`, `historical_gap_status=INCOMPLETE`, and retains
+native `medusa.order_placed` authority. `order-v2-rollback-plan` removes only
+that generated file after a drift check; runtime slot/topic/volume cleanup is
+operator-owned. A lost slot requires a new coverage epoch and new isolated
+runtime resources. This profile is a source-side plan artifact, not a v2
+operator runtime installer or permission to activate a live CDC connector.
+
 - The existing `medusa-ci-installer` accepts an optional `cdc_shadow` block in `funnelmetry.integration.yaml`. It generates only `funnelmetry/cdc-reference-shadow.json` in the Medusa integration branch. The native subscriber profile remains authoritative and required.
 - Keep browser SDK, consent, and storefront server search/cart hooks installed in every profile. The backend order subscriber is the only source-code binding eligible for later CDC replacement.
 - The pinned profile specifies Medusa 2.19.0, the exact `order`/`order_cart`/`cart` column allowlist, `no_data` snapshot, shadow publication/slot/topic names, source DB URL **secret reference**, source/Pipeline owners and native-subscriber rollback target. The manifest and generated artifact contain no DB password or replication token. The connector's actual private network and credentials are operator-owned runtime settings.

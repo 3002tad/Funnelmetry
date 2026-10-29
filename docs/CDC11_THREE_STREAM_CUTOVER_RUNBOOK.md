@@ -2,6 +2,17 @@
 
 **Status:** CANDIDATE / NOT EXECUTED. **Date:** 2026-10-29. This is the operator runbook for replacing (1) the reference backend order adapter, (2) Admin API `catalog-sync`, and (3) inventory/price acquisition with CDC. It does not deploy an HTTP Gateway. DEC-119/135 currently approve order-state v2 semantics for shadow development only; CDC-12 live authority still requires a separate decision. The existing Browser SDK and its HTTP ingestion remain in service.
 
+**Development update 2026-10-30:** The Medusa manifest/planner now emit a
+separate order-v2 shadow profile for a declared coverage epoch with initial
+snapshot, exact order predicate columns and a guarded rollback plan. The
+planner's `verify` checks source-file ownership and artifact equality only;
+it reports `runtimeConformance=NOT_CHECKED_BY_INSTALLER`. The existing v1
+shadow profile remains historical, and only the v2 epoch may be selected for
+a future target-topology rehearsal. The installer has not started Connect,
+configured logical WAL or changed live order authority. Before running Medusa
+workflows, pin `FUNNELMETRY_PLANNER_REF` to the reviewed Pipeline commit that
+understands `cdc_order_v2_shadow`.
+
 ## 1. Current VPS preflight inventory
 
 Read-only checks on `ssh kltn`, 2026-10-29:

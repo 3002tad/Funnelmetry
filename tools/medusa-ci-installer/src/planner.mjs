@@ -27,6 +27,7 @@ const generatedPaths = {
   occurredAt: "apps/backend/src/funnelmetry/occurred-at.ts",
   orderPlacedSubscriber: "apps/backend/src/subscribers/funnelmetry-order-placed.ts",
   cdcShadowProfile: "funnelmetry/cdc-reference-shadow.json",
+  cdcOrderV2ShadowProfile: "funnelmetry/cdc-order-v2-shadow.json",
   cdcCatalogShadowProfile: "funnelmetry/cdc-catalog-shadow.json",
   cdcInventoryPriceShadowProfile: "funnelmetry/cdc-inventory-price-shadow.json",
 }
@@ -611,6 +612,35 @@ function cdcShadowArtifact(manifest) {
   }, null, 2)}\n`
 }
 
+function cdcOrderV2Artifact(manifest) {
+  if (!manifest.cdcOrderV2Shadow) return null
+  const profile = manifest.cdcOrderV2Shadow
+  return `${JSON.stringify({
+    schema_version: "funnelmetry-medusa-cdc-order-v2-shadow.v1",
+    generated_by: "funnelmetry-medusa-ci",
+    status: "SHADOW_ONLY",
+    source_id: manifest.source.id,
+    medusa_version: manifest.host.medusaVersion,
+    cdc_reference_contract: profile.profile,
+    coverage_epoch_id: profile.coverageEpochId,
+    snapshot_mode: profile.snapshotMode,
+    baseline_policy: "BASELINE_NEVER_ON",
+    historical_gap_status: "INCOMPLETE",
+    source_db_url_ref: profile.sourceDbUrlRef,
+    source_owner: profile.sourceOwner,
+    pipeline_owner: profile.pipelineOwner,
+    publication: profile.publication,
+    slot: profile.slot,
+    topic_prefix: profile.topicPrefix,
+    fact_topic: profile.factTopic,
+    table_columns: profile.tableColumns,
+    order_fact_authority: "medusa.order_placed",
+    canonical_live_event: "order.placed",
+    rollback_target: profile.rollbackTarget,
+    runtime_activation: "OPERATOR_CONTROLLED_SEPARATE_FROM_INSTALLER",
+  }, null, 2)}\n`
+}
+
 function cdcCatalogArtifact(manifest) {
   if (!manifest.cdcCatalogShadow) return null
   const profile = manifest.cdcCatalogShadow
@@ -676,6 +706,20 @@ async function cdcShadowChange(projectRoot, manifest) {
   return null
 }
 
+async function cdcOrderV2Change(projectRoot, manifest) {
+  const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcOrderV2ShadowProfile)
+  const expected = cdcOrderV2Artifact(manifest)
+  if (!expected) {
+    if (current !== null) throw new Error("Existing CDC order v2 profile requires explicit rollback plan")
+    return null
+  }
+  if (current === null) return { path: generatedPaths.cdcOrderV2ShadowProfile, before: null, after: expected }
+  if (normalizedText(current) !== normalizedText(expected)) {
+    throw new Error("Existing CDC order v2 profile differs; use explicit rollback plan before changing it")
+  }
+  return null
+}
+
 async function cdcCatalogChange(projectRoot, manifest) {
   const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcCatalogShadowProfile)
   const expected = cdcCatalogArtifact(manifest)
@@ -721,6 +765,25 @@ function cdcShadowOperatorPlan(manifest) {
     ],
     rollback: "Use the shadow runtime installer's guarded rollback, then remove only the generated profile by rollback-plan; retain slots/topics/volumes until their owners approve cleanup",
     liveOrderAuthority: "medusa.order_placed -> order.placed",
+  }
+}
+
+function cdcOrderV2OperatorPlan(manifest) {
+  if (!manifest.cdcOrderV2Shadow) return null
+  const profile = manifest.cdcOrderV2Shadow
+  return {
+    status: "SHADOW_ONLY_NO_RUNTIME_ACTIVATION",
+    sourceOwner: profile.sourceOwner,
+    pipelineOwner: profile.pipelineOwner,
+    sourceDbUrlRef: profile.sourceDbUrlRef,
+    coverageEpochId: profile.coverageEpochId,
+    preconditions: [
+      "Verify source PostgreSQL logical WAL, exact column allowlist and private replication access",
+      "Verify a new slot, topic prefix, fact topic, mapper state and sink for this coverage epoch",
+      "Reconcile the initial snapshot and BASELINE_COMPLETE before permitting post-baseline transitions",
+      "Keep any previous WAL gap INCOMPLETE; retain native order.placed authority until CDC-12 approval",
+    ],
+    rollback: "Remove only this generated profile through order-v2-rollback-plan; retain slot, topics, mapper and sink for operator-controlled recovery",
   }
 }
 
@@ -973,15 +1036,17 @@ export async function createPlan(projectRoot, manifest) {
   }
 
   originals[generatedPaths.cdcShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcShadowProfile)
+  originals[generatedPaths.cdcOrderV2ShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcOrderV2ShadowProfile)
   originals[generatedPaths.cdcCatalogShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcCatalogShadowProfile)
   originals[generatedPaths.cdcInventoryPriceShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcInventoryPriceShadowProfile)
 
   const semanticSupported = [originals[paths.cartData], originals[paths.storeSearch], originals[paths.storePage], originals[paths.storeTemplate], originals[paths.paginatedProducts]].every((value) => value !== null)
   const existing = await existingIntegration(projectRoot, originals, manifest)
   const cdcChange = await cdcShadowChange(projectRoot, manifest)
+  const orderV2Change = await cdcOrderV2Change(projectRoot, manifest)
   const catalogChange = await cdcCatalogChange(projectRoot, manifest)
   const inventoryPriceChange = await cdcInventoryPriceChange(projectRoot, manifest)
-  const cdcChanges = [cdcChange, catalogChange, inventoryPriceChange].filter(Boolean)
+  const cdcChanges = [cdcChange, orderV2Change, catalogChange, inventoryPriceChange].filter(Boolean)
   const cartItemDeclared = manifest.bindings.storefrontServer.includes("cart.item_added")
   const searchDeclared = manifest.bindings.storefrontServer.includes("behavior.search_submitted")
   const orderPlacedDeclared = manifest.bindings.medusaBackend.includes("medusa.order_placed")
@@ -995,6 +1060,7 @@ export async function createPlan(projectRoot, manifest) {
       manifest,
       sourceFingerprint: sourceFingerprint(originals),
       cdcShadowOperatorPlan: cdcShadowOperatorPlan(manifest),
+      cdcOrderV2OperatorPlan: cdcOrderV2OperatorPlan(manifest),
       capabilities: {
         behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
         orderPlaced: orderPlacedDeclared ? "ENABLED" : "DISABLED",
@@ -1006,6 +1072,7 @@ export async function createPlan(projectRoot, manifest) {
         payment: "NOT_REQUESTED",
         refund: "NOT_REQUESTED",
         cdcReferenceState: manifest.cdcShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
+        cdcOrderV2State: manifest.cdcOrderV2Shadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
         cdcCatalogState: manifest.cdcCatalogShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
         cdcInventoryPriceState: manifest.cdcInventoryPriceShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
       },
@@ -1160,6 +1227,7 @@ export async function createPlan(projectRoot, manifest) {
     manifest,
     sourceFingerprint: sourceFingerprint(originals),
     cdcShadowOperatorPlan: cdcShadowOperatorPlan(manifest),
+    cdcOrderV2OperatorPlan: cdcOrderV2OperatorPlan(manifest),
     capabilities: {
       behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
       orderPlaced: orderPlacedDeclared ? "ENABLED" : "DISABLED",
@@ -1171,6 +1239,7 @@ export async function createPlan(projectRoot, manifest) {
       payment: "NOT_REQUESTED",
       refund: "NOT_REQUESTED",
       cdcReferenceState: manifest.cdcShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
+      cdcOrderV2State: manifest.cdcOrderV2Shadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
       cdcCatalogState: manifest.cdcCatalogShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
       cdcInventoryPriceState: manifest.cdcInventoryPriceShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
     },
@@ -1189,6 +1258,7 @@ export async function verifyIntegration(projectRoot, manifest) {
     sourceMutation: false,
     integrationState: plan.integrationState,
     cdcReferenceState: plan.capabilities.cdcReferenceState,
+    cdcOrderV2State: plan.capabilities.cdcOrderV2State,
     cdcCatalogState: plan.capabilities.cdcCatalogState,
     cdcInventoryPriceState: plan.capabilities.cdcInventoryPriceState,
     sourceFingerprint: plan.sourceFingerprint,
@@ -1211,6 +1281,24 @@ export async function createCdcRollbackPlan(projectRoot, manifest) {
     retainedRuntimeResources: ["replication_slot", "publication", "kafka_topics", "postgresql_volumes", "credentials"],
     changes: [{ path: generatedPaths.cdcShadowProfile, ownership: "funnelmetry-installer" }],
     patch: deletedFilePatch(generatedPaths.cdcShadowProfile, current),
+  }
+}
+
+export async function createCdcOrderV2RollbackPlan(projectRoot, manifest) {
+  if (!manifest.cdcOrderV2Shadow) throw new Error("order-v2-rollback-plan requires cdc_order_v2_shadow manifest")
+  await inspectMedusa(projectRoot, manifest)
+  const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcOrderV2ShadowProfile)
+  const expected = cdcOrderV2Artifact(manifest)
+  if (current === null || normalizedText(current) !== normalizedText(expected)) {
+    throw new Error("CDC order v2 profile is missing or has drifted; refusing rollback patch")
+  }
+  return {
+    schemaVersion: "funnelmetry-ci-rollback.v1",
+    mode: "rollback-plan-only",
+    sourceMutation: false,
+    retainedRuntimeResources: ["replication_slot", "publication", "kafka_topics", "postgresql_volumes", "credentials"],
+    changes: [{ path: generatedPaths.cdcOrderV2ShadowProfile, ownership: "funnelmetry-installer" }],
+    patch: deletedFilePatch(generatedPaths.cdcOrderV2ShadowProfile, current),
   }
 }
 

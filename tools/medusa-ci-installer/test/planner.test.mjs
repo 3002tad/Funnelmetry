@@ -5,7 +5,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { validateManifest } from "../src/manifest.mjs"
-import { createCdcCatalogRollbackPlan, createCdcInventoryPriceRollbackPlan, createCdcRollbackPlan, createPlan, verifyIntegration } from "../src/planner.mjs"
+import { createCdcCatalogRollbackPlan, createCdcInventoryPriceRollbackPlan, createCdcOrderV2RollbackPlan, createCdcRollbackPlan, createPlan, verifyIntegration } from "../src/planner.mjs"
 
 const rawManifest = {
   apiVersion: "funnelmetry.io/v2",
@@ -77,6 +77,78 @@ function cdcCatalogRawManifest() {
   }
   return raw
 }
+
+function cdcOrderV2RawManifest() {
+  const raw = cdcShadowRawManifest()
+  raw.cdc_order_v2_shadow = {
+    mode: "shadow_only",
+    profile: "reference.medusa.order_recorded_state.v2",
+    source_db_url_ref: "FUNNELMETRY_CDC_ORDER_V2_DATABASE_URL",
+    source_owner: "medusa-operator",
+    pipeline_owner: "pipeline-operator",
+    snapshot_mode: "initial",
+    coverage_epoch_id: "cdc11_order_epoch1",
+    publication: "funnelmetry_cdc_order_v2_e1",
+    slot: "funnelmetry_cdc_order_v2_e1",
+    topic_prefix: "cdc_shadow_medusa_order_v2_e1",
+    fact_topic: "cdc_shadow_reference.order_recorded_state.v2",
+    table_columns: ["public.order:id,deleted_at", "public.order_cart:id,order_id,cart_id", "public.cart:id,completed_at"],
+    rollback_target: "native_order_placed",
+  }
+  return raw
+}
+
+test("order v2 plan is separate, initial-snapshot only and rollback-guarded", async (t) => {
+  const valid = validateManifest(cdcOrderV2RawManifest())
+  assert.equal(valid.cdcShadow.snapshotMode, "no_data")
+  assert.equal(valid.cdcOrderV2Shadow.snapshotMode, "initial")
+  for (const [field, value] of [["snapshot_mode", "no_data"], ["mode", "live"],
+    ["profile", "reference.medusa.order_recorded_state.v1"],
+    ["source_db_url_ref", "postgres://secret@host/db"],
+    ["fact_topic", "canonical.order.placed"]]) {
+    const bad = cdcOrderV2RawManifest()
+    bad.cdc_order_v2_shadow[field] = value
+    assert.throws(() => validateManifest(bad))
+  }
+  const broad = cdcOrderV2RawManifest()
+  broad.cdc_order_v2_shadow.table_columns.push("public.customer:id,email")
+  assert.throws(() => validateManifest(broad), /exact order-state allowlist/)
+  for (const field of ["publication", "slot", "topic_prefix"]) {
+    const collision = cdcOrderV2RawManifest()
+    collision.cdc_order_v2_shadow[field] = collision.cdc_shadow[field]
+    assert.throws(() => validateManifest(collision), /distinct/)
+  }
+  const undeclared = cdcOrderV2RawManifest()
+  undeclared.cdc_order_v2_shadow.activate_live = true
+  assert.throws(() => validateManifest(undeclared), /Unsupported cdc_order_v2_shadow/)
+
+  let root
+  try { root = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-cdc-order-v2-")) }
+  catch (error) {
+    if (error?.code === "EPERM") { t.skip("temporary directory unavailable"); return }
+    throw error
+  }
+  try {
+    await cp(fixtureRoot, root, { recursive: true })
+    const initial = await createPlan(root, valid)
+    assert.equal(initial.capabilities.cdcOrderV2State, "SHADOW_ONLY")
+    assert.deepEqual(initial.changes.map(change => change.path).filter(name => name.startsWith("funnelmetry/")),
+      ["funnelmetry/cdc-reference-shadow.json", "funnelmetry/cdc-order-v2-shadow.json"])
+    assert.match(initial.patch, /"baseline_policy": "BASELINE_NEVER_ON"/)
+    assert.match(initial.patch, /"historical_gap_status": "INCOMPLETE"/)
+    assert.doesNotMatch(initial.patch, /postgres:\/\//)
+    await applyWholeFilePatch(root, initial.patch)
+    assert.equal((await createPlan(root, valid)).patch, "")
+    assert.equal((await verifyIntegration(root, valid)).cdcOrderV2State, "SHADOW_ONLY")
+    const rollback = await createCdcOrderV2RollbackPlan(root, valid)
+    assert.deepEqual(rollback.changes.map(change => change.path), ["funnelmetry/cdc-order-v2-shadow.json"])
+    assert.doesNotMatch(rollback.patch, /cdc-reference-shadow|apps\/backend\/src\/subscribers/)
+    const file = path.join(root, "funnelmetry/cdc-order-v2-shadow.json")
+    await writeFile(file, (await readFile(file, "utf8")).replace("SHADOW_ONLY", "LIVE"))
+    await assert.rejects(() => createPlan(root, valid), /differs/)
+    await assert.rejects(() => createCdcOrderV2RollbackPlan(root, valid), /drifted/)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
 
 function cdcInventoryPriceRawManifest() {
   const raw = cdcCatalogRawManifest()

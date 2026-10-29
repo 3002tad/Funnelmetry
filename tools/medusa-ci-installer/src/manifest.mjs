@@ -97,6 +97,51 @@ function cdcShadowProfile(value) {
   }
 }
 
+function cdcOrderV2Profile(value) {
+  if (value === undefined) return null
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("cdc_order_v2_shadow must be a mapping")
+  const supported = new Set([
+    "mode", "profile", "source_db_url_ref", "source_owner", "pipeline_owner",
+    "snapshot_mode", "coverage_epoch_id", "publication", "slot", "topic_prefix",
+    "fact_topic", "table_columns", "rollback_target",
+  ])
+  const unknown = Object.keys(value).filter(key => !supported.has(key))
+  if (unknown.length) throw new Error(`Unsupported cdc_order_v2_shadow field(s): ${unknown.join(", ")}`)
+  if (value.mode !== "shadow_only" ||
+      value.profile !== "reference.medusa.order_recorded_state.v2" ||
+      value.snapshot_mode !== "initial" || value.rollback_target !== "native_order_placed") {
+    throw new Error("cdc_order_v2_shadow requires v2, shadow_only, initial snapshot and native rollback")
+  }
+  if (!Array.isArray(value.table_columns) || value.table_columns.length !== cdcShadowTables.length ||
+      new Set(value.table_columns).size !== cdcShadowTables.length ||
+      cdcShadowTables.some(table => !value.table_columns.includes(table))) {
+    throw new Error("cdc_order_v2_shadow.table_columns must match the exact order-state allowlist")
+  }
+  const epoch = requiredString(value.coverage_epoch_id, "cdc_order_v2_shadow.coverage_epoch_id")
+  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(epoch)) {
+    throw new Error("cdc_order_v2_shadow.coverage_epoch_id must be a bounded epoch identifier")
+  }
+  const publication = cdcIdentifier(value.publication, "cdc_order_v2_shadow.publication")
+  const slot = cdcIdentifier(value.slot, "cdc_order_v2_shadow.slot")
+  const topicPrefix = cdcIdentifier(value.topic_prefix, "cdc_order_v2_shadow.topic_prefix")
+  const factTopic = requiredString(value.fact_topic, "cdc_order_v2_shadow.fact_topic")
+  if (!/^cdc_[a-z0-9_.-]+\.order_recorded_state\.v2$/.test(factTopic)) {
+    throw new Error("cdc_order_v2_shadow.fact_topic must be a separate v2 fact topic")
+  }
+  return {
+    mode: value.mode,
+    profile: value.profile,
+    sourceDbUrlRef: secretReference(value.source_db_url_ref, "cdc_order_v2_shadow.source_db_url_ref"),
+    sourceOwner: requiredString(value.source_owner, "cdc_order_v2_shadow.source_owner"),
+    pipelineOwner: requiredString(value.pipeline_owner, "cdc_order_v2_shadow.pipeline_owner"),
+    snapshotMode: value.snapshot_mode,
+    coverageEpochId: epoch,
+    publication, slot, topicPrefix, factTopic,
+    tableColumns: cdcShadowTables,
+    rollbackTarget: value.rollback_target,
+  }
+}
+
 function cdcCatalogProfile(value) {
   if (value === undefined) return null
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("cdc_catalog_shadow must be a mapping")
@@ -258,6 +303,7 @@ export function validateManifest(raw) {
     },
     bindings: { browser, storefrontServer, medusaBackend },
     cdcShadow: cdcShadowProfile(raw.cdc_shadow),
+    cdcOrderV2Shadow: cdcOrderV2Profile(raw.cdc_order_v2_shadow),
     cdcCatalogShadow: cdcCatalogProfile(raw.cdc_catalog_shadow),
     cdcInventoryPriceShadow: cdcInventoryPriceProfile(raw.cdc_inventory_price_shadow),
     // Internal compatibility for the current generator. The public manifest
@@ -287,6 +333,15 @@ export function validateManifest(raw) {
   }
   if (normalized.reliability.failureMode !== "fail_open") {
     throw new Error("reliability.failure_mode must be fail_open")
+  }
+
+  const profiles = [normalized.cdcShadow, normalized.cdcOrderV2Shadow,
+    normalized.cdcCatalogShadow, normalized.cdcInventoryPriceShadow].filter(Boolean)
+  for (const field of ["publication", "slot", "topicPrefix", "factTopic"]) {
+    const values = profiles.map(profile => profile[field]).filter(Boolean)
+    if (new Set(values).size !== values.length) {
+      throw new Error(`CDC profiles must have distinct ${field} values`)
+    }
   }
 
   return normalized
