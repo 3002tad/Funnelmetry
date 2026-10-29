@@ -14,9 +14,13 @@ Clone: `/srv/KLTN/cdc-shadow-inventory-price2`, Compose project `funnelmetry_cdc
 
 The guarded probe updated one `inventory_level.incoming_quantity`, soft-deleted one `price_set`, then restored both source rows. Candidate/source reconciliation passed after each phase. Resetting only the candidate consumer group to earliest and replaying all topics kept ingest audit **750 → 750** and offsets unchanged (`PASS_REPLAY`). The final verifier returned `PASS_CONTEXT_ONLY`. Clone services were stopped with Compose `stop`; their volumes, slot and audit remain for review.
 
+## Candidate quality lease
+
+The one-shot publisher now compares two source/projection samples, canonicalizes PostgreSQL text versus Debezium JSON values (including price-list timestamps and JSONB rules), checks all 16 topic offsets and writes a bounded `PASS` lease only for the **context candidate**. On the clone, it published evidence `stage2b-governed-context-20261029` with a 120-second lease and matching SHA-256 digest `5d211f554c83ae990d8166a9739d5a4a4abf38091d9db14d81515881f98adff4`. A subsequent controlled `inventory_level` update changed the stored lease to `BLOCKED_BY_QUALITY` while it was still fresh; restoring and reconciling the source row did not reopen the lease automatically (`PASS_INVALIDATION`). This verifies fail-closed invalidation, not a continuous monitor or a live data product. `PASS` in this table means **source context equality**, never sellable-stock/display-price correctness.
+
 ## Remaining gate
 
-- Add a continuously refreshed context quality lease with source/projection digest and freshness/slot/WAL checks; current table is a schema candidate only.
+- Add a continuously refreshed context quality service and target-topology WAL/freshness checks. The current publisher is an isolated, one-shot candidate and has not been validated against concurrent source writes during its sample window.
 - Prove the same writer on the target Pipeline PostgreSQL/Swarm topology with a distinct source role, snapshot epoch and network path. Do not point it at the clone slot or reuse clone offsets.
 - Build and validate a context-aware resolver against Medusa workflow/Store API cases for multi-location, reservations, kits/backorder, currency, price-list periods, quantity tiers and rules. Any unsupported context must stay `UNVERIFIED` or `BLOCKED_BY_QUALITY`.
 - Complete CDC-11/12 gates before switching either backend adapter or API `catalog-sync`. Browser SDK and HTTP feed are unaffected.
