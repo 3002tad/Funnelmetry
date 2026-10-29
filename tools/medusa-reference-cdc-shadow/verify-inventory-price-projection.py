@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -42,9 +43,9 @@ ATTRIBUTES = {
     "price_set": ("id",),
     "price": ("id", "price_set_id", "currency_code", "amount", "price_list_id",
               "min_quantity", "max_quantity", "rules_count"),
-    "price_list": ("id", "status", "type", "rules_count"),
+    "price_list": ("id", "status", "starts_at", "ends_at", "type", "rules_count"),
     "price_rule": ("id", "price_id", "attribute", "operator", "value", "priority"),
-    "price_list_rule": ("id", "price_list_id", "attribute"),
+    "price_list_rule": ("id", "price_list_id", "attribute", "value"),
     "region": ("id", "currency_code"),
     "currency": ("code", "decimal_digits"),
 }
@@ -107,12 +108,37 @@ def scalar_text(value):
     return str(value)
 
 
+def timestamp_microseconds(value):
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            raise ValueError("timestamp without timezone is outside the stage-2 contract")
+        epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        delta = parsed.astimezone(timezone.utc) - epoch
+        return (delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds
+    raise ValueError("unexpected stage-2 timestamp representation")
+
+
+def attribute_equal(table, field, source_value, target_value):
+    if table == "price_list" and field in ("starts_at", "ends_at"):
+        return timestamp_microseconds(source_value) == timestamp_microseconds(target_value)
+    if table == "price_list_rule" and field == "value":
+        source_json = None if source_value is None else json.loads(source_value)
+        target_json = json.loads(target_value) if isinstance(target_value, str) else target_value
+        return source_json == target_json
+    return source_value == scalar_text(target_value)
+
+
 def attributes_match(table, source, target):
     source_by_key = {json.dumps(row["key"]): row["attributes"] for row in source}
     target_by_key = {json.dumps(row["key"]): row["payload"] for row in target}
     if source_by_key.keys() != target_by_key.keys():
         return False
-    return all(all(expected[field] == scalar_text(target_by_key[key].get(field))
+    return all(all(attribute_equal(table, field, expected[field], target_by_key[key].get(field))
                    for field in ATTRIBUTES[table]) for key, expected in source_by_key.items())
 
 

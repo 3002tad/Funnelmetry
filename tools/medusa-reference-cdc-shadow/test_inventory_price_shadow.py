@@ -30,6 +30,9 @@ class InventoryPriceProfileTests(unittest.TestCase):
         self.assertEqual(len(stage2.TABLES), 16)
         self.assertTrue(all("deleted_at" in columns for columns in stage2.TABLES.values()))
         self.assertEqual(projection_verifier.SOFT_DELETE, set(stage2.TABLES))
+        self.assertEqual({table: set(columns) for table, columns in projection_verifier.ATTRIBUTES.items()},
+                         {table: set(columns) - {"deleted_at"}
+                          for table, columns in stage2.TABLES.items()})
         self.assertEqual(installer.PRIMARY_KEYS, stage2.PRIMARY_KEYS)
         self.assertEqual(stage2.PRIMARY_KEYS["product_sales_channel"],
                          ("product_id", "sales_channel_id"))
@@ -96,6 +99,16 @@ class InventoryPriceProfileTests(unittest.TestCase):
         self.assertEqual(projection_verifier.evaluate(
             source, target, ends, offsets, True, True, "reserved")["status"],
             "BLOCKED_BY_QUALITY")
+
+    def test_json_rule_and_timestamp_comparison(self):
+        compare = projection_verifier.attribute_equal
+        self.assertTrue(compare("price_list_rule", "value", '["reg_1"]', ["reg_1"]))
+        self.assertTrue(compare("price_list_rule", "value", '["reg_1"]', '["reg_1"]'))
+        self.assertFalse(compare("price_list_rule", "value", '["reg_1"]', ["reg_2"]))
+        self.assertTrue(compare("price_list", "starts_at", "2026-10-29 00:00:00+00",
+                                1793232000000000))
+        self.assertFalse(compare("price_list", "ends_at", "2026-10-29 00:00:00+00",
+                                 1793232000000001))
 
 
 if __name__ == "__main__":

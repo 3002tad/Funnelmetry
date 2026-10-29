@@ -16,8 +16,30 @@ The clone probe changed `inventory_level.stocked_quantity`, soft-deleted an `inv
 
 The final projection reconciliation passed after the Store API probe. All stage2b containers were stopped with Compose `stop`; volumes, slot/topics and private credentials remain for audit/replay. The earlier stage2a containers were also stopped; its volumes remain.
 
+## Nonempty relation follow-up
+
+The same isolated stage2b clone was restarted with only PostgreSQL, Kafka,
+Connect, projection PostgreSQL and the projector. A fixture transaction created
+one `reservation_item`, increased the matching `inventory_level.reserved_quantity`
+by two, created an active dated `price_list`, one JSONB `price_list_rule` and one
+EUR price linked to the list. Source and projection reconciled with all four
+fixture tables nonempty (`PASS_CONTEXT_ONLY`), including timestamp and JSONB
+attributes. A second transaction removed the fixture rows and restored the
+level value; final source/projection checks again passed. Replay kept audit
+count **732 → 732** and offsets unchanged (`PASS_REPLAY`). The clone containers
+were stopped; volumes and audit history remain.
+
+The reservation fixture deliberately changed both the reservation row and
+level aggregate in the clone. It proves capture and projection of those
+changes, not that direct SQL is Medusa's production workflow or that a
+sellable-stock/display-price formula is correct. The price-list rows were
+not compared with Store API calculated price. No historical order value was
+rewritten.
+
 ## Remaining acceptance
 
-- Exercise nonempty reservation, price-list and price-list-rule fixtures and every active/soft-deleted relation on the Medusa version being deployed.
+- Compare nonempty reservation, price-list/rule and other applicable contexts
+  with Medusa Store API, including Medusa workflow-generated transitions; test
+  active/soft-deleted relations on the deployed Medusa version.
 - Build a governed Pipeline sink and a context-aware inventory/price resolver; compare controlled channel/location/reservation and price-rule cases with Medusa Store API. Unsupported contexts must remain `UNVERIFIED` or `BLOCKED_BY_QUALITY`.
 - Define continuous quality/freshness and WAL budgets, prove target-topology shadow, then obtain a separate CDC-12 live cutover decision. The clone's `PASS_CONTEXT_ONLY` is not a production acceptance result.

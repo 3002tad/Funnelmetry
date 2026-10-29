@@ -83,6 +83,7 @@ docker compose -f compose.yml -f compose.inventory-price-projection.yml up -d --
   inventory-price-projection-db inventory-price-projector
 python3 verify-inventory-price-projection.py --timeout-seconds 120
 python3 probe-inventory-price-shadow.py
+python3 probe-inventory-price-nonempty.py
 python3 probe-inventory-price-replay.py
 ```
 
@@ -96,6 +97,9 @@ projection effects do not duplicate. See [stage-2 shadow evidence](CATALOG_CDC_S
 That evidence belongs to v1 capture only. The fresh v2 snapshot, projection,
 transition, replay and one simple Store API
 sample are recorded in [v2 shadow evidence](CATALOG_CDC_STAGE2_V2_SHADOW_EVIDENCE_2026-10-29.md).
+The nonempty clone fixture adds reservation/price-list/price-list-rule/price
+rows and restores them after reconciliation; it does not establish Medusa
+inventory or pricing calculation semantics.
 V2 still has no governed inventory/price asset or production semantic gate.
 
 This profile has no live Medusa DB grant, Dashboard binding or `catalog-sync`
