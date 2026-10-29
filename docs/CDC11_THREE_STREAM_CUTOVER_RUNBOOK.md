@@ -13,6 +13,15 @@ configured logical WAL or changed live order authority. Before running Medusa
 workflows, pin `FUNNELMETRY_PLANNER_REF` to the reviewed Pipeline commit that
 understands `cdc_order_v2_shadow`.
 
+Read-only VPS check on 2026-10-30 still found Medusa PostgreSQL
+`wal_level=replica` with zero replication slots; the deployed Medusa checkout
+remains `efc7a58`, Pipeline checkout `b1c0a35`, and live `catalog-sync` plus
+Source Connector remain active. The workers image from Pipeline `98ce920`
+built successfully in a separate VPS worktree and all four CDC worker entry
+points passed `node --check` inside an offline container. No live Swarm task
+uses that candidate image. These checks do not satisfy the source/release,
+continuous quality or CDC-12 gates below.
+
 ## 1. Current VPS preflight inventory
 
 Read-only checks on `ssh kltn`, 2026-10-29:
