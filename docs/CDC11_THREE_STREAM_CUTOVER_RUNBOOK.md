@@ -94,6 +94,15 @@ must be applied there, as in the shadow rehearsal; this tool never applies it
 to Pipeline PostgreSQL. Do not call the fresh-database `bootstrap-swarm` on
 the existing live Pipeline database.
 
+The fresh-database bootstrap now pins the original v2 core list through
+`020_product_reference.sql`; it does not discover numbered CDC candidate SQL
+by scanning the directory. This preserves the pre-CDC baseline schema digest
+and prevents mapper-only migration 024 from entering the Pipeline database.
+Migrations 021–023 remain an explicit, separately journaled candidate upgrade.
+The pinned baseline includes exactly the same twenty core SQL files as
+`origin/main` at this review; future baseline schema changes need an explicit
+manifest and digest review.
+
 - Freeze the Medusa version and compare actual `pg_catalog` schema, primary keys and soft-delete columns with the order-v2, catalog-stage-1 and inventory/price-stage-2 profiles. Refuse drift; do not broaden publication to `FOR ALL TABLES`.
 - Backup and restore-test Medusa PostgreSQL plus the Pipeline authoritative DB before changing `wal_level`. Record source DB backup checkpoint and separate Pipeline processing-safe checkpoint. A file checksum alone is not a restore test.
 - Source owner approves a dedicated replication role with only the required logical replication/SELECT grants, three separate publications/slots or a reviewed equivalent, column allowlists, PII exclusions, `pg_hba` scope and credential rotation. Each connector/profile needs distinct slot, topic prefix, consumer group and coverage epoch. Size `max_replication_slots`, `max_wal_senders`, finite `max_slot_wal_keep_size`, disk alert thresholds and outage budget from a measured production workload; clone values are not production defaults.

@@ -1,15 +1,15 @@
 // Fresh isolated Swarm database only. Never upgrades or resets an existing DB.
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { bootstrap, validateTarget } from './bootstrap-handoff.mjs';
+import { baselineV2SchemaFiles } from './baseline-v2-schema.mjs';
 
 export async function schemaFiles(root = '/workspace') {
   const postgres = `${root}/infra/postgres`;
-  const core = (await readdir(`${postgres}/v2`)).filter(name => /^\d+.*\.sql$/.test(name)).sort();
   return [
-    ...core.map(name => `${postgres}/v2/${name}`),
+    ...baselineV2SchemaFiles(root),
     ...['003_dashboard_users.sql', '006_dashboard_staff.sql', '007_dashboard_sessions.sql',
       '008_dashboard_account_audit.sql', '009_dashboard_audit_pagination.sql',
       '010_dashboard_preferences.sql'].map(name => `${postgres}/${name}`),

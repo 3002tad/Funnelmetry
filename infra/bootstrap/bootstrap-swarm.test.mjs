@@ -8,6 +8,10 @@ test('Swarm bootstrap includes the traffic schemas after the core and analytical
   assert.match(files.at(-2), /traffic\/002_source_registry\.sql$/);
   assert.match(files.at(-1), /011_monitoring_credentials\.sql$/);
   assert.ok(files.some(file => file.endsWith('/v2/001_canonical_ledger.sql')));
+  const baseline = files.filter(file => /\/v2\/\d{3}_.*\.sql$/.test(file));
+  assert.equal(baseline.length, 20);
+  assert.ok(baseline.at(-1).endsWith('/v2/020_product_reference.sql'));
+  assert.ok(!files.some(file => /\/v2\/(021|022|023|024)_/.test(file)));
 });
 
 test('Swarm bootstrap readiness retry is bounded and does not run a reset', async () => {

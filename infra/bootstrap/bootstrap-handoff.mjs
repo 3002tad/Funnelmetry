@@ -1,9 +1,10 @@
 // Explicit clean-database bootstrap for the isolated OFFLINE_DEMO package.
 // Not an upgrader or restore tool. Never seed business events or reset accounts.
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
+import { baselineV2SchemaFiles } from './baseline-v2-schema.mjs'
 
 export function validateTarget(env) {
   if (env.HANDOFF_MODE !== 'OFFLINE_DEMO' || env.POSTGRES_HOST !== 'postgres'
@@ -38,8 +39,7 @@ async function main() {
     user: process.env.POSTGRES_USER, password: process.env.POSTGRES_PASSWORD,
     connectionTimeoutMillis: 10000 })
   const root = '/workspace/infra/postgres'
-  const core = (await readdir(`${root}/v2`)).filter(f => /^\d+.*\.sql$/.test(f)).sort()
-  const files = [...core.map(f => `${root}/v2/${f}`),
+  const files = [...baselineV2SchemaFiles('/workspace'),
   ...['003_dashboard_users.sql', '006_dashboard_staff.sql', '007_dashboard_sessions.sql',
     '008_dashboard_account_audit.sql', '009_dashboard_audit_pagination.sql',
     '010_dashboard_preferences.sql'].map(f => `${root}/${f}`),

@@ -25,6 +25,11 @@ on:
       - infra/bootstrap/cdc-candidate-migrations.mjs
       - infra/bootstrap/cdc-candidate-migrations.test.mjs
       - infra/docker/dashboard-api.Dockerfile
+      - infra/bootstrap/baseline-v2-schema.mjs
+      - infra/bootstrap/bootstrap-handoff.mjs
+      - infra/bootstrap/bootstrap-handoff.test.mjs
+      - infra/bootstrap/bootstrap-swarm.mjs
+      - infra/bootstrap/bootstrap-swarm.test.mjs
   workflow_dispatch:
 
 permissions:
@@ -143,7 +148,7 @@ jobs:
       - name: Build candidate Workers image
         run: docker build --file infra/docker/pipeline-workers.Dockerfile --tag funnelmetry-workers-cdc-ci .
       - name: Check existing Pipeline DB CDC candidate migration guard
-        run: node --test infra/bootstrap/cdc-candidate-migrations.test.mjs
+        run: node --test infra/bootstrap/cdc-candidate-migrations.test.mjs infra/bootstrap/bootstrap-handoff.test.mjs infra/bootstrap/bootstrap-swarm.test.mjs
       - name: Rehearse candidate migration against fresh PostgreSQL
         run: |
           docker build --file infra/docker/dashboard-api.Dockerfile --tag funnelmetry-api-cdc-ci .
