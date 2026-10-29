@@ -641,11 +641,11 @@ function cdcOrderV2Artifact(manifest) {
   }, null, 2)}\n`
 }
 
-function cdcCatalogArtifact(manifest) {
+function cdcCatalogArtifact(manifest, legacy = false) {
   if (!manifest.cdcCatalogShadow) return null
   const profile = manifest.cdcCatalogShadow
   return `${JSON.stringify({
-    schema_version: "funnelmetry-medusa-cdc-catalog-shadow.v1",
+    schema_version: legacy ? "funnelmetry-medusa-cdc-catalog-shadow.v1" : "funnelmetry-medusa-cdc-catalog-shadow.v2",
     generated_by: "funnelmetry-medusa-ci",
     status: "SHADOW_ONLY",
     source_id: manifest.source.id,
@@ -655,6 +655,7 @@ function cdcCatalogArtifact(manifest) {
     source_owner: profile.sourceOwner,
     pipeline_owner: profile.pipelineOwner,
     snapshot_mode: profile.snapshotMode,
+    ...(!legacy && { coverage_epoch_id: profile.coverageEpochId }),
     publication: profile.publication,
     slot: profile.slot,
     topic_prefix: profile.topicPrefix,
@@ -666,11 +667,11 @@ function cdcCatalogArtifact(manifest) {
   }, null, 2)}\n`
 }
 
-function cdcInventoryPriceArtifact(manifest) {
+function cdcInventoryPriceArtifact(manifest, legacy = false) {
   if (!manifest.cdcInventoryPriceShadow) return null
   const profile = manifest.cdcInventoryPriceShadow
   return `${JSON.stringify({
-    schema_version: "funnelmetry-medusa-cdc-inventory-price-shadow.v2",
+    schema_version: legacy ? "funnelmetry-medusa-cdc-inventory-price-shadow.v2" : "funnelmetry-medusa-cdc-inventory-price-shadow.v3",
     generated_by: "funnelmetry-medusa-ci",
     status: "SHADOW_ONLY",
     source_id: manifest.source.id,
@@ -680,6 +681,7 @@ function cdcInventoryPriceArtifact(manifest) {
     source_owner: profile.sourceOwner,
     pipeline_owner: profile.pipelineOwner,
     snapshot_mode: profile.snapshotMode,
+    ...(!legacy && { coverage_epoch_id: profile.coverageEpochId }),
     publication: profile.publication,
     slot: profile.slot,
     topic_prefix: profile.topicPrefix,
@@ -728,6 +730,9 @@ async function cdcCatalogChange(projectRoot, manifest) {
     return null
   }
   if (current === null) return { path: generatedPaths.cdcCatalogShadowProfile, before: null, after: expected }
+  if (normalizedText(current) === normalizedText(cdcCatalogArtifact(manifest, true))) {
+    return { path: generatedPaths.cdcCatalogShadowProfile, before: current, after: expected }
+  }
   if (normalizedText(current) !== normalizedText(expected)) {
     throw new Error("Existing CDC catalog profile differs; use explicit rollback plan before changing it")
   }
@@ -742,6 +747,9 @@ async function cdcInventoryPriceChange(projectRoot, manifest) {
     return null
   }
   if (current === null) return { path: generatedPaths.cdcInventoryPriceShadowProfile, before: null, after: expected }
+  if (normalizedText(current) === normalizedText(cdcInventoryPriceArtifact(manifest, true))) {
+    return { path: generatedPaths.cdcInventoryPriceShadowProfile, before: current, after: expected }
+  }
   if (normalizedText(current) !== normalizedText(expected)) {
     throw new Error("Existing inventory/price profile differs; use explicit rollback plan before changing it")
   }

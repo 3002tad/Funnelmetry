@@ -64,6 +64,14 @@ The Medusa runtime override `runtime/docker-compose.vps.yml` is untracked on the
 
 Before touching live Medusa PostgreSQL, record a reviewed manifest with environment ID, source owner, full Medusa/Pipeline commit SHAs, immutable image digests, schema migration checksums, generated installer profiles, table/column allowlists, secrets by reference, existing source-feed lineage/cursor, target Kafka topics/groups, and rollback owner. A feature-branch commit or green CI job is not a deployed image or runtime acceptance.
 
+For the three generated source profiles, match `source_id` and the distinct
+`coverage_epoch_id` values to `CDC_SOURCE_ID`, `CDC_ORDER_EPOCH`,
+`CDC_CATALOG_EPOCH` and `CDC_INVENTORY_PRICE_EPOCH` in the target shadow stack.
+The catalog and inventory/price artifact schemas are now v2 and v3,
+respectively; their domain contracts did not change. The exact older artifacts
+can be upgraded by the reviewed CI planner patch. Pin the new planner commit
+before running Medusa workflows; an old planner must reject the new manifest.
+
 The separate `infra/swarm-cdc-shadow.yml` is a candidate for the target VPS:
 Kafka/authoritative Pipeline PostgreSQL are reached through the existing
 Pipeline overlay; Connect reaches Medusa PostgreSQL through an additional

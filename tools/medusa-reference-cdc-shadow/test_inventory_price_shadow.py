@@ -30,8 +30,16 @@ class InventoryPriceProfileTests(unittest.TestCase):
                                        "funnelmetry_cdc_catalog_shadow_catalog1"))
 
     def test_exact_initial_snapshot_and_independent_resources(self):
-        profile = dict(stage2.EXPECTED, source_owner="medusa", pipeline_owner="pipeline")
+        profile = dict(stage2.EXPECTED, source_owner="medusa", pipeline_owner="pipeline",
+                       coverage_epoch_id="cdc11_inventory_price_epoch1")
         self.assertEqual(installer.profile_dict(profile), profile)
+        legacy = dict(profile, schema_version=installer.LEGACY_SCHEMA_VERSION)
+        del legacy["coverage_epoch_id"]
+        self.assertEqual(installer.profile_dict(legacy), legacy)
+        with self.assertRaises(ValueError):
+            installer.profile_dict(dict(profile, coverage_epoch_id="INVALID EPOCH"))
+        with self.assertRaises(ValueError):
+            installer.profile_dict(dict(legacy, coverage_epoch_id="cdc11_inventory_price_epoch1"))
         config = installer.connector_config("synthetic-only")
         self.assertEqual(config["snapshot.mode"], "initial")
         self.assertEqual(config["slot.name"], stage2.SLOT)
@@ -52,7 +60,8 @@ class InventoryPriceProfileTests(unittest.TestCase):
         self.assertFalse(set(stage2.TABLES).intersection({"order", "order_cart", "cart", "product"}))
 
     def test_rejects_missing_primary_key_and_unobserved_soft_delete(self):
-        profile = dict(stage2.EXPECTED, source_owner="medusa", pipeline_owner="pipeline")
+        profile = dict(stage2.EXPECTED, source_owner="medusa", pipeline_owner="pipeline",
+                       coverage_epoch_id="cdc11_inventory_price_epoch1")
         changed = dict(profile)
         changed["table_columns"] = [*profile["table_columns"]]
         changed["table_columns"][0] = "public.product_sales_channel:id,product_id,sales_channel_id"

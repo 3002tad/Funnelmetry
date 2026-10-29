@@ -13,6 +13,13 @@ approved order-state v1 contract, or any live Medusa binding. The operator
 installer and [snapshot/stream evidence](../medusa-reference-cdc-shadow/CATALOG_CDC_SHADOW_EVIDENCE_2026-10-28.md)
 are shadow-only. Inventory and pricing are a [separately versioned stage-2
 candidate](../medusa-reference-cdc-shadow/CATALOG_CDC_STAGE2_SCOPE.md).
+Catalog and inventory/price now require their own `coverage_epoch_id` in the
+source manifest. The generated artifact schemas are catalog v2 and
+inventory/price v3; their business contracts remain catalog v1 and context v2.
+The planner recognizes the exact earlier installer-owned artifacts and emits
+an upgrade patch. It refuses altered files and does not change the native
+order subscriber. The three epochs must match the separate Pipeline worker
+environment before target-topology startup.
 Before running the Medusa workflows with this new block, publish the planner
 commit and update `FUNNELMETRY_PLANNER_REF` to that commit; both plan and propose
 workflows fail closed when the pinned planner lacks `cdcCatalogState`.

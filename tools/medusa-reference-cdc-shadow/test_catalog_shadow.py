@@ -52,7 +52,18 @@ class CatalogProfileTests(unittest.TestCase):
                          "BLOCKED_PENDING_COVERAGE_AND_FRESHNESS")
 
     def test_rejects_extra_table_and_implicit_contract_expansion(self):
-        profile = dict(installer.EXPECTED, source_owner="medusa", pipeline_owner="pipeline")
+        profile = dict(installer.EXPECTED, source_owner="medusa", pipeline_owner="pipeline",
+                       coverage_epoch_id="cdc11_catalog_epoch1")
+        self.assertEqual(installer.profile_dict(profile), profile)
+        legacy = dict(profile, schema_version=installer.LEGACY_SCHEMA_VERSION)
+        del legacy["coverage_epoch_id"]
+        self.assertEqual(installer.profile_dict(legacy), legacy)
+        with self.assertRaises(ValueError):
+            installer.profile_dict(dict(profile, coverage_epoch_id="INVALID EPOCH"))
+        with self.assertRaises(ValueError):
+            installer.profile_dict(dict(profile, schema_version="unknown-profile.v9"))
+        with self.assertRaises(ValueError):
+            installer.profile_dict(dict(legacy, coverage_epoch_id="cdc11_catalog_epoch1"))
         profile["table_columns"] = list(profile["table_columns"]) + ["public.price:id,amount"]
         with self.assertRaises(ValueError):
             installer.profile_dict(profile)

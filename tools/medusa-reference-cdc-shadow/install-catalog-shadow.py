@@ -37,7 +37,7 @@ TABLES = {
 PRIMARY_KEYS = {}
 TABLE_COLUMNS = [f"public.{table}:{','.join(columns)}" for table, columns in TABLES.items()]
 EXPECTED = {
-    "schema_version": "funnelmetry-medusa-cdc-catalog-shadow.v1",
+    "schema_version": "funnelmetry-medusa-cdc-catalog-shadow.v2",
     "generated_by": "funnelmetry-medusa-ci", "status": "SHADOW_ONLY",
     "source_id": "medusa-reference", "medusa_version": "2.19.0",
     "cdc_catalog_contract": "reference.medusa.catalog_master_data.v1",
@@ -49,17 +49,19 @@ EXPECTED = {
     "dashboard_cutover": "BLOCKED_PENDING_COVERAGE_AND_FRESHNESS",
     "runtime_activation": "OPERATOR_CONTROLLED_SEPARATE_FROM_INSTALLER",
 }
+LEGACY_SCHEMA_VERSION = "funnelmetry-medusa-cdc-catalog-shadow.v1"
 
 
 def configure_profile(*, project_pattern, state, secret, connector, prefix,
-                      slot, publication, role, tables, expected, primary_keys=None):
+                      slot, publication, role, tables, expected, primary_keys=None,
+                      legacy_schema_version=None):
     """Reuse guarded table-CDC installation with an independently pinned profile.
 
     The caller must set every owned resource and exact allowlist before invoking
     plan/apply/verify/rollback. The catalog defaults remain unchanged.
     """
     global PROJECT_PATTERN, STATE, SECRET, CONNECTOR, PREFIX, SLOT, PUBLICATION
-    global ROLE, TABLES, TABLE_COLUMNS, EXPECTED, PRIMARY_KEYS
+    global ROLE, TABLES, TABLE_COLUMNS, EXPECTED, PRIMARY_KEYS, LEGACY_SCHEMA_VERSION
     PROJECT_PATTERN = project_pattern
     STATE, SECRET, CONNECTOR, PREFIX = state, secret, connector, prefix
     SLOT, PUBLICATION, ROLE = slot, publication, role
@@ -67,6 +69,7 @@ def configure_profile(*, project_pattern, state, secret, connector, prefix,
     PRIMARY_KEYS = primary_keys or {}
     TABLE_COLUMNS = [f"public.{table}:{','.join(columns)}" for table, columns in tables.items()]
     EXPECTED = expected
+    LEGACY_SCHEMA_VERSION = legacy_schema_version
 
 
 def profile(path):
@@ -75,10 +78,22 @@ def profile(path):
 
 
 def profile_dict(value):
-    if not isinstance(value, dict) or set(value) != set(EXPECTED) | {"source_owner", "pipeline_owner"}:
-        raise ValueError("catalog profile fields differ from version 1")
-    if any(value[key] != expected for key, expected in EXPECTED.items()):
+    if not isinstance(value, dict):
+        raise ValueError("catalog profile must be a mapping")
+    legacy = value.get("schema_version") == LEGACY_SCHEMA_VERSION
+    expected_keys = set(EXPECTED) | {"source_owner", "pipeline_owner"}
+    if not legacy:
+        expected_keys.add("coverage_epoch_id")
+    if set(value) != expected_keys:
+        raise ValueError("catalog profile fields differ from its schema version")
+    if value["schema_version"] != (LEGACY_SCHEMA_VERSION if legacy else EXPECTED["schema_version"]):
+        raise ValueError("catalog profile schema version is unsupported")
+    if any(value[key] != expected for key, expected in EXPECTED.items()
+           if key != "schema_version"):
         raise ValueError("catalog profile differs from exact initial-snapshot allowlist")
+    if not legacy and (not isinstance(value["coverage_epoch_id"], str) or
+                       not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", value["coverage_epoch_id"])):
+        raise ValueError("catalog profile coverage epoch is invalid")
     if any(not isinstance(value[key], str) or not value[key].strip()
            for key in ("source_owner", "pipeline_owner")):
         raise ValueError("catalog profile owners are required")

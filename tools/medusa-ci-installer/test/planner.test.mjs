@@ -65,6 +65,7 @@ function cdcCatalogRawManifest() {
     source_owner: "medusa-operator",
     pipeline_owner: "pipeline-operator",
     snapshot_mode: "initial",
+    coverage_epoch_id: "cdc11_catalog_epoch1",
     publication: "funnelmetry_cdc_catalog_shadow",
     slot: "funnelmetry_cdc_catalog_shadow",
     topic_prefix: "cdc_shadow_medusa_catalog",
@@ -159,6 +160,7 @@ function cdcInventoryPriceRawManifest() {
     source_owner: "medusa-operator",
     pipeline_owner: "pipeline-operator",
     snapshot_mode: "initial",
+    coverage_epoch_id: "cdc11_inventory_price_epoch1",
     publication: "funnelmetry_cdc_inventory_price_shadow_v2",
     slot: "funnelmetry_cdc_inventory_price_shadow_v2",
     topic_prefix: "cdc_shadow_medusa_inventory_price_v2",
@@ -187,9 +189,11 @@ function cdcInventoryPriceRawManifest() {
 test("CDC inventory/price profile is independent, exact-scoped and rollback-guarded", async (t) => {
   const valid = validateManifest(cdcInventoryPriceRawManifest())
   assert.equal(valid.cdcInventoryPriceShadow.snapshotMode, "initial")
+  assert.equal(valid.cdcInventoryPriceShadow.coverageEpochId, "cdc11_inventory_price_epoch1")
   assert.equal(valid.cdcInventoryPriceShadow.tableColumns.length, 16)
   for (const [field, value] of [["snapshot_mode", "no_data"], ["mode", "live"],
-    ["source_db_url_ref", "postgres://secret@host/db"]]) {
+    ["source_db_url_ref", "postgres://secret@host/db"],
+    ["coverage_epoch_id", "INVALID EPOCH"]]) {
     const bad = cdcInventoryPriceRawManifest()
     bad.cdc_inventory_price_shadow[field] = value
     assert.throws(() => validateManifest(bad))
@@ -216,10 +220,21 @@ test("CDC inventory/price profile is independent, exact-scoped and rollback-guar
       ["funnelmetry/cdc-reference-shadow.json", "funnelmetry/cdc-catalog-shadow.json",
         "funnelmetry/cdc-inventory-price-shadow.json"])
     assert.match(initial.patch, /"inventory_available_to_sell_claims": "NOT_PUBLISHED"/)
+    assert.match(initial.patch, /"coverage_epoch_id": "cdc11_inventory_price_epoch1"/)
     assert.match(initial.patch, /"historical_order_amount_restatement": "FORBIDDEN"/)
     await applyWholeFilePatch(root, initial.patch)
     assert.equal((await createPlan(root, valid)).patch, "")
     assert.equal((await verifyIntegration(root, valid)).cdcInventoryPriceState, "SHADOW_ONLY")
+    const profilePath = path.join(root, "funnelmetry/cdc-inventory-price-shadow.json")
+    const legacy = JSON.parse(await readFile(profilePath, "utf8"))
+    legacy.schema_version = "funnelmetry-medusa-cdc-inventory-price-shadow.v2"
+    delete legacy.coverage_epoch_id
+    await writeFile(profilePath, `${JSON.stringify(legacy, null, 2)}\n`)
+    const upgrade = await createPlan(root, valid)
+    assert.deepEqual(upgrade.changes.map(change => change.path),
+      ["funnelmetry/cdc-inventory-price-shadow.json"])
+    await applyWholeFilePatch(root, upgrade.patch)
+    assert.equal((await createPlan(root, valid)).patch, "")
     const rollback = await createCdcInventoryPriceRollbackPlan(root, valid)
     assert.deepEqual(rollback.changes.map(change => change.path), ["funnelmetry/cdc-inventory-price-shadow.json"])
     assert.doesNotMatch(rollback.patch, /cdc-reference-shadow|cdc-catalog-shadow/)
@@ -230,8 +245,10 @@ test("CDC catalog profile is separate, initial-snapshot only, and exact-scoped",
   const valid = validateManifest(cdcCatalogRawManifest())
   assert.equal(valid.cdcShadow.snapshotMode, "no_data")
   assert.equal(valid.cdcCatalogShadow.snapshotMode, "initial")
+  assert.equal(valid.cdcCatalogShadow.coverageEpochId, "cdc11_catalog_epoch1")
   for (const [field, value] of [["snapshot_mode", "no_data"], ["mode", "live"],
-    ["source_db_url_ref", "postgres://secret@host/db"]]) {
+    ["source_db_url_ref", "postgres://secret@host/db"],
+    ["coverage_epoch_id", "INVALID EPOCH"]]) {
     const bad = cdcCatalogRawManifest()
     bad.cdc_catalog_shadow[field] = value
     assert.throws(() => validateManifest(bad))
@@ -252,11 +269,22 @@ test("CDC catalog profile is separate, initial-snapshot only, and exact-scoped",
     assert.deepEqual(initial.changes.map(change => change.path).filter(name => name.startsWith("funnelmetry/")),
       ["funnelmetry/cdc-reference-shadow.json", "funnelmetry/cdc-catalog-shadow.json"])
     assert.match(initial.patch, /"snapshot_mode": "initial"/)
+    assert.match(initial.patch, /"coverage_epoch_id": "cdc11_catalog_epoch1"/)
     assert.match(initial.patch, /"inventory_price_claims": "NOT_SUPPORTED"/)
     assert.doesNotMatch(initial.patch, /postgres:\/\//)
     await applyWholeFilePatch(root, initial.patch)
     assert.equal((await createPlan(root, valid)).patch, "")
     assert.equal((await verifyIntegration(root, valid)).cdcCatalogState, "SHADOW_ONLY")
+    const profilePath = path.join(root, "funnelmetry/cdc-catalog-shadow.json")
+    const legacy = JSON.parse(await readFile(profilePath, "utf8"))
+    legacy.schema_version = "funnelmetry-medusa-cdc-catalog-shadow.v1"
+    delete legacy.coverage_epoch_id
+    await writeFile(profilePath, `${JSON.stringify(legacy, null, 2)}\n`)
+    const upgrade = await createPlan(root, valid)
+    assert.deepEqual(upgrade.changes.map(change => change.path),
+      ["funnelmetry/cdc-catalog-shadow.json"])
+    await applyWholeFilePatch(root, upgrade.patch)
+    assert.equal((await createPlan(root, valid)).patch, "")
     const rollback = await createCdcCatalogRollbackPlan(root, valid)
     assert.deepEqual(rollback.changes.map(change => change.path), ["funnelmetry/cdc-catalog-shadow.json"])
     assert.doesNotMatch(rollback.patch, /cdc-reference-shadow/)

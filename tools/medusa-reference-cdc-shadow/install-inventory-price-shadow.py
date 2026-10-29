@@ -51,7 +51,7 @@ SLOT = "funnelmetry_cdc_inventory_price_shadow_v2"
 PREFIX = "cdc_shadow_medusa_inventory_price_v2"
 CONNECTOR = "medusa-cdc-inventory-price-shadow-v2"
 EXPECTED = {
-    "schema_version": "funnelmetry-medusa-cdc-inventory-price-shadow.v2",
+    "schema_version": "funnelmetry-medusa-cdc-inventory-price-shadow.v3",
     "generated_by": "funnelmetry-medusa-ci", "status": "SHADOW_ONLY",
     "source_id": "medusa-reference", "medusa_version": "2.19.0",
     "cdc_inventory_price_contract": "reference.medusa.inventory_price_context.v2",
@@ -74,6 +74,7 @@ table_installer.configure_profile(
     connector=CONNECTOR, prefix=PREFIX,
     slot=SLOT, publication=SLOT, role="cdc_inventory_price_v2", tables=TABLES,
     expected=EXPECTED, primary_keys=PRIMARY_KEYS,
+    legacy_schema_version="funnelmetry-medusa-cdc-inventory-price-shadow.v2",
 )
 
 

@@ -146,7 +146,7 @@ function cdcCatalogProfile(value) {
   if (value === undefined) return null
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("cdc_catalog_shadow must be a mapping")
   const supported = new Set(["mode", "profile", "source_db_url_ref", "source_owner",
-    "pipeline_owner", "snapshot_mode", "publication", "slot", "topic_prefix", "table_columns"])
+    "pipeline_owner", "snapshot_mode", "coverage_epoch_id", "publication", "slot", "topic_prefix", "table_columns"])
   const unknown = Object.keys(value).filter(key => !supported.has(key))
   if (unknown.length) throw new Error(`Unsupported cdc_catalog_shadow field(s): ${unknown.join(", ")}`)
   if (value.mode !== "shadow_only" || value.profile !== "reference.medusa.catalog_master_data.v1" ||
@@ -170,6 +170,7 @@ function cdcCatalogProfile(value) {
     sourceOwner: requiredString(value.source_owner, "cdc_catalog_shadow.source_owner"),
     pipelineOwner: requiredString(value.pipeline_owner, "cdc_catalog_shadow.pipeline_owner"),
     snapshotMode: value.snapshot_mode,
+    coverageEpochId: cdcCoverageEpoch(value.coverage_epoch_id, "cdc_catalog_shadow.coverage_epoch_id"),
     publication: cdcIdentifier(value.publication, "cdc_catalog_shadow.publication"),
     slot: cdcIdentifier(value.slot, "cdc_catalog_shadow.slot"),
     topicPrefix: cdcIdentifier(value.topic_prefix, "cdc_catalog_shadow.topic_prefix"),
@@ -183,7 +184,7 @@ function cdcInventoryPriceProfile(value) {
     throw new Error("cdc_inventory_price_shadow must be a mapping")
   }
   const supported = new Set(["mode", "profile", "source_db_url_ref", "source_owner",
-    "pipeline_owner", "snapshot_mode", "publication", "slot", "topic_prefix", "table_columns"])
+    "pipeline_owner", "snapshot_mode", "coverage_epoch_id", "publication", "slot", "topic_prefix", "table_columns"])
   const unknown = Object.keys(value).filter(key => !supported.has(key))
   if (unknown.length) throw new Error(`Unsupported cdc_inventory_price_shadow field(s): ${unknown.join(", ")}`)
   if (value.mode !== "shadow_only" || value.profile !== "reference.medusa.inventory_price_context.v2" ||
@@ -207,6 +208,7 @@ function cdcInventoryPriceProfile(value) {
     sourceOwner: requiredString(value.source_owner, "cdc_inventory_price_shadow.source_owner"),
     pipelineOwner: requiredString(value.pipeline_owner, "cdc_inventory_price_shadow.pipeline_owner"),
     snapshotMode: value.snapshot_mode,
+    coverageEpochId: cdcCoverageEpoch(value.coverage_epoch_id, "cdc_inventory_price_shadow.coverage_epoch_id"),
     publication: cdcIdentifier(value.publication, "cdc_inventory_price_shadow.publication"),
     slot: cdcIdentifier(value.slot, "cdc_inventory_price_shadow.slot"),
     topicPrefix: cdcIdentifier(value.topic_prefix, "cdc_inventory_price_shadow.topic_prefix"),
@@ -217,6 +219,14 @@ function cdcInventoryPriceProfile(value) {
 function requiredString(value, name) {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} is required`)
   return value.trim()
+}
+
+function cdcCoverageEpoch(value, name) {
+  const epoch = requiredString(value, name)
+  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(epoch)) {
+    throw new Error(`${name} must be a bounded epoch identifier`)
+  }
+  return epoch
 }
 
 function optionalPositiveInteger(value, name, fallback) {
