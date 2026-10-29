@@ -99,6 +99,11 @@ jobs:
           npm test --prefix workers/inventory-price-cdc-writer
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_governed_profile.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_governed_quality.py -v
+      - name: Check inventory/price resolution candidate
+        run: |
+          python -m py_compile tools/medusa-reference-cdc-shadow/inventory_price_resolution_candidate.py
+          python -m py_compile tools/medusa-reference-cdc-shadow/probe-inventory-price-resolver-candidate.py
+          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_resolution_candidate.py -v
       - name: Check reference order CDC v2 sink candidate
         run: |
           python -m py_compile \
