@@ -19,6 +19,13 @@ verifier = load("catalog_verifier", "verify-catalog-shadow.py")
 
 
 class CatalogProfileTests(unittest.TestCase):
+    def test_governed_writer_build_context_exists(self):
+        context = (ROOT / "../../workers/catalog-cdc-writer").resolve()
+        compose = (ROOT / "compose.catalog-governed-candidate.yml").read_text(
+            encoding="utf-8")
+        self.assertIn("context: ../../workers/catalog-cdc-writer", compose)
+        self.assertTrue((context / "Dockerfile.shadow").is_file())
+
     def test_combined_clone_name_is_explicitly_allowed(self):
         self.assertIsNotNone(re.fullmatch(installer.PROJECT_PATTERN,
                                           "funnelmetry_cdc_combined_shadow_c1"))
