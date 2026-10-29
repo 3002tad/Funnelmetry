@@ -18,7 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 BASE = ["docker", "compose", "-f", str(ROOT / "compose.yml")]
 PROJECTION = BASE + ["-f", str(ROOT / "compose.catalog-projection.yml")]
-PROJECT = re.compile(r"funnelmetry_cdc_catalog_shadow_[a-z0-9][a-z0-9_-]{0,32}\Z")
+PROJECT = re.compile(r"(?:funnelmetry_cdc_catalog_shadow_|"
+                     r"funnelmetry_cdc_combined_shadow_)[a-z0-9][a-z0-9_-]{0,32}\Z")
 PREFIX = "cdc_shadow_medusa_catalog"
 TABLES = ("product", "product_variant", "product_category", "product_category_product")
 

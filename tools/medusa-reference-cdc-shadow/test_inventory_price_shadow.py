@@ -1,4 +1,5 @@
 import importlib.util
+import re
 import unittest
 from pathlib import Path
 
@@ -19,6 +20,15 @@ projection_spec.loader.exec_module(projection_verifier)
 
 
 class InventoryPriceProfileTests(unittest.TestCase):
+    def test_combined_clone_name_is_explicitly_allowed(self):
+        self.assertIsNotNone(re.fullmatch(installer.PROJECT_PATTERN,
+                                          "funnelmetry_cdc_combined_shadow_c1"))
+        self.assertTrue(snapshot_verifier.PROJECT.fullmatch(
+            "funnelmetry_cdc_combined_shadow_c1"))
+        self.assertIsNone(re.fullmatch(installer.PROJECT_PATTERN, "medusa_reference"))
+        self.assertIsNone(re.fullmatch(installer.PROJECT_PATTERN,
+                                       "funnelmetry_cdc_catalog_shadow_catalog1"))
+
     def test_exact_initial_snapshot_and_independent_resources(self):
         profile = dict(stage2.EXPECTED, source_owner="medusa", pipeline_owner="pipeline")
         self.assertEqual(installer.profile_dict(profile), profile)

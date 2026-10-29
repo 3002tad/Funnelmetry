@@ -67,7 +67,8 @@ EXPECTED = {
 }
 
 table_installer.configure_profile(
-    project_pattern=r"funnelmetry_cdc_inventory_price_shadow_[a-z0-9][a-z0-9_-]{0,32}",
+    project_pattern=(r"(?:funnelmetry_cdc_inventory_price_shadow_|"
+                     r"funnelmetry_cdc_combined_shadow_)[a-z0-9][a-z0-9_-]{0,32}"),
     state=ROOT / "private" / "cdc-inventory-price-installer-state.json",
     secret=ROOT / "private" / "inventory-price-connector.env",
     connector=CONNECTOR, prefix=PREFIX,

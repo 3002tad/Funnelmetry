@@ -18,7 +18,8 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 PROJECT = os.environ.get("COMPOSE_PROJECT_NAME", "")
-PROJECT_PATTERN = r"funnelmetry_cdc_catalog_shadow_[a-z0-9][a-z0-9_-]{0,32}"
+PROJECT_PATTERN = (r"(?:funnelmetry_cdc_catalog_shadow_|"
+                   r"funnelmetry_cdc_combined_shadow_)[a-z0-9][a-z0-9_-]{0,32}")
 COMPOSE = ["docker", "compose", "-f", str(ROOT / "compose.yml")]
 STATE = ROOT / "private" / "cdc-catalog-installer-state.json"
 SECRET = ROOT / "private" / "catalog-connector.env"

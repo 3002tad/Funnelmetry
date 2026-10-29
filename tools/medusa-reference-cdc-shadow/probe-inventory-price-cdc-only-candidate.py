@@ -25,7 +25,7 @@ catalog_pair = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(catalog_pair)
 
 SOURCE_ID = "medusa-reference"
-PROJECT = "funnelmetry_cdc_inventory_price_shadow_stage2b"
+PROJECT = "funnelmetry_cdc_combined_shadow_c1"
 CATALOG_COMPOSE = ["docker", "compose", "-f", str(ROOT / "compose.yml"),
                    "-f", str(ROOT / "compose.catalog-projection.yml")]
 
@@ -90,8 +90,9 @@ def verify_common_clone_source():
 
 def main():
     epoch = os.environ.get("CATALOG_CDC_COVERAGE_EPOCH", "")
+    inventory_epoch = os.environ.get("CDC_COVERAGE_EPOCH", "")
     if (os.environ.get("COMPOSE_PROJECT_NAME") != PROJECT or
-            os.environ.get("CDC_COVERAGE_EPOCH") != stage2_probe.api.fixture.EPOCH or
+            not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,100}", inventory_epoch) or
             not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,100}", epoch)):
         raise RuntimeError("requires exact combined isolated clone and catalog epoch")
     verify_common_clone_source()
@@ -130,7 +131,7 @@ def main():
                Decimal(price["amount"]) == Decimal(str(api_result["calculated_amount"])))
     print(json.dumps({"status": "PASS_SAMPLE_ONLY" if matches else "BLOCKED_BY_QUALITY",
                       "catalog_source": "governed_cdc", "inventory_source": "governed_cdc",
-                      "catalog_epoch": epoch, "inventory_epoch": stage2_probe.api.fixture.EPOCH,
+                      "catalog_epoch": epoch, "inventory_epoch": inventory_epoch,
                       "inventory_reason": inventory.get("reason"),
                       "price_reason": price.get("reason")}, sort_keys=True))
     return 0 if matches else 1

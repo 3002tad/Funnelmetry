@@ -1,4 +1,5 @@
 import importlib.util
+import re
 import unittest
 from pathlib import Path
 
@@ -18,6 +19,14 @@ verifier = load("catalog_verifier", "verify-catalog-shadow.py")
 
 
 class CatalogProfileTests(unittest.TestCase):
+    def test_combined_clone_name_is_explicitly_allowed(self):
+        self.assertIsNotNone(re.fullmatch(installer.PROJECT_PATTERN,
+                                          "funnelmetry_cdc_combined_shadow_c1"))
+        self.assertTrue(verifier.PROJECT.fullmatch("funnelmetry_cdc_combined_shadow_c1"))
+        self.assertIsNone(re.fullmatch(installer.PROJECT_PATTERN, "medusa_reference"))
+        self.assertIsNone(re.fullmatch(installer.PROJECT_PATTERN,
+                                       "funnelmetry_cdc_inventory_price_shadow_stage2b"))
+
     def test_initial_snapshot_is_narrow_and_independent(self):
         fields = installer.connector_config("synthetic-only")
         self.assertEqual(fields["snapshot.mode"], "initial")

@@ -22,7 +22,8 @@ spec.loader.exec_module(stage2)
 TABLES = tuple(stage2.TABLES)
 PREFIX = stage2.PREFIX
 BASE = ["docker", "compose", "-f", str(ROOT / "compose.yml")]
-PROJECT = re.compile(r"funnelmetry_cdc_inventory_price_shadow_[a-z0-9][a-z0-9_-]{0,32}\Z")
+PROJECT = re.compile(r"(?:funnelmetry_cdc_inventory_price_shadow_|"
+                     r"funnelmetry_cdc_combined_shadow_)[a-z0-9][a-z0-9_-]{0,32}\Z")
 
 
 def run(command):
