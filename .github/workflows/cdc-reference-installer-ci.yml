@@ -22,6 +22,9 @@ on:
       - apps/dashboard-api/src/lib/product-reference.js
       - apps/dashboard-api/test/product-reference.test.js
       - infra/docker/pipeline-workers.Dockerfile
+      - infra/bootstrap/cdc-candidate-migrations.mjs
+      - infra/bootstrap/cdc-candidate-migrations.test.mjs
+      - infra/docker/dashboard-api.Dockerfile
   workflow_dispatch:
 
 permissions:
@@ -139,6 +142,44 @@ jobs:
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_reference_order_v2_quality.py -v
       - name: Build candidate Workers image
         run: docker build --file infra/docker/pipeline-workers.Dockerfile --tag funnelmetry-workers-cdc-ci .
+      - name: Check existing Pipeline DB CDC candidate migration guard
+        run: node --test infra/bootstrap/cdc-candidate-migrations.test.mjs
+      - name: Rehearse candidate migration against fresh PostgreSQL
+        run: |
+          docker build --file infra/docker/dashboard-api.Dockerfile --tag funnelmetry-api-cdc-ci .
+          docker network create funnelmetry-cdc-migration-ci
+          docker run -d --name funnelmetry-cdc-migration-ci-db \
+            --network funnelmetry-cdc-migration-ci --network-alias postgres \
+            -e POSTGRES_DB=funnelmetry_handoff -e POSTGRES_USER=funnelmetry \
+            -e POSTGRES_PASSWORD=ci-only-password postgres:15-alpine
+          trap 'docker rm -f funnelmetry-cdc-migration-ci-db >/dev/null 2>&1 || true; docker network rm funnelmetry-cdc-migration-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec funnelmetry-cdc-migration-ci-db pg_isready -U funnelmetry -d funnelmetry_handoff >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
+            -U funnelmetry -d funnelmetry_handoff -c \
+            "CREATE TABLE handoff_bootstrap(id integer PRIMARY KEY,status text NOT NULL); INSERT INTO handoff_bootstrap VALUES(1,'READY');"
+          common_env=(-e HANDOFF_MODE=PARALLEL_LIVE -e POSTGRES_HOST=postgres \
+            -e POSTGRES_DB=funnelmetry_handoff -e POSTGRES_USER=funnelmetry \
+            -e POSTGRES_PASSWORD=ci-only-password)
+          plan="$(docker run --rm --network funnelmetry-cdc-migration-ci \
+            "${common_env[@]}" --entrypoint node funnelmetry-api-cdc-ci \
+            /workspace/infra/bootstrap/cdc-candidate-migrations.mjs plan)"
+          digest="$(printf '%s' "$plan" | jq -r '.digest')"
+          test "$(printf '%s' "$plan" | jq -r '.status')" = READY_TO_APPLY
+          docker run --rm --network funnelmetry-cdc-migration-ci \
+            "${common_env[@]}" -e CDC_SHADOW_MIGRATION_ACK=CDC11_CANDIDATE_ONLY \
+            -e CDC_EXPECTED_MIGRATION_DIGEST="$digest" --entrypoint node \
+            funnelmetry-api-cdc-ci /workspace/infra/bootstrap/cdc-candidate-migrations.mjs apply \
+            | jq -e '.status == "APPLIED_CANDIDATE_ONLY"'
+          docker run --rm --network funnelmetry-cdc-migration-ci \
+            "${common_env[@]}" --entrypoint node funnelmetry-api-cdc-ci \
+            /workspace/infra/bootstrap/cdc-candidate-migrations.mjs plan \
+            | jq -e '.status == "ALREADY_APPLIED"'
+          docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
+            -U funnelmetry -d funnelmetry_handoff -Atc \
+            "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 3
       - name: Check CDC Docker secret config and isolated worker images
         run: |
           node --test workers/shared/postgres-config.test.mjs

@@ -16,6 +16,27 @@ x-cdc-worker: &cdc-worker
       limits: {cpus: '1.00', memory: 512M}
 
 services:
+  candidate-schema:
+    image: ${CDC_API_IMAGE:?Pin the reviewed Dashboard API image digest containing the candidate migrator}
+    command: [node, /workspace/infra/bootstrap/cdc-candidate-migrations.mjs, '${CDC_MIGRATION_MODE:-plan}']
+    environment:
+      HANDOFF_MODE: PARALLEL_LIVE
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: funnelmetry_handoff
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD_FILE: /run/secrets/pipeline_db_password
+      CDC_EXPECTED_MIGRATION_DIGEST: ${CDC_EXPECTED_MIGRATION_DIGEST:-UNSET}
+      CDC_SHADOW_MIGRATION_ACK: ${CDC_SHADOW_MIGRATION_ACK:-UNSET}
+    secrets: [pipeline_db_password]
+    networks: [pipeline_data]
+    read_only: true
+    deploy:
+      replicas: 0
+      restart_policy: {condition: none}
+      resources:
+        reservations: {cpus: '0.10', memory: 128M}
+        limits: {cpus: '0.50', memory: 512M}
+
   connect:
     image: ${CDC_CONNECT_IMAGE:?Pin the reviewed Debezium Connect image digest}
     environment:

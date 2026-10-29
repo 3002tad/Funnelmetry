@@ -22,6 +22,20 @@ points passed `node --check` inside an offline container. No live Swarm task
 uses that candidate image. These checks do not satisfy the source/release,
 continuous quality or CDC-12 gates below.
 
+**Target shadow progress, 2026-10-30:** An encrypted, internal, attachable
+`funnelmetry_cdc_source` overlay was created but Medusa PostgreSQL is not
+attached to it. The separate `funnelmetry_cdc_target_shadow` stack has six
+services: Connect and four workers remain `0/0`; only its dedicated order
+mapper DB was scaled to `1/1`. Migration 024 was applied to that new DB and
+its ten `reference_cdc_v2_*` tables were listed. Existing live `catalog-sync`
+remained `1/1`. The candidate workers image used in the stack was built from
+Pipeline `13d6108` with local image SHA-256
+`ac52de46374e25ac0a85a9c412f992b8913fc0da2e168e4fa1a05a818eef9b8c`;
+this is a VPS-local candidate image, not a registry release. No connector or
+CDC worker was started. A subsequent read-only VPS check was rejected by
+automatic approval review because its usage limit was reached; no later VPS
+state is claimed in this document until access can be checked again.
+
 ## 1. Current VPS preflight inventory
 
 Read-only checks on `ssh kltn`, 2026-10-29:
@@ -64,6 +78,21 @@ PostgreSQL helper accepts Docker password/DSN files without putting credentials
 in YAML. The Compose clone Dockerfiles now build from the repository root so
 they include that helper. This stack is not a substitute for the source-owner
 PostgreSQL overlay and approved `wal_level`/role/publication changes.
+
+For the **existing** Pipeline PostgreSQL database, use
+`infra/bootstrap/cdc-candidate-migrations.mjs plan` through the shadow stack's
+`candidate-schema` service. It checks `handoff_bootstrap=READY`, confirms
+that candidate objects are absent or all three journaled migrations match,
+then emits a combined SHA-256 digest. To apply 021–023, redeploy only the
+shadow stack with `CDC_MIGRATION_MODE=apply`, the reviewed digest as
+`CDC_EXPECTED_MIGRATION_DIGEST` and
+`CDC_SHADOW_MIGRATION_ACK=CDC11_CANDIDATE_ONLY`; scale `candidate-schema`
+from zero to one, inspect its terminal log and journal, then scale it back to
+zero. The migrator uses one transaction and rejects a partial/unowned
+candidate schema. Migration 024 belongs to the separate order mapper DB and
+must be applied there, as in the shadow rehearsal; this tool never applies it
+to Pipeline PostgreSQL. Do not call the fresh-database `bootstrap-swarm` on
+the existing live Pipeline database.
 
 - Freeze the Medusa version and compare actual `pg_catalog` schema, primary keys and soft-delete columns with the order-v2, catalog-stage-1 and inventory/price-stage-2 profiles. Refuse drift; do not broaden publication to `FOR ALL TABLES`.
 - Backup and restore-test Medusa PostgreSQL plus the Pipeline authoritative DB before changing `wal_level`. Record source DB backup checkpoint and separate Pipeline processing-safe checkpoint. A file checksum alone is not a restore test.

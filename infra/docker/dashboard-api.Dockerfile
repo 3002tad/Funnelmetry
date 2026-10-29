@@ -17,6 +17,7 @@ COPY integrations/medusa/canonical-mappings.v1.json /workspace/integrations/medu
 COPY infra/postgres /workspace/infra/postgres
 COPY infra/bootstrap/bootstrap-handoff.mjs /workspace/infra/bootstrap/bootstrap-handoff.mjs
 COPY infra/bootstrap/bootstrap-swarm.mjs /workspace/infra/bootstrap/bootstrap-swarm.mjs
+COPY infra/bootstrap/cdc-candidate-migrations.mjs /workspace/infra/bootstrap/cdc-candidate-migrations.mjs
 COPY infra/docker/swarm-entrypoint.mjs /workspace/infra/docker/swarm-entrypoint.mjs
 COPY infra/docker/swarm-readiness.mjs /workspace/infra/docker/swarm-readiness.mjs
 COPY tools/v2-e2e/test/analytics-image-smoke.mjs /workspace/tools/analytics-image-smoke.mjs
