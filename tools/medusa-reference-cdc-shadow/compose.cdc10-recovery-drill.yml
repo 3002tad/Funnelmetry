@@ -1,0 +1,13 @@
+# Opt-in isolated CDC-10 clone only: permits old lost slots plus a new epoch.
+services:
+  postgres:
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=4
+      - -c
+      - max_wal_senders=4
+      - -c
+      - max_slot_wal_keep_size=256MB

@@ -1,0 +1,35 @@
+{
+  "catalog_id": "cdc-shadow-reference-recovery-analytics",
+  "version": "2.0.1-shadow",
+  "status": "SHADOW_ONLY_CANDIDATE",
+  "pipeline_catalog_published": false,
+  "contract_id": "reference.medusa.order_recorded_state.v2",
+  "coverage_epoch_id": "cdc10-epoch2",
+  "historical_gap_status": "INCOMPLETE",
+  "asset": {
+    "id": "asset.reference_medusa_order_rebaseline_current_state",
+    "version": "2.0.1-shadow",
+    "relation": "public.recovery_order_current_state_readable",
+    "grain": ["coverage_epoch_id", "source_instance_id", "order_id"],
+    "required_columns": {
+      "coverage_epoch_id": "text",
+      "source_instance_id": "text",
+      "order_id": "text",
+      "active": "boolean",
+      "last_record_id": "text",
+      "last_topic_offset": "bigint"
+    },
+    "authority": "Versioned shadow CDC current state from a verified initial snapshot and subsequent WAL changes",
+    "time_basis": "current state after processed Kafka offset; not order placement time",
+    "quality_requirements": ["baseline_complete", "source_reconciliation", "connector_slot_usable", "sink_offsets_caught_up", "verification_age_under_120_seconds"],
+    "limitations": ["Historical WAL gap is INCOMPLETE", "No immutable order.placed or revenue claim"]
+  },
+  "metric": {
+    "id": "metric.reference_currently_recorded_order_count",
+    "version": "2.0.1-shadow",
+    "formula": "COUNT(*) WHERE active=true AND coverage_epoch_id='cdc10-epoch2'",
+    "unit": "orders",
+    "status": "SHADOW_ONLY_CANDIDATE",
+    "activation": "Readable only during a 120-second verified quality lease; repeat verification every 30 seconds"
+  }
+}

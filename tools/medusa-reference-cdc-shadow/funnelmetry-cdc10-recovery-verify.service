@@ -1,0 +1,14 @@
+[Unit]
+Description=Funnelmetry CDC-10 shadow recovery reconciliation
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/KLTN/cdc-shadow
+Environment=COMPOSE_PROJECT_NAME=funnelmetry_cdc_shadow_cdc10
+ExecStart=/usr/bin/python3 /srv/KLTN/cdc-shadow/verify-recovery-epoch.py --write-quality
+TimeoutStartSec=25
+
+[Install]
+WantedBy=multi-user.target

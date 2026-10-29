@@ -1,0 +1,11 @@
+[Unit]
+Description=Verify Funnelmetry CDC-10 shadow recovery every 30 seconds
+
+[Timer]
+OnActiveSec=10sec
+OnUnitInactiveSec=30sec
+AccuracySec=1sec
+Unit=funnelmetry-cdc10-recovery-verify.service
+
+[Install]
+WantedBy=timers.target

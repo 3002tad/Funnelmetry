@@ -105,3 +105,8 @@ All CDC-10 containers were stopped after the test. Protected files, slots,
 topics and volumes were retained. The earlier automatic review rejected
 `docker compose down -v --remove-orphans` because deleting the cloned
 PostgreSQL volumes lacked explicit approval; no alternate deletion was made.
+
+**Later shadow evidence:** the [durable epoch-2 mapper/sink](CDC10_DURABLE_SLOT_RECOVERY_EVIDENCE_2026-10-28.md)
+and [second-loss, interrupted-snapshot and budget drill](CDC10_SECOND_LOSS_SNAPSHOT_LOAD_BUDGET_2026-10-28.md)
+supersede the open shadow test items above. This document remains the exact
+record of the first semantic rebaseline rehearsal.

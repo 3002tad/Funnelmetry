@@ -1,0 +1,24 @@
+# Mapper-only snapshot interruption probe; never publishes an analytical asset.
+services:
+  recovery4-projection-db:
+    image: postgres:15-alpine
+    env_file: ./private/recovery4-projection-db.env
+    volumes: [recovery4-projection-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U recovery4_mapper -d recovery4_projection"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [shadow]
+
+  recovery4-mapper:
+    build: ./reference-recovery-mapper
+    env_file: ./private/recovery4-mapper.env
+    depends_on:
+      recovery4-projection-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    restart: on-failure
+    networks: [shadow]
+
+volumes:
+  recovery4-projection-data:

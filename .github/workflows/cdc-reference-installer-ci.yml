@@ -32,5 +32,16 @@ jobs:
             tools/medusa-reference-cdc-shadow/prepare-private.py
       - name: Test CDC runtime installer guards
         run: python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_install_reference.py -v
+      - name: Check CDC recovery syntax and semantic guards
+        run: |
+          python -m py_compile \
+            tools/medusa-reference-cdc-shadow/verify-recovery-epoch.py \
+            tools/medusa-reference-cdc-shadow/activate-recovery-baseline.py \
+            tools/medusa-reference-cdc-shadow/probe-cdc10-snapshot-interrupt.py \
+            tools/medusa-reference-cdc-shadow/probe-cdc10-second-slot-loss.py \
+            tools/medusa-reference-cdc-shadow/probe-cdc10-sustained-recovery.py
+          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_recovery_epoch.py -v
+          node --check tools/medusa-reference-cdc-shadow/reference-recovery-mapper/main.mjs
+          node --check tools/medusa-reference-cdc-shadow/reference-recovery-analytics/main.mjs
       - name: Test Medusa CI planner
         run: npm test --prefix tools/medusa-ci-installer

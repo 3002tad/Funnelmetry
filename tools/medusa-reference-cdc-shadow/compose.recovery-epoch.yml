@@ -1,0 +1,45 @@
+# CDC-10 epoch-2 candidate: separate mapper and sink DBs, no host ports.
+services:
+  recovery-projection-db:
+    image: postgres:15-alpine
+    env_file: ./private/recovery-projection-db.env
+    volumes: [recovery-projection-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U recovery_mapper -d recovery_projection"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [shadow]
+
+  recovery-mapper:
+    build: ./reference-recovery-mapper
+    env_file: ./private/recovery-mapper.env
+    depends_on:
+      recovery-projection-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [shadow]
+
+  recovery-analytics-db:
+    image: postgres:15-alpine
+    env_file: ./private/recovery-analytics-db.env
+    volumes: [recovery-analytics-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U recovery_analytics -d recovery_analytics"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [shadow]
+
+  recovery-analytics-sink:
+    build: ./reference-recovery-analytics
+    env_file: ./private/recovery-analytics-sink.env
+    depends_on:
+      recovery-analytics-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [shadow]
+
+volumes:
+  recovery-projection-data:
+  recovery-analytics-data:

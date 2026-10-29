@@ -154,3 +154,9 @@ approval review because deletion of the cloned database/volumes lacked explicit
 user approval; no alternative deletion was attempted. Live Medusa was checked
 afterward: `wal_level=replica`, zero replication slots. The pre-existing
 `funnelmetry_cdc_shadow` stack was not targeted.
+
+**Later shadow evidence:** the durable epoch-2 mapper/sink and
+[second-loss, snapshot-interruption and budget drill](CDC10_SECOND_LOSS_SNAPSHOT_LOAD_BUDGET_2026-10-28.md)
+close the open shadow fault items above. This document remains the exact
+record of the first bounded load and first slot-loss observations, not a live
+production capacity claim.

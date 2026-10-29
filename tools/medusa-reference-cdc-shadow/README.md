@@ -1,5 +1,16 @@
 # Medusa CDC shadow experiment
 
+## Lost-slot recovery candidate
+
+The isolated CDC-10 clone has a separate durable epoch-2 mapper, analytical
+sink and guarded metadata for a lost replication slot. See
+[durable recovery evidence](CDC10_DURABLE_SLOT_RECOVERY_EVIDENCE_2026-10-28.md)
+and [second-loss, interrupted-snapshot and load-budget evidence](CDC10_SECOND_LOSS_SNAPSHOT_LOAD_BUDGET_2026-10-28.md).
+The historical gap is permanently `INCOMPLETE`. The
+[v2 semantic contract](../../../System_Backbone/docs/governance/REFERENCE_MEDUSA_ORDER_RECORDED_STATE_V2.md)
+is approved for shadow development only; it does not replace the approved v1
+contract or switch the live Pipeline.
+
 ## Separate catalog/master-data shadow
 
 The Medusa integration manifest now declares
