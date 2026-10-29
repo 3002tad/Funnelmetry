@@ -98,7 +98,10 @@ def main():
     catalog_diff = [topic for topic, end in catalog_ends.items()
                     if before["catalog_offsets"].get(topic) != end]
     inventory_diff = [table for table, end in inventory_ends.items()
-                      if end is not None and before["inventory_offsets"].get(
+                      if end is not None and not (
+                          end == 0 and before["inventory_offsets"].get(
+                              f"{inventory.snapshot.PREFIX}.public.{table}") in (None, 0))
+                      and before["inventory_offsets"].get(
                           f"{inventory.snapshot.PREFIX}.public.{table}") != end]
     if catalog_diff or inventory_diff:
         raise RuntimeError("both CDC projections must be caught up before replay: "
