@@ -87,6 +87,8 @@ jobs:
           node --check tools/medusa-reference-cdc-shadow/reference-recovery-analytics/main.mjs
       - name: Test Medusa CI planner
         run: npm test --prefix tools/medusa-ci-installer
+      - name: Check three-stream target profile binding
+        run: node --test tools/medusa-reference-cdc-shadow/check-target-profiles.test.mjs
       - name: Test governed catalog CDC candidate
         run: |
           python -m py_compile \

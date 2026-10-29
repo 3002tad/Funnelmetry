@@ -71,6 +71,12 @@ The catalog and inventory/price artifact schemas are now v2 and v3,
 respectively; their domain contracts did not change. The exact older artifacts
 can be upgraded by the reviewed CI planner patch. Pin the new planner commit
 before running Medusa workflows; an old planner must reject the new manifest.
+Run `node tools/medusa-reference-cdc-shadow/check-target-profiles.mjs
+--medusa-root <Medusa checkout>` with the exact non-secret `CDC_*` environment
+variables intended for `infra/swarm-cdc-shadow.yml`. It fails closed on an
+older profile, mismatched epoch/source/topic or resource collision. A PASS
+confirms configuration alignment only; it does not check PostgreSQL, Connect,
+Kafka offsets or runtime freshness.
 
 The separate `infra/swarm-cdc-shadow.yml` is a candidate for the target VPS:
 Kafka/authoritative Pipeline PostgreSQL are reached through the existing
