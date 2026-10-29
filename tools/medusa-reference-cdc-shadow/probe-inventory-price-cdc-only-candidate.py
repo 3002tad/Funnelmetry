@@ -96,7 +96,6 @@ def main():
             not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,100}", epoch)):
         raise RuntimeError("requires exact combined isolated clone and catalog epoch")
     verify_common_clone_source()
-    stage2_probe.api.fixture.reconcile()
     observed = stage2_probe.api.sample_context()
     governed = stage2_probe.governed
     stage2 = governed.stage2.evaluate(
