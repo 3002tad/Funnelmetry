@@ -48,7 +48,22 @@ The Medusa runtime override `runtime/docker-compose.vps.yml` is untracked on the
 
 ## 3. Release and source-side gate
 
-Before touching live Medusa PostgreSQL, record a reviewed manifest with environment ID, source owner, full Medusa/Pipeline commit SHAs, immutable image digests, schema migration checksums, generated installer profiles, table/column allowlists, secrets by reference, existing source-feed lineage/cursor, target Kafka topics/groups, and rollback owner. The Pipeline feature commit `d4331ac` is a candidate, not the deployed image; CI success is not runtime acceptance.
+Before touching live Medusa PostgreSQL, record a reviewed manifest with environment ID, source owner, full Medusa/Pipeline commit SHAs, immutable image digests, schema migration checksums, generated installer profiles, table/column allowlists, secrets by reference, existing source-feed lineage/cursor, target Kafka topics/groups, and rollback owner. A feature-branch commit or green CI job is not a deployed image or runtime acceptance.
+
+The separate `infra/swarm-cdc-shadow.yml` is a candidate for the target VPS:
+Kafka/authoritative Pipeline PostgreSQL are reached through the existing
+Pipeline overlay; Connect reaches Medusa PostgreSQL through an additional
+private, attachable source overlay; the order mapper has its own database and
+volume. It publishes no host ports. Its Connect, mapper DB and four CDC worker
+services default to **zero replicas**. Do not scale a worker before its
+schema, exact Kafka topics/groups, source publication/slot, credentials,
+initial snapshot and retention budget are checked. Catalog/stage-2/order sink
+write only their separate candidate tables in the Pipeline database; no
+Dashboard provider or order profile is switched by this file. The shared CDC
+PostgreSQL helper accepts Docker password/DSN files without putting credentials
+in YAML. The Compose clone Dockerfiles now build from the repository root so
+they include that helper. This stack is not a substitute for the source-owner
+PostgreSQL overlay and approved `wal_level`/role/publication changes.
 
 - Freeze the Medusa version and compare actual `pg_catalog` schema, primary keys and soft-delete columns with the order-v2, catalog-stage-1 and inventory/price-stage-2 profiles. Refuse drift; do not broaden publication to `FOR ALL TABLES`.
 - Backup and restore-test Medusa PostgreSQL plus the Pipeline authoritative DB before changing `wal_level`. Record source DB backup checkpoint and separate Pipeline processing-safe checkpoint. A file checksum alone is not a restore test.
