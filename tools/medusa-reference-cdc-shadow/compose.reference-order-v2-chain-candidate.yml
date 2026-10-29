@@ -1,0 +1,27 @@
+# Isolated mapper-output -> sink chain; no live Pipeline binding.
+services:
+  reference-order-v2-chain-db:
+    image: postgres:15-alpine
+    env_file: ./private/reference-order-v2-chain-db.env
+    volumes:
+      - reference-order-v2-chain-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U reference_v2_chain -d reference_v2_chain"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [shadow]
+
+  reference-order-v2-chain-sink:
+    build:
+      context: ${CDC_ORDER_SINK_CONTEXT:-../../workers/reference-order-cdc-v2-sink}
+      dockerfile: Dockerfile.shadow
+    env_file: ./private/reference-order-v2-chain-sink.env
+    depends_on:
+      reference-order-v2-chain-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    restart: on-failure
+    networks: [shadow]
+
+volumes:
+  reference-order-v2-chain-data:
