@@ -1,6 +1,6 @@
 # CDC-11: Medusa three-stream cutover and rollback
 
-**Status:** CANDIDATE / NOT EXECUTED. **Date:** 2026-10-29. This is the operator runbook for replacing (1) the reference backend order adapter, (2) Admin API `catalog-sync`, and (3) inventory/price acquisition with CDC. It does not deploy an HTTP Gateway. DEC-119/135 currently approve order-state v2 semantics for shadow development only; CDC-12 live authority still requires a separate decision. The existing Browser SDK and its HTTP ingestion remain in service.
+**Status:** CANDIDATE SCHEMA APPLIED / NO CDC SOURCE OR CUTOVER. **Date:** 2026-10-30. This is the operator runbook for replacing (1) the reference backend order adapter, (2) Admin API `catalog-sync`, and (3) inventory/price acquisition with CDC. It does not deploy an HTTP Gateway. DEC-119/135 currently approve order-state v2 semantics for shadow development only; CDC-12 live authority still requires a separate decision. The existing Browser SDK and its HTTP ingestion remain in service.
 
 **Development update 2026-10-30:** The Medusa manifest/planner now emit a
 separate order-v2 shadow profile for a declared coverage epoch with initial
@@ -23,29 +23,83 @@ uses that candidate image. These checks do not satisfy the source/release,
 continuous quality or CDC-12 gates below.
 
 **Target shadow progress, 2026-10-30:** An encrypted, internal, attachable
-`funnelmetry_cdc_source` overlay was created but Medusa PostgreSQL is not
-attached to it. The separate `funnelmetry_cdc_target_shadow` stack has six
-services: Connect and four workers remain `0/0`; only its dedicated order
+`funnelmetry_cdc_source` overlay was created but Medusa PostgreSQL was not yet
+attached to it. The separate `funnelmetry_cdc_target_shadow` stack initially had six
+services: Connect and four workers were `0/0`; only its dedicated order
 mapper DB was scaled to `1/1`. Migration 024 was applied to that new DB and
 its ten `reference_cdc_v2_*` tables were listed. Existing live `catalog-sync`
 remained `1/1`. The candidate workers image used in the stack was built from
 Pipeline `13d6108` with local image SHA-256
 `ac52de46374e25ac0a85a9c412f992b8913fc0da2e168e4fa1a05a818eef9b8c`;
 this is a VPS-local candidate image, not a registry release. No connector or
-CDC worker was started. A subsequent read-only VPS check was rejected by
-automatic approval review because its usage limit was reached; no later VPS
-state is claimed in this document until access can be checked again.
+CDC worker was started. An approval-review limit temporarily prevented further
+SSH checks; access was restored and the later state is recorded below.
+
+**Pipeline candidate schema applied, 2026-10-30:** Pipeline commit `57dd1e4`
+passed CI run `40930362138`, including a real PostgreSQL migration rehearsal.
+On the VPS, `candidate-schema plan` returned `READY_TO_APPLY` and digest
+`a609835ef8d64d980d7f61079d58f0fde0cc6e741cf7919e13197b24939f5501`.
+Before apply, a custom-format dump of the 13 MB live Pipeline DB was saved
+outside Git at `/srv/KLTN/.cdc11-backups/pipeline-pre-candidate-20261030.dump`
+with mode 600 and SHA-256
+`df37cc1850034bc3def499997d9e95a05bdba98286154775096b412de97fff8b`.
+`pg_restore --exit-on-error` completed in a temporary PostgreSQL 15 container
+with no network; source and restored databases each had 54 public tables, one
+bootstrap row and 104 product-reference rows. The temporary container was
+removed; the dump remains for recovery. The reviewed migration task returned
+`APPLIED_CANDIDATE_ONLY` with the same digest. The journal contains three rows;
+representative catalog, inventory/price and order candidate tables are empty.
+The one-shot task is back at `0/0`, the dedicated order mapper DB at `1/1`,
+and Connect plus four CDC workers at `0/0`. Live `catalog-sync` remains `1/1`.
+No Medusa WAL/slot or live analytical binding was changed.
+
+**Read-only source schema check, 2026-10-30:** All declared columns in the
+three generated Medusa profiles (23 distinct tables: 3 order, 4 catalog,
+16 inventory/price) were present in the VPS PostgreSQL catalog. All 23 tables
+had primary keys, including composite link keys and `currency.code`; the
+stage-2 v2 `deleted_at` columns were present. This is a name/key check only:
+types, source permissions, publication filters, snapshots, relation
+cardinality and continuous quality are not yet verified. Medusa remains at
+`wal_level=replica` with zero replication slots.
+
+**Medusa source backup/restore, 2026-10-30:** A custom-format dump of the
+approximately 20 MB Medusa database was stored outside Git at
+`/srv/KLTN/.cdc11-backups/medusa-pre-cdc-20261030.dump`, mode 600, SHA-256
+`e970a77c38cea2a9e79c42aa754c8cff7e21cb454746e6a12de991636832a9ad`.
+`pg_restore --exit-on-error` completed in a temporary PostgreSQL 15 container
+with no network; source and restored DB each had 143 public tables, 104
+products, 120 variants and four categories. The temporary container was
+removed; the dump remains. Current settings are `max_replication_slots=10`,
+`max_wal_senders=10`, `max_slot_wal_keep_size=-1`. These observed values are
+not a reviewed WAL retention or outage budget; no source runtime setting was
+changed.
+
+**Private source network rollout, 2026-10-30:** The pre-rollout untracked Medusa
+VPS Compose override had SHA-256
+`8c9c7a4c57cc6f53a75d2358b01f033c69c6ae96980d772af74174924d608fce`.
+The feature-branch network-only template was copied outside the live checkout
+to `/srv/KLTN/.cdc11-medusa-network.yml` (SHA-256
+`1e7236a40a70f9c96dba257432687943ec5fc4a6390f460caea00e090a920545`).
+The sanitized Compose render preserved `postgres_data`, the default command,
+and the `127.0.0.1:5432` binding; it added only the internal attachable
+`funnelmetry_cdc_source` overlay with alias `medusa-cdc-postgres`. PostgreSQL
+was recreated with base, VPS and network overrides, became healthy, and kept
+the same Docker volume. The backend `/health` returned 200; product count was
+104; DNS and TCP 5432 from the private overlay passed. `wal_level` remains
+`replica`. Every future Compose recreation of this PostgreSQL service must
+include the network override, or the CDC attachment will be removed. No
+replication role, publication, slot, connector or CDC writer was activated.
 
 ## 1. Current VPS preflight inventory
 
-Read-only checks on `ssh kltn`, 2026-10-29:
+Original read-only inventory on `ssh kltn`, 2026-10-29, with updates noted:
 
 | Item | Observed state | Consequence |
 |---|---|---|
 | Medusa | `/srv/KLTN/dtc-starter-funnelmetry`, deployed integration branch at `efc7a58`; Compose `medusa_reference` | Its native `order.placed` subscriber still serves the live reference funnel. The CDC feature branch is not deployed. |
-| Medusa PostgreSQL | PostgreSQL 15 container, `wal_level=replica`, **0** replication slots, `max_slot_wal_keep_size=-1` | Logical CDC is not enabled. A finite WAL retention/resource policy, source backup and controlled restart are prerequisites. |
-| DB network | Port 5432 bound to host `127.0.0.1`; Medusa on `medusa_reference_default` bridge; Pipeline on `funnelmetry_vps_live_data` overlay | Kafka Connect in Pipeline cannot use the current loopback binding. Establish a dedicated, non-public source-to-CDC network and least-privilege replication access before runtime conformance. Do not publish PostgreSQL to the public Internet. |
-| Pipeline | `/srv/KLTN/Funnelmetry` at `b1c0a35` on `main`; `funnelmetry_vps_live` has 18 Swarm services | `catalog-sync` and `source-connector` are both `1/1`; Pipeline live is not running the feature-branch CDC writer or migration 021. |
+| Medusa PostgreSQL | PostgreSQL 15 container, `wal_level=replica`, **0** replication slots, `max_slot_wal_keep_size=-1`; backup and isolated restore have since passed | Logical CDC is not enabled. A finite WAL retention/resource policy and controlled restart are still prerequisites. |
+| DB network | Port 5432 remains bound to host `127.0.0.1`; Medusa PostgreSQL is now also attached to `funnelmetry_cdc_source` with alias `medusa-cdc-postgres`; Pipeline uses `funnelmetry_vps_live_data` | Private DNS/TCP checks passed. Replication credentials, publication and WAL configuration remain gated. Do not publish PostgreSQL to the public Internet. |
+| Pipeline | `/srv/KLTN/Funnelmetry` at `b1c0a35` on `main`; `funnelmetry_vps_live` has 18 Swarm services | `catalog-sync` and `source-connector` remain `1/1`. Candidate migrations 021–023 have since been applied in the same DB through a separate feature-branch service; no CDC writer or active binding has started. |
 | Resources | `/var/lib/docker` filesystem: 158 GB total, 134 GB available; host RAM: 15 GiB total, about 11 GiB available at observation time | These are a single observation, not a WAL/flash-sale budget or capacity approval. |
 | Shadow projects | Separate CDC clones exist; one older `funnelmetry_cdc_shadow` project was running during inventory | Never point a live connector at a clone slot/topic or share a clone consumer group with live. Inventory active shadow projects and resource reservations before live rehearsal. |
 
@@ -121,7 +175,7 @@ manifest and digest review.
 - Backup and restore-test Medusa PostgreSQL plus the Pipeline authoritative DB before changing `wal_level`. Record source DB backup checkpoint and separate Pipeline processing-safe checkpoint. A file checksum alone is not a restore test.
 - Source owner approves a dedicated replication role with only the required logical replication/SELECT grants, three separate publications/slots or a reviewed equivalent, column allowlists, PII exclusions, `pg_hba` scope and credential rotation. Each connector/profile needs distinct slot, topic prefix, consumer group and coverage epoch. Size `max_replication_slots`, `max_wal_senders`, finite `max_slot_wal_keep_size`, disk alert thresholds and outage budget from a measured production workload; clone values are not production defaults.
 - Create a dedicated protected Docker network between the Medusa PostgreSQL container and the Pipeline Connect service, or an equivalently governed private DB transport. Keep PostgreSQL off public ports. Verify DNS/port, authentication, role restriction and end-to-end TLS policy for the chosen topology before starting Connect. The current `127.0.0.1:5432` host port is not a connection address for a Swarm overlay task.
-- The Medusa source branch has `runtime/docker-compose.cdc-shadow.example.yml` as a network-only override template. With a reviewed source-owner rollout, attach PostgreSQL to the pre-created external `CDC_SOURCE_NETWORK` while preserving its `default` network. Use the distinct `medusa-cdc-postgres` alias in Connect's source DB URL; `postgres` already resolves to the Pipeline database on the other overlay. The example does not change WAL settings or create credentials. Confirm the rendered Compose config, running task membership and DNS from the Connect network before connector creation.
+- The Medusa source branch has `runtime/docker-compose.cdc-shadow.example.yml` as a network-only override template. The first VPS rollout attached PostgreSQL to the pre-created external `CDC_SOURCE_NETWORK` while preserving its `default` network. Keep the distinct `medusa-cdc-postgres` alias in Connect's source DB URL; `postgres` already resolves to the Pipeline database on the other overlay. The example does not change WAL settings or create credentials. Reconfirm the rendered Compose config, running network membership and DNS from the Connect network before connector creation or after a PostgreSQL recreation.
 - Apply the approved PostgreSQL logical-WAL change through the source runtime owner, then restart under a maintenance/rollback plan. Verify `wal_level=logical`, active slot states, publication columns, PostgreSQL health, Medusa checkout health and WAL headroom. Failure returns to the original source configuration and leaves live adapter/API sync authoritative.
 
 ## 4. Shadow on target topology, by dependency order
@@ -151,4 +205,4 @@ Only after the rollback window expires and all consumers/dependencies are invent
 
 ## 7. Present stop conditions
 
-At the date of this inventory, **live cutover is blocked** by `wal_level=replica`, no replication slot, an unapproved DB network/role/WAL budget, no target-topology conformance, no continuous live quality service, no order-v2 funnel/profile read path, and no verified stage-2 inventory/price resolver. The next executable work is to close these gates on the feature branches and run a target-topology shadow rehearsal. This document does not grant permission to modify live Medusa DB settings or promote a CDC source.
+At the latest checkpoint, **live cutover is blocked** by `wal_level=replica`, no replication slot or reviewed source role/WAL budget, no target-topology stream conformance, no continuous live quality service, no order-v2 funnel/profile read path, and no verified stage-2 inventory/price resolver. The private DB network and candidate Pipeline schema are prepared, but neither provides CDC source authority. The next executable work is to close these gates on the feature branches and run a target-topology shadow rehearsal. This document does not grant permission to promote a CDC source or change live analytical authority.
