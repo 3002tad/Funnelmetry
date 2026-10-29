@@ -160,6 +160,37 @@ class ResolverTests(unittest.TestCase):
                          context_reconciled=True,
                          verified_tables=resolution.TABLES)["status"], "UNVERIFIED")
 
+    def test_one_dated_region_sale_price_is_current_context_only(self):
+        data = context()
+        data["price_list"].append(row(id="list_1", status="active", type="sale",
+                                      rules_count=1, starts_at="2026-10-29T00:00:00Z",
+                                      ends_at="2026-10-31T00:00:00Z"))
+        data["price_list_rule"].append(row(price_list_id="list_1",
+                                           attribute="region_id", value='["reg_1"]'))
+        data["price"].append(row(id="price_2", price_set_id="ps_1",
+                                 currency_code="eur", amount="8", price_list_id="list_1",
+                                 rules_count=0, min_quantity=None, max_quantity=None))
+        def resolve(at="2026-10-30T00:00:00Z"):
+            return resolution.resolve_region_sale_price(
+                data, variant_id="var_1", currency_code="eur", region_id="reg_1",
+                at=at, context_reconciled=True, verified_tables=resolution.TABLES)
+        result = resolve()
+        self.assertEqual((result["status"], result["amount"], result["original_amount"]),
+                         ("PASS_SAMPLE_ONLY", "8", "15.5"))
+        self.assertEqual(result["price_list_type"], "sale")
+        self.assertEqual(resolve("2026-11-01T00:00:00Z")["status"], "UNVERIFIED")
+        data["price_list_rule"][0]["payload"]["value"] = '["reg_other"]'
+        self.assertEqual(resolve()["status"], "UNVERIFIED")
+        data["price_list_rule"][0]["payload"]["value"] = '{"region_id":"reg_1"}'
+        self.assertEqual(resolve()["status"], "UNVERIFIED")
+        data["price_list_rule"][0]["payload"]["value"] = '{broken'
+        self.assertEqual(resolve()["status"], "UNVERIFIED")
+        data["price_list_rule"][0]["payload"]["value"] = 'x' * 4097
+        self.assertEqual(resolve()["status"], "UNVERIFIED")
+        data["price_list_rule"][0]["payload"]["value"] = '["reg_1"]'
+        data["price"][1]["payload"]["min_quantity"] = 10
+        self.assertEqual(resolve()["status"], "UNVERIFIED")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,8 @@ one verified location. Only simple default prices have been conformed. Other
 shapes remain UNVERIFIED; no customer-facing asset is active.
 """
 
+import json
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_FLOOR
 
 
@@ -151,3 +153,84 @@ def resolve_default_price(rows, *, variant_id, currency_code, region_id,
         return {"status": "UNVERIFIED", "reason": "price_rule_requires_context"}
     return {"status": "PASS_SAMPLE_ONLY", "amount": str(amount),
             "currency_code": currency_code, "reason": "simple_default_price_conformed"}
+
+
+def _instant(value):
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.astimezone(timezone.utc) if parsed.tzinfo else None
+
+
+def _rule_values(raw):
+    # Debezium represents Medusa JSONB `value` as a JSON string inside the
+    # projected row object. Reject malformed/non-array values rather than
+    # treating them as a match for a business context.
+    if isinstance(raw, str):
+        if len(raw) > 4096:
+            return None
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
+        return None
+    return raw
+
+
+def resolve_region_sale_price(rows, *, variant_id, currency_code, region_id, at,
+                              context_reconciled=False, verified_tables=None):
+    """Resolve exactly one dated sale list with one region rule; else fail closed."""
+    if not _coverage(rows, context_reconciled, verified_tables):
+        return {"status": "BLOCKED_BY_QUALITY", "reason": "cdc_context_not_reconciled"}
+    when = _instant(at)
+    if when is None:
+        return {"status": "UNVERIFIED", "reason": "price_time_context_missing"}
+    region = _one([r for r in _active(rows, "region") if r.get("id") == region_id])
+    currency = _one([r for r in _active(rows, "currency") if r.get("code") == currency_code])
+    if region is None or currency is None or region.get("currency_code") != currency_code:
+        return {"status": "UNVERIFIED", "reason": "currency_or_region_missing"}
+    links = [r for r in _active(rows, "product_variant_price_set")
+             if r.get("variant_id") == variant_id]
+    if len(links) != 1:
+        return {"status": "UNVERIFIED", "reason": "price_set_binding_ambiguous"}
+    price_set_id = links[0].get("price_set_id")
+    if _one([r for r in _active(rows, "price_set") if r.get("id") == price_set_id]) is None:
+        return {"status": "UNVERIFIED", "reason": "price_set_missing"}
+    prices = [r for r in _active(rows, "price")
+              if r.get("price_set_id") == price_set_id and
+              r.get("currency_code") == currency_code]
+    default = _one([r for r in prices if r.get("price_list_id") is None])
+    sale = _one([r for r in prices if r.get("price_list_id") is not None])
+    if len(prices) != 2 or default is None or sale is None:
+        return {"status": "UNVERIFIED", "reason": "price_candidate_shape_not_conformed"}
+    if any(r.get("rules_count") != 0 or r.get("min_quantity") is not None or
+           r.get("max_quantity") is not None for r in (default, sale)):
+        return {"status": "UNVERIFIED", "reason": "price_rule_or_tier_not_conformed"}
+    if any(r.get("price_id") in (default.get("id"), sale.get("id"))
+           for r in _active(rows, "price_rule")):
+        return {"status": "UNVERIFIED", "reason": "price_rule_not_conformed"}
+    price_list = _one([r for r in _active(rows, "price_list")
+                       if r.get("id") == sale.get("price_list_id")])
+    if (price_list is None or price_list.get("status") != "active" or
+            price_list.get("type") != "sale" or price_list.get("rules_count") != 1):
+        return {"status": "UNVERIFIED", "reason": "price_list_not_conformed"}
+    start = _instant(price_list.get("starts_at"))
+    end = _instant(price_list.get("ends_at"))
+    if start is None or end is None or not start < when < end:
+        return {"status": "UNVERIFIED", "reason": "price_list_time_not_conformed"}
+    rules = [r for r in _active(rows, "price_list_rule")
+             if r.get("price_list_id") == price_list.get("id")]
+    if (len(rules) != 1 or rules[0].get("attribute") != "region_id" or
+            region_id not in (_rule_values(rules[0].get("value")) or [])):
+        return {"status": "UNVERIFIED", "reason": "price_list_region_rule_not_conformed"}
+    original = _number(default.get("amount"))
+    amount = _number(sale.get("amount"))
+    if original is None or amount is None or original < 0 or amount < 0:
+        return {"status": "BLOCKED_BY_QUALITY", "reason": "invalid_price_amount"}
+    return {"status": "PASS_SAMPLE_ONLY", "amount": str(amount),
+            "original_amount": str(original), "currency_code": currency_code,
+            "price_list_type": "sale", "reason": "single_sale_region_price_conformed"}
