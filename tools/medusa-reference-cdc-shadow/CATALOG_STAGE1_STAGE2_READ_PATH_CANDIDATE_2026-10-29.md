@@ -20,6 +20,16 @@ An initial run failed because the candidate probe still called the older stage-2
 
 The result proves **one simple sample** on a shared clone, not a business-wide sellable stock or price asset. Required next evidence: controlled update/delete/replay across both profiles; source-side cross-profile freshness at a declared checkpoint; price-list/rule/tier and reservation/location/kit/backorder conformance; a continuous quality monitor; target-topology load/WAL budget; and CDC-11/12 authority and rollback. No live Dashboard, `catalog-sync`, backend adapter or Medusa configuration was changed.
 
-After verification, all ten services in `funnelmetry_cdc_combined_shadow_c1` were stopped with `docker compose stop`. Clone volumes, Kafka topics, slots and offset/audit state were retained for later replay tests.
+## Cross-profile transition and replay follow-up
+
+The same clone was resumed without resetting its volumes or connector offsets. The clone-only `probe-combined-cdc-transition.py` changed a product title and the corresponding `inventory_level` stocked/raw quantity by +7 in one PostgreSQL transaction. Both governed projections reconciled after the change, the combined CDC read path matched clone Store API with a +7 inventory delta, and the probe restored both source rows in `finally`. The restored projections and Store API matched the pre-test state. Output: `updated=PASS_SAMPLE_ONLY`, `restored=PASS_SAMPLE_ONLY`. This establishes one synchronized cross-profile UPDATE/restore case; it does not create a global ordering claim across the two Kafka topic sets.
+
+`probe-combined-cdc-replay.py` then stopped only the two governed writers, reset their **clone-local** consumer groups to earliest, restarted them and waited for all nonempty topics to reach end offset. Before/after results were unchanged: catalog audit **234→234**, inventory/price audit **688→688**, both applied-offset maps unchanged and both state digests unchanged (`PASS_REPLAY`). No source row was changed during replay. The initial replay preflight rejected absent offsets on the three zero-length inventory topics (`reservation_item`, `price_list`, `price_list_rule`); commit `6270c49` aligns that check with the stage-2 verifier's zero-length-topic rule. No Kafka group was reset in the failed preflight runs.
+
+The update probe and final replay preflight passed [CI 40910990206](https://github.com/3002tad/Funnelmetry/actions/runs/40910990206) and [CI 40912990244](https://github.com/3002tad/Funnelmetry/actions/runs/40912990244), respectively. The runtime results above are separate from CI.
+
+The combined clone remains a sample conformance environment. Soft delete, relation reassignment, nonempty reservation/price-list and multi-item semantics need separate controlled tests. The two connectors still cannot be treated as one atomic analytical checkpoint merely because the source SQL update was one transaction. The live source and Pipeline remain unchanged.
+
+After verification, all ten services in `funnelmetry_cdc_combined_shadow_c1` are stopped with `docker compose stop`. Clone volumes, Kafka topics, slots and offset/audit state are retained for further tests.
 
 The existing `probe-inventory-price-resolver-candidate.py` remains historical one-profile evidence and still reads catalog flags directly from the isolated source DB. It must not be used as CDC-only acceptance evidence. DEC-119/135 and the CDC-11/12 gates remain unchanged.
