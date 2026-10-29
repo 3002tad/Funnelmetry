@@ -160,10 +160,19 @@ jobs:
             -e POSTGRES_DB=funnelmetry_handoff -e POSTGRES_USER=funnelmetry \
             -e POSTGRES_PASSWORD=ci-only-password postgres:15-alpine
           trap 'docker rm -f funnelmetry-cdc-migration-ci-db >/dev/null 2>&1 || true; docker network rm funnelmetry-cdc-migration-ci >/dev/null 2>&1 || true' EXIT
+          # pg_isready can succeed against the temporary init server just
+          # before the official image shuts it down for its final restart.
+          ready=0
           for attempt in $(seq 1 30); do
-            if docker exec funnelmetry-cdc-migration-ci-db pg_isready -U funnelmetry -d funnelmetry_handoff >/dev/null 2>&1; then break; fi
+            if docker logs funnelmetry-cdc-migration-ci-db 2>&1 | grep -Fq 'PostgreSQL init process complete; ready for start up.' && \
+               docker exec funnelmetry-cdc-migration-ci-db psql -X -U funnelmetry \
+                 -d funnelmetry_handoff -Atqc 'SELECT 1' >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
             sleep 1
           done
+          test "$ready" -eq 1
           docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff -c \
             "CREATE TABLE handoff_bootstrap(id integer PRIMARY KEY,status text NOT NULL); INSERT INTO handoff_bootstrap VALUES(1,'READY');"
