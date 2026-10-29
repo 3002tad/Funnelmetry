@@ -95,11 +95,15 @@ def main():
     before = state()
     catalog_ends = catalog.old.topic_ends()
     inventory_ends = inventory.snapshot.topic_ends()
-    if (before["catalog_offsets"] != catalog_ends or
-            any(before["inventory_offsets"].get(
-                f"{inventory.snapshot.PREFIX}.public.{table}") != end
-                for table, end in inventory_ends.items() if end is not None)):
-        raise RuntimeError("both CDC projections must be caught up before replay")
+    catalog_diff = [topic for topic, end in catalog_ends.items()
+                    if before["catalog_offsets"].get(topic) != end]
+    inventory_diff = [table for table, end in inventory_ends.items()
+                      if end is not None and before["inventory_offsets"].get(
+                          f"{inventory.snapshot.PREFIX}.public.{table}") != end]
+    if catalog_diff or inventory_diff:
+        raise RuntimeError("both CDC projections must be caught up before replay: "
+                           + json.dumps({"catalog_topics": catalog_diff,
+                                         "inventory_tables": inventory_diff}, sort_keys=True))
     groups = {
         "catalog-governed-writer": (
             f"cdc-shadow-governed-catalog-{catalog_epoch}", catalog_ends),
