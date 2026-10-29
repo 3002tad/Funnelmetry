@@ -38,9 +38,12 @@ These documents describe broader behavior than the single runtime sample.
 ## Remaining scope
 
 This is a narrow resolver candidate, not the final stage-2 analytical asset.
-Multiple items and locations, backorders, inactive channels, full Store API key
+Multiple items, backorders, inactive channels, full Store API key
 scope, price lists, rules, tiers, temporal applicability and region/context
 selection still require controlled Medusa API conformance. A fresh, continuous
 target-topology quality service must then bind stage-1 catalog and stage-2
 context in one governed read path. Current catalog price must never restate a
 historical order value.
+
+One managed item across two linked locations was subsequently conformed with
+Store API; see [the follow-up evidence](INVENTORY_PRICE_MULTILOCATION_EVIDENCE_2026-10-29.md).

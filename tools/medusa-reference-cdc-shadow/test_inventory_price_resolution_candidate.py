@@ -83,7 +83,7 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(result["status"], "UNVERIFIED")
         self.assertNotIn("inventory_quantity", result)
 
-    def test_multiple_locations_require_store_api_conformance(self):
+    def test_single_item_across_two_conformed_locations(self):
         data = context()
         data["stock_location"].append(row(id="loc_2"))
         data["sales_channel_stock_location"].append(
@@ -91,8 +91,15 @@ class ResolverTests(unittest.TestCase):
         data["inventory_level"].append(row(inventory_item_id="item_1", location_id="loc_2",
                                            stocked_quantity="5", reserved_quantity="0"))
         result = stock(data)
-        self.assertEqual(result["status"], "UNVERIFIED")
-        self.assertNotIn("inventory_quantity", result)
+        self.assertEqual(result["status"], "PASS_SAMPLE_ONLY")
+        self.assertEqual(result["inventory_quantity"], 13)
+
+    def test_missing_level_in_second_location_remains_unverified(self):
+        data = context()
+        data["stock_location"].append(row(id="loc_2"))
+        data["sales_channel_stock_location"].append(
+            row(sales_channel_id="sc_1", stock_location_id="loc_2"))
+        self.assertEqual(stock(data)["status"], "UNVERIFIED")
 
     def test_simple_default_price_is_currency_scoped(self):
         result = resolution.resolve_default_price(context(), variant_id="var_1",

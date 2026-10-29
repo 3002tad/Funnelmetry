@@ -126,15 +126,20 @@ for a bounded **context-only** lease. The guarded mutation and lease probes
 require the exact `stage2b` clone and epoch; they never run against live.
 There is no active inventory/price business asset or production semantic gate.
 
-`inventory_price_resolution_candidate.py` now resolves only the conformed
-one-item/one-location managed-inventory case and one default currency price.
+`inventory_price_resolution_candidate.py` now resolves one managed inventory
+item across conformed stock locations and one default currency price.
 It requires a fresh full 16-table reconciliation result; empty tables are
 recognized through verifier coverage rather than grouped row presence. Kit,
-multiple location, price-list, rule, tier and reservation/level mismatch cases
+price-list, rule, tier and reservation/level mismatch cases
 return `UNVERIFIED` without a sellable quantity or display price. The isolated
 `probe-inventory-price-resolver-candidate.py` compares the candidate output
 with Store API after the governed projection catches up. See
 [resolver evidence](INVENTORY_PRICE_RESOLVER_CANDIDATE_EVIDENCE_2026-10-29.md).
+The [second-location probe](INVENTORY_PRICE_MULTILOCATION_EVIDENCE_2026-10-29.md)
+showed that Medusa's `raw_*_quantity` must agree with numeric quantity for a
+source fixture to affect Store API inventory. The context lease publisher now
+checks this numeric/raw consistency for inventory levels and prices before
+issuing a lease. It does not add those raw JSON columns to CDC.
 
 For the isolated order-v2 mapper/sink chain, `verify-reference-order-v2-quality.py`
 checks source order state, Debezium slot/connector, Kafka ends, mapper ordered

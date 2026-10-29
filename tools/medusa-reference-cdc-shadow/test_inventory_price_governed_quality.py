@@ -13,6 +13,13 @@ spec.loader.exec_module(quality)
 
 
 class ContextQualityTest(unittest.TestCase):
+    def test_source_numeric_raw_mismatch_blocks_context_lease(self):
+        self.assertTrue(quality.numeric.passed({"inventory_level_mismatch": 0,
+                                                "price_mismatch": 0}))
+        self.assertFalse(quality.numeric.passed({"inventory_level_mismatch": 1,
+                                                 "price_mismatch": 0}))
+        self.assertFalse(quality.numeric.passed({"inventory_level_mismatch": 0}))
+
     def test_digest_matches_selected_attributes_across_representations(self):
         source = {table: [] for table in quality.stage2.TABLES}
         target = {table: [] for table in quality.stage2.TABLES}

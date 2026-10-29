@@ -21,6 +21,10 @@ spec = importlib.util.spec_from_file_location(
     "inventory_price_governed_verifier", ROOT / "verify-inventory-price-governed-candidate.py")
 verifier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(verifier)
+spec = importlib.util.spec_from_file_location(
+    "stage2_numeric", ROOT / "verify-inventory-price-source-numeric.py")
+numeric = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(numeric)
 stage2 = verifier.stage2
 snapshot = verifier.snapshot
 SOURCE_ID = "medusa-reference"
@@ -61,12 +65,17 @@ def sample():
     running, complete = snapshot.connector_state()
     slot = snapshot.source_slot()
     result = stage2.evaluate(source, target, ends, offsets, running, complete, slot)
+    numeric_counts = numeric.inspect()
+    result["checks"]["source_numeric_raw_consistent"] = numeric.passed(numeric_counts)
+    if not result["checks"]["source_numeric_raw_consistent"]:
+        result["status"] = "BLOCKED_BY_QUALITY"
     topic_ends = {f"{snapshot.PREFIX}.public.{table}": int(ends[table] or 0)
                   for table in stage2.TABLES}
     applied = {topic: int(value) for topic, value in offsets.items()}
     return {"source": source, "target": target, "result": result,
             "source_digest": digest(source, True), "projection_digest": digest(target, False),
-            "ends": topic_ends, "applied": applied, "slot": slot}
+            "ends": topic_ends, "applied": applied, "slot": slot,
+            "numeric_mismatch_counts": numeric_counts}
 
 
 def execute(statement):
@@ -154,7 +163,14 @@ def main():
         parser.error("lease must be 5..120 seconds")
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}", args.evidence_ref):
         parser.error("evidence ref must be a non-secret identifier")
-    first = sample()
+    try:
+        first = sample()
+    except (RuntimeError, ValueError, OSError):
+        try:
+            block_quality()
+        except (RuntimeError, ValueError, OSError):
+            pass  # An unreachable sink cannot renew a bounded lease.
+        raise
     if first["result"]["status"] != "PASS_CONTEXT_ONLY" or \
             first["source_digest"] != first["projection_digest"]:
         block_quality()
@@ -162,7 +178,14 @@ def main():
                          sort_keys=True))
         return 1
     time.sleep(1)
-    second = sample()
+    try:
+        second = sample()
+    except (RuntimeError, ValueError, OSError):
+        try:
+            block_quality()
+        except (RuntimeError, ValueError, OSError):
+            pass
+        raise
     if second["result"]["status"] != "PASS_CONTEXT_ONLY" or \
             any(first[field] != second[field] for field in
                 ("source_digest", "projection_digest", "ends", "applied")) or \

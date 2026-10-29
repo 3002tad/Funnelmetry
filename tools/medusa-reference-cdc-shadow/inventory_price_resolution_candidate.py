@@ -1,6 +1,6 @@
 """Shadow-only Medusa inventory/price resolver over governed CDC context.
 
-Only the one-item/one-location and simple default-price shapes have been
+Only one-item inventory across verified locations and simple default prices have been
 compared with Store API so far. All other shapes return UNVERIFIED, with no
 customer-facing sellable quantity or display price.
 """
@@ -102,12 +102,12 @@ def resolve_inventory(rows, *, product, variant, sales_channel_id,
             available += max(Decimal(0), stocked - reserved)
         quantities.append(int((available / required).to_integral_value(rounding=ROUND_FLOOR)))
     candidate = min(quantities)
-    if len(links) != 1 or len(locations) != 1 or level_count != 1 or \
+    if len(links) != 1 or level_count != len(locations) or \
             _number(links[0].get("required_quantity")) != 1:
         return {"status": "UNVERIFIED", "reason": "multi_item_or_location_not_conformed"}
     return {"status": "PASS_SAMPLE_ONLY", "inventory_quantity": candidate,
             "purchasable": variant.get("allow_backorder") is True or candidate > 0,
-            "reason": "single_item_location_conformed"}
+            "reason": "single_item_locations_conformed"}
 
 
 def resolve_default_price(rows, *, variant_id, currency_code, region_id,
