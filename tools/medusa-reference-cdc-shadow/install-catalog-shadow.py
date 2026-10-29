@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 PROJECT = os.environ.get("COMPOSE_PROJECT_NAME", "")
+PROJECT_PATTERN = r"funnelmetry_cdc_catalog_shadow_[a-z0-9][a-z0-9_-]{0,32}"
 COMPOSE = ["docker", "compose", "-f", str(ROOT / "compose.yml")]
 STATE = ROOT / "private" / "cdc-catalog-installer-state.json"
 SECRET = ROOT / "private" / "catalog-connector.env"
@@ -32,6 +33,7 @@ TABLES = {
     "product_category": ("id", "name", "parent_category_id", "is_active", "is_internal", "updated_at", "deleted_at"),
     "product_category_product": ("product_id", "product_category_id"),
 }
+PRIMARY_KEYS = {}
 TABLE_COLUMNS = [f"public.{table}:{','.join(columns)}" for table, columns in TABLES.items()]
 EXPECTED = {
     "schema_version": "funnelmetry-medusa-cdc-catalog-shadow.v1",
@@ -46,6 +48,24 @@ EXPECTED = {
     "dashboard_cutover": "BLOCKED_PENDING_COVERAGE_AND_FRESHNESS",
     "runtime_activation": "OPERATOR_CONTROLLED_SEPARATE_FROM_INSTALLER",
 }
+
+
+def configure_profile(*, project_pattern, state, secret, connector, prefix,
+                      slot, publication, role, tables, expected, primary_keys=None):
+    """Reuse guarded table-CDC installation with an independently pinned profile.
+
+    The caller must set every owned resource and exact allowlist before invoking
+    plan/apply/verify/rollback. The catalog defaults remain unchanged.
+    """
+    global PROJECT_PATTERN, STATE, SECRET, CONNECTOR, PREFIX, SLOT, PUBLICATION
+    global ROLE, TABLES, TABLE_COLUMNS, EXPECTED, PRIMARY_KEYS
+    PROJECT_PATTERN = project_pattern
+    STATE, SECRET, CONNECTOR, PREFIX = state, secret, connector, prefix
+    SLOT, PUBLICATION, ROLE = slot, publication, role
+    TABLES = tables
+    PRIMARY_KEYS = primary_keys or {}
+    TABLE_COLUMNS = [f"public.{table}:{','.join(columns)}" for table, columns in tables.items()]
+    EXPECTED = expected
 
 
 def profile(path):
@@ -107,8 +127,8 @@ def wait_connect(timeout_seconds=45):
 
 
 def topology():
-    if not re.fullmatch(r"funnelmetry_cdc_catalog_shadow_[a-z0-9][a-z0-9_-]{0,32}", PROJECT):
-        raise ValueError("COMPOSE_PROJECT_NAME must identify a separate catalog shadow clone")
+    if not re.fullmatch(PROJECT_PATTERN, PROJECT):
+        raise ValueError("COMPOSE_PROJECT_NAME must identify the profile's separate shadow clone")
     config = json.loads(compose("config", "--format", "json"))
     if config.get("name") != PROJECT or not config.get("networks") or any(
             not network.get("internal") for network in config["networks"].values()):
@@ -123,7 +143,7 @@ def topology():
 
 def password(document):
     if SECRET.is_symlink() or not SECRET.is_file() or SECRET.stat().st_mode & 0o077:
-        raise ValueError("private/catalog-connector.env must be a mode-600 file")
+        raise ValueError(f"{SECRET.name} must be a mode-600 file")
     fields = dict(line.split("=", 1) for line in SECRET.read_text(encoding="utf-8").splitlines()
                   if line and not line.startswith("#") and "=" in line)
     value = urlparse(fields.get(document["source_db_url_ref"], ""))
@@ -131,7 +151,7 @@ def password(document):
         or value.port != 5432 or value.username != ROLE or value.path != "/medusa"
         or value.query or value.fragment or not value.password
         or not re.fullmatch(r"[A-Za-z0-9]{16,128}", value.password)):
-        raise ValueError("catalog secret must target cdc_catalog@postgres:5432/medusa")
+        raise ValueError(f"profile secret must target {ROLE}@postgres:5432/medusa")
     return value.password
 
 
@@ -144,6 +164,16 @@ def source_state():
                                     f"AND table_name='{table}';")))
         if not set(columns).issubset(actual):
             raise ValueError(f"clone lacks approved {table} columns")
+        if table in PRIMARY_KEYS:
+            query = ("SELECT COALESCE(json_agg(k.column_name ORDER BY k.ordinal_position)"
+                     "::text,'[]') FROM information_schema.table_constraints AS c "
+                     "JOIN information_schema.key_column_usage AS k ON "
+                     "k.constraint_name=c.constraint_name AND "
+                     "k.table_schema=c.table_schema AND k.table_name=c.table_name "
+                     "WHERE c.constraint_type='PRIMARY KEY' AND c.table_schema='public' "
+                     f"AND c.table_name='{table}';")
+            if json.loads(sql(query)) != list(PRIMARY_KEYS[table]):
+                raise ValueError(f"clone {table} primary key differs from approved scope")
     slots = json.loads(sql(f"SELECT COALESCE(json_agg(json_build_object('plugin',plugin,"
                            "'database',database,'wal_status',wal_status))::text,'[]') "
                            f"FROM pg_replication_slots WHERE slot_name='{SLOT}';"))

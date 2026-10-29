@@ -52,6 +52,50 @@ See [catalog snapshot/stream evidence](CATALOG_CDC_SHADOW_EVIDENCE_2026-10-28.md
 and [inventory/price stage-2 scope](CATALOG_CDC_STAGE2_SCOPE.md). This profile
 does not switch the live Dashboard or stop `catalog-sync`.
 
+## Separate inventory/price context shadow
+
+The stage-2 profile `reference.medusa.inventory_price_context.v1` is separate
+from both order-state and catalog stage 1. The CI planner generates
+`funnelmetry/cdc-inventory-price-shadow.json` with an exact 16-table/column
+allowlist. The operator-side installer checks the primary keys and creates its
+own role, publication, slot, topic prefix and Debezium connector on an isolated
+clone. An initial snapshot captures rows already present before streaming.
+
+From a **fresh copy** of this directory on the trusted VPS, with the generated
+profile copied next to `compose.yml`:
+
+```bash
+export COMPOSE_PROJECT_NAME=funnelmetry_cdc_inventory_price_shadow_stage2a
+export CDC_COVERAGE_EPOCH=inventory-price-shadow-20261029-a
+python3 prepare-private.py
+python3 prepare-inventory-price-private.py
+python3 prepare-inventory-price-projection-private.py
+docker compose -f compose.yml up -d postgres
+python3 clone-db.py
+docker compose -f compose.yml up -d kafka connect
+python3 install-inventory-price-shadow.py plan --profile ./cdc-inventory-price-shadow.json
+python3 install-inventory-price-shadow.py apply --profile ./cdc-inventory-price-shadow.json
+python3 install-inventory-price-shadow.py verify --profile ./cdc-inventory-price-shadow.json
+python3 verify-inventory-price-snapshot.py --timeout-seconds 90
+docker compose -f compose.yml -f compose.inventory-price-projection.yml up -d --build \
+  inventory-price-projection-db inventory-price-projector
+python3 verify-inventory-price-projection.py --timeout-seconds 120
+python3 probe-inventory-price-shadow.py
+python3 probe-inventory-price-replay.py
+```
+
+The projector stores allowlisted keyed rows and input offsets in a separate
+PostgreSQL database. Its `inventory_price_context_active` view is raw context,
+not a claim that stock is available to sell or that a price is the storefront
+display price. The verifier checks keys, selected attributes, soft-delete state
+and topic offsets; the probe changes then restores clone rows. The replay probe
+resets **only** the isolated projector consumer group and checks that audit and
+projection effects do not duplicate. See [stage-2 shadow evidence](CATALOG_CDC_STAGE2_SHADOW_EVIDENCE_2026-10-29.md).
+
+This profile has no live Medusa DB grant, Dashboard binding or `catalog-sync`
+cutover. It needs relationship/price/inventory semantic conformance and a
+governed Pipeline sink before any analytical capability can be published.
+
 This is a **disposable, isolated conformance environment** for DEC-135/136. It
 uses a logical dump of the running Medusa PostgreSQL database to avoid changing
 the live database's `wal_level=replica` setting. It starts a private PostgreSQL

@@ -1,0 +1,25 @@
+# Independent context projection. It does not publish sellable stock or display price.
+services:
+  inventory-price-projection-db:
+    image: postgres:15-alpine
+    env_file: ./private/inventory-price-projection-db.env
+    volumes:
+      - inventory-price-projection-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U inventory_price_projection -d inventory_price_projection"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [shadow]
+
+  inventory-price-projector:
+    build: ./inventory-price-projector
+    env_file: ./private/inventory-price-projector.env
+    depends_on:
+      inventory-price-projection-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [shadow]
+
+volumes:
+  inventory-price-projection-data:

@@ -5,7 +5,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { validateManifest } from "../src/manifest.mjs"
-import { createCdcCatalogRollbackPlan, createCdcRollbackPlan, createPlan, verifyIntegration } from "../src/planner.mjs"
+import { createCdcCatalogRollbackPlan, createCdcInventoryPriceRollbackPlan, createCdcRollbackPlan, createPlan, verifyIntegration } from "../src/planner.mjs"
 
 const rawManifest = {
   apiVersion: "funnelmetry.io/v2",
@@ -77,6 +77,81 @@ function cdcCatalogRawManifest() {
   }
   return raw
 }
+
+function cdcInventoryPriceRawManifest() {
+  const raw = cdcCatalogRawManifest()
+  raw.cdc_inventory_price_shadow = {
+    mode: "shadow_only",
+    profile: "reference.medusa.inventory_price_context.v1",
+    source_db_url_ref: "FUNNELMETRY_CDC_INVENTORY_PRICE_DATABASE_URL",
+    source_owner: "medusa-operator",
+    pipeline_owner: "pipeline-operator",
+    snapshot_mode: "initial",
+    publication: "funnelmetry_cdc_inventory_price_shadow",
+    slot: "funnelmetry_cdc_inventory_price_shadow",
+    topic_prefix: "cdc_shadow_medusa_inventory_price",
+    table_columns: [
+      "public.product_sales_channel:id,product_id,sales_channel_id",
+      "public.sales_channel:id,name,is_disabled",
+      "public.sales_channel_stock_location:id,sales_channel_id,stock_location_id",
+      "public.stock_location:id,name",
+      "public.product_variant_inventory_item:id,variant_id,inventory_item_id,required_quantity",
+      "public.inventory_item:id,sku,requires_shipping,deleted_at",
+      "public.inventory_level:id,inventory_item_id,location_id,stocked_quantity,reserved_quantity,incoming_quantity",
+      "public.reservation_item:id,inventory_item_id,location_id,quantity,allow_backorder",
+      "public.product_variant_price_set:id,variant_id,price_set_id",
+      "public.price_set:id",
+      "public.price:id,price_set_id,currency_code,amount,price_list_id,min_quantity,max_quantity,rules_count,deleted_at",
+      "public.price_list:id,status,starts_at,ends_at,type,rules_count,deleted_at",
+      "public.price_rule:id,price_id,attribute,operator,value,priority",
+      "public.price_list_rule:id,price_list_id,attribute,value",
+      "public.region:id,currency_code",
+      "public.currency:code,decimal_digits,deleted_at",
+    ],
+  }
+  return raw
+}
+
+test("CDC inventory/price profile is independent, exact-scoped and rollback-guarded", async (t) => {
+  const valid = validateManifest(cdcInventoryPriceRawManifest())
+  assert.equal(valid.cdcInventoryPriceShadow.snapshotMode, "initial")
+  assert.equal(valid.cdcInventoryPriceShadow.tableColumns.length, 16)
+  for (const [field, value] of [["snapshot_mode", "no_data"], ["mode", "live"],
+    ["source_db_url_ref", "postgres://secret@host/db"]]) {
+    const bad = cdcInventoryPriceRawManifest()
+    bad.cdc_inventory_price_shadow[field] = value
+    assert.throws(() => validateManifest(bad))
+  }
+  const absentColumn = cdcInventoryPriceRawManifest()
+  absentColumn.cdc_inventory_price_shadow.table_columns[0] += ",deleted_at"
+  assert.throws(() => validateManifest(absentColumn), /exact Medusa 2.19.0 stage-2 allowlist/)
+  const broad = cdcInventoryPriceRawManifest()
+  broad.cdc_inventory_price_shadow.table_columns.push("public.customer:id,email")
+  assert.throws(() => validateManifest(broad), /exact Medusa 2.19.0 stage-2 allowlist/)
+
+  let root
+  try { root = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-cdc-stage2-")) }
+  catch (error) {
+    if (error?.code === "EPERM") { t.skip("temporary directory unavailable"); return }
+    throw error
+  }
+  try {
+    await cp(fixtureRoot, root, { recursive: true })
+    const initial = await createPlan(root, valid)
+    assert.equal(initial.capabilities.cdcInventoryPriceState, "SHADOW_ONLY")
+    assert.deepEqual(initial.changes.map(change => change.path).filter(name => name.startsWith("funnelmetry/")),
+      ["funnelmetry/cdc-reference-shadow.json", "funnelmetry/cdc-catalog-shadow.json",
+        "funnelmetry/cdc-inventory-price-shadow.json"])
+    assert.match(initial.patch, /"inventory_available_to_sell_claims": "NOT_PUBLISHED"/)
+    assert.match(initial.patch, /"historical_order_amount_restatement": "FORBIDDEN"/)
+    await applyWholeFilePatch(root, initial.patch)
+    assert.equal((await createPlan(root, valid)).patch, "")
+    assert.equal((await verifyIntegration(root, valid)).cdcInventoryPriceState, "SHADOW_ONLY")
+    const rollback = await createCdcInventoryPriceRollbackPlan(root, valid)
+    assert.deepEqual(rollback.changes.map(change => change.path), ["funnelmetry/cdc-inventory-price-shadow.json"])
+    assert.doesNotMatch(rollback.patch, /cdc-reference-shadow|cdc-catalog-shadow/)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
 
 test("CDC catalog profile is separate, initial-snapshot only, and exact-scoped", async (t) => {
   const valid = validateManifest(cdcCatalogRawManifest())

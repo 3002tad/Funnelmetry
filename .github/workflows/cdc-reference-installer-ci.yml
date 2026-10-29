@@ -32,6 +32,20 @@ jobs:
             tools/medusa-reference-cdc-shadow/prepare-private.py
       - name: Test CDC runtime installer guards
         run: python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_install_reference.py -v
+      - name: Test catalog and inventory/price shadow profiles
+        run: |
+          python -m py_compile \
+            tools/medusa-reference-cdc-shadow/install-catalog-shadow.py \
+            tools/medusa-reference-cdc-shadow/install-inventory-price-shadow.py \
+            tools/medusa-reference-cdc-shadow/prepare-inventory-price-private.py \
+            tools/medusa-reference-cdc-shadow/prepare-inventory-price-projection-private.py \
+            tools/medusa-reference-cdc-shadow/verify-inventory-price-snapshot.py \
+            tools/medusa-reference-cdc-shadow/verify-inventory-price-projection.py \
+            tools/medusa-reference-cdc-shadow/probe-inventory-price-shadow.py \
+            tools/medusa-reference-cdc-shadow/probe-inventory-price-replay.py
+          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_catalog_shadow.py -v
+          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_shadow.py -v
+          node --check tools/medusa-reference-cdc-shadow/inventory-price-projector/main.mjs
       - name: Check CDC recovery syntax and semantic guards
         run: |
           python -m py_compile \

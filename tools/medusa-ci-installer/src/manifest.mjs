@@ -26,6 +26,25 @@ const cdcCatalogTables = [
   "public.product_category:id,name,parent_category_id,is_active,is_internal,updated_at,deleted_at",
   "public.product_category_product:product_id,product_category_id",
 ]
+// Medusa 2.19.0 clone schema, checked 2026-10-29. Separate from catalog v1.
+const cdcInventoryPriceTables = [
+  "public.product_sales_channel:id,product_id,sales_channel_id",
+  "public.sales_channel:id,name,is_disabled",
+  "public.sales_channel_stock_location:id,sales_channel_id,stock_location_id",
+  "public.stock_location:id,name",
+  "public.product_variant_inventory_item:id,variant_id,inventory_item_id,required_quantity",
+  "public.inventory_item:id,sku,requires_shipping,deleted_at",
+  "public.inventory_level:id,inventory_item_id,location_id,stocked_quantity,reserved_quantity,incoming_quantity",
+  "public.reservation_item:id,inventory_item_id,location_id,quantity,allow_backorder",
+  "public.product_variant_price_set:id,variant_id,price_set_id",
+  "public.price_set:id",
+  "public.price:id,price_set_id,currency_code,amount,price_list_id,min_quantity,max_quantity,rules_count,deleted_at",
+  "public.price_list:id,status,starts_at,ends_at,type,rules_count,deleted_at",
+  "public.price_rule:id,price_id,attribute,operator,value,priority",
+  "public.price_list_rule:id,price_list_id,attribute,value",
+  "public.region:id,currency_code",
+  "public.currency:code,decimal_digits,deleted_at",
+]
 
 function cdcIdentifier(value, name) {
   const result = requiredString(value, name)
@@ -110,6 +129,43 @@ function cdcCatalogProfile(value) {
     slot: cdcIdentifier(value.slot, "cdc_catalog_shadow.slot"),
     topicPrefix: cdcIdentifier(value.topic_prefix, "cdc_catalog_shadow.topic_prefix"),
     tableColumns: cdcCatalogTables,
+  }
+}
+
+function cdcInventoryPriceProfile(value) {
+  if (value === undefined) return null
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("cdc_inventory_price_shadow must be a mapping")
+  }
+  const supported = new Set(["mode", "profile", "source_db_url_ref", "source_owner",
+    "pipeline_owner", "snapshot_mode", "publication", "slot", "topic_prefix", "table_columns"])
+  const unknown = Object.keys(value).filter(key => !supported.has(key))
+  if (unknown.length) throw new Error(`Unsupported cdc_inventory_price_shadow field(s): ${unknown.join(", ")}`)
+  if (value.mode !== "shadow_only" || value.profile !== "reference.medusa.inventory_price_context.v1" ||
+      value.snapshot_mode !== "initial") {
+    throw new Error("cdc_inventory_price_shadow requires separate context.v1, shadow_only and initial snapshot")
+  }
+  if (value.publication !== "funnelmetry_cdc_inventory_price_shadow" ||
+      value.slot !== "funnelmetry_cdc_inventory_price_shadow" ||
+      value.topic_prefix !== "cdc_shadow_medusa_inventory_price") {
+    throw new Error("cdc_inventory_price_shadow needs its own pinned publication, slot and topic prefix")
+  }
+  if (!Array.isArray(value.table_columns) || value.table_columns.length !== cdcInventoryPriceTables.length ||
+      new Set(value.table_columns).size !== cdcInventoryPriceTables.length ||
+      cdcInventoryPriceTables.some(table => !value.table_columns.includes(table))) {
+    throw new Error("cdc_inventory_price_shadow.table_columns must match the exact Medusa 2.19.0 stage-2 allowlist")
+  }
+  return {
+    mode: value.mode,
+    profile: value.profile,
+    sourceDbUrlRef: secretReference(value.source_db_url_ref, "cdc_inventory_price_shadow.source_db_url_ref"),
+    sourceOwner: requiredString(value.source_owner, "cdc_inventory_price_shadow.source_owner"),
+    pipelineOwner: requiredString(value.pipeline_owner, "cdc_inventory_price_shadow.pipeline_owner"),
+    snapshotMode: value.snapshot_mode,
+    publication: cdcIdentifier(value.publication, "cdc_inventory_price_shadow.publication"),
+    slot: cdcIdentifier(value.slot, "cdc_inventory_price_shadow.slot"),
+    topicPrefix: cdcIdentifier(value.topic_prefix, "cdc_inventory_price_shadow.topic_prefix"),
+    tableColumns: cdcInventoryPriceTables,
   }
 }
 
@@ -203,6 +259,7 @@ export function validateManifest(raw) {
     bindings: { browser, storefrontServer, medusaBackend },
     cdcShadow: cdcShadowProfile(raw.cdc_shadow),
     cdcCatalogShadow: cdcCatalogProfile(raw.cdc_catalog_shadow),
+    cdcInventoryPriceShadow: cdcInventoryPriceProfile(raw.cdc_inventory_price_shadow),
     // Internal compatibility for the current generator. The public manifest
     // source of truth is the explicit bindings block above.
     frontend: { enabled: true, events: browser },

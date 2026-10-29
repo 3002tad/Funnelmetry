@@ -3,10 +3,10 @@ import { mkdir, realpath, writeFile } from "node:fs/promises"
 import path from "node:path"
 import process from "node:process"
 import { loadManifest } from "./manifest.mjs"
-import { createCdcCatalogRollbackPlan, createCdcRollbackPlan, createPlan, inspectMedusa, verifyIntegration } from "./planner.mjs"
+import { createCdcCatalogRollbackPlan, createCdcInventoryPriceRollbackPlan, createCdcRollbackPlan, createPlan, inspectMedusa, verifyIntegration } from "./planner.mjs"
 
 function usage() {
-  return `Usage:\n  funnelmetry-medusa-ci plan --config <manifest.yaml> --project <medusa-checkout> --out <artifact-dir>\n  funnelmetry-medusa-ci verify --config <manifest.yaml> --project <medusa-checkout>\n  funnelmetry-medusa-ci rollback-plan --config <manifest.yaml> --project <medusa-checkout> --out <artifact-dir>\n  funnelmetry-medusa-ci catalog-rollback-plan --config <manifest.yaml> --project <medusa-checkout> --out <artifact-dir>\n  funnelmetry-medusa-ci doctor --config <manifest.yaml> --project <medusa-checkout>\n\nThe CLI never writes to the Medusa checkout or removes runtime CDC resources.\n`
+  return `Usage:\n  funnelmetry-medusa-ci plan --config <manifest.yaml> --project <medusa-checkout> --out <artifact-dir>\n  funnelmetry-medusa-ci verify --config <manifest.yaml> --project <medusa-checkout>\n  funnelmetry-medusa-ci rollback-plan --config <manifest.yaml> --project <medusa-checkout> --out <artifact-dir>\n  funnelmetry-medusa-ci catalog-rollback-plan --config <manifest.yaml> --project <medusa-checkout> --out <artifact-dir>\n  funnelmetry-medusa-ci inventory-price-rollback-plan --config <manifest.yaml> --project <medusa-checkout> --out <artifact-dir>\n  funnelmetry-medusa-ci doctor --config <manifest.yaml> --project <medusa-checkout>\n\nThe CLI never writes to the Medusa checkout or removes runtime CDC resources.\n`
 }
 
 function args(argv) {
@@ -56,15 +56,16 @@ async function main() {
     process.stdout.write(`${JSON.stringify(await verifyIntegration(project, manifest), null, 2)}\n`)
     return
   }
-  if (command !== "plan" && command !== "rollback-plan" && command !== "catalog-rollback-plan") {
-    throw new Error(`Unsupported command '${command}'. Use plan, verify, rollback-plan, catalog-rollback-plan, or doctor.`)
+  if (command !== "plan" && command !== "rollback-plan" && command !== "catalog-rollback-plan" && command !== "inventory-price-rollback-plan") {
+    throw new Error(`Unsupported command '${command}'. Use plan, verify, rollback-plan, catalog-rollback-plan, inventory-price-rollback-plan, or doctor.`)
   }
 
   const output = required(options, "out")
   await ensureArtifactOutsideProject(project, output)
   const plan = command === "plan" ? await createPlan(project, manifest)
     : command === "catalog-rollback-plan" ? await createCdcCatalogRollbackPlan(project, manifest)
-      : await createCdcRollbackPlan(project, manifest)
+      : command === "inventory-price-rollback-plan" ? await createCdcInventoryPriceRollbackPlan(project, manifest)
+        : await createCdcRollbackPlan(project, manifest)
   await mkdir(output, { recursive: true })
   const patchName = command === "plan" ? "integration.patch" : "rollback.patch"
   await Promise.all([
