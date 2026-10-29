@@ -109,6 +109,7 @@ jobs:
           python -m py_compile tools/medusa-reference-cdc-shadow/probe-inventory-price-cdc-only-candidate.py
           python -m py_compile tools/medusa-reference-cdc-shadow/probe-combined-cdc-transition.py
           python -m py_compile tools/medusa-reference-cdc-shadow/probe-combined-cdc-replay.py
+          python -m py_compile tools/medusa-reference-cdc-shadow/probe-combined-cdc-kit.py
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_resolution_candidate.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_catalog_cdc_pair_candidate.py -v
       - name: Check reference order CDC v2 sink candidate

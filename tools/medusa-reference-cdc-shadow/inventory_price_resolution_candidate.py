@@ -1,8 +1,8 @@
 """Shadow-only Medusa inventory/price resolver over governed CDC context.
 
-Only one-item inventory across verified locations and simple default prices have been
-compared with Store API so far. All other shapes return UNVERIFIED, with no
-customer-facing sellable quantity or display price.
+Conformed shapes: one item across verified locations, or a multi-item kit at
+one verified location. Only simple default prices have been conformed. Other
+shapes remain UNVERIFIED; no customer-facing asset is active.
 """
 
 from decimal import Decimal, InvalidOperation, ROUND_FLOOR
@@ -63,10 +63,14 @@ def resolve_inventory(rows, *, product, variant, sales_channel_id,
                 "purchasable": True, "reason": "inventory_not_managed"}
     if variant.get("manage_inventory") is not True:
         return {"status": "UNVERIFIED", "reason": "inventory_management_unknown"}
+    if variant.get("allow_backorder") is not False:
+        return {"status": "UNVERIFIED", "reason": "backorder_not_conformed"}
     links = [r for r in _active(rows, "product_variant_inventory_item")
              if r.get("variant_id") == variant_id]
     if not links:
         return {"status": "UNVERIFIED", "reason": "inventory_item_link_missing"}
+    if len({link.get("inventory_item_id") for link in links}) != len(links):
+        return {"status": "BLOCKED_BY_QUALITY", "reason": "duplicate_inventory_item_link"}
     locations = {r.get("stock_location_id") for r in
                  _active(rows, "sales_channel_stock_location")
                  if r.get("sales_channel_id") == sales_channel_id}
@@ -102,11 +106,17 @@ def resolve_inventory(rows, *, product, variant, sales_channel_id,
             available += max(Decimal(0), stocked - reserved)
         quantities.append(int((available / required).to_integral_value(rounding=ROUND_FLOOR)))
     candidate = min(quantities)
-    if len(links) != 1 or level_count != len(locations) or \
+    if len(links) > 1:
+        if len(locations) != 1 or level_count != len(links):
+            return {"status": "UNVERIFIED", "reason": "kit_multi_location_or_level_missing"}
+        return {"status": "PASS_SAMPLE_ONLY", "inventory_quantity": candidate,
+                "purchasable": candidate > 0,
+                "reason": "inventory_kit_single_location_conformed"}
+    if level_count != len(locations) or \
             _number(links[0].get("required_quantity")) != 1:
-        return {"status": "UNVERIFIED", "reason": "multi_item_or_location_not_conformed"}
+        return {"status": "UNVERIFIED", "reason": "single_item_shape_not_conformed"}
     return {"status": "PASS_SAMPLE_ONLY", "inventory_quantity": candidate,
-            "purchasable": variant.get("allow_backorder") is True or candidate > 0,
+            "purchasable": candidate > 0,
             "reason": "single_item_locations_conformed"}
 
 

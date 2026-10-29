@@ -33,3 +33,7 @@ The combined clone remains a sample conformance environment. Soft delete, relati
 After verification, all ten services in `funnelmetry_cdc_combined_shadow_c1` are stopped with `docker compose stop`. Clone volumes, Kafka topics, slots and offset/audit state are retained for further tests.
 
 The existing `probe-inventory-price-resolver-candidate.py` remains historical one-profile evidence and still reads catalog flags directly from the isolated source DB. It must not be used as CDC-only acceptance evidence. DEC-119/135 and the CDC-11/12 gates remain unchanged.
+
+## One-location inventory kit follow-up — 2026-10-30
+
+The same combined clone was resumed for a new two-item kit fixture, then stopped again with all volumes/offsets retained. The added item had `required_quantity=2` and stocked quantity 5 at the variant's one eligible location; Store API and the governed CDC stage-1 + stage-2 resolver both returned available quantity 2. The fixture was removed and Store API/projections restored. See [kit evidence](INVENTORY_PRICE_KIT_SINGLE_LOCATION_EVIDENCE_2026-10-30.md). Multi-location kits, backorders, kit reservations through checkout and price-list/rule/tier resolution remain unverified; this does not create a live asset or cutover authority.

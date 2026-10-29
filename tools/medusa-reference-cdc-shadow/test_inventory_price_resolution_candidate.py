@@ -101,6 +101,36 @@ class ResolverTests(unittest.TestCase):
             row(sales_channel_id="sc_1", stock_location_id="loc_2"))
         self.assertEqual(stock(data)["status"], "UNVERIFIED")
 
+    def test_two_item_kit_at_one_location_uses_limiting_required_item(self):
+        data = context()
+        data["product_variant_inventory_item"].append(
+            row(variant_id="var_1", inventory_item_id="item_2", required_quantity="2"))
+        data["inventory_item"].append(row(id="item_2"))
+        data["inventory_level"].append(row(inventory_item_id="item_2",
+                                           location_id="loc_1", stocked_quantity="5",
+                                           reserved_quantity="0"))
+        result = stock(data)
+        self.assertEqual(result["status"], "PASS_SAMPLE_ONLY")
+        self.assertEqual(result["inventory_quantity"], 2)
+        self.assertEqual(result["reason"], "inventory_kit_single_location_conformed")
+        data["inventory_level"].pop()
+        self.assertEqual(stock(data)["status"], "UNVERIFIED")
+
+    def test_backorder_and_multi_location_kit_stay_unverified(self):
+        data = context()
+        self.assertEqual(stock(data, {**VARIANT, "allow_backorder": True})["status"],
+                         "UNVERIFIED")
+        data["product_variant_inventory_item"].append(
+            row(variant_id="var_1", inventory_item_id="item_2", required_quantity="2"))
+        data["inventory_item"].append(row(id="item_2"))
+        data["inventory_level"].append(row(inventory_item_id="item_2",
+                                           location_id="loc_1", stocked_quantity="5",
+                                           reserved_quantity="0"))
+        data["stock_location"].append(row(id="loc_2"))
+        data["sales_channel_stock_location"].append(
+            row(sales_channel_id="sc_1", stock_location_id="loc_2"))
+        self.assertEqual(stock(data)["status"], "UNVERIFIED")
+
     def test_simple_default_price_is_currency_scoped(self):
         result = resolution.resolve_default_price(context(), variant_id="var_1",
                                                   currency_code="eur", region_id="reg_1",
