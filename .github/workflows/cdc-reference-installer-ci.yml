@@ -10,8 +10,10 @@ on:
       - tools/medusa-reference-cdc-shadow/**
       - workers/catalog-cdc-writer/**
       - workers/inventory-price-cdc-writer/**
+      - workers/reference-order-cdc-v2-sink/**
       - infra/postgres/v2/021_catalog_cdc_candidate.sql
       - infra/postgres/v2/022_inventory_price_cdc_context_candidate.sql
+      - infra/postgres/v2/023_reference_order_cdc_v2_candidate.sql
       - infra/postgres/tests/catalog_cdc_candidate_quality.sql
       - apps/dashboard-api/src/lib/product-reference.js
       - apps/dashboard-api/test/product-reference.test.js
@@ -95,5 +97,14 @@ jobs:
           npm test --prefix workers/inventory-price-cdc-writer
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_governed_profile.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_governed_quality.py -v
+      - name: Check reference order CDC v2 sink candidate
+        run: |
+          python -m py_compile \
+            tools/medusa-reference-cdc-shadow/prepare-reference-order-v2-governed-private.py \
+            tools/medusa-reference-cdc-shadow/verify-reference-order-v2-governed-candidate.py \
+            tools/medusa-reference-cdc-shadow/probe-reference-order-v2-governed-replay.py
+          npm ci --prefix workers/reference-order-cdc-v2-sink --ignore-scripts
+          npm test --prefix workers/reference-order-cdc-v2-sink
+          node --check workers/reference-order-cdc-v2-sink/src/main.js
       - name: Build candidate Workers image
         run: docker build --file infra/docker/pipeline-workers.Dockerfile --tag funnelmetry-workers-cdc-ci .

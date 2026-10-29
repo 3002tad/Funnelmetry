@@ -1,0 +1,15 @@
+# Separate reference current-state v2 sink against the isolated CDC-10 clone.
+# No live Pipeline binding or published port.
+services:
+  reference-order-v2-governed-sink:
+    build:
+      context: ${CDC_ORDER_SINK_CONTEXT:-../../workers/reference-order-cdc-v2-sink}
+      dockerfile: Dockerfile.shadow
+    env_file:
+      - ./private/recovery-analytics-sink.env
+      - ./private/reference-order-v2-governed-sink.env
+    depends_on:
+      recovery-analytics-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    restart: on-failure
+    networks: [shadow]
