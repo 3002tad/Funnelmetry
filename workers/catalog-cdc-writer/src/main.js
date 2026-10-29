@@ -1,5 +1,6 @@
 import pg from 'pg'
 import {Kafka, logLevel} from 'kafkajs'
+import {postgresConfig} from '../../shared/postgres-config.mjs'
 import {fieldsByTable, persistCatalogChange} from './projection.js'
 
 const sourceId = process.env.CATALOG_CDC_SOURCE_ID
@@ -15,12 +16,7 @@ if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,199}$/.test(sourceId ?? '') ||
   throw Error('catalog_cdc_configuration_invalid')
 }
 const topics = Object.keys(fieldsByTable).map(table => `${prefix}.public.${table}`)
-const postgres = process.env.DATABASE_URL
-  ? {connectionString: process.env.DATABASE_URL}
-  : {host: process.env.POSTGRES_HOST, port: Number(process.env.POSTGRES_PORT ?? 5432),
-    database: process.env.POSTGRES_DB, user: process.env.POSTGRES_USER,
-    password: process.env.POSTGRES_PASSWORD}
-const pool = new pg.Pool({...postgres, max: 3, connectionTimeoutMillis: 10000})
+const pool = new pg.Pool({...postgresConfig(), max: 3, connectionTimeoutMillis: 10000})
 const kafka = new Kafka({clientId: `catalog-cdc-writer-${epochId}`, brokers,
   logLevel: logLevel.ERROR, retry: {retries: 3}})
 const consumer = kafka.consumer({groupId, readUncommitted: false})

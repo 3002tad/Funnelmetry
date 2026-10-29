@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import pg from 'pg'
 import { Kafka, logLevel } from 'kafkajs'
+import { postgresConfig } from '../../shared/postgres-config.mjs'
 
 const epoch = process.env.COVERAGE_EPOCH_ID
 const previousEpoch = process.env.PREVIOUS_COVERAGE_EPOCH_ID
@@ -12,8 +13,7 @@ const brokers = (process.env.KAFKA_BROKERS ?? '').split(',').filter(Boolean)
 const tables = ['order', 'order_cart', 'cart']
 const rowTopics = new Map(tables.map(table => [`${prefix}.public.${table}`, table]))
 const transactionTopic = `${prefix}.transaction`
-const dbUrl = process.env.DATABASE_URL
-if (process.env.REFERENCE_CDC_MODE !== 'SHADOW_ONLY' || !dbUrl ||
+if (process.env.REFERENCE_CDC_MODE !== 'SHADOW_ONLY' ||
     !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(epoch ?? '') ||
     !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(previousEpoch ?? '') ||
     previousEpoch === epoch ||
@@ -25,7 +25,7 @@ if (process.env.REFERENCE_CDC_MODE !== 'SHADOW_ONLY' || !dbUrl ||
     factTopic.startsWith(prefix + '.')) {
   throw Error('reference_cdc_v2_mapper_configuration_invalid')
 }
-const pool = new pg.Pool({ connectionString: dbUrl, max: 3, connectionTimeoutMillis: 10000 })
+const pool = new pg.Pool({ ...postgresConfig(), max: 3, connectionTimeoutMillis: 10000 })
 const kafka = new Kafka({ clientId: `reference-cdc-v2-mapper-${epoch}`, brokers,
   logLevel: logLevel.ERROR, retry: { retries: 3 } })
 const consumer = kafka.consumer({ groupId, readUncommitted: false })

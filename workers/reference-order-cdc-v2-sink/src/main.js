@@ -1,5 +1,6 @@
 import pg from 'pg'
 import { Kafka, logLevel } from 'kafkajs'
+import { postgresConfig } from '../../shared/postgres-config.mjs'
 import { validateRecord } from './contract.js'
 
 const epoch = process.env.COVERAGE_EPOCH_ID
@@ -7,8 +8,7 @@ const sourceId = process.env.SOURCE_INSTANCE_ID
 const topic = process.env.FACT_TOPIC
 const groupId = process.env.KAFKA_GROUP_ID
 const brokers = (process.env.KAFKA_BROKERS ?? '').split(',').filter(Boolean)
-const url = process.env.DATABASE_URL
-if (process.env.REFERENCE_CDC_MODE !== 'SHADOW_ONLY' || !url ||
+if (process.env.REFERENCE_CDC_MODE !== 'SHADOW_ONLY' ||
     !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(epoch ?? '') ||
     !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,199}$/.test(sourceId ?? '') ||
     !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,199}$/.test(topic ?? '') ||
@@ -16,7 +16,7 @@ if (process.env.REFERENCE_CDC_MODE !== 'SHADOW_ONLY' || !url ||
     brokers.length !== 1 || !brokers[0]) {
   throw Error('reference_cdc_v2_sink_configuration_invalid')
 }
-const pool = new pg.Pool({ connectionString: url, max: 3, connectionTimeoutMillis: 10000 })
+const pool = new pg.Pool({ ...postgresConfig(), max: 3, connectionTimeoutMillis: 10000 })
 const kafka = new Kafka({ clientId: `reference-cdc-v2-sink-${epoch}`, brokers,
   logLevel: logLevel.ERROR, retry: { retries: 3 } })
 const consumer = kafka.consumer({ groupId, readUncommitted: false })

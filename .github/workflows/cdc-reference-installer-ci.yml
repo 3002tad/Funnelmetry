@@ -12,6 +12,8 @@ on:
       - workers/inventory-price-cdc-writer/**
       - workers/reference-order-cdc-v2-sink/**
       - workers/reference-order-cdc-v2-mapper/**
+      - workers/shared/postgres-config.mjs
+      - workers/shared/postgres-config.test.mjs
       - infra/postgres/v2/021_catalog_cdc_candidate.sql
       - infra/postgres/v2/022_inventory_price_cdc_context_candidate.sql
       - infra/postgres/v2/023_reference_order_cdc_v2_candidate.sql
@@ -137,3 +139,10 @@ jobs:
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_reference_order_v2_quality.py -v
       - name: Build candidate Workers image
         run: docker build --file infra/docker/pipeline-workers.Dockerfile --tag funnelmetry-workers-cdc-ci .
+      - name: Check CDC Docker secret config and isolated worker images
+        run: |
+          node --test workers/shared/postgres-config.test.mjs
+          docker build --file workers/catalog-cdc-writer/Dockerfile.shadow --tag funnelmetry-catalog-cdc-shadow-ci .
+          docker build --file workers/inventory-price-cdc-writer/Dockerfile.shadow --tag funnelmetry-inventory-price-cdc-shadow-ci .
+          docker build --file workers/reference-order-cdc-v2-mapper/Dockerfile.shadow --tag funnelmetry-order-v2-mapper-shadow-ci .
+          docker build --file workers/reference-order-cdc-v2-sink/Dockerfile.shadow --tag funnelmetry-order-v2-sink-shadow-ci .

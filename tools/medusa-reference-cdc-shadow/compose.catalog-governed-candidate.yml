@@ -3,8 +3,8 @@
 services:
   catalog-governed-writer:
     build:
-      context: ../../workers/catalog-cdc-writer
-      dockerfile: Dockerfile.shadow
+      context: ../..
+      dockerfile: workers/catalog-cdc-writer/Dockerfile.shadow
     env_file:
       - ./private/catalog-projector.env
       - ./private/catalog-governed-writer.env

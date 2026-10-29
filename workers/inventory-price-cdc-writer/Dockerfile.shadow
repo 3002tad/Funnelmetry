@@ -1,7 +1,8 @@
 FROM node:22-bookworm-slim
-WORKDIR /app
-COPY package.json package-lock.json ./
+WORKDIR /workspace/workers/inventory-price-cdc-writer
+COPY workers/inventory-price-cdc-writer/package.json workers/inventory-price-cdc-writer/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
-COPY src ./src
+COPY workers/inventory-price-cdc-writer/src ./src
+COPY workers/shared/postgres-config.mjs /workspace/workers/shared/postgres-config.mjs
 USER node
 CMD ["node", "src/main.js"]

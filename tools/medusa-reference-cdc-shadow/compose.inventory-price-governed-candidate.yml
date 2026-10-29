@@ -3,8 +3,8 @@
 services:
   inventory-price-governed-writer:
     build:
-      context: ${CDC_CANDIDATE_WORKER_CONTEXT:-../../workers/inventory-price-cdc-writer}
-      dockerfile: Dockerfile.shadow
+      context: ${CDC_CANDIDATE_WORKER_CONTEXT:-../..}
+      dockerfile: workers/inventory-price-cdc-writer/Dockerfile.shadow
     env_file:
       - ./private/inventory-price-projector.env
       - ./private/inventory-price-governed-writer.env

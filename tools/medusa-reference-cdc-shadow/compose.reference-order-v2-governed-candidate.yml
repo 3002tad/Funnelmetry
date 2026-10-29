@@ -3,8 +3,8 @@
 services:
   reference-order-v2-governed-sink:
     build:
-      context: ${CDC_ORDER_SINK_CONTEXT:-../../workers/reference-order-cdc-v2-sink}
-      dockerfile: Dockerfile.shadow
+      context: ${CDC_ORDER_SINK_CONTEXT:-../..}
+      dockerfile: workers/reference-order-cdc-v2-sink/Dockerfile.shadow
     env_file:
       - ./private/recovery-analytics-sink.env
       - ./private/reference-order-v2-governed-sink.env

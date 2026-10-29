@@ -1,5 +1,12 @@
 # Medusa CDC shadow experiment
 
+CDC candidate worker `Dockerfile.shadow` images now build from the Pipeline
+repository root to include their shared Docker-secret PostgreSQL configuration
+helper. When overriding `CDC_CANDIDATE_WORKER_CONTEXT`,
+`CDC_ORDER_MAPPER_CONTEXT`, or `CDC_ORDER_SINK_CONTEXT` for another worktree,
+point to that worktree's **repository root**. The default Compose contexts
+already use the repository root. Building these images does not change live.
+
 ## Lost-slot recovery candidate
 
 The isolated CDC-10 clone has a separate durable epoch-2 mapper, analytical

@@ -14,8 +14,8 @@ services:
 
   reference-order-v2-mapper:
     build:
-      context: ${CDC_ORDER_MAPPER_CONTEXT:-../../workers/reference-order-cdc-v2-mapper}
-      dockerfile: Dockerfile.shadow
+      context: ${CDC_ORDER_MAPPER_CONTEXT:-../..}
+      dockerfile: workers/reference-order-cdc-v2-mapper/Dockerfile.shadow
     env_file: ./private/reference-order-v2-mapper.env
     depends_on:
       reference-order-v2-mapper-db: {condition: service_healthy}
