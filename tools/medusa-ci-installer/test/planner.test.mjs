@@ -82,30 +82,30 @@ function cdcInventoryPriceRawManifest() {
   const raw = cdcCatalogRawManifest()
   raw.cdc_inventory_price_shadow = {
     mode: "shadow_only",
-    profile: "reference.medusa.inventory_price_context.v1",
+    profile: "reference.medusa.inventory_price_context.v2",
     source_db_url_ref: "FUNNELMETRY_CDC_INVENTORY_PRICE_DATABASE_URL",
     source_owner: "medusa-operator",
     pipeline_owner: "pipeline-operator",
     snapshot_mode: "initial",
-    publication: "funnelmetry_cdc_inventory_price_shadow",
-    slot: "funnelmetry_cdc_inventory_price_shadow",
-    topic_prefix: "cdc_shadow_medusa_inventory_price",
+    publication: "funnelmetry_cdc_inventory_price_shadow_v2",
+    slot: "funnelmetry_cdc_inventory_price_shadow_v2",
+    topic_prefix: "cdc_shadow_medusa_inventory_price_v2",
     table_columns: [
-      "public.product_sales_channel:id,product_id,sales_channel_id",
-      "public.sales_channel:id,name,is_disabled",
-      "public.sales_channel_stock_location:id,sales_channel_id,stock_location_id",
-      "public.stock_location:id,name",
-      "public.product_variant_inventory_item:id,variant_id,inventory_item_id,required_quantity",
+      "public.product_sales_channel:id,product_id,sales_channel_id,deleted_at",
+      "public.sales_channel:id,name,is_disabled,deleted_at",
+      "public.sales_channel_stock_location:id,sales_channel_id,stock_location_id,deleted_at",
+      "public.stock_location:id,name,deleted_at",
+      "public.product_variant_inventory_item:id,variant_id,inventory_item_id,required_quantity,deleted_at",
       "public.inventory_item:id,sku,requires_shipping,deleted_at",
-      "public.inventory_level:id,inventory_item_id,location_id,stocked_quantity,reserved_quantity,incoming_quantity",
-      "public.reservation_item:id,inventory_item_id,location_id,quantity,allow_backorder",
-      "public.product_variant_price_set:id,variant_id,price_set_id",
-      "public.price_set:id",
+      "public.inventory_level:id,inventory_item_id,location_id,stocked_quantity,reserved_quantity,incoming_quantity,deleted_at",
+      "public.reservation_item:id,inventory_item_id,location_id,quantity,allow_backorder,deleted_at",
+      "public.product_variant_price_set:id,variant_id,price_set_id,deleted_at",
+      "public.price_set:id,deleted_at",
       "public.price:id,price_set_id,currency_code,amount,price_list_id,min_quantity,max_quantity,rules_count,deleted_at",
       "public.price_list:id,status,starts_at,ends_at,type,rules_count,deleted_at",
-      "public.price_rule:id,price_id,attribute,operator,value,priority",
-      "public.price_list_rule:id,price_list_id,attribute,value",
-      "public.region:id,currency_code",
+      "public.price_rule:id,price_id,attribute,operator,value,priority,deleted_at",
+      "public.price_list_rule:id,price_list_id,attribute,value,deleted_at",
+      "public.region:id,currency_code,deleted_at",
       "public.currency:code,decimal_digits,deleted_at",
     ],
   }
@@ -123,7 +123,8 @@ test("CDC inventory/price profile is independent, exact-scoped and rollback-guar
     assert.throws(() => validateManifest(bad))
   }
   const absentColumn = cdcInventoryPriceRawManifest()
-  absentColumn.cdc_inventory_price_shadow.table_columns[0] += ",deleted_at"
+  absentColumn.cdc_inventory_price_shadow.table_columns[0] =
+    "public.product_sales_channel:id,product_id,sales_channel_id"
   assert.throws(() => validateManifest(absentColumn), /exact Medusa 2.19.0 stage-2 allowlist/)
   const broad = cdcInventoryPriceRawManifest()
   broad.cdc_inventory_price_shadow.table_columns.push("public.customer:id,email")

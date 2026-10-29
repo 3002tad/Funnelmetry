@@ -640,7 +640,7 @@ function cdcInventoryPriceArtifact(manifest) {
   if (!manifest.cdcInventoryPriceShadow) return null
   const profile = manifest.cdcInventoryPriceShadow
   return `${JSON.stringify({
-    schema_version: "funnelmetry-medusa-cdc-inventory-price-shadow.v1",
+    schema_version: "funnelmetry-medusa-cdc-inventory-price-shadow.v2",
     generated_by: "funnelmetry-medusa-ci",
     status: "SHADOW_ONLY",
     source_id: manifest.source.id,

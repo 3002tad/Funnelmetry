@@ -48,10 +48,8 @@ def source_slot():
 
 def connector_state():
     base = BASE + ["exec", "-T", "connect", "curl", "-fsS", "--max-time", "10"]
-    status = json.loads(run(base + ["http://127.0.0.1:8083/connectors/"
-                                    "medusa-cdc-inventory-price-shadow/status"]))
-    offsets = json.loads(run(base + ["http://127.0.0.1:8083/connectors/"
-                                     "medusa-cdc-inventory-price-shadow/offsets"]))
+    status = json.loads(run(base + [f"http://127.0.0.1:8083/connectors/{stage2.CONNECTOR}/status"]))
+    offsets = json.loads(run(base + [f"http://127.0.0.1:8083/connectors/{stage2.CONNECTOR}/offsets"]))
     healthy = status.get("connector", {}).get("state") == "RUNNING" and bool(status.get("tasks"))
     healthy = healthy and all(task.get("state") == "RUNNING" for task in status["tasks"])
     values = offsets.get("offsets", [])

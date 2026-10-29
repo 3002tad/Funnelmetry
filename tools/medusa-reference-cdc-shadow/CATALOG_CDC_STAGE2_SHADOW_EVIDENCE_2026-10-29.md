@@ -1,5 +1,11 @@
 # Inventory/price CDC stage-2 shadow evidence — 2026-10-29
 
+> **Historical v1 capture only.** A later full schema audit on the same Medusa
+> 2.19.0 clone found `deleted_at` on all 16 stage-2 tables; this v1 profile
+> omitted it from 12 tables. The PASS_CONTEXT_ONLY result below proves only
+> the narrower captured columns and cannot establish active relation or
+> inventory/price semantics. Use a new v2 slot/topic/epoch and initial snapshot.
+
 ## Scope and topology
 
 Project `funnelmetry_cdc_inventory_price_shadow_stage2a` ran only on the VPS

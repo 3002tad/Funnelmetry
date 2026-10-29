@@ -25,8 +25,8 @@ values = {
     projector: ("DATABASE_URL=postgres://inventory_price_projection:"
                 f"{password}@inventory-price-projection-db:5432/inventory_price_projection\n"
                 "KAFKA_BROKERS=kafka:9092\n"
-                "KAFKA_GROUP_ID=cdc-shadow-inventory-price-projector-v1\n"
-                "CDC_TOPIC_PREFIX=cdc_shadow_medusa_inventory_price\n"
+                f"KAFKA_GROUP_ID=cdc-shadow-inventory-price-projector-{epoch}\n"
+                "CDC_TOPIC_PREFIX=cdc_shadow_medusa_inventory_price_v2\n"
                 f"CDC_COVERAGE_EPOCH={epoch}\n"
                 "SOURCE_ID=medusa-reference\n"),
 }

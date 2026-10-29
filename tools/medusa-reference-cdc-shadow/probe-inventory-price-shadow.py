@@ -33,7 +33,7 @@ def selected_ids():
       'item_id',(SELECT id FROM inventory_item WHERE deleted_at IS NULL ORDER BY id LIMIT 1),
       'link',(SELECT row_to_json(link) FROM
         (SELECT id,product_id,sales_channel_id FROM product_sales_channel
-         ORDER BY product_id,sales_channel_id LIMIT 1) AS link))::text;"""
+         WHERE deleted_at IS NULL ORDER BY product_id,sales_channel_id LIMIT 1) AS link))::text;"""
     value = json.loads(sql(statement))
     if not all(value.get(name) for name in ("level_id", "stocked_quantity", "item_id", "link")):
         raise RuntimeError("clone lacks the rows required for stage-2 transition probe")
@@ -62,7 +62,7 @@ def reconcile(timeout=120):
 def main():
     if not verifier.snapshot.PROJECT.fullmatch(os.environ.get("COMPOSE_PROJECT_NAME", "")):
         raise RuntimeError("requires an isolated inventory/price shadow project")
-    if os.environ.get("CDC_COVERAGE_EPOCH") != "inventory-price-shadow-20261029-a":
+    if os.environ.get("CDC_COVERAGE_EPOCH") != "inventory-price-shadow-20261029-b":
         raise RuntimeError("unexpected stage-2 probe epoch")
     services = set(verifier.snapshot.run(BASE + ["ps", "--services", "--status", "running"]).splitlines())
     if services != {"postgres", "kafka", "connect", "inventory-price-projection-db",
@@ -75,7 +75,7 @@ def main():
       UPDATE inventory_level SET stocked_quantity=stocked_quantity+1
         WHERE id='{values['level_id']}';
       UPDATE inventory_item SET deleted_at=now() WHERE id='{values['item_id']}';
-      DELETE FROM product_sales_channel WHERE product_id='{link['product_id']}'
+      UPDATE product_sales_channel SET deleted_at=now() WHERE product_id='{link['product_id']}'
         AND sales_channel_id='{link['sales_channel_id']}';
       COMMIT;""")
     try:
@@ -87,9 +87,9 @@ def main():
           UPDATE inventory_level SET stocked_quantity={values['stocked_quantity']}
             WHERE id='{values['level_id']}';
           UPDATE inventory_item SET deleted_at=NULL WHERE id='{values['item_id']}';
-          INSERT INTO product_sales_channel(id,product_id,sales_channel_id)
-            VALUES('{link['id']}','{link['product_id']}','{link['sales_channel_id']}')
-            ON CONFLICT(product_id,sales_channel_id) DO UPDATE SET id=EXCLUDED.id;
+          UPDATE product_sales_channel SET deleted_at=NULL
+            WHERE product_id='{link['product_id']}'
+              AND sales_channel_id='{link['sales_channel_id']}';
           COMMIT;""")
     restored = reconcile()
     print(json.dumps({"phase": "restored", "status": restored["status"],

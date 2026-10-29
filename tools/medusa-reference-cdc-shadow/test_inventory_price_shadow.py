@@ -28,6 +28,8 @@ class InventoryPriceProfileTests(unittest.TestCase):
         self.assertEqual(config["publication.name"], stage2.SLOT)
         self.assertEqual(config["topic.prefix"], stage2.PREFIX)
         self.assertEqual(len(stage2.TABLES), 16)
+        self.assertTrue(all("deleted_at" in columns for columns in stage2.TABLES.values()))
+        self.assertEqual(projection_verifier.SOFT_DELETE, set(stage2.TABLES))
         self.assertEqual(installer.PRIMARY_KEYS, stage2.PRIMARY_KEYS)
         self.assertEqual(stage2.PRIMARY_KEYS["product_sales_channel"],
                          ("product_id", "sales_channel_id"))
@@ -40,7 +42,7 @@ class InventoryPriceProfileTests(unittest.TestCase):
         profile = dict(stage2.EXPECTED, source_owner="medusa", pipeline_owner="pipeline")
         changed = dict(profile)
         changed["table_columns"] = [*profile["table_columns"]]
-        changed["table_columns"][0] = "public.product_sales_channel:id,product_id,deleted_at"
+        changed["table_columns"][0] = "public.product_sales_channel:id,product_id,sales_channel_id"
         with self.assertRaises(ValueError):
             installer.profile_dict(changed)
         changed = dict(profile, snapshot_mode="no_data")

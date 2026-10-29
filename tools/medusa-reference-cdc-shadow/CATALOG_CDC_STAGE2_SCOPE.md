@@ -1,8 +1,8 @@
 # Catalog CDC stage 2: inventory and price context (candidate)
 
-Status: **shadow installer candidate, not an activated analytical asset**. Stage 1 already
+Status: **shadow installer candidate v2, not an activated analytical asset**. Stage 1 already
 uses `reference.medusa.catalog_master_data.v1` for product/variant/category.
-Stage 2 now has a separate generated profile and operator-side installer with
+Stage 2 has a separate generated profile and operator-side installer with
 exact source grants and publication for an isolated clone. Privacy review,
 snapshot/stream runtime evidence, projection, reconciliation and live decision
 are still required. It cannot be added to
@@ -10,7 +10,12 @@ are still required. It cannot be added to
 existing connector in place. Schema inventory below was checked against the
 isolated Medusa 2.19.0 clone on 2026-10-29 with
 `stage2-schema-inventory.sql`. Several proposed `deleted_at` fields did not
-exist; this corrected allowlist applies to the inspected clone.
+exist in the original proposal. A subsequent full `information_schema` audit on
+2026-10-29 found `deleted_at` on **all 16** stage-2 tables. The earlier v1
+allowlist omitted it from 12 tables and therefore cannot establish active
+relationship or availability semantics. V1 topics, slot and profile remain
+historical shadow evidence; v2 requires a fresh initial snapshot and its own
+slot/topic prefix/coverage epoch. This v2 allowlist applies to the inspected clone.
 
 ## Candidate allowlist
 
@@ -20,21 +25,21 @@ semantics before activation.
 
 | Table | Candidate columns | Relationship / purpose |
 |---|---|---|
-| `product_sales_channel` | `id,product_id,sales_channel_id` | Product visibility in channel; PK `(product_id,sales_channel_id)` |
-| `sales_channel` | `id,name,is_disabled` | Channel state |
-| `sales_channel_stock_location` | `id,sales_channel_id,stock_location_id` | Channel-to-location eligibility; PK `(sales_channel_id,stock_location_id)` |
-| `stock_location` | `id,name` | Stock location |
-| `product_variant_inventory_item` | `id,variant_id,inventory_item_id,required_quantity` | Quantity required per variant; PK `(variant_id,inventory_item_id)` |
+| `product_sales_channel` | `id,product_id,sales_channel_id,deleted_at` | Product visibility in channel; PK `(product_id,sales_channel_id)` |
+| `sales_channel` | `id,name,is_disabled,deleted_at` | Channel state |
+| `sales_channel_stock_location` | `id,sales_channel_id,stock_location_id,deleted_at` | Channel-to-location eligibility; PK `(sales_channel_id,stock_location_id)` |
+| `stock_location` | `id,name,deleted_at` | Stock location |
+| `product_variant_inventory_item` | `id,variant_id,inventory_item_id,required_quantity,deleted_at` | Quantity required per variant; PK `(variant_id,inventory_item_id)` |
 | `inventory_item` | `id,sku,requires_shipping,deleted_at` | Inventory identity |
-| `inventory_level` | `id,inventory_item_id,location_id,stocked_quantity,reserved_quantity,incoming_quantity` | Per-location stock observations |
-| `reservation_item` | `id,inventory_item_id,location_id,quantity,allow_backorder` | Reservation changes and reconciliation |
-| `product_variant_price_set` | `id,variant_id,price_set_id` | Variant-to-price-set relation; PK `(variant_id,price_set_id)` |
-| `price_set` | `id` | Price-set identity |
+| `inventory_level` | `id,inventory_item_id,location_id,stocked_quantity,reserved_quantity,incoming_quantity,deleted_at` | Per-location stock observations |
+| `reservation_item` | `id,inventory_item_id,location_id,quantity,allow_backorder,deleted_at` | Reservation changes and reconciliation |
+| `product_variant_price_set` | `id,variant_id,price_set_id,deleted_at` | Variant-to-price-set relation; PK `(variant_id,price_set_id)` |
+| `price_set` | `id,deleted_at` | Price-set identity |
 | `price` | `id,price_set_id,currency_code,amount,price_list_id,min_quantity,max_quantity,rules_count,deleted_at` | Current price candidates, not historical order price |
 | `price_list` | `id,status,starts_at,ends_at,type,rules_count,deleted_at` | Promotion/price-list applicability |
-| `price_rule` | `id,price_id,attribute,operator,value,priority` | Candidate rule condition |
-| `price_list_rule` | `id,price_list_id,attribute,value` | List-level rule condition; `value` is JSONB |
-| `region` | `id,currency_code` | Region currency context |
+| `price_rule` | `id,price_id,attribute,operator,value,priority,deleted_at` | Candidate rule condition |
+| `price_list_rule` | `id,price_list_id,attribute,value,deleted_at` | List-level rule condition; `value` is JSONB |
+| `region` | `id,currency_code,deleted_at` | Region currency context |
 | `currency` | `code,decimal_digits,deleted_at` | Currency reference, no conversion rate |
 
 For relationship tables, retain source `id` as an attribute where present but
@@ -48,10 +53,10 @@ offset and source update time for traceability. Keep raw attributes that may
 contain sensitive data (`metadata`, customer/order description, addresses,
 raw JSON amount buffers) outside this candidate allowlist.
 
-Only `inventory_item`, `price`, `price_list` and `currency` in this candidate
-have `deleted_at` on the inspected clone. Other tables require hard-delete CDC
-handling and tombstone-safe keyed projection. Revalidate this before installing
-against another source version.
+Every table in the inspected clone has `deleted_at`. All 16 active views must
+exclude soft-deleted rows and the keyed projector must also handle hard-delete
+CDC/tombstones. Revalidate the full set before installing against another source
+version.
 
 ## Projection rules
 

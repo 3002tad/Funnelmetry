@@ -48,7 +48,8 @@ jobs:
             tools/medusa-reference-cdc-shadow/verify-inventory-price-snapshot.py \
             tools/medusa-reference-cdc-shadow/verify-inventory-price-projection.py \
             tools/medusa-reference-cdc-shadow/probe-inventory-price-shadow.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-replay.py
+            tools/medusa-reference-cdc-shadow/probe-inventory-price-replay.py \
+            tools/medusa-reference-cdc-shadow/probe-inventory-price-store-api.py
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_catalog_shadow.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_shadow.py -v
           node --check tools/medusa-reference-cdc-shadow/inventory-price-projector/main.mjs

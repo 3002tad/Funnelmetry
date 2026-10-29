@@ -54,19 +54,21 @@ does not switch the live Dashboard or stop `catalog-sync`.
 
 ## Separate inventory/price context shadow
 
-The stage-2 profile `reference.medusa.inventory_price_context.v1` is separate
+The stage-2 profile `reference.medusa.inventory_price_context.v2` is separate
 from both order-state and catalog stage 1. The CI planner generates
 `funnelmetry/cdc-inventory-price-shadow.json` with an exact 16-table/column
 allowlist. The operator-side installer checks the primary keys and creates its
 own role, publication, slot, topic prefix and Debezium connector on an isolated
-clone. An initial snapshot captures rows already present before streaming.
+clone. An initial snapshot captures rows already present before streaming. V1
+shadow evidence omitted `deleted_at` on 12 tables; its slot/topics must not be
+reused for v2 or used to claim active inventory/price relationships.
 
 From a **fresh copy** of this directory on the trusted VPS, with the generated
 profile copied next to `compose.yml`:
 
 ```bash
-export COMPOSE_PROJECT_NAME=funnelmetry_cdc_inventory_price_shadow_stage2a
-export CDC_COVERAGE_EPOCH=inventory-price-shadow-20261029-a
+export COMPOSE_PROJECT_NAME=funnelmetry_cdc_inventory_price_shadow_stage2b
+export CDC_COVERAGE_EPOCH=inventory-price-shadow-20261029-b
 python3 prepare-private.py
 python3 prepare-inventory-price-private.py
 python3 prepare-inventory-price-projection-private.py
@@ -91,6 +93,10 @@ display price. The verifier checks keys, selected attributes, soft-delete state
 and topic offsets; the probe changes then restores clone rows. The replay probe
 resets **only** the isolated projector consumer group and checks that audit and
 projection effects do not duplicate. See [stage-2 shadow evidence](CATALOG_CDC_STAGE2_SHADOW_EVIDENCE_2026-10-29.md).
+That evidence belongs to v1 capture only. The fresh v2 snapshot, projection,
+transition, replay and one simple Store API
+sample are recorded in [v2 shadow evidence](CATALOG_CDC_STAGE2_V2_SHADOW_EVIDENCE_2026-10-29.md).
+V2 still has no governed inventory/price asset or production semantic gate.
 
 This profile has no live Medusa DB grant, Dashboard binding or `catalog-sync`
 cutover. It needs relationship/price/inventory semantic conformance and a

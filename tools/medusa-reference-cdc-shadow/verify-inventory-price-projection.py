@@ -27,7 +27,7 @@ KEYS = {
     "product_variant_price_set": ("variant_id", "price_set_id"),
     "currency": ("code",),
 }
-SOFT_DELETE = {"inventory_item", "price", "price_list", "currency"}
+SOFT_DELETE = set(TABLES)
 ATTRIBUTES = {
     "product_sales_channel": ("id", "product_id", "sales_channel_id"),
     "sales_channel": ("id", "name", "is_disabled"),

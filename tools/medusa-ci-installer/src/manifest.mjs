@@ -28,21 +28,21 @@ const cdcCatalogTables = [
 ]
 // Medusa 2.19.0 clone schema, checked 2026-10-29. Separate from catalog v1.
 const cdcInventoryPriceTables = [
-  "public.product_sales_channel:id,product_id,sales_channel_id",
-  "public.sales_channel:id,name,is_disabled",
-  "public.sales_channel_stock_location:id,sales_channel_id,stock_location_id",
-  "public.stock_location:id,name",
-  "public.product_variant_inventory_item:id,variant_id,inventory_item_id,required_quantity",
+  "public.product_sales_channel:id,product_id,sales_channel_id,deleted_at",
+  "public.sales_channel:id,name,is_disabled,deleted_at",
+  "public.sales_channel_stock_location:id,sales_channel_id,stock_location_id,deleted_at",
+  "public.stock_location:id,name,deleted_at",
+  "public.product_variant_inventory_item:id,variant_id,inventory_item_id,required_quantity,deleted_at",
   "public.inventory_item:id,sku,requires_shipping,deleted_at",
-  "public.inventory_level:id,inventory_item_id,location_id,stocked_quantity,reserved_quantity,incoming_quantity",
-  "public.reservation_item:id,inventory_item_id,location_id,quantity,allow_backorder",
-  "public.product_variant_price_set:id,variant_id,price_set_id",
-  "public.price_set:id",
+  "public.inventory_level:id,inventory_item_id,location_id,stocked_quantity,reserved_quantity,incoming_quantity,deleted_at",
+  "public.reservation_item:id,inventory_item_id,location_id,quantity,allow_backorder,deleted_at",
+  "public.product_variant_price_set:id,variant_id,price_set_id,deleted_at",
+  "public.price_set:id,deleted_at",
   "public.price:id,price_set_id,currency_code,amount,price_list_id,min_quantity,max_quantity,rules_count,deleted_at",
   "public.price_list:id,status,starts_at,ends_at,type,rules_count,deleted_at",
-  "public.price_rule:id,price_id,attribute,operator,value,priority",
-  "public.price_list_rule:id,price_list_id,attribute,value",
-  "public.region:id,currency_code",
+  "public.price_rule:id,price_id,attribute,operator,value,priority,deleted_at",
+  "public.price_list_rule:id,price_list_id,attribute,value,deleted_at",
+  "public.region:id,currency_code,deleted_at",
   "public.currency:code,decimal_digits,deleted_at",
 ]
 
@@ -141,13 +141,13 @@ function cdcInventoryPriceProfile(value) {
     "pipeline_owner", "snapshot_mode", "publication", "slot", "topic_prefix", "table_columns"])
   const unknown = Object.keys(value).filter(key => !supported.has(key))
   if (unknown.length) throw new Error(`Unsupported cdc_inventory_price_shadow field(s): ${unknown.join(", ")}`)
-  if (value.mode !== "shadow_only" || value.profile !== "reference.medusa.inventory_price_context.v1" ||
+  if (value.mode !== "shadow_only" || value.profile !== "reference.medusa.inventory_price_context.v2" ||
       value.snapshot_mode !== "initial") {
-    throw new Error("cdc_inventory_price_shadow requires separate context.v1, shadow_only and initial snapshot")
+    throw new Error("cdc_inventory_price_shadow requires separate context.v2, shadow_only and initial snapshot")
   }
-  if (value.publication !== "funnelmetry_cdc_inventory_price_shadow" ||
-      value.slot !== "funnelmetry_cdc_inventory_price_shadow" ||
-      value.topic_prefix !== "cdc_shadow_medusa_inventory_price") {
+  if (value.publication !== "funnelmetry_cdc_inventory_price_shadow_v2" ||
+      value.slot !== "funnelmetry_cdc_inventory_price_shadow_v2" ||
+      value.topic_prefix !== "cdc_shadow_medusa_inventory_price_v2") {
     throw new Error("cdc_inventory_price_shadow needs its own pinned publication, slot and topic prefix")
   }
   if (!Array.isArray(value.table_columns) || value.table_columns.length !== cdcInventoryPriceTables.length ||

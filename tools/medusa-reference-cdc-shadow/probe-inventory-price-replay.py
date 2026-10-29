@@ -14,7 +14,7 @@ spec = importlib.util.spec_from_file_location("stage2_projection_check", ROOT / 
 check = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(check)
 COMPOSE = check.PROJECTION
-GROUP = "cdc-shadow-inventory-price-projector-v1"
+GROUP = f"cdc-shadow-inventory-price-projector-{os.environ.get('CDC_COVERAGE_EPOCH', '')}"
 
 
 def run(command):
@@ -68,7 +68,7 @@ def wait_replayed(ends, timeout=120):
 
 def main():
     if not check.snapshot.PROJECT.fullmatch(os.environ.get("COMPOSE_PROJECT_NAME", "")) or \
-            os.environ.get("CDC_COVERAGE_EPOCH") != "inventory-price-shadow-20261029-a":
+            os.environ.get("CDC_COVERAGE_EPOCH") != "inventory-price-shadow-20261029-b":
         raise RuntimeError("replay requires the isolated stage-2 project and epoch")
     baseline = reconciled()
     before_audit = audit_count()

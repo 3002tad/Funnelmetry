@@ -2,24 +2,24 @@ import pg from 'pg'
 import { Kafka, logLevel } from 'kafkajs'
 
 // Raw, keyed context only. No sellable-stock, display-price or order-value claim.
-const prefix = 'cdc_shadow_medusa_inventory_price'
+const prefix = 'cdc_shadow_medusa_inventory_price_v2'
 const sourceId = 'medusa-reference'
 const tableFields = new Map([
-  ['product_sales_channel', ['id', 'product_id', 'sales_channel_id']],
-  ['sales_channel', ['id', 'name', 'is_disabled']],
-  ['sales_channel_stock_location', ['id', 'sales_channel_id', 'stock_location_id']],
-  ['stock_location', ['id', 'name']],
-  ['product_variant_inventory_item', ['id', 'variant_id', 'inventory_item_id', 'required_quantity']],
+  ['product_sales_channel', ['id', 'product_id', 'sales_channel_id', 'deleted_at']],
+  ['sales_channel', ['id', 'name', 'is_disabled', 'deleted_at']],
+  ['sales_channel_stock_location', ['id', 'sales_channel_id', 'stock_location_id', 'deleted_at']],
+  ['stock_location', ['id', 'name', 'deleted_at']],
+  ['product_variant_inventory_item', ['id', 'variant_id', 'inventory_item_id', 'required_quantity', 'deleted_at']],
   ['inventory_item', ['id', 'sku', 'requires_shipping', 'deleted_at']],
-  ['inventory_level', ['id', 'inventory_item_id', 'location_id', 'stocked_quantity', 'reserved_quantity', 'incoming_quantity']],
-  ['reservation_item', ['id', 'inventory_item_id', 'location_id', 'quantity', 'allow_backorder']],
-  ['product_variant_price_set', ['id', 'variant_id', 'price_set_id']],
-  ['price_set', ['id']],
+  ['inventory_level', ['id', 'inventory_item_id', 'location_id', 'stocked_quantity', 'reserved_quantity', 'incoming_quantity', 'deleted_at']],
+  ['reservation_item', ['id', 'inventory_item_id', 'location_id', 'quantity', 'allow_backorder', 'deleted_at']],
+  ['product_variant_price_set', ['id', 'variant_id', 'price_set_id', 'deleted_at']],
+  ['price_set', ['id', 'deleted_at']],
   ['price', ['id', 'price_set_id', 'currency_code', 'amount', 'price_list_id', 'min_quantity', 'max_quantity', 'rules_count', 'deleted_at']],
   ['price_list', ['id', 'status', 'starts_at', 'ends_at', 'type', 'rules_count', 'deleted_at']],
-  ['price_rule', ['id', 'price_id', 'attribute', 'operator', 'value', 'priority']],
-  ['price_list_rule', ['id', 'price_list_id', 'attribute', 'value']],
-  ['region', ['id', 'currency_code']],
+  ['price_rule', ['id', 'price_id', 'attribute', 'operator', 'value', 'priority', 'deleted_at']],
+  ['price_list_rule', ['id', 'price_list_id', 'attribute', 'value', 'deleted_at']],
+  ['region', ['id', 'currency_code', 'deleted_at']],
   ['currency', ['code', 'decimal_digits', 'deleted_at']],
 ])
 const compositeKeys = new Map([
@@ -28,7 +28,7 @@ const compositeKeys = new Map([
   ['product_variant_inventory_item', ['variant_id', 'inventory_item_id']],
   ['product_variant_price_set', ['variant_id', 'price_set_id']],
 ])
-const softDeleteTables = new Set(['inventory_item', 'price', 'price_list', 'currency'])
+const softDeleteTables = new Set(tableFields.keys())
 const topics = [...tableFields.keys()].map(table => `${prefix}.public.${table}`)
 const databaseUrl = process.env.DATABASE_URL
 const brokers = (process.env.KAFKA_BROKERS ?? '').split(',').filter(Boolean)
@@ -37,7 +37,7 @@ const epoch = process.env.CDC_COVERAGE_EPOCH
 
 if (!databaseUrl || new URL(databaseUrl).hostname !== 'inventory-price-projection-db' ||
     brokers.length !== 1 || brokers[0] !== 'kafka:9092' ||
-    groupId !== 'cdc-shadow-inventory-price-projector-v1' ||
+    groupId !== `cdc-shadow-inventory-price-projector-${epoch}` ||
     process.env.CDC_TOPIC_PREFIX !== prefix || process.env.SOURCE_ID !== sourceId ||
     !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(epoch ?? '')) {
   throw Error('inventory/price projector must use its private shadow scope and epoch')
