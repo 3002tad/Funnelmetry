@@ -78,6 +78,7 @@ def governed_resolution(context):
             governed.snapshot.topic_ends(), governed.candidate_offsets(),
             *governed.snapshot.connector_state(), governed.snapshot.source_slot())
         if result["status"] == "PASS_CONTEXT_ONLY":
+            resolver_probe.require_numeric_consistency()
             catalog = resolver_probe.source_catalog(context)
             return resolver_probe.resolver.resolve_inventory(
                 governed.candidate_rows(), product=catalog["product"],

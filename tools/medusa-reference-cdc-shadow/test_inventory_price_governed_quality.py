@@ -2,6 +2,7 @@
 
 import importlib.util
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -10,9 +11,19 @@ spec = importlib.util.spec_from_file_location(
     "context_quality", ROOT / "publish-inventory-price-governed-quality.py")
 quality = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(quality)
+spec = importlib.util.spec_from_file_location(
+    "resolver_probe", ROOT / "probe-inventory-price-resolver-candidate.py")
+resolver_probe = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(resolver_probe)
 
 
 class ContextQualityTest(unittest.TestCase):
+    def test_store_api_probe_refuses_inconsistent_source_numbers(self):
+        with mock.patch.object(resolver_probe.numeric, "inspect", return_value={
+                "inventory_level_mismatch": 1, "price_mismatch": 0}):
+            with self.assertRaisesRegex(RuntimeError, "numeric/raw"):
+                resolver_probe.require_numeric_consistency()
+
     def test_source_numeric_raw_mismatch_blocks_context_lease(self):
         self.assertTrue(quality.numeric.passed({"inventory_level_mismatch": 0,
                                                 "price_mismatch": 0}))

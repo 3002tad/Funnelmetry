@@ -21,6 +21,14 @@ def load(name, filename):
 api = load("stage2_api", "probe-inventory-price-api-semantics.py")
 governed = load("stage2_governed", "verify-inventory-price-governed-candidate.py")
 resolver = load("stage2_resolver", "inventory_price_resolution_candidate.py")
+numeric = load("stage2_numeric", "verify-inventory-price-source-numeric.py")
+
+
+def require_numeric_consistency():
+    # Medusa reads raw_* values. CDC captures the corresponding numeric columns;
+    # equality is required before comparing their answers with Store API.
+    if not numeric.passed(numeric.inspect()):
+        raise RuntimeError("source numeric/raw quantities or prices disagree")
 
 
 def source_catalog(context):
@@ -46,6 +54,7 @@ def main():
         *governed.snapshot.connector_state(), governed.snapshot.source_slot())
     if governed_result["status"] != "PASS_CONTEXT_ONLY":
         raise RuntimeError("governed CDC context has not reconciled with source")
+    require_numeric_consistency()
     context = api.sample_context()
     catalog = source_catalog(context)
     rows = governed.candidate_rows()
