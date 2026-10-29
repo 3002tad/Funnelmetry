@@ -64,10 +64,17 @@ def choose_context():
 def reconcile(timeout=180):
     deadline = time.monotonic() + timeout
     while True:
-        running, complete = verifier.snapshot.connector_state()
-        result = verifier.evaluate(verifier.source_rows(), verifier.projection_rows(),
-                                   verifier.snapshot.topic_ends(), verifier.projection_offsets(),
-                                   running, complete, verifier.snapshot.source_slot())
+        try:
+            running, complete = verifier.snapshot.connector_state()
+            result = verifier.evaluate(verifier.source_rows(), verifier.projection_rows(),
+                                       verifier.snapshot.topic_ends(), verifier.projection_offsets(),
+                                       running, complete, verifier.snapshot.source_slot())
+        except RuntimeError as error:
+            if str(error) != "isolated snapshot inspection command failed" or \
+                    time.monotonic() >= deadline:
+                raise
+            time.sleep(5)
+            continue
         if result["status"] == "PASS_CONTEXT_ONLY":
             return result
         if time.monotonic() >= deadline:

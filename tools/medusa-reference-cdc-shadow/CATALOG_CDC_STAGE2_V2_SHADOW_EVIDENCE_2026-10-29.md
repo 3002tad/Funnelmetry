@@ -36,6 +36,40 @@ sellable-stock/display-price formula is correct. The price-list rows were
 not compared with Store API calculated price. No historical order value was
 rewritten.
 
+## Store API and checkout workflow follow-up
+
+With clone backend/Redis/Source Ingress running, a controlled Store API probe
+selected one published, managed variant with a single inventory item and
+eligible channel/location in EUR. Initial `inventory_quantity=1,000,000` and
+calculated amount `10` matched the source context. The direct-SQL fixture
+added a reservation quantity of two and a dated EUR sale price of `8` scoped
+by `price_list_rule.region_id`. CDC projection matched the source. Store API
+then returned price `8` with `price_list_type=sale`, but inventory quantity
+remained `1,000,000` instead of `999,998`. The probe reported
+`BLOCKED_BY_QUALITY`; the fixture was removed and Store API/source returned
+to baseline. This shows direct SQL is not a valid conformance method for
+inventory availability in this Medusa runtime; whether query-cache
+invalidation caused the difference is **an inference**, not yet proven.
+
+The same clone then completed two synthetic checkouts of the managed variant
+through Medusa Store API. The first order `order_01M63Q297RJJA58V3SE3Q4RDZC`
+created a real reservation, changed `reserved_quantity` from 0 to 1 while
+`stocked_quantity` stayed 1,000,000 and Store API quantity changed to
+999,999. The repeatable checkout probe created second order
+`order_01M63Q7A6ZNFD417P90FM2G0G7`: source reservation sum and level reserved
+each increased by one; Store API quantity changed 999,999 → 999,998;
+calculated price stayed 10. Projector reconciliation passed with two active
+`reservation_item` rows and all 16 source/projection tables/offsets matched.
+Replay kept audit **746 → 746** and offsets unchanged. The clone services were
+stopped after verification; source DB, Kafka and projection volumes remain
+for audit. No checkout or write was sent to live Medusa/Pipeline.
+
+The workflow probe supports the single-item, single-location, managed variant
+case and the observed `stocked - reserved` formula. It does not establish
+multi-location allocation, inventory kits, backorder semantics or all
+pricing-rule contexts. It does not authorize a governed sellable-stock or
+display-price asset on live Pipeline.
+
 ## Remaining acceptance
 
 - Compare nonempty reservation, price-list/rule and other applicable contexts

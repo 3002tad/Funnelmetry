@@ -50,10 +50,14 @@ jobs:
             tools/medusa-reference-cdc-shadow/probe-inventory-price-shadow.py \
             tools/medusa-reference-cdc-shadow/probe-inventory-price-replay.py \
             tools/medusa-reference-cdc-shadow/probe-inventory-price-nonempty.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-store-api.py
+            tools/medusa-reference-cdc-shadow/probe-inventory-price-store-api.py \
+            tools/medusa-reference-cdc-shadow/probe-inventory-price-api-semantics.py \
+            tools/medusa-reference-cdc-shadow/probe-inventory-price-checkout.py \
+            tools/medusa-reference-cdc-shadow/run-store-js.py
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_catalog_shadow.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_shadow.py -v
           node --check tools/medusa-reference-cdc-shadow/inventory-price-projector/main.mjs
+          node --check tools/medusa-reference-cdc-shadow/checkout-shadow.mjs
       - name: Check CDC recovery syntax and semantic guards
         run: |
           python -m py_compile \

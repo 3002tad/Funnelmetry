@@ -20,7 +20,8 @@ async function call(path, method = "GET", body) {
 }
 
 const regionId = "reg_01M5WHNDFJNMPDEBZWAX183NWD"
-const variantId = "variant_01M5WHND0HYTG5MSHEGQ69B9D5"
+const variantId = process.env.SHADOW_VARIANT_ID ?? "variant_01M5WHND0HYTG5MSHEGQ69B9D5"
+if (!/^variant_[A-Za-z0-9]+$/.test(variantId)) throw new Error("invalid shadow variant ID")
 const cart = (await call("/store/carts", "POST", { region_id: regionId })).cart
 if (!cart?.id) throw new Error("cart create returned no ID")
 console.log(`shadow_cart=${cart.id}`)

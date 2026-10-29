@@ -100,6 +100,17 @@ sample are recorded in [v2 shadow evidence](CATALOG_CDC_STAGE2_V2_SHADOW_EVIDENC
 The nonempty clone fixture adds reservation/price-list/price-list-rule/price
 rows and restores them after reconciliation; it does not establish Medusa
 inventory or pricing calculation semantics.
+For a controlled Store API comparison, start the clone backend, Redis and
+Source Ingress alongside the five CDC services, then run
+`probe-inventory-price-api-semantics.py`. Direct SQL changed the price-list
+calculated amount in the sample but did not invalidate Store API inventory
+quantity; the probe records `BLOCKED_BY_QUALITY` for that direct-SQL case.
+`probe-inventory-price-checkout.py` exercises the Medusa checkout workflow on
+the **same clone**, verifies a real reservation and the Store API quantity
+change, then reconciles the CDC projection. It creates a synthetic order and
+does not remove that order from the isolated clone. These are sample-level
+conformance probes; they do not establish all location, kit, backorder,
+quantity-tier or rule cases.
 V2 still has no governed inventory/price asset or production semantic gate.
 
 This profile has no live Medusa DB grant, Dashboard binding or `catalog-sync`

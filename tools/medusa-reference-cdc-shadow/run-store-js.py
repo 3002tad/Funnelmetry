@@ -37,7 +37,7 @@ if not key or "\n" in key:
     raise SystemExit("invalid publishable key")
 
 extra_env = []
-for name in ("SHADOW_STOP_BEFORE_COMPLETE", "SHADOW_CART_ID"):
+for name in ("SHADOW_STOP_BEFORE_COMPLETE", "SHADOW_CART_ID", "SHADOW_VARIANT_ID"):
     if name in os.environ:
         extra_env += ["-e", f"{name}={os.environ[name]}"]
 
