@@ -111,11 +111,25 @@ change, then reconciles the CDC projection. It creates a synthetic order and
 does not remove that order from the isolated clone. These are sample-level
 conformance probes; they do not establish all location, kit, backorder,
 quantity-tier or rule cases.
-V2 still has no governed inventory/price asset or production semantic gate.
+The [governed context candidate](INVENTORY_PRICE_GOVERNED_CANDIDATE_EVIDENCE_2026-10-29.md)
+uses migration `022_inventory_price_cdc_context_candidate.sql` and the separate
+`workers/inventory-price-cdc-writer` to persist the same 16 source tables,
+transactional offsets and audit in Pipeline-style tables. On a private clone,
+apply that migration to `inventory-price-projection-db`, create
+`private/inventory-price-governed-writer.env` with
+`prepare-inventory-price-governed-private.py`, and start
+`compose.inventory-price-governed-candidate.yml` alongside the base and
+projection Compose files. Run `verify-inventory-price-governed-candidate.py`
+for source/offset reconciliation and
+`publish-inventory-price-governed-quality.py --evidence-ref <non-secret-id>`
+for a bounded **context-only** lease. The guarded mutation and lease probes
+require the exact `stage2b` clone and epoch; they never run against live.
+There is no active inventory/price business asset or production semantic gate.
 
 This profile has no live Medusa DB grant, Dashboard binding or `catalog-sync`
-cutover. It needs relationship/price/inventory semantic conformance and a
-governed Pipeline sink before any analytical capability can be published.
+cutover. It still needs relationship/price/inventory semantic conformance,
+a context-aware resolver and continuous target-topology quality monitoring
+before any inventory or price analytical capability can be published.
 
 This is a **disposable, isolated conformance environment** for DEC-135/136. It
 uses a logical dump of the running Medusa PostgreSQL database to avoid changing
