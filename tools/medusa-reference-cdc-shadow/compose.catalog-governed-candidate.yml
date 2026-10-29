@@ -1,0 +1,15 @@
+# Candidate Pipeline CDC writer against a previously isolated catalog clone.
+# Uses the clone's private projection DB; does not bind the live Pipeline DB.
+services:
+  catalog-governed-writer:
+    build:
+      context: ./catalog-cdc-writer
+      dockerfile: Dockerfile.shadow
+    env_file:
+      - ./private/catalog-projector.env
+      - ./private/catalog-governed-writer.env
+    depends_on:
+      catalog-projection-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    restart: on-failure
+    networks: [shadow]

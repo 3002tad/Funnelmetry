@@ -12,11 +12,12 @@ COPY workers/funnel-processor/ workers/funnel-processor/
 COPY workers/kpi-projector/ workers/kpi-projector/
 COPY workers/source-connector/ workers/source-connector/
 COPY workers/catalog-sync/ workers/catalog-sync/
+COPY workers/catalog-cdc-writer/ workers/catalog-cdc-writer/
 COPY workers/funnel-maturity-scheduler/ workers/funnel-maturity-scheduler/
 COPY infra/docker/swarm-entrypoint.mjs /workspace/infra/docker/swarm-entrypoint.mjs
 COPY infra/docker/swarm-readiness.mjs /workspace/infra/docker/swarm-readiness.mjs
 COPY infra/docker/swarm-kafka-topics.mjs /workspace/infra/docker/swarm-kafka-topics.mjs
-RUN set -eu; for service in canonical-normalizer canonical-ledger-writer ingress-telemetry-writer traffic-source-writer journey-processor funnel-processor kpi-projector source-connector catalog-sync funnel-maturity-scheduler; do \
+RUN set -eu; for service in canonical-normalizer canonical-ledger-writer ingress-telemetry-writer traffic-source-writer journey-processor funnel-processor kpi-projector source-connector catalog-sync catalog-cdc-writer funnel-maturity-scheduler; do \
       cd /workspace/workers/$service; npm ci --omit=dev --ignore-scripts; \
     done; npm cache clean --force
 USER node
