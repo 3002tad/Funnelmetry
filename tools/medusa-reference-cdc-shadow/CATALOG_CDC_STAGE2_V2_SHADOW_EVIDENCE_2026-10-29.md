@@ -76,4 +76,5 @@ display-price asset on live Pipeline.
   with Medusa Store API, including Medusa workflow-generated transitions; test
   active/soft-deleted relations on the deployed Medusa version.
 - Build a governed Pipeline sink and a context-aware inventory/price resolver; compare controlled channel/location/reservation and price-rule cases with Medusa Store API. Unsupported contexts must remain `UNVERIFIED` or `BLOCKED_BY_QUALITY`.
+- A versioned governed **context candidate** has since passed 16-table reconciliation and replay on the isolated clone; see [candidate evidence](INVENTORY_PRICE_GOVERNED_CANDIDATE_EVIDENCE_2026-10-29.md). The context-aware resolver and continuous quality lease are still open.
 - Define continuous quality/freshness and WAL budgets, prove target-topology shadow, then obtain a separate CDC-12 live cutover decision. The clone's `PASS_CONTEXT_ONLY` is not a production acceptance result.

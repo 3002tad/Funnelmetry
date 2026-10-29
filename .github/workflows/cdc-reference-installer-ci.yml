@@ -9,7 +9,9 @@ on:
       - tools/medusa-ci-installer/**
       - tools/medusa-reference-cdc-shadow/**
       - workers/catalog-cdc-writer/**
+      - workers/inventory-price-cdc-writer/**
       - infra/postgres/v2/021_catalog_cdc_candidate.sql
+      - infra/postgres/v2/022_inventory_price_cdc_context_candidate.sql
       - infra/postgres/tests/catalog_cdc_candidate_quality.sql
       - apps/dashboard-api/src/lib/product-reference.js
       - apps/dashboard-api/test/product-reference.test.js
@@ -81,5 +83,14 @@ jobs:
           npm ci --prefix workers/catalog-cdc-writer --ignore-scripts
           npm test --prefix workers/catalog-cdc-writer
           node --test apps/dashboard-api/test/product-reference.test.js
+      - name: Test governed inventory/price context candidate
+        run: |
+          python -m py_compile \
+            tools/medusa-reference-cdc-shadow/prepare-inventory-price-governed-private.py \
+            tools/medusa-reference-cdc-shadow/verify-inventory-price-governed-candidate.py \
+            tools/medusa-reference-cdc-shadow/probe-inventory-price-governed-candidate.py
+          npm ci --prefix workers/inventory-price-cdc-writer --ignore-scripts
+          npm test --prefix workers/inventory-price-cdc-writer
+          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_governed_profile.py -v
       - name: Build candidate Workers image
         run: docker build --file infra/docker/pipeline-workers.Dockerfile --tag funnelmetry-workers-cdc-ci .
