@@ -116,5 +116,10 @@ jobs:
           python -m py_compile tools/medusa-reference-cdc-shadow/verify-reference-order-v2-chain-candidate.py
           npm ci --prefix workers/reference-order-cdc-v2-mapper --ignore-scripts
           node --check workers/reference-order-cdc-v2-mapper/src/main.js
+      - name: Check reference order CDC v2 quality gate
+        run: |
+          python -m py_compile tools/medusa-reference-cdc-shadow/reference_order_v2_quality.py
+          python -m py_compile tools/medusa-reference-cdc-shadow/verify-reference-order-v2-quality.py
+          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_reference_order_v2_quality.py -v
       - name: Build candidate Workers image
         run: docker build --file infra/docker/pipeline-workers.Dockerfile --tag funnelmetry-workers-cdc-ci .

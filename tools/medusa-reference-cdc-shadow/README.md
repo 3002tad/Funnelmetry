@@ -126,6 +126,15 @@ for a bounded **context-only** lease. The guarded mutation and lease probes
 require the exact `stage2b` clone and epoch; they never run against live.
 There is no active inventory/price business asset or production semantic gate.
 
+For the isolated order-v2 mapper/sink chain, `verify-reference-order-v2-quality.py`
+checks source order state, Debezium slot/connector, Kafka ends, mapper ordered
+prefix and sink state twice before it can issue a short `CURRENT_STATE_READY`
+lease. It accepts explicit epoch, source ID, slot, connector, topic prefix and
+fact topic. `--write-quality` writes only to the clone chain DB; it cannot
+publish live metadata. A lost slot, source/projection mismatch, missing marker
+or offset gap yields `BLOCKED_BY_QUALITY`. See
+[quality gate evidence](REFERENCE_ORDER_V2_QUALITY_GATE_EVIDENCE_2026-10-29.md).
+
 This profile has no live Medusa DB grant, Dashboard binding or `catalog-sync`
 cutover. It still needs relationship/price/inventory semantic conformance,
 a context-aware resolver and continuous target-topology quality monitoring
