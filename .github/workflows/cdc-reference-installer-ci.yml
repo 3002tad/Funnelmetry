@@ -99,9 +99,11 @@ jobs:
             tools/medusa-reference-cdc-shadow/verify-target-order-quality.py \
             tools/medusa-reference-cdc-shadow/checkout-target-shadow.py \
             tools/medusa-reference-cdc-shadow/monitor-target-quality.py \
-            tools/medusa-reference-cdc-shadow/target_kafka_offsets.py
+            tools/medusa-reference-cdc-shadow/target_kafka_offsets.py \
+            tools/medusa-reference-cdc-shadow/verify-target-inventory-price-resolver.py
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_monitor_target_quality.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_target_kafka_offsets.py -v
+          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_target_inventory_price_resolver.py -v
       - name: Test governed catalog CDC candidate
         run: |
           python -m py_compile \

@@ -235,18 +235,35 @@ establishes bounded short-outage catch-up on the target, not the proposed
 30-minute response target, p95/p99 lag, load budget, lost-slot recovery or
 CDC-12 authority.
 
-## 1. Current VPS preflight inventory
+**Target Store API comparison, 2026-10-30:** The read-only
+`verify-target-inventory-price-resolver.py` selected one eligible published
+product/managed variant from the Medusa source, required source numeric/raw
+inventory and price equality (zero mismatches), checked all catalog and
+stage-2 CDC source/projection digests and topic offsets before and after the
+Store API request, and evaluated the governed resolver candidate. For
+`prod_01M5WHNDPT1QDJMTGGKXDPZWDY` /
+`variant_01M5WHNDSH42DT338YNS18RXCQ`, all checks passed: inventory quantity,
+default price amount and EUR currency matched Medusa Store API. The probe
+reported `PASS_SAMPLE_ONLY`; its supported shape is one inventory item across
+eligible locations and a simple default price. Price-list/rule/tier,
+reservation, backorder, kit multi-location and other channel contexts remain
+unverified on this target source. No inventory or price analytical asset was
+published, and no historical order amount was changed.
 
-Original read-only inventory on `ssh kltn`, 2026-10-29, with updates noted:
+## 1. VPS inventory and baseline provenance
+
+The table combines the 2026-10-29 preflight with the 2026-10-30 shadow
+rollout. Runtime evidence above is the latest checkpoint; recheck services,
+slots and free space before any new operation.
 
 | Item | Observed state | Consequence |
 |---|---|---|
 | Medusa | `/srv/KLTN/dtc-starter-funnelmetry`, deployed integration branch at `efc7a58`; Compose `medusa_reference` | Its native `order.placed` subscriber still serves the live reference funnel. The CDC feature branch is not deployed. |
-| Medusa PostgreSQL | PostgreSQL 15 container; logical WAL and a provisional 1 GiB slot cap are now enabled, **0** replication slots; backup and isolated restore passed | Source transport is configured, but three scoped roles/publications/slots and measured workload/quality gates are still prerequisites. |
+| Medusa PostgreSQL | PostgreSQL 15 container; logical WAL and provisional 1 GiB slot cap; three scoped slots active/reserved after the short outage; backup and isolated restore passed | Source transport is running in shadow. Slot-loss recovery and measured production budget remain open. |
 | DB network | Port 5432 remains bound to host `127.0.0.1`; Medusa PostgreSQL is now also attached to `funnelmetry_cdc_source` with alias `medusa-cdc-postgres`; Pipeline uses `funnelmetry_vps_live_data` | Private DNS/TCP checks passed. Replication credentials, publication and WAL configuration remain gated. Do not publish PostgreSQL to the public Internet. |
-| Pipeline | `/srv/KLTN/Funnelmetry` at `b1c0a35` on `main`; `funnelmetry_vps_live` has 18 Swarm services | `catalog-sync` and `source-connector` remain `1/1`. Candidate migrations 021–023 have since been applied in the same DB through a separate feature-branch service; no CDC writer or active binding has started. |
+| Pipeline | `/srv/KLTN/Funnelmetry` live checkout at `b1c0a35` on `main`; candidate migrations 021–023 applied in its PostgreSQL DB; separate CDC shadow stack has Connect plus four workers running | `catalog-sync` and `source-connector` remain `1/1`; candidate quality leases do not change the Dashboard or order authority. |
 | Resources | `/var/lib/docker` filesystem: 158 GB total, 134 GB available; host RAM: 15 GiB total, about 11 GiB available at observation time | These are a single observation, not a WAL/flash-sale budget or capacity approval. |
-| Shadow projects | Separate CDC clones exist; one older `funnelmetry_cdc_shadow` project was running during inventory | Never point a live connector at a clone slot/topic or share a clone consumer group with live. Inventory active shadow projects and resource reservations before live rehearsal. |
+| Shadow projects | `funnelmetry_cdc_target_shadow` has Connect, four workers and mapper DB at `1/1`; the candidate-schema task is `0/0`. Older isolated clones also exist. | Never share a clone slot/topic/consumer group with the target shadow. Inventory clone resource reservations before a load rehearsal. |
 
 The Medusa runtime override `runtime/docker-compose.vps.yml` is untracked on the server; capture its sanitized checksum, network/volume/command delta and deployment provenance before any DB restart. Do not copy its secrets into Git or evidence.
 
