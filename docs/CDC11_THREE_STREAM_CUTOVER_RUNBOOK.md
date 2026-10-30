@@ -250,8 +250,8 @@ reservation, backorder, kit multi-location and other channel contexts remain
 unverified on this target source. No inventory or price analytical asset was
 published, and no historical order amount was changed.
 
-**Order journey correlation check, 2026-10-30:** The target's sole canonical
-`checkout.started` carries `relations.correlation_id = cart:<cart_id>` rather
+**Order journey correlation check, 2026-10-30:** The initial target canonical
+`checkout.started` carried `relations.correlation_id = cart:<cart_id>` rather
 than `relations.cart_id`. The shadow reader now accepts the exact approved
 correlation form, while rejecting contradictory cart keys. Its SQL prepared
 and returned the strong CART journey plus checkout event for the baseline
