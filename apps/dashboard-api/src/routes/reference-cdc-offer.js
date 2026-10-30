@@ -1,13 +1,15 @@
 import { Router } from 'express';
-import { repeatableReadOnlyTransaction } from '../db.js';
+import { repeatableReadOnlyTransaction, query } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireLiveSession } from '../middleware/live-session.js';
 import { requireLivePermission } from '../middleware/live-permission.js';
 import { resolveReferenceOffer, STAGE2_TABLES } from '../lib/reference-cdc-offer.js';
+import { LEASE_RECHECK_SQL, offerLeaseUnchanged } from '../lib/reference-cdc-offer-lease.js';
 
 const id = value => typeof value === 'string' && /^[A-Za-z0-9_-]{3,128}$/.test(value);
 
-export function createReferenceCdcOfferRouter({ readOnly = repeatableReadOnlyTransaction } = {}) {
+export function createReferenceCdcOfferRouter({ readOnly = repeatableReadOnlyTransaction,
+  readCurrent = query } = {}) {
   const router = Router();
   router.get('/api/v2/reference-cdc/current-offer', requireAuth, requireLiveSession(),
     requireLivePermission('analytics.read'), async (req, res) => {
@@ -21,7 +23,7 @@ export function createReferenceCdcOfferRouter({ readOnly = repeatableReadOnlyTra
       }
       try {
         const data = await readOnly(async tx => {
-          const [catalog] = await tx(`SELECT b.coverage_epoch_id, q.verified_at,
+          const [catalog] = await tx(`SELECT b.coverage_epoch_id, q.verified_at, q.valid_until,
             b.state='ACTIVE' AND q.status='PASS' AND q.snapshot_complete
             AND q.valid_until>clock_timestamp() AND q.source_digest IS NOT NULL
             AND q.source_digest=q.projection_digest
@@ -31,7 +33,7 @@ export function createReferenceCdcOfferRouter({ readOnly = repeatableReadOnlyTra
             FROM catalog_cdc_binding b JOIN catalog_cdc_quality_lease q
               ON q.source_id=b.source_id AND q.coverage_epoch_id=b.coverage_epoch_id
             WHERE b.source_id=$1`, [q.source_id]);
-          const [stage] = await tx(`SELECT coverage_epoch_id, verified_at,
+          const [stage] = await tx(`SELECT coverage_epoch_id, verified_at, valid_until,
             status='PASS' AND snapshot_complete AND valid_until>clock_timestamp()
             AND source_digest IS NOT NULL AND source_digest=projection_digest
             AND source_row_counts=projection_row_counts
@@ -64,12 +66,17 @@ export function createReferenceCdcOfferRouter({ readOnly = repeatableReadOnlyTra
             source_id: q.source_id, product_id: q.product_id, variant_id: q.variant_id,
             sales_channel_id: q.sales_channel_id, region_id: q.region_id,
             catalog_epoch_id: catalog.coverage_epoch_id, stage2_epoch_id: stage.coverage_epoch_id,
-            catalog_verified_at: catalog.verified_at, stage2_verified_at: stage.verified_at,
+            catalog_verified_at: catalog.verified_at, catalog_valid_until: catalog.valid_until,
+            stage2_verified_at: stage.verified_at, stage2_valid_until: stage.valid_until,
             price: offer.price, inventory: offer.inventory,
             limitations: ['Current reference only; never a historical order amount.',
               'Unsupported price, stock, reservation or location shape returns UNVERIFIED.'] };
         });
-        return res.status(data.status === 'BLOCKED_BY_QUALITY' ? 503 : 200).json(data);
+        if (data.status === 'BLOCKED_BY_QUALITY') return res.status(503).json(data);
+        const [current] = await readCurrent(LEASE_RECHECK_SQL, [q.source_id]);
+        if (!offerLeaseUnchanged(data, current)) return res.status(503).json({
+          status: 'BLOCKED_BY_QUALITY', reason: 'cdc_lease_changed_during_read' });
+        return res.status(200).json(data);
       } catch (error) {
         console.error('GET CDC current offer', error.message);
         return res.status(503).json({ status: 'BLOCKED_BY_QUALITY', reason: 'cdc_offer_unavailable' });

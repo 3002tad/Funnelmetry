@@ -64,3 +64,18 @@ The VPS `main` checkout does not render this flag or image digest. Do not
 redeploy the old manifest before reconciling the release. The endpoint is not
 yet an active semantic metadata/tool binding; order v2 and Backend Adapter
 remain on their prior path.
+
+## Lease invalidation hardening, pending image release
+
+The feature branch now rechecks catalog and stage-2 leases after closing the
+repeatable-read projection snapshot. A revoked, expired, replaced or
+incomplete lease returns `BLOCKED_BY_QUALITY` without the previously computed
+offer. The recheck compares both coverage epochs, verification and expiry
+instants, source/projection digests and offsets, connector/slot readiness,
+and presence of all 16 stage-2 tables. The exact recheck SQL ran read-only on
+the target PostgreSQL DB and returned `ready=true` for catalog epoch
+`cdc11_catalog_epoch1` and stage-2 epoch
+`cdc11_inventory_price_epoch1`. Targeted regression tests cover revocation,
+replacement, changed verification time and missing table coverage. The new
+API code is not yet deployed, so this is release preparation rather than a
+new target runtime result.
