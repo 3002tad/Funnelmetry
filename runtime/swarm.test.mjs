@@ -90,6 +90,21 @@ test('CDC funnel retirement pins Publisher and Processor independently', () => {
   assert.equal(rendered.SWARM_FUNNEL_PROCESSOR_IMAGE, 'processor-new');
 });
 
+test('stack deployment can scale completed one-shot jobs to zero', () => {
+  const stack = readFileSync(fileURLToPath(new URL('../infra/swarm-stack.yml', import.meta.url)), 'utf8');
+  const workers = readFileSync(fileURLToPath(new URL('../infra/swarm-workers.yml', import.meta.url)), 'utf8');
+  assert.match(stack, /bootstrap:[\s\S]*?replicas: \$\{SWARM_BOOTSTRAP_REPLICAS:-1\}/);
+  assert.match(stack, /kafka-topics:[\s\S]*?replicas: \$\{SWARM_KAFKA_TOPICS_REPLICAS:-1\}/);
+  assert.match(workers, /profile-publisher:[\s\S]*?replicas: \$\{SWARM_PROFILE_PUBLISHER_REPLICAS:-1\}/);
+  const rendered = dockerEnvironment({}, {
+    SWARM_BOOTSTRAP_REPLICAS: '0', SWARM_KAFKA_TOPICS_REPLICAS: '0',
+    SWARM_PROFILE_PUBLISHER_REPLICAS: '0',
+  });
+  assert.equal(rendered.SWARM_BOOTSTRAP_REPLICAS, '0');
+  assert.equal(rendered.SWARM_KAFKA_TOPICS_REPLICAS, '0');
+  assert.equal(rendered.SWARM_PROFILE_PUBLISHER_REPLICAS, '0');
+});
+
 test('reference current-offer endpoint requires an explicit CDC live deployment flag', () => {
   const app = readFileSync(fileURLToPath(new URL('../infra/swarm-app.yml', import.meta.url)), 'utf8');
   assert.match(app, /DASHBOARD_ENABLE_CDC_REFERENCE_OFFER: \$\{SWARM_ENABLE_CDC_REFERENCE_OFFER:-false\}/);

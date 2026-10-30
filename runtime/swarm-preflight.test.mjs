@@ -23,6 +23,14 @@ test('fresh candidate is planning only and does not echo secrets', () => {
   assert.doesNotMatch(JSON.stringify(plan), /private-value-never-in-report/);
 });
 
+test('completed one-shot jobs can be disabled for a subsequent stack deploy', () => {
+  for (const key of ['SWARM_BOOTSTRAP_REPLICAS', 'SWARM_KAFKA_TOPICS_REPLICAS',
+    'SWARM_PROFILE_PUBLISHER_REPLICAS']) {
+    assert.equal(validateSwarmCandidate({ ...candidate, [key]: '0' }).status, 'PLANNING_ONLY');
+    assert.throws(() => validateSwarmCandidate({ ...candidate, [key]: '2' }), new RegExp(key));
+  }
+});
+
 test('a full Git SHA image tag is also an accepted versioned reference', () => {
   const plan = validateSwarmCandidate({ ...candidate,
     SWARM_API_IMAGE: `ghcr.io/3002tad/funnelmetry/api:sha-${'b'.repeat(40)}` });

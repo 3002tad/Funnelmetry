@@ -88,6 +88,11 @@ export function validateSwarmApp(env) {
 
 export function validateSwarmCandidate(env) {
   env = normalizeSwarmEnv(env);
+  for (const key of ['SWARM_BOOTSTRAP_REPLICAS', 'SWARM_KAFKA_TOPICS_REPLICAS',
+    'SWARM_PROFILE_PUBLISHER_REPLICAS']) {
+    const value = env[key]?.trim() || '1';
+    if (!['0', '1'].includes(value)) throw Error(`${key} must be 0 or 1`);
+  }
   const stackName = env.SWARM_STACK_NAME?.trim() || '';
   if (!/^[a-z][a-z0-9_-]{2,40}$/.test(stackName)) {
     throw Error('SWARM_STACK_NAME must be a new lowercase Swarm stack name (3..41 characters)');

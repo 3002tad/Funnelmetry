@@ -96,7 +96,7 @@ services:
       - data
     read_only: true
     deploy:
-      replicas: 1
+      replicas: ${SWARM_BOOTSTRAP_REPLICAS:-1}
       placement:
         constraints:
           - node.labels.funnelmetry.stateful == true
@@ -116,7 +116,7 @@ services:
       - data
     read_only: true
     deploy:
-      replicas: 1
+      replicas: ${SWARM_KAFKA_TOPICS_REPLICAS:-1}
       placement:
         constraints:
           - node.labels.funnelmetry.stateful == true
