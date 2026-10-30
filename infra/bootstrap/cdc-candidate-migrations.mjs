@@ -28,6 +28,9 @@ export const migrations = Object.freeze([
   { file: '025_reference_order_cdc_v2_funnel_candidate.sql', objects: [
     'reference_cdc_v2_funnel_terminal_candidate',
   ] },
+  { file: '026_reference_order_cdc_v2_pending_quality_candidate.sql', objects: [
+    'reference_cdc_v2_pending_quality_candidate',
+  ] },
 ])
 
 export function migrationDigest(files) {

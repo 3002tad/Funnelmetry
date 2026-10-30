@@ -166,11 +166,12 @@ def evaluate_moving(sample, *, prefix, fact_topic, minimum_safe_wal_bytes,
     pending_fresh = comparable
     for order_id in pending:
         first = pending_first_seen.get(order_id, now_seconds)
-        if not isinstance(first, (int, float)) or first > now_seconds or \
-                now_seconds - first > max_pending_seconds:
+        if not isinstance(first, (int, float)) or first > now_seconds:
             pending_fresh = False
         else:
             next_pending[order_id] = first
+            if now_seconds - first > max_pending_seconds:
+                pending_fresh = False
     pending_fresh = pending_fresh and len(pending) <= max_pending_orders
     offsets_bounded = (set(ends) == raw_topics | {fact_topic} and
                        set(mapper_offsets).issubset(raw_topics) and

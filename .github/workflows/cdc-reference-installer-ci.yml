@@ -172,6 +172,7 @@ jobs:
         run: |
           python -m py_compile tools/medusa-reference-cdc-shadow/reference_order_v2_quality.py
           python -m py_compile tools/medusa-reference-cdc-shadow/verify-reference-order-v2-quality.py
+          python -m py_compile tools/medusa-reference-cdc-shadow/probe-target-moving-order-quality.py
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_reference_order_v2_quality.py -v
       - name: Check shadow-only reference funnel API candidate
         run: |
@@ -234,7 +235,7 @@ jobs:
             | jq -e '.status == "ALREADY_APPLIED"'
           docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff -Atc \
-            "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 4
+            "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 5
           docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff \
             < infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql

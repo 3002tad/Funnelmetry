@@ -112,6 +112,7 @@ class QualityDecisionTests(unittest.TestCase):
             pending_first_seen={"order_2": 90}, now_seconds=100)
         self.assertEqual(stale["status"], "BLOCKED_BY_QUALITY")
         self.assertFalse(stale["checks"]["pending_fresh"])
+        self.assertEqual(stale["pending_first_seen"], {"order_2": 90})
 
     def test_moving_source_blocks_existing_order_correction_and_lost_slot(self):
         value = sample()

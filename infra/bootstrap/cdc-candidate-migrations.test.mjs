@@ -47,12 +47,28 @@ test('CDC candidate extension accepts an exact journal prefix and only applies p
   const client = clientWith(objects, journal)
   const plan = await runCandidateMigrations(client, files, 'plan')
   assert.equal(plan.status, 'READY_TO_EXTEND')
-  assert.deepEqual(plan.pendingFiles, [migrations[3].file])
+  assert.deepEqual(plan.pendingFiles, [migrations[3].file, migrations[4].file])
   const appliedResult = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
-  assert.deepEqual(appliedResult.appliedFiles, [migrations[3].file])
+  assert.deepEqual(appliedResult.appliedFiles, [migrations[3].file, migrations[4].file])
   assert.equal(client.statements.filter(({sql}) => sql.startsWith('CREATE TABLE cdc_candidate_migration_journal')).length, 0)
   assert.equal(client.statements.filter(({sql}) => sql === files[3]).length, 1)
+  assert.equal(client.statements.filter(({sql}) => sql === files[4]).length, 1)
   assert.equal(client.statements.filter(({sql}) => files.slice(0, 3).includes(sql)).length, 0)
+})
+
+test('CDC candidate extension from the target four-file journal adds only pending age storage', async () => {
+  const applied = migrations.slice(0, 4)
+  const objects = new Set(applied.flatMap(migration =>
+    migration.objects.map(object => `public.${object}`)))
+  const journal = applied.map((migration, index) => ({ file_name: migration.file,
+    content_sha256: createHash('sha256').update(files[index]).digest('hex') }))
+  const client = clientWith(objects, journal)
+  const plan = await runCandidateMigrations(client, files, 'plan')
+  assert.deepEqual(plan.pendingFiles, [migrations[4].file])
+  const appliedResult = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
+  assert.deepEqual(appliedResult.appliedFiles, [migrations[4].file])
+  assert.equal(client.statements.filter(({sql}) => sql === files[4]).length, 1)
+  assert.equal(client.statements.filter(({sql}) => files.slice(0, 4).includes(sql)).length, 0)
 })
 
 test('CDC candidate extension rejects missing earlier migration and changed checksum', async () => {

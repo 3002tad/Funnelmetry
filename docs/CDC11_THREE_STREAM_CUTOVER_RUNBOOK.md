@@ -541,6 +541,15 @@ monitor restarts; writer/lease transactions, stage-1/stage-2 freshness and
 failure injection must be checked. Do not treat these three passing samples
 as a CDC-12 authority decision.
 
+**Pending-age persistence candidate:** Migration 026 adds only
+`reference_cdc_v2_pending_quality_candidate` in the Pipeline analytical DB.
+The moving-order probe can opt in to persist each pending order's first and
+last observation there, retaining the earlier first-seen time on conflict.
+It does not update `reference_cdc_v2_quality_state`, the readable view, or
+the live Dashboard. The strict verifier remains the default. Migration and
+probe need target rehearsal and restart/age-expiry evidence before this can
+become an authoritative freshness policy.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow
