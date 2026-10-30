@@ -29,6 +29,8 @@ jobs:
       - name: Verify CDC catalog and stage-2 reference reads
         run: |
           node --test apps/dashboard-api/test/product-reference.test.js \
+            apps/dashboard-api/test/reference-cdc-offer-metadata.test.js \
+            apps/dashboard-api/test/catalog-v2.test.js \
             apps/dashboard-api/src/lib/reference-cdc-offer.test.js \
             apps/dashboard-api/test/reference-cdc-offer-lease.test.js \
             apps/dashboard-api/test/reference-cdc-funnel-candidate.test.js \

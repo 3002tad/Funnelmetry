@@ -40,6 +40,11 @@ export const migrations = Object.freeze([
   { file: '029_reference_cdc_v2_profile_audit.sql', objects: [
     'reference_cdc_v2_profile_binding_audit',
   ] },
+  { file: '030_reference_current_offer_metadata.sql', objects: [
+    'reference_current_offer_metadata_releases',
+    'reference_current_offer_metadata_bindings',
+    'reference_current_offer_metadata_binding_audit',
+  ] },
 ])
 
 export function migrationDigest(files) {

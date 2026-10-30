@@ -21,7 +21,9 @@ on:
       - infra/postgres/v2/026_reference_order_cdc_v2_pending_quality_candidate.sql
       - infra/postgres/v2/027_projection_pending_quality_candidate.sql
       - infra/postgres/v2/028_reference_cdc_v2_profile_candidate.sql
-        - infra/postgres/v2/029_reference_cdc_v2_profile_audit.sql
+      - infra/postgres/v2/029_reference_cdc_v2_profile_audit.sql
+      - infra/postgres/v2/030_reference_current_offer_metadata.sql
+      - infra/postgres/tests/reference_current_offer_metadata.sql
       - infra/postgres/v2/024_reference_order_cdc_v2_mapper_candidate.sql
       - infra/postgres/tests/catalog_cdc_candidate_quality.sql
       - infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql
@@ -36,6 +38,11 @@ on:
       - apps/dashboard-api/src/routes/reference-cdc-funnel-candidate.js
       - apps/dashboard-api/src/lib/v2-analytics-contract.js
       - apps/dashboard-api/src/lib/v2-analytics-repository.js
+      - apps/dashboard-api/src/lib/reference-cdc-offer-metadata.js
+      - apps/dashboard-api/src/routes/catalog-v2.js
+      - apps/dashboard-api/scripts/reference-current-offer-metadata.mjs
+      - apps/dashboard-api/test/reference-cdc-offer-metadata.test.js
+      - apps/dashboard-api/test/catalog-v2.test.js
       - apps/dashboard-api/test/v2-analytics-repository.test.js
       - workers/funnel-processor/src/repository.js
       - workers/funnel-processor/test/repository.integration.test.js
@@ -204,9 +211,12 @@ jobs:
           npm ci --prefix apps/dashboard-api --ignore-scripts
           node --test apps/dashboard-api/test/reference-cdc-funnel-candidate.test.js \
             apps/dashboard-api/test/reference-cdc-profile-operator.test.js \
+            apps/dashboard-api/test/reference-cdc-offer-metadata.test.js \
+            apps/dashboard-api/test/catalog-v2.test.js \
             apps/dashboard-api/test/v2-analytics-repository.test.js
           node --check apps/dashboard-api/src/routes/reference-cdc-funnel-candidate.js
           node --check apps/dashboard-api/scripts/reference-cdc-profile.mjs
+          node --check apps/dashboard-api/scripts/reference-current-offer-metadata.mjs
       - name: Build reference funnel candidate UI
         run: |
           npm ci --prefix apps/dashboard-web --ignore-scripts
@@ -268,7 +278,7 @@ jobs:
             | jq -e '.status == "ALREADY_APPLIED"'
           docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff -Atc \
-              "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 8
+              "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 9
           docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff \
             < infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql
@@ -277,6 +287,10 @@ jobs:
               < infra/postgres/tests/reference_cdc_v2_profile_candidate.sql)"
             printf '%s\n' "$profile_test" | grep -F PROFILE_BINDING_GUARD_PASS
             printf '%s\n' "$profile_test" | grep -F PROFILE_AUDIT_PASS
+          metadata_test="$(docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
+            -U funnelmetry -d funnelmetry_handoff \
+            < infra/postgres/tests/reference_current_offer_metadata.sql 2>&1)"
+          printf '%s\n' "$metadata_test" | grep -F REFERENCE_OFFER_METADATA_GUARD_PASS
       - name: Check CDC Docker secret config and isolated worker images
         run: |
           node --test workers/shared/postgres-config.test.mjs

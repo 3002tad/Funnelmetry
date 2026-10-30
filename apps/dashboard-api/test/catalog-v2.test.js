@@ -66,3 +66,30 @@ test('catalog inspection requires live permission/session and sanitizes failures
     assert.deepEqual(await error.json(),{error:'catalog_unavailable',status:'UNVERIFIED'})
   } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
 })
+
+test('reference offer metadata is analyst-only and never exposes a tool', async () => {
+  let role='analyst',available=true
+  const app=express()
+  app.use(createCatalogV2Router({
+    execute:async()=>[{role,session_version:1,is_active:true}],
+    loadReferenceOffer:async()=>{if(!available)throw Error('private db detail');return {
+      status:'ACTIVE',runtime_availability:'REFERENCE_CURRENT_ONLY',
+      definition:{asset_id:'asset.reference_medusa_current_offer',grain:['variant_id']},
+    }},
+  }))
+  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r))
+  const token=jwt.sign({sub:'metadata-actor',role:'analyst',session_version:1},process.env.JWT_SECRET)
+  const get=(suffix='',auth=true)=>fetch(`http://127.0.0.1:${server.address().port}/api/v2/catalog/reference-current-offer${suffix}`,
+    {headers:auth?{Authorization:`Bearer ${token}`}:{}})
+  try{
+    assert.equal((await get('',false)).status,401)
+    assert.equal((await get('?sql=select')).status,400)
+    const response=await get();assert.equal(response.status,200)
+    const body=await response.json();assert.equal(body.status,'ACTIVE')
+    assert.equal('tool_id' in body.definition,false)
+    role='super_admin';assert.equal((await get()).status,403)
+    role='analyst';available=false
+    const failed=await get();assert.equal(failed.status,503)
+    assert.deepEqual(await failed.json(),{status:'UNVERIFIED',error:'reference_offer_metadata_unavailable'})
+  }finally{server.closeAllConnections();await new Promise(r=>server.close(r))}
+})

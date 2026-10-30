@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js'
 import { requireLiveSession } from '../middleware/live-session.js'
 import { requireLivePermission } from '../middleware/live-permission.js'
 import { loadMappingInspection } from '../lib/mapping-inspection.js'
+import { readReferenceOfferMetadata } from '../lib/reference-cdc-offer-metadata.js'
 
 async function loadCatalog() {
   const { inspectStagingOrderCatalog } = await import('../../../../analytics/src/semantic-registry.mjs')
@@ -33,8 +34,20 @@ export async function loadAdminRegistry(pool = analyticalPool, env = process.env
 }
 
 // Read-only catalog inspection. Does not enable AI or publish metadata.
-export function createCatalogV2Router({ execute = query, load = loadCatalog, loadAdmin = loadAdminRegistry, loadMappings = loadMappingInspection } = {}) {
+export function createCatalogV2Router({ execute = query, load = loadCatalog, loadAdmin = loadAdminRegistry,
+  loadMappings = loadMappingInspection,
+  loadReferenceOffer = () => readReferenceOfferMetadata(analyticalPool) } = {}) {
   const router = Router()
+  router.get('/api/v2/catalog/reference-current-offer', requireAuth, requireLiveSession(execute),
+    requireLivePermission('analytics.read', execute), async (req, res) => {
+      res.set('Cache-Control', 'no-store')
+      if (Object.keys(req.query).length) return res.status(400).json({error:'invalid_metadata_query'})
+      try {
+        const result = await loadReferenceOffer()
+        return requireLiveSession(execute)(req,res,() =>
+          requireLivePermission('analytics.read',execute)(req,res,() => res.json(result)))
+      } catch { return res.status(503).json({status:'UNVERIFIED',error:'reference_offer_metadata_unavailable'}) }
+    })
   router.get('/api/v2/admin/mappings',requireAuth,requireLiveSession(execute),requireLivePermission('integration.read',execute),async(req,res)=>{
     res.set('Cache-Control','no-store')
     if(Object.keys(req.query).length)return res.status(400).json({error:'invalid_mapping_query'})
