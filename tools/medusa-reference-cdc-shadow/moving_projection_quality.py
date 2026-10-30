@@ -65,10 +65,12 @@ def evaluate(source_rows, projection_rows, *, expected_topics, topic_ends, appli
     for key in mismatches:
         first = first_seen.get(key, now_seconds)
         if (not isinstance(first, (int, float)) or not math.isfinite(first) or
-                first > now_seconds or now_seconds - first > max_pending_seconds):
+                first > now_seconds):
             pending_fresh = False
         else:
             pending[key] = first
+            if now_seconds - first > max_pending_seconds:
+                pending_fresh = False
     offset_lag = {}
     offsets_bounded = (isinstance(expected_topics, set) and
                        bool(expected_topics) and

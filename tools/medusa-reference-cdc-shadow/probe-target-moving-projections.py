@@ -8,6 +8,7 @@ process; it cannot publish a quality lease or authorize a live binding.
 import argparse
 import importlib.util
 import json
+import math
 import re
 import time
 from pathlib import Path
@@ -17,6 +18,12 @@ from target_kafka_offsets import read_topic_ends
 
 
 ROOT = Path(__file__).resolve().parent
+SOURCE_ID = "medusa-reference"
+PENDING_TABLE = "cdc_projection_pending_quality_candidate"
+STREAM_EPOCHS = {
+    "catalog": ("catalog", "cdc11_catalog_epoch1"),
+    "stage": ("inventory_price", "cdc11_inventory_price_epoch1"),
+}
 spec = importlib.util.spec_from_file_location(
     "target_projection_verifier", ROOT / "verify-target-projections.py")
 target = importlib.util.module_from_spec(spec)
@@ -73,6 +80,72 @@ def profiles(directory):
     return result
 
 
+def read_pending(container):
+    result = {}
+    for name, (stream, epoch) in STREAM_EPOCHS.items():
+        rows = target.pipeline(container,
+            "SELECT COALESCE(json_object_agg(row_key, "
+            "EXTRACT(EPOCH FROM first_observed_at)),'{}'::json)::text "
+            f"FROM {PENDING_TABLE} WHERE source_id='{SOURCE_ID}' "
+            f"AND coverage_epoch_id='{epoch}' AND stream_name='{stream}';")
+        if not isinstance(rows, dict) or any(
+                not isinstance(key, str) or not isinstance(value, (int, float)) or
+                not math.isfinite(value) for key, value in rows.items()):
+            raise ValueError("persisted projection pending evidence is malformed")
+        result[name] = {key: float(value) for key, value in rows.items()}
+    return result
+
+
+def _json_sql_literal(value):
+    """A JSONB SQL literal for psql stdin; never interpolate unescaped row IDs."""
+    return "'" + json.dumps(value, separators=(",", ":"),
+                             ensure_ascii=True).replace("'", "''") + "'::jsonb"
+
+
+def pending_write_sql(pending, observed_at):
+    if (set(pending) != set(STREAM_EPOCHS) or
+            not isinstance(observed_at, (int, float)) or
+            not math.isfinite(observed_at)):
+        raise ValueError("invalid projection pending evidence")
+    statements = ["BEGIN;",
+                  "SELECT pg_advisory_xact_lock(hashtext('cdc11-projection-pending-quality'));"]
+    for name, (stream, epoch) in STREAM_EPOCHS.items():
+        rows = pending[name]
+        if not isinstance(rows, dict) or any(
+                not isinstance(key, str) or not key or
+                not isinstance(first, (int, float)) or not math.isfinite(first) or
+                first > observed_at for key, first in rows.items()):
+            raise ValueError("invalid projection pending row")
+        values = _json_sql_literal([{"row_key": key, "first_seconds": first}
+                                    for key, first in sorted(rows.items())])
+        scope = (f"source_id='{SOURCE_ID}' AND coverage_epoch_id='{epoch}' "
+                 f"AND stream_name='{stream}'")
+        entries = (f"jsonb_to_recordset({values}) AS x("
+                   "row_key text,first_seconds double precision)")
+        statements.append(
+            f"DELETE FROM {PENDING_TABLE} WHERE {scope} "
+            f"AND row_key NOT IN (SELECT row_key FROM {entries});")
+        statements.append(
+            f"INSERT INTO {PENDING_TABLE}(source_id,coverage_epoch_id,stream_name,"
+            "row_key,first_observed_at,last_observed_at) "
+            f"SELECT '{SOURCE_ID}','{epoch}','{stream}',x.row_key,"
+            f"to_timestamp(x.first_seconds),to_timestamp({observed_at}) "
+            f"FROM {entries} "
+            "ON CONFLICT(source_id,coverage_epoch_id,stream_name,row_key) "
+            "DO UPDATE SET first_observed_at=LEAST("
+            f"{PENDING_TABLE}.first_observed_at,EXCLUDED.first_observed_at),"
+            "last_observed_at=EXCLUDED.last_observed_at;")
+    statements.append("COMMIT;")
+    return "\n".join(statements)
+
+
+def write_pending(container, pending, observed_at):
+    statement = pending_write_sql(pending, observed_at)
+    target.run(["docker", "exec", "-i", container, "psql", "-X", "-U",
+                "funnelmetry", "-d", "funnelmetry_handoff", "-At",
+                "-v", "ON_ERROR_STOP=1"], statement)
+
+
 def sample(args, current_profiles, first_seen):
     catalog = current_profiles["catalog"]
     stage = current_profiles["stage"]
@@ -116,7 +189,7 @@ def sample(args, current_profiles, first_seen):
         "stage": (stage_canonical(source_stage, source_side=True),
                   stage_canonical(projection_stage, source_side=False)),
     }
-    observed_at = time.monotonic()
+    observed_at = time.time() if args.persist_pending_shadow else time.monotonic()
     result = {}
     for name, connector in (("catalog", "medusa-cdc-catalog-shadow-e1"),
                             ("stage", "medusa-cdc-inventory-price-shadow-e1")):
@@ -143,7 +216,7 @@ def sample(args, current_profiles, first_seen):
             max_offset_lag=args.max_offset_lag,
             max_pending_seconds=args.max_pending_seconds,
             first_seen=first_seen[name], now_seconds=observed_at)
-    return result
+    return result, observed_at
 
 
 def main():
@@ -157,6 +230,7 @@ def main():
     parser.add_argument("--max-pending-seconds", type=float, required=True)
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument("--interval-seconds", type=float, default=1)
+    parser.add_argument("--persist-pending-shadow", action="store_true")
     args = parser.parse_args()
     if (args.source_container != "medusa_reference-postgres-1" or any(
             not re.fullmatch(r"[a-f0-9]{12,64}", getattr(args, name)) for name in
@@ -172,8 +246,12 @@ def main():
     first_seen = {"catalog": {}, "stage": {}}
     failed = False
     for iteration in range(args.iterations):
-        result = sample(args, current_profiles, first_seen)
+        if args.persist_pending_shadow:
+            first_seen = read_pending(args.pipeline_container)
+        result, observed_at = sample(args, current_profiles, first_seen)
         first_seen = {name: value["pending_first_seen"] for name, value in result.items()}
+        if args.persist_pending_shadow:
+            write_pending(args.pipeline_container, first_seen, observed_at)
         failed |= any(value["status"] != "PASS_BOUNDED_LAG" for value in result.values())
         print(json.dumps({"iteration": iteration + 1, "status":
               "PASS_BOUNDED_LAG" if all(value["status"] == "PASS_BOUNDED_LAG"

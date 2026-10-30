@@ -43,6 +43,13 @@ class MovingProjectionQualityTest(unittest.TestCase):
                 self.assertEqual(check(source, projection,
                     first_seen=result["pending_first_seen"], now_seconds=111)["status"],
                     "BLOCKED_BY_QUALITY")
+                expired = check(source, projection,
+                    first_seen=result["pending_first_seen"], now_seconds=111)
+                self.assertEqual(expired["pending_first_seen"],
+                                 result["pending_first_seen"])
+                self.assertEqual(check(source, projection,
+                    first_seen=expired["pending_first_seen"], now_seconds=112)["status"],
+                    "BLOCKED_BY_QUALITY")
 
     def test_excess_lag_lost_slot_and_missing_offset_block(self):
         self.assertEqual(check(topic_ends={"catalog.public.product": 15})["status"],

@@ -594,6 +594,16 @@ The idle result proves profile/row normalization and target wiring only. It
 does not establish behavior under moving catalog data, persistence across
 restart, a continuous lease, or analytical availability under writes.
 
+**Projection pending-age candidate (not yet active):** Migration 027 adds
+`cdc_projection_pending_quality_candidate` in the Pipeline analytical DB,
+separate from the order pending table. The guarded operator script requires
+the exact five-file candidate migration journal and an absent table before
+applying only 027. The moving projection probe can opt in to persist the
+first-observed time for each catalog or inventory/price row mismatch. The
+evaluator retains an expired row's original timestamp so repeated cycles
+cannot silently reset its age. This is candidate evidence storage only;
+quality leases, Dashboard provider and `catalog-sync` remain unchanged.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow

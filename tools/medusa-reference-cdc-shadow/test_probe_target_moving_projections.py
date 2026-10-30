@@ -46,6 +46,26 @@ class MovingProjectionProbeTest(unittest.TestCase):
         self.assertEqual(probe.stage_canonical(source, source_side=True),
                          probe.stage_canonical(projected, source_side=False))
 
+    def test_candidate_pending_write_is_scoped_and_escapes_source_ids(self):
+        pending = {"catalog": {"[\"product\",\"id'with-quote\"]": 100.0},
+                   "stage": {"[\"price\",[\"price_1\"]]": 101.0}}
+        statement = probe.pending_write_sql(pending, 102.0)
+        self.assertEqual(statement.count("INSERT INTO cdc_projection_pending_quality_candidate"), 2)
+        self.assertEqual(statement.count("DELETE FROM cdc_projection_pending_quality_candidate"), 2)
+        self.assertIn("id''with-quote", statement)
+        self.assertIn("LEAST(", statement)
+        self.assertIn("stream_name='inventory_price'", statement)
+        self.assertTrue(statement.startswith("BEGIN;"))
+        self.assertTrue(statement.endswith("COMMIT;"))
+        with self.assertRaises(ValueError):
+            probe.pending_write_sql({"catalog": {}, "stage": {"key": 110}}, 102)
+
+    def test_persisted_first_seen_is_read_for_both_streams(self):
+        with patch.object(probe.target, "pipeline", side_effect=[{"p": 90.0}, {}]) as query:
+            result = probe.read_pending("pipeline")
+        self.assertEqual(result, {"catalog": {"p": 90.0}, "stage": {}})
+        self.assertEqual(query.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

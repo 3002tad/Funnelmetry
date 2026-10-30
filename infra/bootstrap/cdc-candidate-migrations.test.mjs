@@ -47,16 +47,17 @@ test('CDC candidate extension accepts an exact journal prefix and only applies p
   const client = clientWith(objects, journal)
   const plan = await runCandidateMigrations(client, files, 'plan')
   assert.equal(plan.status, 'READY_TO_EXTEND')
-  assert.deepEqual(plan.pendingFiles, [migrations[3].file, migrations[4].file])
+  assert.deepEqual(plan.pendingFiles, [migrations[3].file, migrations[4].file, migrations[5].file])
   const appliedResult = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
-  assert.deepEqual(appliedResult.appliedFiles, [migrations[3].file, migrations[4].file])
+  assert.deepEqual(appliedResult.appliedFiles, [migrations[3].file, migrations[4].file, migrations[5].file])
   assert.equal(client.statements.filter(({sql}) => sql.startsWith('CREATE TABLE cdc_candidate_migration_journal')).length, 0)
   assert.equal(client.statements.filter(({sql}) => sql === files[3]).length, 1)
   assert.equal(client.statements.filter(({sql}) => sql === files[4]).length, 1)
+  assert.equal(client.statements.filter(({sql}) => sql === files[5]).length, 1)
   assert.equal(client.statements.filter(({sql}) => files.slice(0, 3).includes(sql)).length, 0)
 })
 
-test('CDC candidate extension from the target four-file journal adds only pending age storage', async () => {
+test('CDC candidate extension from the target four-file journal adds the two pending age stores', async () => {
   const applied = migrations.slice(0, 4)
   const objects = new Set(applied.flatMap(migration =>
     migration.objects.map(object => `public.${object}`)))
@@ -64,11 +65,27 @@ test('CDC candidate extension from the target four-file journal adds only pendin
     content_sha256: createHash('sha256').update(files[index]).digest('hex') }))
   const client = clientWith(objects, journal)
   const plan = await runCandidateMigrations(client, files, 'plan')
-  assert.deepEqual(plan.pendingFiles, [migrations[4].file])
+  assert.deepEqual(plan.pendingFiles, [migrations[4].file, migrations[5].file])
   const appliedResult = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
-  assert.deepEqual(appliedResult.appliedFiles, [migrations[4].file])
+  assert.deepEqual(appliedResult.appliedFiles, [migrations[4].file, migrations[5].file])
   assert.equal(client.statements.filter(({sql}) => sql === files[4]).length, 1)
+  assert.equal(client.statements.filter(({sql}) => sql === files[5]).length, 1)
   assert.equal(client.statements.filter(({sql}) => files.slice(0, 4).includes(sql)).length, 0)
+})
+
+test('CDC candidate extension from the target five-file journal adds projection pending age only', async () => {
+  const applied = migrations.slice(0, 5)
+  const objects = new Set(applied.flatMap(migration =>
+    migration.objects.map(object => `public.${object}`)))
+  const journal = applied.map((migration, index) => ({ file_name: migration.file,
+    content_sha256: createHash('sha256').update(files[index]).digest('hex') }))
+  const client = clientWith(objects, journal)
+  const plan = await runCandidateMigrations(client, files, 'plan')
+  assert.deepEqual(plan.pendingFiles, [migrations[5].file])
+  const result = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
+  assert.deepEqual(result.appliedFiles, [migrations[5].file])
+  assert.equal(client.statements.filter(({sql}) => sql === files[5]).length, 1)
+  assert.equal(client.statements.filter(({sql}) => files.slice(0, 5).includes(sql)).length, 0)
 })
 
 test('CDC candidate extension rejects missing earlier migration and changed checksum', async () => {

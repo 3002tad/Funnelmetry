@@ -31,6 +31,9 @@ export const migrations = Object.freeze([
   { file: '026_reference_order_cdc_v2_pending_quality_candidate.sql', objects: [
     'reference_cdc_v2_pending_quality_candidate',
   ] },
+  { file: '027_projection_pending_quality_candidate.sql', objects: [
+    'cdc_projection_pending_quality_candidate',
+  ] },
 ])
 
 export function migrationDigest(files) {
