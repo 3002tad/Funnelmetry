@@ -50,12 +50,22 @@ does not implement the separate HTTP Gateway project.
 Local targeted tests passed for installer fresh/migration/idempotence,
 three-stream profile binding, Source Ingress retirement plus storefront event,
 Dashboard CDC product references, and Swarm preflight/render (49 tests after
-the manifest fixture correction). The Medusa plan/propose and Pipeline CDC CI
-jobs started from the new commits; record their final conclusion here after
-completion. The current Dashboard API container still uses its previous pinned
-image, configured with `PRODUCT_REFERENCE_PROVIDER=catalog_cdc`; the removed
-Admin API fallback in source will take effect on its next reviewed API image
-rollout. The inactive Medusa Admin Secret API Key is retained by user choice.
+the manifest fixture correction). The first Pipeline CDC CI exposed a stale
+event-browser test fixture; commit `347fa2e` now supplies the required CDC
+catalog binding and quality rows, and that test passes locally. The first
+Medusa propose CI exposed a test importing the retired backend occurred-at
+helper; commit `03d00bd` removes that obsolete test. Medusa plan CI
+`41100435360`, corrected Medusa propose CI `41102889777` and corrected
+Pipeline CDC CI `41102612623` all passed. API image publish run
+`41101601467` passed.
+
+The CDC-13 Dashboard API image published from exact source commit `2fddf3a`
+as digest `sha256:d8819e71ec8134ff5b866ada6130c0b0ef304d30e48bbd27381d8dbb65f1bfd9`.
+Only `funnelmetry_vps_live_dashboard-api` was updated, and its ignored
+`SWARM_API_IMAGE` pin now matches that digest. The service converged 1/1;
+internal `/health` returned `status=ok` and `postgres=ok`. Inspection of the
+running image confirmed the product-reference source has no `admin_api`
+branch. The inactive Medusa Admin Secret API Key is retained by user choice.
 
 Historical `order.placed` mappings/facts remain solely for legacy replay and
 queries. CDC recovery continues through coverage epochs, snapshot and quality
