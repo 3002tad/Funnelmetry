@@ -260,6 +260,25 @@ cannot become an ON terminal. The two post-baseline orders created through
 Store API have no browser checkout event; they remain unbound for funnel use.
 No official funnel profile/read binding has been activated.
 
+**Post-baseline browser checkout correlation, 2026-10-30:** A fresh Edge
+session accepted the tracking notice, added one reference product, completed
+address/delivery and placed an order using Manual Payment. Medusa confirmed
+`order_01M65NWVVQ1WK7ZATYZK8BKBRB` for cart
+`cart_01M65NR4RZN8WS853F7MDG6CND`. The browser stream produced canonical
+`checkout.started` event
+`can_3a5c831023ddb67eddbb0e47b6c930b5325ad1ab554676506f9a693f74187fb0`
+with exact `relations.correlation_id = cart:cart_01M65NR4RZN8WS853F7MDG6CND`.
+The target order-v2 sink caught up to four current orders and fact offset
+eight; this order is active at offset seven with a post-baseline ON transition
+whose cart matches the current state. The candidate SQL returned exactly one
+`STRONG` CART journey (`journey_346cf459bc85d4482011df93f11341250009fc9d39c87e47bcd6eec6143b50b7`)
+and that checkout event for the same cart. The quality lease first blocked
+during projection catch-up and became `CURRENT_STATE_READY` after the monitor's
+next successful cycle at 05:54:10 UTC. These inputs satisfy the shadow
+reader's `BOUND_SHADOW` predicate for this order; no official funnel terminal
+or analytical binding was changed. The test uses one browser order and does
+not establish cross-traffic completeness or production latency.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow
