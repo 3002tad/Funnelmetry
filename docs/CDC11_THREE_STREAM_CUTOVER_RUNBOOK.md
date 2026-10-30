@@ -217,6 +217,24 @@ future independent cutover needs a reviewed per-stream failure policy. The
 replay does not prove recovery from lost Kafka data, a lost PostgreSQL slot,
 long Connect outage or production load.
 
+**Short Connect outage with a real reference checkout, 2026-10-30:** Before
+stopping only shadow Connect, the source had two orders at WAL LSN `0/21DF670`;
+all three slots were `reserved` with about 80 KiB retained each and more than
+1 GiB safe WAL headroom. During Connect `0/0`, a Store API checkout created
+`order_01M65MDEFTNV1AQGBGW1ZH7MG5`; the source had three orders at LSN
+`0/21F6308`, all slots stayed `reserved`/inactive and retained about 173 KiB.
+The live adapter continued independently. After restoring Connect, all three
+tasks reached RUNNING and the target verifiers again passed. The order sink
+contained three current orders, exactly two `TRANSITION` records overall and
+fact offset six; the new order was active and joined to its cart. Catalog
+still had 104 products and all 16 stage-2 tables reconciled. The monitor
+reported `BLOCKED_BY_QUALITY` while Connect was absent and while the new
+projection was catching up, then `PASS_SHADOW_LEASE` at 05:29:24 UTC with
+minimum safe WAL 1038 MiB. All three slots were active/reserved again. This
+establishes bounded short-outage catch-up on the target, not the proposed
+30-minute response target, p95/p99 lag, load budget, lost-slot recovery or
+CDC-12 authority.
+
 ## 1. Current VPS preflight inventory
 
 Original read-only inventory on `ssh kltn`, 2026-10-29, with updates noted:
