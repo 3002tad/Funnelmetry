@@ -561,6 +561,26 @@ moving probe ran twice using persisted candidate state and returned
 An actual pending order crossing a monitor restart and the failure cases
 still require proof before promotion.
 
+**Candidate pending-age restart check:** A synthetic order ID was inserted
+only into the Pipeline candidate pending table with first observation 30
+seconds earlier. A new Python process read the same first-seen timestamp
+(`PASS_PERSISTED_PENDING_AGE`, age floor 30 s); the test row was then removed
+and the table verified empty. This proves candidate storage survives a probe
+process restart. It does not prove that a live source order is classified
+correctly after a worker/monitor restart or make this quality policy active.
+
+**Catalog/stage-2 moving-quality candidate:**
+`moving_projection_quality.py` is a pure, read-only evaluator for bounded
+source-to-projection row and Kafka-offset lag. Its caller must provide the
+exact profile topic allowlist, canonical row values, a source sample taken
+after the projection sample, persisted first-observed times, and explicit
+row/offset/age/WAL thresholds. Insert, update and delete differences are
+treated as pending, then blocked when the limit or age is exceeded. Lost slot,
+stopped connector, incomplete snapshot, foreign offset topic and low WAL
+headroom block immediately. This is candidate code only: it is not connected
+to the target monitor or quality leases, has no persistence table for these
+two streams, and does not justify CDC-12 cutover.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow
