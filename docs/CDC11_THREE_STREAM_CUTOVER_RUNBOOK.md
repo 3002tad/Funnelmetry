@@ -280,6 +280,36 @@ the candidate view against current descriptive names while leaving the
 Dashboard provider `admin_api` and `catalog-sync` unchanged. It does not
 constitute a CDC-12 decision, sustained quality evidence or a live cutover.
 
+**Target catalog update, soft delete and relation-change transport,
+2026-10-30:** A seed product with zero order-line references
+(`prod_01M5WHNCECKPB2WA8QDM3WDVNG`, originally `Powder Canister`) was
+changed through narrowly guarded PostgreSQL test statements and restored
+immediately to its exact original title, `updated_at` and `deleted_at=NULL`.
+The CDC product audit/projection saw title update and restore at offsets
+104/105, soft delete and restore at offsets 106/107; the final projected row
+is present, not soft deleted, and has its original title/timestamp. A temporary
+Merch category link for the same product was seen as `c` at offset 4 and `d`
+at offset 5; both source and projection returned to zero links for that
+product. The target source/projection verifier then passed across catalog
+(104 products, 120 variants, four categories/four links) and all 16 stage-2
+tables, with matching digests and caught-up offsets. The catalog quality lease
+blocked during the temporary relation change and later returned to fresh
+`PASS`; catalog binding remained absent. These guarded direct DB mutations
+prove WAL/CDC projection and restoration on the target. They do not certify
+Medusa Admin API workflows or source-owned business lifecycle behavior.
+
+**Target stage-2 price update transport, 2026-10-30:** A simple EUR price row
+(`price_01M5WHND4WXSD7BJ0CMSR1X1PG`) for the same unreferenced seed product
+was changed under exact-value guards from 13.79 to 14.79, updating both
+Medusa's numeric `amount` and `raw_amount.value`. The stage-2 context
+projection observed 14.79 at price-topic offset 146. The source row was then
+restored to 13.79, its original raw JSON and original `updated_at`; the
+projection returned to 13.79 at offset 147, with two `u` audit entries.
+The target verifier again passed source/projection equality across catalog
+and all 16 stage-2 tables. This is CDC transport/update evidence from guarded
+direct DB test statements; it is not Medusa price-workflow conformance,
+price-list/reservation coverage, or authority for a live pricing asset.
+
 **Order journey correlation check, 2026-10-30:** The initial target canonical
 `checkout.started` carried `relations.correlation_id = cart:<cart_id>` rather
 than `relations.cart_id`. The shadow reader now accepts the exact approved
