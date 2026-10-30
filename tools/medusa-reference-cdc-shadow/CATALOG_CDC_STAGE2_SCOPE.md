@@ -88,3 +88,19 @@ version.
 This scope is deliberately separate from the v1 product-name shadow evidence.
 The generated profile and installer are shadow-only; live source grants and
 analytical claims still need source-owner approval and runtime conformance.
+
+## Reference acceptance boundary (2026-10-30)
+
+The reference cutover need not implement every Medusa price and inventory
+combination. The 16-table CDC capture contract remains complete for the
+declared allowlist; analytical resolution is deliberately narrower. The target
+sample reconciled every table and matched the Store API for 120 published
+variant price/currency contexts and 20 managed-stock quantities. These current
+simple shapes may be used by a versioned reference asset only while the
+source/projection quality lease and a context-specific resolver both pass.
+Unsupported reservation, backorder, kit/location, price-list, rule or tier
+combinations must produce `UNVERIFIED`/`BLOCKED_BY_QUALITY` for the affected
+answer, without stopping CDC capture or unrelated analyses. A new source shape
+requires its own conformance before claiming a derived price or stock value.
+Current catalog prices never restate historical order money. This narrows the
+reference claim; it does not grant CDC-12 live authority.

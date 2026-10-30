@@ -502,7 +502,18 @@ manifest and digest review.
 2. Run candidate writers into separate governed tables. Apply migration 021 for stage 1, migration 022 for stage-2 context, migration 023 for the order v2 sink and migration 024 for its mapper DB; keep the catalog binding `SHADOW` and Dashboard provider `admin_api`. Migrations 022–024 create no active business analytical binding. Check stage-2 source keys/relations and order-v2 mapper/sink schema independently. The [stage-2 governed candidate clone evidence](../tools/medusa-reference-cdc-shadow/INVENTORY_PRICE_GOVERNED_CANDIDATE_EVIDENCE_2026-10-29.md) proves context/replay and one-shot lease invalidation only; [order v2 mapper→sink evidence](../tools/medusa-reference-cdc-shadow/REFERENCE_ORDER_V2_MAPPER_CHAIN_CANDIDATE_EVIDENCE_2026-10-29.md) proves chain/replay on preserved clone raw topics only. Neither is a target-topology production quality monitor. Do not move clone volumes or Kafka offsets into live.
 3. Reconcile source rows and relationships at a declared checkpoint: counts and row-level digest, snapshot-complete marker, per-topic end/applied offsets, connector/task status, slot/WAL state, orphan checks, source identity, epoch and observed lag. Repeat while Medusa receives real updates; check update, soft/hard delete, relation change, duplicate, replay, restart and outage. A PASS at one instant is not a continuous freshness guarantee.
 4. For order v2, verify BASELINE produces no ON; after activation, successful checkout produces one ON and compensation produces OFF as specified. Check cart/order/journey binding, event-time basis, correction propagation to funnel and UI, and `INCOMPLETE` behavior after any gap. Do not infer order amount/currency or native placement from current-state snapshot.
-5. For stage 2, validate inventory per product/variant, sales channel and eligible stock location with required item quantities and reservations; compare controlled cases with Medusa 2.19.0 Store API. Price needs currency, region, quantity tier, price-list period/status and rule context; compare controlled cases with Medusa's calculated price. Empty source tables must receive controlled nonempty test cases in a clone first. Any unsupported rule/context yields `UNVERIFIED`, not a guessed display price.
+5. For this Medusa reference, stage-2 acceptance covers CDC capture and current
+   simple Store API contexts: the 16 source tables and offsets reconcile; all
+   120 published variant price/currency results and 20 managed inventory
+   quantities match the Store API in the recorded target sample. The resolver
+   can claim only shapes it explicitly supports. Reservation, backorder,
+   quantity tier, price-list and rule cases outside those proven shapes return
+   `UNVERIFIED`/`BLOCKED_BY_QUALITY` for the affected derived answer; raw CDC
+   capture and unrelated catalog/order analytics continue. Nonempty clone
+   cases already exercised transport and resolver failure behavior; no new
+   target business fixture is required solely to cut over this reference.
+   Recheck source shapes and Store API comparison at the cutover checkpoint.
+   Never use a current catalog price to rewrite historical order money.
 6. Run target-topology fault and load tests with measured Medusa CPU/IO, WAL retained bytes, slot safe headroom, Connect/Kafka backlog, snapshot duration and p95/p99 source-to-readable lag. Define the acceptable thresholds explicitly in the cutover record; the CDC-10 clone budget is insufficient for production approval.
 
 ## 5. CDC-12 cutover sequence (gated; not yet authorized by this document)
@@ -523,4 +534,18 @@ Only after the rollback window expires and all consumers/dependencies are invent
 
 ## 7. Present stop conditions
 
-At the latest checkpoint, **live cutover is blocked** by production workload/WAL budget, no published/versioned order-v2 funnel profile or correction path to analytical/UI results, and untested stage-2 reservation/price-list/rule/tier shapes. The post-baseline browser order passed the guarded shadow journey reader and controlled target OFF→ON restoration; target catalog update/soft delete/relation and price update transport also passed. All 120 current simple Store API variant contexts matched the CDC candidate for price/currency, and the 20 managed variants matched inventory quantity; this does not certify future source shapes. A bounded operator-side quality monitor is running for three candidate streams, but its PASS lease is neither production freshness certification nor CDC analytical authority. Target replay, restart, fail-closed and short Connect outage have passed; remaining work is the specific load/long-outage budget, versioned funnel correction path, complex stage-2 conformance and explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
+At the latest checkpoint, **live cutover is blocked** by a target workload/WAL
+and outage budget, no published/versioned order-v2 reference funnel profile or
+correction path to analytical/UI results, and no CDC-12 authority decision per
+stream. The post-baseline browser order passed the guarded shadow journey
+reader and controlled target OFF→ON restoration; target catalog
+update/soft-delete/relation and price update transport also passed. All 120
+current published variant price/currency contexts matched the Store API, as
+did the 20 managed inventory quantities. This is sufficient shape evidence
+for the **current reference data** if unsupported future contexts remain
+`UNVERIFIED` and do not poison unrelated analyses; it is not a general Medusa
+pricing or sellable-stock claim. The bounded quality monitor protects capture
+coverage but its PASS lease does not certify a business resolver or grant CDC
+analytical authority. Target replay, restart, fail-closed and short Connect
+outage have passed; do not repeat them. This document does not promote a CDC
+source or change live analytical authority.
