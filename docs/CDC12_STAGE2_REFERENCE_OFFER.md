@@ -77,5 +77,21 @@ the target PostgreSQL DB and returned `ready=true` for catalog epoch
 `cdc11_catalog_epoch1` and stage-2 epoch
 `cdc11_inventory_price_epoch1`. Targeted regression tests cover revocation,
 replacement, changed verification time and missing table coverage. The new
-API code is not yet deployed, so this is release preparation rather than a
-new target runtime result.
+The release and target runtime check are recorded below.
+
+**Target rollout, 2026-10-30:** Tag `cdc-api-candidate-v2026.10.30.4` at
+`3d00a9e` passed GitHub Actions run `41054640973` (46 selected tests,
+image build and smoke). The image was pulled by SHA tag and the API service
+converged on digest
+`ghcr.io/3002tad/funnelmetry-cdc-api-candidate@sha256:e547def2929ac70d8194523201c0e4216206f1f1c1ae3a973946008d548373d1`.
+The previous service spec is stored privately at
+`/srv/KLTN/.cdc12-stage2/dashboard-api-before-lease.json` with mode 600.
+An authenticated analyst GET through public HTTPS returned HTTP 200,
+`REFERENCE_CURRENT_ONLY`, price `9.19 eur` and unmanaged stock status
+`PASS_SAMPLE_ONLY` for the previously conformed storefront variant. A first
+check passed uppercase `EUR` and returned price `UNVERIFIED` with
+`currency_or_region_missing`; source CDC region and currency rows use raw
+lowercase `eur`. Repeating the same request with the source code `eur` returned
+the expected price. This was a query-case mismatch, not CDC data loss.
+The target lease currently reports catalog and stage-2 epochs as ready; no
+fault was injected into live leases solely to retest the fail-closed branch.
