@@ -23,6 +23,7 @@ jobs:
           node-version: '22'
       - name: Verify funnel retirement code
         run: |
+          npm ci --prefix workers/funnel-processor --ignore-scripts
           node --check workers/funnel-processor/src/repository.js
           node --test workers/funnel-processor/test/medusa-reference.test.js
       - name: Build Workers image from the tagged commit
