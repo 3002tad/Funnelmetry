@@ -199,6 +199,24 @@ directory from 700 to 755 and changing the one-shot task to run as root; a
 separate directory containing only non-secret script/profile copies was used
 for that read-only mount, leaving private credentials inaccessible to it.
 
+**Target replay and fail-closed rehearsal, 2026-10-30:** Four CDC-only Kafka
+consumer groups were individually stopped, inspected, reset to earliest and
+restored. Catalog replay left 232 ingest-audit records and 104 products;
+inventory/price replay left 686 ingest-audit records; order sink replay left
+four inbox records, two current-state rows and fact offset four; order mapper
+replay left four outbox records, two state rows and epoch `BASELINE_VERIFIED`.
+The target source/projection probes again returned `PASS_SHADOW_POINT_IN_TIME`
+for catalog, all 16 stage-2 tables and order (two rows, fact offset four).
+The new monitor also checked all four worker containers twice. Stopping only
+the catalog writer and invoking one monitor cycle returned
+`BLOCKED_BY_QUALITY`; all three candidate lease rows became blocked. After
+restoring that worker, a fresh two-sample check returned `PASS_SHADOW_LEASE`,
+minimum slot safe WAL 1038 MiB, with catalog/stage 2 `PASS` and order
+`CURRENT_STATE_READY`. This is conservative all-stream shadow blocking; a
+future independent cutover needs a reviewed per-stream failure policy. The
+replay does not prove recovery from lost Kafka data, a lost PostgreSQL slot,
+long Connect outage or production load.
+
 ## 1. Current VPS preflight inventory
 
 Original read-only inventory on `ssh kltn`, 2026-10-29, with updates noted:
