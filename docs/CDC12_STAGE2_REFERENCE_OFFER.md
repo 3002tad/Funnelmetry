@@ -1,6 +1,6 @@
 # CDC-12 stage-2 current-offer read path
 
-Status: **candidate, disabled by default**. This is a narrow Medusa reference
+Status: **VPS canary active; disabled by default in the manifest**. This is a narrow Medusa reference
 read path for current default price and managed stock. It is not an order fact,
 historical price, revenue measure, or general Medusa price engine.
 
@@ -37,3 +37,30 @@ The flag defaults to false. Keep it false until the new image is healthy and
 the lease is freshly PASS. Rollback sets the flag false; CDC projection and
 offsets stay intact. This endpoint is a reference candidate and is not yet
 registered as an active semantic tool or general analytical asset.
+
+## Target canary, 2026-10-30
+
+Tag `cdc-api-candidate-v2026.10.30.3` at commit `d60e51a` passed GitHub Actions
+run `41051677519` including the stage-2 resolver tests, image build and smoke.
+The VPS pulled and deployed
+`ghcr.io/3002tad/funnelmetry-cdc-api-candidate@sha256:ba7d8db8488558f64eb4af1843f1034c71a4f03a5f5e906ae8621d097e0c976b`.
+The prior API service spec is stored privately on the VPS at
+`/srv/KLTN/.cdc12-stage2/dashboard-api-before.json` (mode 600). Image update
+converged with the new endpoint off; HTTPS health returned 200. Then the API
+service was updated with `DASHBOARD_ENABLE_CDC_REFERENCE_OFFER=true`.
+
+The existing active analyst account authenticated, and the public HTTPS route
+returned 200 for a storefront-visible variant: current `9.19 EUR` and
+unmanaged inventory (`null`) matched the Medusa Store API for the same
+product, variant and region. A managed-stock CDC read also returned the
+single-location reference quantity, and a currency/region mismatch returned
+price `UNVERIFIED` without an amount while leaving the independent inventory
+result available. The quality monitor remained PASS for catalog and order,
+with 16 stage-2 tables and at least 1026 MiB WAL headroom. No checkout or
+historical-order replay was repeated.
+
+This is a **stage-2 read-path canary**, still a temporary Swarm service override.
+The VPS `main` checkout does not render this flag or image digest. Do not
+redeploy the old manifest before reconciling the release. The endpoint is not
+yet an active semantic metadata/tool binding; order v2 and Backend Adapter
+remain on their prior path.
