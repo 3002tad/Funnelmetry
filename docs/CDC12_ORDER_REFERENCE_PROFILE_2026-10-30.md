@@ -40,11 +40,16 @@ retractable CDC current state, not canonical `order.placed` conversion.
 
 ## Runtime boundary and remaining cutover work
 
-The API change is currently a backed-up Docker service override. Previous
-specification: `/srv/KLTN/.cdc12-order-v2/dashboard-api-before-profile.json`
-on the VPS (mode 600). The source checkout is still on its older `main`
-revision; an official merged, pinned deployment manifest is required before
-this is considered durable. A Web image carrying the new labels is pending.
+The API and Web changes are currently backed-up Docker service overrides.
+Previous specifications: `/srv/KLTN/.cdc12-order-v2/dashboard-api-before-profile.json`
+and `dashboard-web-before-profile.json` on the VPS (mode 600). Web candidate
+[publish run 41084102742](https://github.com/3002tad/Funnelmetry/actions/runs/41084102742)
+passed and deployed digest
+`ghcr.io/3002tad/funnelmetry-cdc-web-candidate@sha256:6996de259f8fdbd67ea49400d10f2b5390f84b6bd2eaeb62fe3165b847aa7887`.
+The Web task replaced its predecessor and `https://analyst.entidi.io.vn/`
+returned HTTP 200. The source checkout is still on its older `main` revision;
+an official merged, pinned deployment manifest is required before this is
+considered durable.
 
 The order stream is **profile active, source adapter not retired**. Before
 removing the adapter via the source-owned installer, finish the official
