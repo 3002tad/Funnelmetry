@@ -578,8 +578,7 @@ row/offset/age/WAL thresholds. Insert, update and delete differences are
 treated as pending, then blocked when the limit or age is exceeded. Lost slot,
 stopped connector, incomplete snapshot, foreign offset topic and low WAL
 headroom block immediately. This is candidate code only: it is not connected
-to the target monitor or quality leases, has no persistence table for these
-two streams, and does not justify CDC-12 cutover.
+to the target monitor or quality leases and does not justify CDC-12 cutover.
 
 **Target read-only probe, 2026-10-30:**
 `probe-target-moving-projections.py` now binds the candidate evaluator to the
@@ -603,6 +602,20 @@ first-observed time for each catalog or inventory/price row mismatch. The
 evaluator retains an expired row's original timestamp so repeated cycles
 cannot silently reset its age. This is candidate evidence storage only;
 quality leases, Dashboard provider and `catalog-sync` remain unchanged.
+
+**Target migration 027 rehearsal:** Pipeline commits `81dfc92` and `77bd5d5`
+passed CI run `41043605224`, including fresh PostgreSQL candidate migration.
+The target guarded plan returned `READY_TO_APPLY` against the exact prior
+five-file journal; apply returned `APPLIED_CANDIDATE_ONLY`; a second plan
+returned `ALREADY_APPLIED`. Two idle probe cycles with
+`--persist-pending-shadow` passed for both streams with zero pending rows and
+zero topic offset lag. A one-shot synthetic catalog pending row, inserted
+only into the candidate table with first observation 30 seconds earlier, was
+read by a new Python process with age floor 29 seconds and removed in a
+`finally` block; post-check found no test row. This proves candidate table
+storage across process restarts, **not** a live source row pending across a
+restart. The strict monitor continued `PASS_SHADOW_LEASE`; live `catalog-sync`
+and `source-connector` remained 1/1. No CDC-12 authority changed.
 
 ## 1. VPS inventory and baseline provenance
 
