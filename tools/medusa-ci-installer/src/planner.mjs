@@ -696,7 +696,7 @@ async function cdcOrderV2Change(projectRoot, manifest) {
   const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcOrderV2ShadowProfile)
   const expected = cdcOrderV2Artifact(manifest)
   if (!expected) {
-    if (current !== null) throw new Error("Existing CDC order v2 profile requires explicit rollback plan")
+    if (current !== null) throw new Error("Existing CDC order v2 profile cannot be removed by the CDC installer")
     return null
   }
   if (current === null) return { path: generatedPaths.cdcOrderV2ShadowProfile, before: null, after: expected }
@@ -723,7 +723,7 @@ async function cdcCatalogChange(projectRoot, manifest) {
   const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcCatalogShadowProfile)
   const expected = cdcCatalogArtifact(manifest)
   if (!expected) {
-    if (current !== null) throw new Error("Existing CDC catalog profile requires cdc_catalog_shadow manifest or explicit rollback plan")
+    if (current !== null) throw new Error("Existing CDC catalog profile cannot be removed by the CDC installer")
     return null
   }
   if (current === null) return { path: generatedPaths.cdcCatalogShadowProfile, before: null, after: expected }
@@ -731,7 +731,7 @@ async function cdcCatalogChange(projectRoot, manifest) {
     return { path: generatedPaths.cdcCatalogShadowProfile, before: current, after: expected }
   }
   if (normalizedText(current) !== normalizedText(expected)) {
-    throw new Error("Existing CDC catalog profile differs; use explicit rollback plan before changing it")
+    throw new Error("Existing CDC catalog profile differs; refusing unreviewed migration")
   }
   return null
 }
@@ -740,7 +740,7 @@ async function cdcInventoryPriceChange(projectRoot, manifest) {
   const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcInventoryPriceShadowProfile)
   const expected = cdcInventoryPriceArtifact(manifest)
   if (!expected) {
-    if (current !== null) throw new Error("Existing inventory/price profile requires explicit rollback plan")
+    if (current !== null) throw new Error("Existing inventory/price profile cannot be removed by the CDC installer")
     return null
   }
   if (current === null) return { path: generatedPaths.cdcInventoryPriceShadowProfile, before: null, after: expected }
@@ -748,7 +748,7 @@ async function cdcInventoryPriceChange(projectRoot, manifest) {
     return { path: generatedPaths.cdcInventoryPriceShadowProfile, before: current, after: expected }
   }
   if (normalizedText(current) !== normalizedText(expected)) {
-    throw new Error("Existing inventory/price profile differs; use explicit rollback plan before changing it")
+    throw new Error("Existing inventory/price profile differs; refusing unreviewed migration")
   }
   return null
 }
