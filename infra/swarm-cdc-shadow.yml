@@ -56,7 +56,7 @@ services:
       restart_policy: {condition: any, delay: 10s}
       resources:
         reservations: {cpus: '0.25', memory: 512M}
-        limits: {cpus: '1.50', memory: 1536M}
+        limits: {cpus: '1.50', memory: 2G}
 
   order-mapper-db:
     image: ${CDC_POSTGRES_IMAGE:?Pin the reviewed PostgreSQL image digest}

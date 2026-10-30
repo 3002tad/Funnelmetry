@@ -1,6 +1,6 @@
 # CDC-11: Medusa three-stream cutover and rollback
 
-**Status:** CANDIDATE SCHEMA APPLIED / NO CDC SOURCE OR CUTOVER. **Date:** 2026-10-30. This is the operator runbook for replacing (1) the reference backend order adapter, (2) Admin API `catalog-sync`, and (3) inventory/price acquisition with CDC. It does not deploy an HTTP Gateway. DEC-119/135 currently approve order-state v2 semantics for shadow development only; CDC-12 live authority still requires a separate decision. The existing Browser SDK and its HTTP ingestion remain in service.
+**Status:** THREE-STREAM TARGET SHADOW RUNNING / NO LIVE CUTOVER. **Date:** 2026-10-30. This is the operator runbook for replacing (1) the reference backend order adapter, (2) Admin API `catalog-sync`, and (3) inventory/price acquisition with CDC. It does not deploy an HTTP Gateway. DEC-119/135 currently approve order-state v2 semantics for shadow development only; CDC-12 live authority still requires a separate decision. The existing Browser SDK and its HTTP ingestion remain in service.
 
 **Development update 2026-10-30:** The Medusa manifest/planner now emit a
 separate order-v2 shadow profile for a declared coverage epoch with initial
@@ -109,6 +109,44 @@ topology quality monitor and measured load. The source still has no CDC role,
 publication, slot or connector and no live binding was switched. See
 [PostgreSQL replication settings](https://www.postgresql.org/docs/15/runtime-config-replication.html)
 and [slot status semantics](https://www.postgresql.org/docs/15/view-pg-replication-slots.html).
+
+**Target three-stream shadow runtime, 2026-10-30:** The operator-side
+`install-target-source.py` checked all 23 approved tables/PK columns and
+prepared three distinct column-scoped replication roles and publications on
+Medusa PostgreSQL. Protected credentials/journals are under
+`/srv/KLTN/.cdc11-source-state` (mode 700/600), outside Git; their values were
+not logged. `install-target-connect.py` registered catalog, inventory/price
+and order-v2 initial-snapshot connectors against private
+`medusa-cdc-postgres:5432`. All three connector tasks reached RUNNING and
+three slots were active/reserved; latest sampled retained WAL was under 1 KiB
+per slot with `safe_wal_size` about 1038 MiB. Snapshot completion appeared for
+all three profiles. Kafka has auto topic creation disabled, so a separate
+one-shot `install-target-topics.mjs` task explicitly created and verified 30
+scoped topics; the completed task was removed after verification. The first
+Connect attempt hit its 1536 MiB cgroup limit and was OOM-killed; only the
+shadow Connect limit was raised to 2 GiB, after which its REST API and tasks
+remained available. `infra/swarm-cdc-shadow.yml` now carries the same limit.
+
+Candidate writers now run 1/1: catalog 104 products, 120 variants, four
+categories and four links; stage-2 context 686 rows, equal to the sum of its
+16 source tables. Their snapshot-complete flags are true. The order mapper
+received one source order/cart/link and remained `BASELINING` until
+`activate-target-order-baseline.py` independently compared the source rows,
+durable mapper snapshot and all four raw topic ends with the mapper stopped.
+The activation set epoch `cdc11_order_epoch1` to `BASELINE_VERIFIED` with one
+active baseline order, digest
+`be1b614a1de453ad3b9d421e3db0ff1a3d82c29e40b66def13542382deb08df4`,
+historical gap `INCOMPLETE` and zero placement-ON facts. After restart, the
+mapper emitted one BASELINE and one BASELINE_COMPLETE record. The separate
+order sink has two inbox records, one current-state row and fact offset two.
+This proves a shadow snapshot chain on target topology, **not** continuous
+source/projection conformance, inventory availability/price resolution,
+funnel read-path readiness, production load budget or CDC-12 authority. The
+native adapter, Source Connector, Dashboard `admin_api` binding and
+`catalog-sync` remain active. A reviewer rejected widening the private script
+directory from 700 to 755 and changing the one-shot task to run as root; a
+separate directory containing only non-secret script/profile copies was used
+for that read-only mount, leaving private credentials inaccessible to it.
 
 ## 1. Current VPS preflight inventory
 
@@ -225,4 +263,4 @@ Only after the rollback window expires and all consumers/dependencies are invent
 
 ## 7. Present stop conditions
 
-At the latest checkpoint, **live cutover is blocked** by absent replication roles/publications/slots, no target-topology stream conformance or production workload/WAL budget, no continuous live quality service, no order-v2 funnel/profile read path, and no verified stage-2 inventory/price resolver. Private DB networking, logical WAL with a provisional shadow cap, and candidate Pipeline schema are prepared, but none provides CDC analytical authority. The next executable work is to close these gates on the feature branches and run a target-topology shadow rehearsal. This document does not grant permission to promote a CDC source or change live analytical authority.
+At the latest checkpoint, **live cutover is blocked** by incomplete target-topology stream conformance and production workload/WAL budget, no continuous live quality service, no order-v2 funnel/profile read path, and no verified stage-2 inventory/price resolver. Private DB networking, logical WAL, three scoped source roles/publications/slots, initial snapshots and candidate projections are running, but none provides CDC analytical authority. The next executable work is continuous reconciliation, update/delete/replay and fault/load probes, then explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
