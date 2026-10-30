@@ -7,6 +7,10 @@ on:
     paths:
       - .github/workflows/cdc-reference-installer-ci.yml
       - tools/medusa-ci-installer/**
+      - apps/edge-relay/src/relay-handler.js
+      - apps/edge-relay/test/source-ingress-handler.test.js
+      - infra/swarm-live.yml
+      - runtime/swarm-preflight.mjs
       - tools/medusa-reference-cdc-shadow/**
       - workers/catalog-cdc-writer/**
       - workers/inventory-price-cdc-writer/**
@@ -118,6 +122,11 @@ jobs:
           node --check tools/medusa-reference-cdc-shadow/reference-recovery-analytics/main.mjs
       - name: Test Medusa CI planner
         run: npm test --prefix tools/medusa-ci-installer
+      - name: Verify CDC-13 retirement boundaries
+        run: |
+          npm ci --prefix apps/edge-relay --ignore-scripts
+          node --test apps/edge-relay/test/source-ingress-handler.test.js
+          node --test runtime/swarm.test.mjs runtime/swarm-preflight.test.mjs
       - name: Check three-stream target profile binding
         run: |
           node --test tools/medusa-reference-cdc-shadow/check-target-profiles.test.mjs \

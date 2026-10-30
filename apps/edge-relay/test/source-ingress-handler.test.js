@@ -68,7 +68,7 @@ test("returns duplicate with the original ingress sequence", async () => {
   }
 })
 
-test("accepts a signed Medusa source bridge event without allowing browser credentials to impersonate it", async () => {
+test("rejects retired Medusa order messages but accepts storefront server events", async () => {
   const { handler, dispose } = createHandler()
   try {
     const event = {
@@ -91,8 +91,19 @@ test("accepts a signed Medusa source bridge event without allowing browser crede
       },
       body,
     })
-    assert.equal(result.httpStatus, 202)
-    assert.equal(result.body.status, "accepted")
+    assert.equal(result.httpStatus, 410)
+    assert.equal(result.body.reason_code, "source_event_retired")
+    const cart = { ...event, event_id: 'cart:cart_1:item_added:1',
+      source_event_type: 'cart.item_added', aggregate: { type: 'cart', id: 'cart_1' },
+      source_payload: { cart_id: 'cart_1', product_id: 'prod_1', quantity: 1 } }
+    const cartBody = JSON.stringify(cart)
+    const cartSignature = createHmac('sha256', 'backend-secret').update(`${timestamp}.${cartBody}`).digest('hex')
+    const accepted = await handler({ headers: {
+      'x-funnelmetry-source-key-id': 'source-backend', 'x-funnelmetry-timestamp': timestamp,
+      'x-funnelmetry-request-id': 'req_2', 'x-funnelmetry-signature': cartSignature,
+    }, body: cartBody })
+    assert.equal(accepted.httpStatus, 202)
+    assert.equal(accepted.body.ingress_seq, 1)
   } finally {
     dispose()
   }

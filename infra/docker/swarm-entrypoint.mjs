@@ -7,7 +7,7 @@ import { waitForSwarmReadiness } from './swarm-readiness.mjs';
 
 const allowed = new Set([
   'POSTGRES_PASSWORD', 'JWT_SECRET', 'DASHBOARD_ADMIN_PASSWORD',
-  'DASHSCOPE_API_KEY', 'SOURCE_EVENT_FEED_TOKEN', 'CATALOG_MEDUSA_SECRET_KEY',
+  'DASHSCOPE_API_KEY', 'SOURCE_EVENT_FEED_TOKEN',
 ]);
 
 export async function resolveSecretFiles(env, read = readFile) {

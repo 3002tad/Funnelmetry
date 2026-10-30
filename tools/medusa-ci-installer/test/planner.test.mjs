@@ -1,704 +1,101 @@
-import assert from "node:assert/strict"
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import os from "node:os"
-import path from "node:path"
-import { fileURLToPath } from "node:url"
-import test from "node:test"
-import { validateManifest } from "../src/manifest.mjs"
-import { parseManifestYaml } from "../src/yaml.mjs"
-import { createCdcCatalogRollbackPlan, createCdcInventoryPriceRollbackPlan, createCdcOrderV2RollbackPlan, createCdcRollbackPlan, createPlan, verifyIntegration } from "../src/planner.mjs"
+import assert from 'node:assert/strict'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import test from 'node:test'
+import { loadManifest, validateManifest } from '../src/manifest.mjs'
+import { createPlan, verifyIntegration } from '../src/planner.mjs'
+import { parseManifestYaml } from '../src/yaml.mjs'
 
-const rawManifest = {
-  apiVersion: "funnelmetry.io/v2",
-  kind: "InputIntegration",
-  host: { type: "medusa-v2-dtc-starter", medusa_version: "2.19.0" },
-  source: { id: "medusa-reference" },
-  ingest: {
-    browser_url: "https://browser-ingest.example.test/v1/ingress/events",
-    backend_url: "https://backend-ingest.example.test/v1/ingress/events",
-  },
-  auth: {
-    source_key_id: "medusa-reference-dev",
-    browser_write_key_ref: "FUNNELMETRY_BROWSER_WRITE_KEY",
-    backend_signing_key_ref: "FUNNELMETRY_BACKEND_SIGNING_KEY",
-  },
-  bindings: {
-    browser: [
-      "behavior.page_viewed",
-      "behavior.scroll_depth_reached",
-      "promotion.banner_impression",
-      "promotion.banner_clicked",
-      "behavior.filter_applied",
-      "behavior.product_viewed",
-      "checkout.started",
-    ],
-    storefront_server: ["behavior.search_submitted", "cart.item_added"],
-    medusa_backend: ["medusa.order_placed"],
-  },
-}
-const manifest = validateManifest(rawManifest)
+const fixture = fileURLToPath(new URL('./fixtures/medusa-dtc/', import.meta.url))
+const example = fileURLToPath(new URL('../examples/funnelmetry.integration.yaml', import.meta.url))
 
-function cdcShadowRawManifest() {
-  const raw = structuredClone(rawManifest)
-  raw.cdc_shadow = {
-    mode: "shadow_only",
-    profile: "reference.medusa.order_recorded_state.v1",
-    source_db_url_ref: "FUNNELMETRY_CDC_SHADOW_DATABASE_URL",
-    source_owner: "medusa-operator",
-    pipeline_owner: "pipeline-operator",
-    snapshot_mode: "no_data",
-    publication: "funnelmetry_cdc_shadow",
-    slot: "funnelmetry_cdc_shadow",
-    topic_prefix: "cdc_shadow_medusa",
-    fact_topic: "cdc_shadow_reference.order_recorded_state.v1",
-    table_columns: ["public.order:id,deleted_at", "public.order_cart:id,order_id,cart_id", "public.cart:id,completed_at"],
-    rollback_target: "native_order_placed",
-  }
-  return raw
-}
-
-function cdcCatalogRawManifest() {
-  const raw = cdcShadowRawManifest()
-  raw.cdc_catalog_shadow = {
-    mode: "shadow_only",
-    profile: "reference.medusa.catalog_master_data.v1",
-    source_db_url_ref: "FUNNELMETRY_CDC_CATALOG_DATABASE_URL",
-    source_owner: "medusa-operator",
-    pipeline_owner: "pipeline-operator",
-    snapshot_mode: "initial",
-    coverage_epoch_id: "cdc11_catalog_epoch1",
-    publication: "funnelmetry_cdc_catalog_shadow",
-    slot: "funnelmetry_cdc_catalog_shadow",
-    topic_prefix: "cdc_shadow_medusa_catalog",
-    table_columns: [
-      "public.product:id,title,handle,status,collection_id,updated_at,deleted_at",
-      "public.product_variant:id,product_id,title,sku,manage_inventory,allow_backorder,updated_at,deleted_at",
-      "public.product_category:id,name,parent_category_id,is_active,is_internal,updated_at,deleted_at",
-      "public.product_category_product:product_id,product_category_id",
-    ],
-  }
-  return raw
-}
-
-function cdcOrderV2RawManifest() {
-  const raw = cdcShadowRawManifest()
-  raw.cdc_order_v2_shadow = {
-    mode: "shadow_only",
-    profile: "reference.medusa.order_recorded_state.v2",
-    source_db_url_ref: "FUNNELMETRY_CDC_ORDER_V2_DATABASE_URL",
-    source_owner: "medusa-operator",
-    pipeline_owner: "pipeline-operator",
-    snapshot_mode: "initial",
-    coverage_epoch_id: "cdc11_order_epoch1",
-    publication: "funnelmetry_cdc_order_v2_e1",
-    slot: "funnelmetry_cdc_order_v2_e1",
-    topic_prefix: "cdc_shadow_medusa_order_v2_e1",
-    fact_topic: "cdc_shadow_reference.order_recorded_state.v2",
-    table_columns: ["public.order:id,deleted_at", "public.order_cart:id,order_id,cart_id", "public.cart:id,completed_at"],
-    rollback_target: "native_order_placed",
-  }
-  return raw
-}
-
-test("order v2 plan is separate, initial-snapshot only and rollback-guarded", async (t) => {
-  const valid = validateManifest(cdcOrderV2RawManifest())
-  assert.equal(valid.cdcShadow.snapshotMode, "no_data")
-  assert.equal(valid.cdcOrderV2Shadow.snapshotMode, "initial")
-  for (const [field, value] of [["snapshot_mode", "no_data"], ["mode", "live"],
-    ["profile", "reference.medusa.order_recorded_state.v1"],
-    ["source_db_url_ref", "postgres://secret@host/db"],
-    ["fact_topic", "canonical.order.placed"]]) {
-    const bad = cdcOrderV2RawManifest()
-    bad.cdc_order_v2_shadow[field] = value
-    assert.throws(() => validateManifest(bad))
-  }
-  const broad = cdcOrderV2RawManifest()
-  broad.cdc_order_v2_shadow.table_columns.push("public.customer:id,email")
-  assert.throws(() => validateManifest(broad), /exact order-state allowlist/)
-  for (const field of ["publication", "slot", "topic_prefix"]) {
-    const collision = cdcOrderV2RawManifest()
-    collision.cdc_order_v2_shadow[field] = collision.cdc_shadow[field]
-    assert.throws(() => validateManifest(collision), /distinct/)
-  }
-  const undeclared = cdcOrderV2RawManifest()
-  undeclared.cdc_order_v2_shadow.activate_live = true
-  assert.throws(() => validateManifest(undeclared), /Unsupported cdc_order_v2_shadow/)
-
-  let root
-  try { root = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-cdc-order-v2-")) }
-  catch (error) {
-    if (error?.code === "EPERM") { t.skip("temporary directory unavailable"); return }
-    throw error
-  }
-  try {
-    await cp(fixtureRoot, root, { recursive: true })
-    const initial = await createPlan(root, valid)
-    assert.equal(initial.capabilities.cdcOrderV2State, "SHADOW_ONLY")
-    assert.deepEqual(initial.changes.map(change => change.path).filter(name => name.startsWith("funnelmetry/")),
-      ["funnelmetry/cdc-reference-shadow.json", "funnelmetry/cdc-order-v2-shadow.json"])
-    assert.match(initial.patch, /"baseline_policy": "BASELINE_NEVER_ON"/)
-    assert.match(initial.patch, /"historical_gap_status": "INCOMPLETE"/)
-    assert.doesNotMatch(initial.patch, /postgres:\/\//)
-    await applyWholeFilePatch(root, initial.patch)
-    assert.equal((await createPlan(root, valid)).patch, "")
-    assert.equal((await verifyIntegration(root, valid)).cdcOrderV2State, "SHADOW_ONLY")
-    const rollback = await createCdcOrderV2RollbackPlan(root, valid)
-    assert.deepEqual(rollback.changes.map(change => change.path), ["funnelmetry/cdc-order-v2-shadow.json"])
-    assert.doesNotMatch(rollback.patch, /cdc-reference-shadow|apps\/backend\/src\/subscribers/)
-    const file = path.join(root, "funnelmetry/cdc-order-v2-shadow.json")
-    await writeFile(file, (await readFile(file, "utf8")).replace("SHADOW_ONLY", "LIVE"))
-    await assert.rejects(() => createPlan(root, valid), /differs/)
-    await assert.rejects(() => createCdcOrderV2RollbackPlan(root, valid), /drifted/)
-  } finally { await rm(root, { recursive: true, force: true }) }
-})
-
-function cdcInventoryPriceRawManifest() {
-  const raw = cdcCatalogRawManifest()
-  raw.cdc_inventory_price_shadow = {
-    mode: "shadow_only",
-    profile: "reference.medusa.inventory_price_context.v2",
-    source_db_url_ref: "FUNNELMETRY_CDC_INVENTORY_PRICE_DATABASE_URL",
-    source_owner: "medusa-operator",
-    pipeline_owner: "pipeline-operator",
-    snapshot_mode: "initial",
-    coverage_epoch_id: "cdc11_inventory_price_epoch1",
-    publication: "funnelmetry_cdc_inventory_price_shadow_v2",
-    slot: "funnelmetry_cdc_inventory_price_shadow_v2",
-    topic_prefix: "cdc_shadow_medusa_inventory_price_v2",
-    table_columns: [
-      "public.product_sales_channel:id,product_id,sales_channel_id,deleted_at",
-      "public.sales_channel:id,name,is_disabled,deleted_at",
-      "public.sales_channel_stock_location:id,sales_channel_id,stock_location_id,deleted_at",
-      "public.stock_location:id,name,deleted_at",
-      "public.product_variant_inventory_item:id,variant_id,inventory_item_id,required_quantity,deleted_at",
-      "public.inventory_item:id,sku,requires_shipping,deleted_at",
-      "public.inventory_level:id,inventory_item_id,location_id,stocked_quantity,reserved_quantity,incoming_quantity,deleted_at",
-      "public.reservation_item:id,inventory_item_id,location_id,quantity,allow_backorder,deleted_at",
-      "public.product_variant_price_set:id,variant_id,price_set_id,deleted_at",
-      "public.price_set:id,deleted_at",
-      "public.price:id,price_set_id,currency_code,amount,price_list_id,min_quantity,max_quantity,rules_count,deleted_at",
-      "public.price_list:id,status,starts_at,ends_at,type,rules_count,deleted_at",
-      "public.price_rule:id,price_id,attribute,operator,value,priority,deleted_at",
-      "public.price_list_rule:id,price_list_id,attribute,value,deleted_at",
-      "public.region:id,currency_code,deleted_at",
-      "public.currency:code,decimal_digits,deleted_at",
-    ],
-  }
-  return raw
-}
-
-test("CDC inventory/price profile is independent, exact-scoped and rollback-guarded", async (t) => {
-  const valid = validateManifest(cdcInventoryPriceRawManifest())
-  assert.equal(valid.cdcInventoryPriceShadow.snapshotMode, "initial")
-  assert.equal(valid.cdcInventoryPriceShadow.coverageEpochId, "cdc11_inventory_price_epoch1")
-  assert.equal(valid.cdcInventoryPriceShadow.tableColumns.length, 16)
-  for (const [field, value] of [["snapshot_mode", "no_data"], ["mode", "live"],
-    ["source_db_url_ref", "postgres://secret@host/db"],
-    ["coverage_epoch_id", "INVALID EPOCH"]]) {
-    const bad = cdcInventoryPriceRawManifest()
-    bad.cdc_inventory_price_shadow[field] = value
-    assert.throws(() => validateManifest(bad))
-  }
-  const absentColumn = cdcInventoryPriceRawManifest()
-  absentColumn.cdc_inventory_price_shadow.table_columns[0] =
-    "public.product_sales_channel:id,product_id,sales_channel_id"
-  assert.throws(() => validateManifest(absentColumn), /exact Medusa 2.19.0 stage-2 allowlist/)
-  const broad = cdcInventoryPriceRawManifest()
-  broad.cdc_inventory_price_shadow.table_columns.push("public.customer:id,email")
-  assert.throws(() => validateManifest(broad), /exact Medusa 2.19.0 stage-2 allowlist/)
-
-  let root
-  try { root = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-cdc-stage2-")) }
-  catch (error) {
-    if (error?.code === "EPERM") { t.skip("temporary directory unavailable"); return }
-    throw error
-  }
-  try {
-    await cp(fixtureRoot, root, { recursive: true })
-    const initial = await createPlan(root, valid)
-    assert.equal(initial.capabilities.cdcInventoryPriceState, "SHADOW_ONLY")
-    assert.deepEqual(initial.changes.map(change => change.path).filter(name => name.startsWith("funnelmetry/")),
-      ["funnelmetry/cdc-reference-shadow.json", "funnelmetry/cdc-catalog-shadow.json",
-        "funnelmetry/cdc-inventory-price-shadow.json"])
-    assert.match(initial.patch, /"inventory_available_to_sell_claims": "NOT_PUBLISHED"/)
-    assert.match(initial.patch, /"coverage_epoch_id": "cdc11_inventory_price_epoch1"/)
-    assert.match(initial.patch, /"historical_order_amount_restatement": "FORBIDDEN"/)
-    await applyWholeFilePatch(root, initial.patch)
-    assert.equal((await createPlan(root, valid)).patch, "")
-    assert.equal((await verifyIntegration(root, valid)).cdcInventoryPriceState, "SHADOW_ONLY")
-    const profilePath = path.join(root, "funnelmetry/cdc-inventory-price-shadow.json")
-    const legacy = JSON.parse(await readFile(profilePath, "utf8"))
-    legacy.schema_version = "funnelmetry-medusa-cdc-inventory-price-shadow.v2"
-    delete legacy.coverage_epoch_id
-    await writeFile(profilePath, `${JSON.stringify(legacy, null, 2)}\n`)
-    const upgrade = await createPlan(root, valid)
-    assert.deepEqual(upgrade.changes.map(change => change.path),
-      ["funnelmetry/cdc-inventory-price-shadow.json"])
-    await applyWholeFilePatch(root, upgrade.patch)
-    assert.equal((await createPlan(root, valid)).patch, "")
-    const rollback = await createCdcInventoryPriceRollbackPlan(root, valid)
-    assert.deepEqual(rollback.changes.map(change => change.path), ["funnelmetry/cdc-inventory-price-shadow.json"])
-    assert.doesNotMatch(rollback.patch, /cdc-reference-shadow|cdc-catalog-shadow/)
-  } finally { await rm(root, { recursive: true, force: true }) }
-})
-
-test("CDC catalog profile is separate, initial-snapshot only, and exact-scoped", async (t) => {
-  const valid = validateManifest(cdcCatalogRawManifest())
-  assert.equal(valid.cdcShadow.snapshotMode, "no_data")
-  assert.equal(valid.cdcCatalogShadow.snapshotMode, "initial")
-  assert.equal(valid.cdcCatalogShadow.coverageEpochId, "cdc11_catalog_epoch1")
-  for (const [field, value] of [["snapshot_mode", "no_data"], ["mode", "live"],
-    ["source_db_url_ref", "postgres://secret@host/db"],
-    ["coverage_epoch_id", "INVALID EPOCH"]]) {
-    const bad = cdcCatalogRawManifest()
-    bad.cdc_catalog_shadow[field] = value
-    assert.throws(() => validateManifest(bad))
-  }
-  const broad = cdcCatalogRawManifest()
-  broad.cdc_catalog_shadow.table_columns.push("public.customer:id,email")
-  assert.throws(() => validateManifest(broad), /exact catalog stage-1 allowlist/)
-  let root
-  try { root = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-cdc-catalog-")) }
-  catch (error) {
-    if (error?.code === "EPERM") { t.skip("temporary directory unavailable"); return }
-    throw error
-  }
-  try {
-    await cp(fixtureRoot, root, { recursive: true })
-    const initial = await createPlan(root, valid)
-    assert.equal(initial.capabilities.cdcCatalogState, "SHADOW_ONLY")
-    assert.deepEqual(initial.changes.map(change => change.path).filter(name => name.startsWith("funnelmetry/")),
-      ["funnelmetry/cdc-reference-shadow.json", "funnelmetry/cdc-catalog-shadow.json"])
-    assert.match(initial.patch, /"snapshot_mode": "initial"/)
-    assert.match(initial.patch, /"coverage_epoch_id": "cdc11_catalog_epoch1"/)
-    assert.match(initial.patch, /"inventory_price_claims": "NOT_SUPPORTED"/)
-    assert.doesNotMatch(initial.patch, /postgres:\/\//)
-    await applyWholeFilePatch(root, initial.patch)
-    assert.equal((await createPlan(root, valid)).patch, "")
-    assert.equal((await verifyIntegration(root, valid)).cdcCatalogState, "SHADOW_ONLY")
-    const profilePath = path.join(root, "funnelmetry/cdc-catalog-shadow.json")
-    const legacy = JSON.parse(await readFile(profilePath, "utf8"))
-    legacy.schema_version = "funnelmetry-medusa-cdc-catalog-shadow.v1"
-    delete legacy.coverage_epoch_id
-    await writeFile(profilePath, `${JSON.stringify(legacy, null, 2)}\n`)
-    const upgrade = await createPlan(root, valid)
-    assert.deepEqual(upgrade.changes.map(change => change.path),
-      ["funnelmetry/cdc-catalog-shadow.json"])
-    await applyWholeFilePatch(root, upgrade.patch)
-    assert.equal((await createPlan(root, valid)).patch, "")
-    const rollback = await createCdcCatalogRollbackPlan(root, valid)
-    assert.deepEqual(rollback.changes.map(change => change.path), ["funnelmetry/cdc-catalog-shadow.json"])
-    assert.doesNotMatch(rollback.patch, /cdc-reference-shadow/)
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test("CDC shadow manifest rejects authority, secret, and table-scope drift", () => {
-  const valid = validateManifest(cdcShadowRawManifest())
-  assert.equal(valid.cdcShadow.profile, "reference.medusa.order_recorded_state.v1")
-  assert.deepEqual(valid.bindings.medusaBackend, ["medusa.order_placed"])
-
-  for (const [field, value, pattern] of [
-    ["mode", "primary", /shadow_only/],
-    ["snapshot_mode", "initial", /no_data/],
-    ["source_db_url_ref", "postgres://password@source", /environment\/secret reference/],
-    ["fact_topic", "canonical.order.placed", /pinned reference shadow runtime/],
-  ]) {
-    const bad = cdcShadowRawManifest()
-    bad.cdc_shadow[field] = value
-    assert.throws(() => validateManifest(bad), pattern)
-  }
-  const missingDelete = cdcShadowRawManifest()
-  missingDelete.cdc_shadow.table_columns[0] = "public.order:id"
-  assert.throws(() => validateManifest(missingDelete), /exact reference order-state allowlist/)
-  const undeclaredActivation = cdcShadowRawManifest()
-  undeclaredActivation.cdc_shadow.activate_live = true
-  assert.throws(() => validateManifest(undeclaredActivation), /Unsupported cdc_shadow field/)
-})
-
-test("CDC shadow installer plans one owned file, verifies it, and produces guarded rollback", async (t) => {
-  let root
-  try { root = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-cdc-installer-")) }
-  catch (error) {
-    if (error?.code === "EPERM") { t.skip("temporary directory unavailable"); return }
-    throw error
-  }
-  try {
-    await cp(fixtureRoot, root, { recursive: true })
-    const configured = validateManifest(cdcShadowRawManifest())
-    const initial = await createPlan(root, configured)
-    assert.equal(initial.capabilities.cdcReferenceState, "SHADOW_ONLY")
-    assert.equal(initial.cdcShadowOperatorPlan.status, "SHADOW_ONLY_NO_RUNTIME_ACTIVATION")
-    assert.equal(initial.cdcShadowOperatorPlan.runtimeInstaller, "tools/medusa-reference-cdc-shadow/install-reference.py")
-    assert.match(initial.patch, /funnelmetry\/cdc-reference-shadow\.json/)
-    assert.match(initial.patch, /"order_fact_authority": "medusa\.order_placed"/)
-    assert.doesNotMatch(initial.patch, /postgres:\/\//)
-    await applyWholeFilePatch(root, initial.patch)
-    const installed = await readFile(path.join(root, "funnelmetry/cdc-reference-shadow.json"), "utf8")
-    assert.equal(JSON.parse(installed).status, "SHADOW_ONLY")
-    assert.equal((await createPlan(root, configured)).patch, "")
-    assert.equal((await verifyIntegration(root, configured)).cdcReferenceState, "SHADOW_ONLY")
-    const rollback = await createCdcRollbackPlan(root, configured)
-    assert.deepEqual(rollback.changes.map(change => change.path), ["funnelmetry/cdc-reference-shadow.json"])
-    assert.match(rollback.patch, /deleted file mode 100644/)
-    assert.ok(!rollback.patch.includes("apps/backend/src/subscribers"))
-    await writeFile(path.join(root, "funnelmetry/cdc-reference-shadow.json"), installed.replace("SHADOW_ONLY", "LIVE"))
-    await assert.rejects(() => createPlan(root, configured), /differs/)
-    await assert.rejects(() => createCdcRollbackPlan(root, configured), /drifted/)
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-const fixtureRoot = fileURLToPath(new URL("./fixtures/medusa-dtc/", import.meta.url))
-const fixtureFiles = [
-  "package.json",
-  "apps/backend/package.json",
-  "apps/storefront/package.json",
-  "apps/storefront/tsconfig.json",
-  "apps/storefront/src/app/layout.tsx",
-  "apps/storefront/src/app/[countryCode]/(main)/products/[handle]/page.tsx",
-  "apps/storefront/src/modules/products/components/product-actions/index.tsx",
-  "apps/storefront/src/app/[countryCode]/(checkout)/checkout/page.tsx",
-]
-
-async function applyWholeFilePatch(projectRoot, patch) {
+async function applyPatch(projectRoot, patch) {
   for (const section of patch.split(/(?=diff --git )/)) {
     const match = section.match(/^diff --git a\/(.+) b\/\1/m)
     if (!match) continue
-    const output = section
-      .split("\n")
-      .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
-      .map((line) => line.slice(1))
-      .join("\n")
     const target = path.join(projectRoot, match[1])
-    if (section.includes("\ndeleted file mode 100644\n")) {
+    if (section.includes('\ndeleted file mode 100644\n')) {
       await rm(target)
       continue
     }
+    const added = section.split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
+      .map(line => line.slice(1)).join('\n')
     await mkdir(path.dirname(target), { recursive: true })
-    await writeFile(target, `${output}\n`)
+    await writeFile(target, `${added}\n`)
   }
 }
 
-test("CDC backend cutover removes only owned order adapter files and is idempotent", async (t) => {
-  assert.deepEqual(parseManifestYaml("bindings:\n  medusa_backend: []").bindings.medusa_backend, [])
-  const raw = cdcOrderV2RawManifest()
-  const enabled = validateManifest(raw)
-  const cutoverRaw = structuredClone(raw)
-  cutoverRaw.bindings.medusa_backend = []
-  cutoverRaw.cdc_backend_cutover = {
-    mode: "replace_native_order_subscriber",
-    profile: "reference.medusa.order_recorded_state.v2",
-    coverage_epoch_id: "cdc11_order_epoch1",
-    decision_ref: "DEC-119/135-2026-10-30",
-  }
-  const cutover = validateManifest(cutoverRaw)
-  assert.equal(cutover.backend.enabled, false)
-  const invalid = structuredClone(cutoverRaw)
-  invalid.cdc_backend_cutover.coverage_epoch_id = "wrong_epoch"
-  assert.throws(() => validateManifest(invalid), /approved order v2 epoch/)
-  invalid.cdc_backend_cutover.coverage_epoch_id = "cdc11_order_epoch1"
-  invalid.bindings.medusa_backend = ["medusa.order_placed"]
-  assert.throws(() => validateManifest(invalid), /must be \[\]/)
-
-  let root
-  try { root = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-cdc-backend-cutover-")) }
-  catch (error) {
-    if (error?.code === "EPERM") { t.skip("temporary directory unavailable"); return }
-    throw error
-  }
+async function withFixture(run) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'funnelmetry-cdc-primary-'))
   try {
-    await cp(fixtureRoot, root, { recursive: true })
-    await applyWholeFilePatch(root, (await createPlan(root, enabled)).patch)
-    const plan = await createPlan(root, cutover)
-    assert.equal(plan.capabilities.orderPlaced, "DISABLED")
-    assert.equal(plan.capabilities.cdcOrderV2State, "CUTOVER_DECLARED_RUNTIME_UNVERIFIED")
-    assert.deepEqual(plan.changes.map(change => change.path), [
-      "apps/backend/package.json",
-      "apps/backend/src/subscribers/funnelmetry-order-placed.ts",
-      "apps/backend/src/funnelmetry/managed-delivery-dispatcher.ts",
-    ])
-    assert.match(plan.patch, /deleted file mode 100644/)
-    assert.doesNotMatch(plan.patch, /apps\/storefront/)
-    await applyWholeFilePatch(root, plan.patch)
-    assert.equal((await createPlan(root, cutover)).patch, "")
-    assert.equal((await verifyIntegration(root, cutover)).cdcOrderV2State,
-      "CUTOVER_DECLARED_RUNTIME_UNVERIFIED")
-    const backendPackage = JSON.parse(await readFile(path.join(root, "apps/backend/package.json")))
-    const storefrontPackage = JSON.parse(await readFile(path.join(root, "apps/storefront/package.json")))
-    assert.equal(backendPackage.dependencies?.["@3002tad/funnelmetry-backend-integration-kit"], undefined)
-    assert.equal(storefrontPackage.dependencies?.["@3002tad/funnelmetry-backend-integration-kit"], "0.2.3")
-    await writeFile(path.join(root, "apps/backend/src/subscribers/funnelmetry-order-placed.ts"), "unowned\n")
-    await assert.rejects(() => createPlan(root, cutover), /partial order adapter/)
-  } finally { await rm(root, { recursive: true, force: true }) }
+    await cp(fixture, root, { recursive: true })
+    await run(root)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+test('CDC primary manifest refuses backend message bindings, v1 shadow and rollback target', async () => {
+  const manifest = await loadManifest(example)
+  assert.deepEqual(manifest.bindings.medusaBackend, [])
+  assert.equal(manifest.cdcOrderV2Shadow.profile, 'reference.medusa.order_recorded_state.v2')
+  const raw = parseManifestYaml(await readFile(example, 'utf8'))
+  const message = structuredClone(raw)
+  message.bindings.medusa_backend = ['medusa.order_placed']
+  assert.throws(() => validateManifest(message), /must be \[\]/)
+  const v1 = structuredClone(raw)
+  v1.cdc_shadow = {}
+  assert.throws(() => validateManifest(v1), /retired/)
+  const rollback = structuredClone(raw)
+  rollback.cdc_order_v2_shadow.rollback_target = 'native_order_placed'
+  assert.throws(() => validateManifest(rollback), /Unsupported.*rollback_target/)
 })
 
-test("planner creates PR-ready artifacts without mutating the Medusa checkout", async () => {
-  const before = await Promise.all(fixtureFiles.map(async (file) => [file, await readFile(path.join(fixtureRoot, file), "utf8")]))
-  const plan = await createPlan(fixtureRoot, manifest)
-  const after = await Promise.all(fixtureFiles.map(async (file) => [file, await readFile(path.join(fixtureRoot, file), "utf8")]))
-
-  assert.deepEqual(after, before)
-  assert.equal(plan.sourceMutation, false)
-  assert.equal(plan.mode, "plan-only")
-  assert.deepEqual(plan.manifest.bindings.storefrontServer, ["behavior.search_submitted", "cart.item_added"])
-  assert.deepEqual(plan.manifest.bindings.medusaBackend, ["medusa.order_placed"])
-  assert.equal(plan.capabilities.behavior, "ENABLED")
-  assert.equal(plan.capabilities.orderPlaced, "ENABLED")
-  assert.equal(plan.capabilities.orderCreated, "NOT_EMITTED")
-  assert.equal(plan.capabilities.cartItemPersisted, "NOT_SUPPORTED")
-  assert.equal(plan.capabilities.orderAccepted, "NOT_SUPPORTED")
-  assert.equal(plan.capabilities.commerceConversion, "SOURCE_READY")
-  assert.match(plan.patch, /apps\/backend\/src\/subscribers\/funnelmetry-order-placed\.ts/)
-  assert.match(plan.patch, /apps\/backend\/src\/funnelmetry\/managed-delivery-dispatcher\.ts/)
-  assert.match(plan.patch, /apps\/backend\/src\/funnelmetry\/occurred-at\.ts/)
-  assert.match(plan.patch, /apps\/storefront\/src\/funnelmetry\/client\.tsx/)
-  assert.match(plan.patch, /apps\/storefront\/src\/funnelmetry\/consent-notice\.tsx/)
-  assert.match(plan.patch, /apps\/storefront\/src\/funnelmetry\/server-delivery\.ts/)
-  assert.match(plan.patch, /FunnelmetryCheckoutStarted/)
-  assert.match(plan.patch, /"behavior\.product_viewed"/)
-  assert.match(plan.patch, /"behavior\.page_viewed"/)
-  assert.match(plan.patch, /"behavior\.scroll_depth_reached"/)
-  assert.match(plan.patch, /"promotion\.banner_impression"/)
-  assert.match(plan.patch, /"promotion\.banner_clicked"/)
-  assert.match(plan.patch, /"behavior\.filter_applied"/)
-  assert.match(plan.patch, /"checkout\.started"/)
-  assert.match(plan.patch, /sourceEventType: "medusa\.order_placed"/)
-  assert.match(plan.patch, /sourceSchemaVersion: "2\.0"/)
-  assert.match(plan.patch, /correlationId: `cart:\$\{cartId\}`/)
-  assert.match(plan.patch, /"cart\.id"/)
-  assert.match(plan.patch, /total_amount: totalAmount/)
-  assert.match(plan.patch, /amount_unit: "major"/)
-  assert.doesNotMatch(plan.patch, /total_minor/)
-  assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
-  assert.match(plan.patch, /"@3002tad\/funnelmetry-browser-sdk": "0\.2\.3"/)
-  assert.match(plan.patch, /"@funnelmetry\/\*"/)
-  assert.match(plan.patch, /"funnelmetry\/\*"/)
-  assert.match(plan.patch, /"@3002tad\/funnelmetry-backend-integration-kit": "0\.2\.3"/)
-  assert.match(plan.patch, /createBrowserSdk/)
-  assert.match(plan.patch, /createBackendForwarder/)
-  assert.match(plan.patch, /createManagedDeliveryDispatcher/)
-  assert.match(plan.patch, /await import\("@3002tad\/funnelmetry-backend-integration-kit"\)/)
-  assert.doesNotMatch(plan.patch, /import \{ normalizeCurrencyCode, normalizeMajorAmount \} from/)
-  assert.match(plan.patch, /export default async function funnelmetryOrderPlaced/)
-  assert.match(plan.patch, /void enqueueOrderPlaced/)
-  assert.match(plan.patch, /circuitOpened/)
-  assert.match(plan.patch, /droppedQueueFull/)
-  assert.match(plan.patch, /@3002tad\/funnelmetry-browser-sdk/)
-  assert.match(plan.patch, /@3002tad\/funnelmetry-backend-integration-kit/)
-  assert.match(plan.patch, /await import\("@3002tad\/funnelmetry-backend-integration-kit"\)/)
-  assert.match(plan.patch, /ContainerRegistrationKeys\.LOGGER/)
-  assert.match(plan.patch, /ContainerRegistrationKeys\.QUERY/)
-  assert.match(plan.patch, /track\("behavior\.product_viewed"/)
-  assert.match(plan.patch, /trackPageView/)
-  assert.match(plan.patch, /attachScrollDepthObserver/)
-  assert.match(plan.patch, /FunnelmetryPromotionBanner/)
-  assert.match(plan.patch, /trackFilterApplied/)
-  assert.match(plan.patch, /trackBehaviorOnce\(`checkout\.started:\$\{cartId\}`/)
-  assert.match(plan.patch, /getIdentity\(\)/)
-  assert.match(plan.patch, /funnelmetry_anonymous_id_medusa-reference/)
-  assert.match(plan.patch, /anonymousId: identity\.anonymousId/)
-  assert.match(plan.patch, /sessionId: identity\.sessionId/)
-  assert.match(plan.patch, /step: "address"/)
-  assert.doesNotMatch(plan.patch, /step=\{currentStep\}/)
-  assert.doesNotMatch(plan.patch, /cart\.add_clicked/)
-  assert.doesNotMatch(plan.patch, /trackCartAddClicked/)
-  assert.match(plan.patch, /sourceEventType: "behavior\.search_submitted"/)
-  assert.doesNotMatch(plan.patch, /trackSearchSubmitted/)
-  assert.doesNotMatch(plan.patch, /query_length_bucket/)
-  assert.match(plan.patch, /sourceEventType: "cart\.item_added"/)
-  assert.match(plan.patch, /normalizeSearchQuery/)
-  assert.match(plan.patch, /FunnelmetryConsentNotice/)
-  assert.match(plan.patch, /normalizeOccurredAt/)
-  assert.doesNotMatch(plan.patch, /commerce\.cart\.item_added/)
-  assert.match(plan.patch, /endpoint: "https:\/\/browser-ingest\.example\.test\/v1\/ingress\/events"/)
-  assert.match(plan.patch, /endpoint: "https:\/\/backend-ingest\.example\.test\/v1\/ingress\/events"/)
-  assert.match(plan.patch, /process\.env\.NEXT_PUBLIC_FUNNELMETRY_BROWSER_WRITE_KEY/)
-  assert.match(plan.patch, /process\.env\.FUNNELMETRY_BACKEND_SIGNING_KEY/)
-  assert.doesNotMatch(plan.patch, /process\.env\[/)
-  assert.doesNotMatch(plan.patch, /createHmac/)
-})
-
-test("manifest rejects a browser secret reference that looks like a secret value", () => {
-  const bad = structuredClone(rawManifest)
-  bad.auth.browser_write_key_ref = "not-a-secret-reference"
-  assert.throws(() => validateManifest(bad), /environment\/secret reference/)
-})
-
-test("manifest only accepts fail-open reliability settings", () => {
-  const bad = structuredClone(rawManifest)
-  bad.reliability = { failure_mode: "fail_closed" }
-  assert.throws(() => validateManifest(bad), /fail_open/)
-})
-
-test("manifest normalizes a bounded circuit breaker for managed backend delivery", () => {
-  assert.deepEqual(manifest.reliability.circuitBreaker, {
-    failureThreshold: 3,
-    cooldownMs: 30000,
+test('fresh installer produces storefront and CDC profiles without a backend message producer', async () => {
+  const manifest = await loadManifest(example)
+  await withFixture(async root => {
+    const before = await readFile(path.join(root, 'apps/backend/package.json'), 'utf8')
+    const plan = await createPlan(root, manifest)
+    assert.equal(plan.sourceMutation, false)
+    assert.equal(plan.capabilities.orderPlaced, 'DISABLED')
+    assert.equal(plan.capabilities.cdcOrderV2State, 'CDC_PRIMARY_REFERENCE')
+    assert.match(plan.patch, /funnelmetry\/cdc-order-v2-shadow\.json/)
+    assert.match(plan.patch, /apps\/storefront\/src\/funnelmetry\/client\.tsx/)
+    assert.doesNotMatch(plan.patch, /apps\/backend\/src\/subscribers|managed-delivery-dispatcher/)
+    assert.equal(await readFile(path.join(root, 'apps/backend/package.json'), 'utf8'), before)
+    await applyPatch(root, plan.patch)
+    assert.equal((await verifyIntegration(root, manifest)).status, 'pass')
+    assert.equal((await createPlan(root, manifest)).patch, '')
   })
-
-  const bad = structuredClone(rawManifest)
-  bad.reliability = { circuit_breaker: { failure_threshold: 0 } }
-  assert.throws(() => validateManifest(bad), /circuit_breaker\.failure_threshold must be a positive integer/)
 })
 
-test("planner emits a static Next.js public-key reference from the manifest", async () => {
-  const configured = structuredClone(manifest)
-  configured.auth.browserWriteKeyRef = "FUNNELMETRY_ALT_BROWSER_WRITE_KEY"
-
-  const plan = await createPlan(fixtureRoot, configured)
-
-  assert.match(plan.patch, /process\.env\.NEXT_PUBLIC_FUNNELMETRY_ALT_BROWSER_WRITE_KEY/)
-  assert.doesNotMatch(plan.patch, /process\.env\[/)
-})
-
-test("manifest requires every explicit Medusa V2 binding and endpoint", () => {
-  const missingCart = structuredClone(rawManifest)
-  missingCart.bindings.storefront_server = ["behavior.search_submitted"]
-  assert.throws(() => validateManifest(missingCart), /missing required binding\(s\): cart\.item_added/)
-
-  const missingBackendUrl = structuredClone(rawManifest)
-  delete missingBackendUrl.ingest.backend_url
-  assert.throws(() => validateManifest(missingBackendUrl), /ingest\.backend_url is required/)
-
-  const unknownBackend = structuredClone(rawManifest)
-  unknownBackend.bindings.medusa_backend = ["payment.captured"]
-  assert.throws(() => validateManifest(unknownBackend), /Unsupported bindings\.medusa_backend binding/)
-})
-
-test("planner returns an empty patch when the exact generated binding already exists", async (t) => {
-  let temporaryRoot
-  try {
-    temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-medusa-plan-"))
-  } catch (error) {
-    if (error?.code === "EPERM") {
-      t.skip("The sandbox does not permit temporary-directory writes")
-      return
-    }
-    throw error
-  }
-  try {
-    await cp(fixtureRoot, temporaryRoot, { recursive: true })
-    const initial = await createPlan(temporaryRoot, manifest)
-    await applyWholeFilePatch(temporaryRoot, initial.patch)
-    for (const generatedFile of [
-      "apps/storefront/src/funnelmetry/client.tsx",
-      "apps/backend/src/funnelmetry/managed-delivery-dispatcher.ts",
-      "apps/backend/src/subscribers/funnelmetry-order-placed.ts",
-    ]) {
-      const target = path.join(temporaryRoot, generatedFile)
-      await writeFile(target, (await readFile(target, "utf8")).replace(/\n/g, "\r\n"))
-    }
-
-    const rerun = await createPlan(temporaryRoot, manifest)
-
-    assert.deepEqual(rerun.changes, [])
-    assert.equal(rerun.patch, "")
-    const tsConfig = JSON.parse(await readFile(path.join(temporaryRoot, "apps/storefront/tsconfig.json"), "utf8"))
-    assert.deepEqual(tsConfig.compilerOptions.paths["@funnelmetry/*"], ["funnelmetry/*"])
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true })
-  }
-})
-
-test("planner refreshes managed files when manifest configuration changes", async (t) => {
-  let temporaryRoot
-  try {
-    temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-medusa-config-refresh-"))
-  } catch (error) {
-    if (error?.code === "EPERM") {
-      t.skip("The sandbox does not permit temporary-directory writes")
-      return
-    }
-    throw error
-  }
-
-  try {
-    await cp(fixtureRoot, temporaryRoot, { recursive: true })
-    const initial = await createPlan(temporaryRoot, manifest)
-    await applyWholeFilePatch(temporaryRoot, initial.patch)
-
-    const changedRaw = structuredClone(rawManifest)
-    changedRaw.ingest.backend_url = "http://source-ingress:32000/v1/ingress/events"
-    changedRaw.bindings.browser = changedRaw.bindings.browser.filter((event) => event !== "promotion.banner_clicked")
-    const refresh = await createPlan(temporaryRoot, validateManifest(changedRaw))
-
-    assert.equal(refresh.integrationState, "v2-compatible")
-    assert.ok(refresh.changes.some((change) => change.path === "apps/storefront/src/funnelmetry/client.tsx"))
-    assert.ok(refresh.changes.some((change) => change.path === "apps/backend/src/subscribers/funnelmetry-order-placed.ts"))
-    assert.match(refresh.patch, /http:\/\/source-ingress:32000\/v1\/ingress\/events/)
-    assert.match(refresh.patch, /^\+const allowedEventTypes = \["behavior\.page_viewed","behavior\.scroll_depth_reached","promotion\.banner_impression","behavior\.filter_applied"/m)
-    assert.ok(!refresh.changes.some((change) => change.path === "apps/storefront/src/lib/data/cart.ts"))
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true })
-  }
-})
-
-test("planner upgrades the prior V2 checkout binding without reapplying host hooks", async (t) => {
-  let temporaryRoot
-  try {
-    temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-medusa-checkout-upgrade-"))
-  } catch (error) {
-    if (error?.code === "EPERM") {
-      t.skip("The sandbox does not permit temporary-directory writes")
-      return
-    }
-    throw error
-  }
-
-  try {
-    await cp(fixtureRoot, temporaryRoot, { recursive: true })
-    const initial = await createPlan(temporaryRoot, manifest)
-    await applyWholeFilePatch(temporaryRoot, initial.patch)
-
-    const browserClientPath = path.join(temporaryRoot, "apps/storefront/src/funnelmetry/client.tsx")
-    const browserClient = await readFile(browserClientPath, "utf8")
-    const modernCheckoutBinding = `export function FunnelmetryCheckoutStarted({ cartId }: { cartId: string }) {
-  const pathname = usePathname()
-  useEffect(() => {
-    const page = pageContext(pathname)
-    const currentSdk = getSdk()
-    if (!currentSdk || !page || !enabled("checkout.started")) return
-    void currentSdk.trackBehaviorOnce(\`checkout.started:\${cartId}\`, "checkout.started", { cart_id: cartId, step: "address", page_instance_id: page.page_instance_id }, { correlationId: cartCorrelationId(cartId) })
-  }, [cartId, pathname])
-  return null
-}`
-    const legacyCheckoutBinding = `export function FunnelmetryCheckoutStarted({ cartId, step }: { cartId: string; step: string }) {
-  const pathname = usePathname()
-  useEffect(() => {
-    const page = pageContext(pathname)
-    void track("checkout.started", { cart_id: cartId, step, ...(page ? { page_instance_id: page.page_instance_id } : {}) })
-  }, [cartId, pathname, step])
-  return null
-}`
-    assert.ok(browserClient.includes(modernCheckoutBinding))
-    await writeFile(browserClientPath, browserClient.replace(modernCheckoutBinding, legacyCheckoutBinding))
-
-    const checkoutPath = path.join(temporaryRoot, "apps/storefront/src/app/[countryCode]/(checkout)/checkout/page.tsx")
-    await writeFile(
-      checkoutPath,
-      (await readFile(checkoutPath, "utf8")).replace(
-        "<FunnelmetryCheckoutStarted cartId={cart.id} />",
-        "<FunnelmetryCheckoutStarted cartId={cart.id} step={currentStep} />",
-      ),
-    )
-    const storefrontPackagePath = path.join(temporaryRoot, "apps/storefront/package.json")
-    await writeFile(
-      storefrontPackagePath,
-      (await readFile(storefrontPackagePath, "utf8")).replace('"@3002tad/funnelmetry-browser-sdk": "0.2.3"', '"@3002tad/funnelmetry-browser-sdk": "0.2.0"'),
-    )
-
-    const upgrade = await createPlan(temporaryRoot, manifest)
-
-    assert.equal(upgrade.integrationState, "upgradeable")
-    assert.ok(upgrade.changes.some((change) => change.path.endsWith("checkout/page.tsx")))
-    assert.match(upgrade.patch, /trackBehaviorOnce\(`checkout\.started:\$\{cartId\}`/)
-    assert.match(upgrade.patch, /<FunnelmetryCheckoutStarted cartId=\{cart\.id\} \/>/)
-    assert.doesNotMatch(upgrade.patch, /^\+.*step=\{currentStep\}/m)
-    assert.ok(!upgrade.changes.some((change) => change.path === "apps/storefront/src/lib/data/cart.ts"))
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true })
-  }
+test('installer removes only known retired profiles and migrates order v2 authority', async () => {
+  const manifest = await loadManifest(example)
+  await withFixture(async root => {
+    await applyPatch(root, (await createPlan(root, manifest)).patch)
+    const v1Path = path.join(root, 'funnelmetry/cdc-reference-shadow.json')
+    await writeFile(v1Path, JSON.stringify({ generated_by: 'funnelmetry-medusa-ci',
+      schema_version: 'funnelmetry-medusa-cdc-reference-shadow.v1', source_id: manifest.source.id }))
+    const v2Path = path.join(root, 'funnelmetry/cdc-order-v2-shadow.json')
+    const v2 = JSON.parse(await readFile(v2Path, 'utf8'))
+    delete v2.analytical_authority
+    v2.order_fact_authority = 'medusa.order_placed'
+    v2.canonical_live_event = 'order.placed'
+    v2.rollback_target = 'native_order_placed'
+    await writeFile(v2Path, JSON.stringify(v2, null, 2) + '\n')
+    const helper = path.join(root, 'apps/backend/src/funnelmetry/occurred-at.ts')
+    await mkdir(path.dirname(helper), { recursive: true })
+    await writeFile(helper, 'export function normalizeOccurredAt() {}\n')
+    const plan = await createPlan(root, manifest)
+    assert.deepEqual(plan.changes.map(change => change.path).sort(), [
+      'apps/backend/src/funnelmetry/occurred-at.ts', 'funnelmetry/cdc-order-v2-shadow.json',
+      'funnelmetry/cdc-reference-shadow.json'].sort())
+    await applyPatch(root, plan.patch)
+    assert.equal((await verifyIntegration(root, manifest)).status, 'pass')
+    await writeFile(v1Path, JSON.stringify({ generated_by: 'other',
+      schema_version: 'funnelmetry-medusa-cdc-reference-shadow.v1', source_id: manifest.source.id }))
+    await assert.rejects(() => createPlan(root, manifest), /not installer-owned/)
+  })
 })

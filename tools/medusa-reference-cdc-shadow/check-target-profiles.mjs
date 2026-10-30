@@ -80,10 +80,11 @@ export function checkTargetProfiles(profiles, env) {
   }
   const order = profiles.order
   if (order.fact_topic !== env.CDC_ORDER_FACT_TOPIC ||
-      !nonempty(order.fact_topic) || order.rollback_target !== 'native_order_placed' ||
+      !nonempty(order.fact_topic) || order.rollback_target !== undefined ||
       order.baseline_policy !== 'BASELINE_NEVER_ON' ||
       order.historical_gap_status !== 'INCOMPLETE' ||
-      order.order_fact_authority !== 'medusa.order_placed') {
+      order.analytical_authority !== 'reference.medusa.order_recorded_state.v2' ||
+      order.order_fact_authority !== undefined || order.canonical_live_event !== undefined) {
     throw Error('cdc_target_order_authority_invalid')
   }
   return { status: 'PROFILE_TOPOLOGY_MATCH', source_id: env.CDC_SOURCE_ID,

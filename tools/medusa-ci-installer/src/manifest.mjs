@@ -14,7 +14,6 @@ const storefrontServerBindings = new Set([
   "behavior.search_submitted",
   "cart.item_added",
 ])
-const medusaBackendBindings = new Set(["medusa.order_placed"])
 const cdcShadowTables = [
   "public.order:id,deleted_at",
   "public.order_cart:id,order_id,cart_id",
@@ -52,65 +51,20 @@ function cdcIdentifier(value, name) {
   return result
 }
 
-function cdcShadowProfile(value) {
-  if (value === undefined) return null
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("cdc_shadow must be a mapping")
-  const supportedKeys = new Set([
-    "mode", "profile", "source_db_url_ref", "source_owner", "pipeline_owner",
-    "snapshot_mode", "publication", "slot", "topic_prefix", "fact_topic",
-    "table_columns", "rollback_target",
-  ])
-  const unknownKeys = Object.keys(value).filter(key => !supportedKeys.has(key))
-  if (unknownKeys.length) throw new Error(`Unsupported cdc_shadow field(s): ${unknownKeys.join(", ")}`)
-  if (value.profile !== "reference.medusa.order_recorded_state.v1") {
-    throw new Error("cdc_shadow.profile must be reference.medusa.order_recorded_state.v1")
-  }
-  if (value.mode !== "shadow_only" || value.snapshot_mode !== "no_data" ||
-      value.rollback_target !== "native_order_placed") {
-    throw new Error("cdc_shadow requires shadow_only, no_data, and native_order_placed rollback target")
-  }
-  if (!Array.isArray(value.table_columns) || value.table_columns.length !== cdcShadowTables.length ||
-      new Set(value.table_columns).size !== cdcShadowTables.length ||
-      cdcShadowTables.some(table => !value.table_columns.includes(table))) {
-    throw new Error("cdc_shadow.table_columns must be the exact reference order-state allowlist")
-  }
-  const factTopic = requiredString(value.fact_topic, "cdc_shadow.fact_topic")
-  if (factTopic !== "cdc_shadow_reference.order_recorded_state.v1" ||
-      value.topic_prefix !== "cdc_shadow_medusa" ||
-      value.publication !== "funnelmetry_cdc_shadow" ||
-      value.slot !== "funnelmetry_cdc_shadow") {
-    throw new Error("cdc_shadow topic, publication, and slot must match the pinned reference shadow runtime")
-  }
-  return {
-    mode: value.mode,
-    profile: value.profile,
-    sourceDbUrlRef: secretReference(value.source_db_url_ref, "cdc_shadow.source_db_url_ref"),
-    sourceOwner: requiredString(value.source_owner, "cdc_shadow.source_owner"),
-    pipelineOwner: requiredString(value.pipeline_owner, "cdc_shadow.pipeline_owner"),
-    snapshotMode: value.snapshot_mode,
-    publication: cdcIdentifier(value.publication, "cdc_shadow.publication"),
-    slot: cdcIdentifier(value.slot, "cdc_shadow.slot"),
-    topicPrefix: cdcIdentifier(value.topic_prefix, "cdc_shadow.topic_prefix"),
-    factTopic,
-    tableColumns: cdcShadowTables,
-    rollbackTarget: value.rollback_target,
-  }
-}
-
 function cdcOrderV2Profile(value) {
   if (value === undefined) return null
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("cdc_order_v2_shadow must be a mapping")
   const supported = new Set([
     "mode", "profile", "source_db_url_ref", "source_owner", "pipeline_owner",
     "snapshot_mode", "coverage_epoch_id", "publication", "slot", "topic_prefix",
-    "fact_topic", "table_columns", "rollback_target",
+    "fact_topic", "table_columns",
   ])
   const unknown = Object.keys(value).filter(key => !supported.has(key))
   if (unknown.length) throw new Error(`Unsupported cdc_order_v2_shadow field(s): ${unknown.join(", ")}`)
   if (value.mode !== "shadow_only" ||
       value.profile !== "reference.medusa.order_recorded_state.v2" ||
-      value.snapshot_mode !== "initial" || value.rollback_target !== "native_order_placed") {
-    throw new Error("cdc_order_v2_shadow requires v2, shadow_only, initial snapshot and native rollback")
+      value.snapshot_mode !== "initial") {
+    throw new Error("cdc_order_v2_shadow requires v2, shadow_only and initial snapshot")
   }
   if (!Array.isArray(value.table_columns) || value.table_columns.length !== cdcShadowTables.length ||
       new Set(value.table_columns).size !== cdcShadowTables.length ||
@@ -138,7 +92,6 @@ function cdcOrderV2Profile(value) {
     coverageEpochId: epoch,
     publication, slot, topicPrefix, factTopic,
     tableColumns: cdcShadowTables,
-    rollbackTarget: value.rollback_target,
   }
 }
 
@@ -310,16 +263,20 @@ export function validateManifest(raw) {
   const bindings = raw.bindings ?? {}
   const browser = bindingList(bindings.browser, "bindings.browser", browserBindings)
   const storefrontServer = bindingList(bindings.storefront_server, "bindings.storefront_server", storefrontServerBindings)
+  if (raw.cdc_shadow !== undefined) throw new Error("cdc_shadow v1 is retired; use order v2 CDC")
   const cdcOrderV2Shadow = cdcOrderV2Profile(raw.cdc_order_v2_shadow)
   const backendCutover = cdcBackendCutover(raw.cdc_backend_cutover, cdcOrderV2Shadow)
-  if (backendCutover && (!Array.isArray(bindings.medusa_backend) ||
-      bindings.medusa_backend.length !== 0)) {
-    throw new Error("bindings.medusa_backend must be [] for CDC cutover")
+  if (!backendCutover) throw new Error("cdc_backend_cutover is required for the CDC reference installer")
+  if (!Array.isArray(bindings.medusa_backend) || bindings.medusa_backend.length !== 0) {
+    throw new Error("bindings.medusa_backend must be [] for CDC-only reference")
   }
-  const medusaBackend = backendCutover ? []
-    : bindingList(bindings.medusa_backend, "bindings.medusa_backend", medusaBackendBindings)
+  const cdcCatalogShadow = cdcCatalogProfile(raw.cdc_catalog_shadow)
+  const cdcInventoryPriceShadow = cdcInventoryPriceProfile(raw.cdc_inventory_price_shadow)
+  if (!cdcCatalogShadow || !cdcInventoryPriceShadow) {
+    throw new Error("CDC primary reference requires catalog and inventory/price profiles")
+  }
+  const medusaBackend = []
   requireCompleteProfile(storefrontServer, storefrontServerBindings, "bindings.storefront_server")
-  if (!backendCutover) requireCompleteProfile(medusaBackend, medusaBackendBindings, "bindings.medusa_backend")
   const reliability = raw.reliability ?? {}
   const retry = reliability.retry ?? {}
   const circuitBreaker = reliability.circuit_breaker ?? {}
@@ -339,11 +296,11 @@ export function validateManifest(raw) {
       backendSigningKeyRef: secretReference(auth.backend_signing_key_ref, "auth.backend_signing_key_ref"),
     },
     bindings: { browser, storefrontServer, medusaBackend },
-    cdcShadow: cdcShadowProfile(raw.cdc_shadow),
+    cdcShadow: null,
     cdcOrderV2Shadow,
     cdcBackendCutover: backendCutover,
-    cdcCatalogShadow: cdcCatalogProfile(raw.cdc_catalog_shadow),
-    cdcInventoryPriceShadow: cdcInventoryPriceProfile(raw.cdc_inventory_price_shadow),
+    cdcCatalogShadow,
+    cdcInventoryPriceShadow,
     // Internal compatibility for the current generator. The public manifest
     // source of truth is the explicit bindings block above.
     frontend: { enabled: true, events: browser },

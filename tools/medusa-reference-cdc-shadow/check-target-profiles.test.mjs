@@ -27,8 +27,8 @@ function fixture() {
     'cdc_reference_contract', 'reference.medusa.order_recorded_state.v2',
     env.CDC_ORDER_EPOCH, env.CDC_ORDER_TOPIC_PREFIX, 'order_slot')
   Object.assign(order, { fact_topic: env.CDC_ORDER_FACT_TOPIC,
-    rollback_target: 'native_order_placed', baseline_policy: 'BASELINE_NEVER_ON',
-    historical_gap_status: 'INCOMPLETE', order_fact_authority: 'medusa.order_placed' })
+    analytical_authority: 'reference.medusa.order_recorded_state.v2',
+    baseline_policy: 'BASELINE_NEVER_ON', historical_gap_status: 'INCOMPLETE' })
   return {
     order,
     catalog: profile('funnelmetry-medusa-cdc-catalog-shadow.v2',

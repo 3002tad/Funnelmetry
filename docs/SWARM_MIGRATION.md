@@ -1,5 +1,12 @@
 # Docker Swarm migration
 
+> CDC-13 current configuration: `infra/swarm-live.yml` retains Source Connector
+> for Browser SDK/storefront events, and no longer contains `catalog-sync` or
+> its Medusa Admin API secret. `SWARM_PRODUCT_REFERENCE_PROVIDER=catalog_cdc`
+> is the only supported product-reference provider. The old API pull and
+> native order message rollback instructions further below are historical
+> migration records, not commands for the active reference deployment.
+
 Current VPS tunnel deployment evidence: [KLTN_VPS_TUNNEL_LIVE_VALIDATION_2026-10-27.md](KLTN_VPS_TUNNEL_LIVE_VALIDATION_2026-10-27.md).
 
 ## Optional Qdrant knowledge for Chat V2
@@ -117,7 +124,7 @@ Stack **data-only** phase 1 không chứa API/UI hoặc worker. Candidate local 
 
 Nếu chỉ nâng cấp Canonical Normalizer, đặt `SWARM_NORMALIZER_IMAGE` thành digest Workers đã kiểm chứng trong `runtime/deploy.env`; các worker khác tiếp tục dùng `SWARM_WORKERS_IMAGE`. Để trống override trên stack mới nếu muốn dùng chung image. Thay env không tự cập nhật service đang chạy: cần rollout có kiểm soát, kiểm tra health/Kafka lag và chuẩn bị digest cũ để rollback. `SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE` chỉ nhận số nguyên 1–256.
 
-`runtime/swarm.mjs` hỗ trợ mode `PARALLEL_LIVE` cho **stack mới** với DB/Kafka/cursor riêng. Trước khi bật, xác minh read-only Feed trả đúng `event_feed_id`, retention floor, latest sequence và `initial_after_seq` còn trong vùng giữ liệu; dùng connector ID mới khác môi trường cũ. Không gắn Feed vào stack `OFFLINE_DEMO` đã có synthetic data. Đặt `SWARM_LIVE_ACK=FRESH_PARALLEL_LIVE`, `SWARM_CONNECTOR_ID`, `SWARM_FEED_URL/ID/INITIAL_AFTER_SEQ`, `SWARM_CATALOG_URL`, `SWARM_DASHSCOPE_BASE_URL` trong `runtime/deploy.env` (ignored); credential Feed/Catalog/Qwen dùng `SWARM_FEED_TOKEN`, `SWARM_CATALOG_KEY`, `SWARM_DASHSCOPE_API_KEY` **chỉ để tạo Docker Secrets**, không đưa vào stack spec. Nếu giá trị secret thay đổi, cần rotation có kế hoạch; lệnh tạo không overwrite.
+`runtime/swarm.mjs` hỗ trợ mode `PARALLEL_LIVE` cho **stack mới** với DB/Kafka/cursor riêng. Trước khi bật, xác minh read-only Feed trả đúng `event_feed_id`, retention floor, latest sequence và `initial_after_seq` còn trong vùng giữ liệu; dùng connector ID mới khác môi trường cũ. Không gắn Feed vào stack `OFFLINE_DEMO` đã có synthetic data. Đặt `SWARM_LIVE_ACK=FRESH_PARALLEL_LIVE`, `SWARM_CONNECTOR_ID`, `SWARM_FEED_URL/ID/INITIAL_AFTER_SEQ`, `SWARM_DASHSCOPE_BASE_URL` trong `runtime/deploy.env` (ignored); credential Feed/Qwen dùng `SWARM_FEED_TOKEN`, `SWARM_DASHSCOPE_API_KEY` **chỉ để tạo Docker Secrets**, không đưa vào stack spec. Catalog và order reference lấy qua CDC, không cần Medusa Admin API key hoặc `catalog-sync`. Nếu giá trị secret thay đổi, cần rotation có kế hoạch; lệnh tạo không overwrite.
 
 Overlay `infra/swarm-live.yml` nối Source Connector, Catalog Sync và Qwen/Polars API vào cùng stack. Chạy `check-app`, sau đó `create-db-secret`, `create-app-secrets`, `create-live-secrets`, `create-tls-secrets`, `deploy` data substrate và `deploy-app` sau khi bootstrap/topic jobs hoàn thành. `create-db-secret` và `create-app-secrets` tự sinh giá trị độc lập nếu `SWARM_*` tương ứng để trống; các credential mới được lưu local trong `runtime/credentials/<stack>-*` (ignored), không in ra console. **Sao lưu chúng vào secret manager được phê duyệt trước khi coi đây là deployment có khả năng restore; file ignored không phải backup.** TLS PEM phải đặt ngoài repo. Image API/Workers phải được build từ đúng commit có overlay/bootstrap mới và pin digest/commit tương ứng; image candidate cũ không hỗ trợ mode này.
 

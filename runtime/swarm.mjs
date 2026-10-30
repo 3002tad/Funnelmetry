@@ -30,8 +30,8 @@ const renderKeys = ['SWARM_STACK_NAME', 'SWARM_POSTGRES_IMAGE', 'SWARM_KAFKA_IMA
   'SWARM_RAW_PARTITIONS', 'SWARM_NORMALIZER_ID_MODE', 'SWARM_NORMALIZER_TRANSACTION_BATCH_SIZE',
   'SWARM_EXPECTED_SCHEMA_DIGEST', 'SWARM_MIGRATION_MODE',
   'SWARM_LIVE_ACK', 'SWARM_CONNECTOR_ID', 'SWARM_FEED_URL', 'SWARM_FEED_ID',
-  'SWARM_INITIAL_AFTER_SEQ', 'SWARM_CATALOG_URL', 'SWARM_DASHSCOPE_BASE_URL',
-  'SWARM_PRODUCT_REFERENCE_PROVIDER', 'SWARM_CATALOG_SYNC_REPLICAS',
+  'SWARM_INITIAL_AFTER_SEQ', 'SWARM_DASHSCOPE_BASE_URL',
+  'SWARM_PRODUCT_REFERENCE_PROVIDER',
   'SWARM_ENABLE_CDC_REFERENCE_OFFER', 'SWARM_ENABLE_CDC_REFERENCE_CANDIDATE',
   'SWARM_ENABLE_CDC_REFERENCE_ACTIVE',
   'SWARM_CDC_REFERENCE_SOURCE_ID', 'SWARM_CDC_REFERENCE_COVERAGE_EPOCH_ID',
@@ -215,7 +215,6 @@ export async function run(command) {
     if (plan.mode !== 'PARALLEL_LIVE') throw Error('Live secrets require PARALLEL_LIVE mode');
     const specs = [
       ['source_feed_token', parsed.SWARM_FEED_TOKEN],
-      ['catalog_key', parsed.SWARM_CATALOG_KEY],
       ['dashscope_api_key', parsed.SWARM_DASHSCOPE_API_KEY],
     ];
     if (specs.some(([, value]) => !value || /[\r\n]/.test(value))) throw Error('Live credential values are missing or invalid');
@@ -306,7 +305,7 @@ export async function run(command) {
       if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
     }
     if (plan.mode === 'PARALLEL_LIVE') {
-      for (const name of ['source_feed_token', 'catalog_key', 'dashscope_api_key']) {
+      for (const name of ['source_feed_token', 'dashscope_api_key']) {
         if (!await secretExists(`${plan.stackName}_${name}_v1`, env)) throw Error(`Swarm ${name} secret is missing`);
       }
     }

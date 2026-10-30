@@ -599,31 +599,6 @@ function deletedFilePatch(file, before) {
   return `diff --git a/${file} b/${file}\ndeleted file mode 100644\n--- a/${file}\n+++ /dev/null\n@@ -1,${lines.length} +0,0 @@\n${lines.map(line => `-${line}`).join("\n")}\n`
 }
 
-function cdcShadowArtifact(manifest) {
-  if (!manifest.cdcShadow) return null
-  return `${JSON.stringify({
-    schema_version: "funnelmetry-medusa-cdc-reference-shadow.v1",
-    generated_by: "funnelmetry-medusa-ci",
-    status: "SHADOW_ONLY",
-    source_id: manifest.source.id,
-    medusa_version: manifest.host.medusaVersion,
-    order_fact_authority: "medusa.order_placed",
-    canonical_live_event: "order.placed",
-    cdc_reference_contract: manifest.cdcShadow.profile,
-    source_db_url_ref: manifest.cdcShadow.sourceDbUrlRef,
-    source_owner: manifest.cdcShadow.sourceOwner,
-    pipeline_owner: manifest.cdcShadow.pipelineOwner,
-    snapshot_mode: manifest.cdcShadow.snapshotMode,
-    publication: manifest.cdcShadow.publication,
-    slot: manifest.cdcShadow.slot,
-    topic_prefix: manifest.cdcShadow.topicPrefix,
-    fact_topic: manifest.cdcShadow.factTopic,
-    table_columns: manifest.cdcShadow.tableColumns,
-    rollback_target: manifest.cdcShadow.rollbackTarget,
-    runtime_activation: "OPERATOR_CONTROLLED_SEPARATE_FROM_INSTALLER",
-  }, null, 2)}\n`
-}
-
 function cdcOrderV2Artifact(manifest) {
   if (!manifest.cdcOrderV2Shadow) return null
   const profile = manifest.cdcOrderV2Shadow
@@ -646,9 +621,7 @@ function cdcOrderV2Artifact(manifest) {
     topic_prefix: profile.topicPrefix,
     fact_topic: profile.factTopic,
     table_columns: profile.tableColumns,
-    order_fact_authority: "medusa.order_placed",
-    canonical_live_event: "order.placed",
-    rollback_target: profile.rollbackTarget,
+    analytical_authority: "reference.medusa.order_recorded_state.v2",
     runtime_activation: "OPERATOR_CONTROLLED_SEPARATE_FROM_INSTALLER",
   }, null, 2)}\n`
 }
@@ -708,16 +681,15 @@ function cdcInventoryPriceArtifact(manifest, legacy = false) {
 
 async function cdcShadowChange(projectRoot, manifest) {
   const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcShadowProfile)
-  const expected = cdcShadowArtifact(manifest)
-  if (!expected) {
-    if (current !== null) throw new Error("Existing CDC shadow profile requires cdc_shadow manifest or explicit rollback plan")
-    return null
+  if (current === null) return null
+  let profile
+  try { profile = JSON.parse(current) } catch { throw new Error("Retired CDC v1 profile is invalid JSON") }
+  if (profile.generated_by !== "funnelmetry-medusa-ci" ||
+      profile.schema_version !== "funnelmetry-medusa-cdc-reference-shadow.v1" ||
+      profile.source_id !== manifest.source.id) {
+    throw new Error("Retired CDC v1 profile is not installer-owned; refusing deletion")
   }
-  if (current === null) return { path: generatedPaths.cdcShadowProfile, before: null, after: expected }
-  if (normalizedText(current) !== normalizedText(expected)) {
-    throw new Error("Existing CDC shadow profile differs; use explicit rollback plan before changing it")
-  }
-  return null
+  return { path: generatedPaths.cdcShadowProfile, before: current, after: null }
 }
 
 async function cdcOrderV2Change(projectRoot, manifest) {
@@ -729,7 +701,20 @@ async function cdcOrderV2Change(projectRoot, manifest) {
   }
   if (current === null) return { path: generatedPaths.cdcOrderV2ShadowProfile, before: null, after: expected }
   if (normalizedText(current) !== normalizedText(expected)) {
-    throw new Error("Existing CDC order v2 profile differs; use explicit rollback plan before changing it")
+    let previous
+    try { previous = JSON.parse(current) } catch { throw new Error("Existing CDC order v2 profile is invalid JSON") }
+    const next = JSON.parse(expected)
+    for (const field of ["generated_by", "schema_version", "source_id", "medusa_version",
+      "cdc_reference_contract", "coverage_epoch_id", "snapshot_mode", "source_db_url_ref",
+      "source_owner", "pipeline_owner", "publication", "slot", "topic_prefix", "fact_topic"]) {
+      if (JSON.stringify(previous[field]) !== JSON.stringify(next[field])) {
+        throw new Error(`Existing CDC order v2 profile differs at ${field}; refusing migration`)
+      }
+    }
+    if (JSON.stringify(previous.table_columns) !== JSON.stringify(next.table_columns)) {
+      throw new Error("Existing CDC order v2 allowlist differs; refusing migration")
+    }
+    return { path: generatedPaths.cdcOrderV2ShadowProfile, before: current, after: expected }
   }
   return null
 }
@@ -768,31 +753,11 @@ async function cdcInventoryPriceChange(projectRoot, manifest) {
   return null
 }
 
-function cdcShadowOperatorPlan(manifest) {
-  if (!manifest.cdcShadow) return null
-  return {
-    status: "SHADOW_ONLY_NO_RUNTIME_ACTIVATION",
-    sourceOwner: manifest.cdcShadow.sourceOwner,
-    pipelineOwner: manifest.cdcShadow.pipelineOwner,
-    sourceDbUrlRef: manifest.cdcShadow.sourceDbUrlRef,
-    runtimeInstaller: "tools/medusa-reference-cdc-shadow/install-reference.py",
-    runtimeInstallerCommands: ["plan", "apply", "verify", "rollback"],
-    preconditions: [
-      "Verify a separate PostgreSQL clone or explicitly authorized source DB and logical WAL",
-      "Verify the exact publication table/column allowlist and replication role with the source owner",
-      "Verify a separate Debezium slot, connector, Kafka namespace, mapper state and analytical sink",
-      "Reconcile post-activation coverage, compensation, soft delete, duplicate/replay and source lag",
-    ],
-    rollback: "Use the shadow runtime installer's guarded rollback, then remove only the generated profile by rollback-plan; retain slots/topics/volumes until their owners approve cleanup",
-    liveOrderAuthority: "medusa.order_placed -> order.placed",
-  }
-}
-
 function cdcOrderV2OperatorPlan(manifest) {
   if (!manifest.cdcOrderV2Shadow) return null
   const profile = manifest.cdcOrderV2Shadow
   return {
-    status: "SHADOW_ONLY_NO_RUNTIME_ACTIVATION",
+    status: "CDC_REFERENCE_CONFIGURED",
     sourceOwner: profile.sourceOwner,
     pipelineOwner: profile.pipelineOwner,
     sourceDbUrlRef: profile.sourceDbUrlRef,
@@ -801,9 +766,8 @@ function cdcOrderV2OperatorPlan(manifest) {
       "Verify source PostgreSQL logical WAL, exact column allowlist and private replication access",
       "Verify a new slot, topic prefix, fact topic, mapper state and sink for this coverage epoch",
       "Reconcile the initial snapshot and BASELINE_COMPLETE before permitting post-baseline transitions",
-      "Keep any previous WAL gap INCOMPLETE; retain native order.placed authority until CDC-12 approval",
+      "Keep any previous WAL gap INCOMPLETE; preserve the approved CDC reference authority",
     ],
-    rollback: "Remove only this generated profile through order-v2-rollback-plan; retain slot, topics, mapper and sink for operator-controlled recovery",
   }
 }
 
@@ -949,7 +913,7 @@ async function existingIntegration(projectRoot, originals, manifest) {
     throw new Error("Pinned Medusa storefront is missing one or more V2 semantic-hook files")
   }
   const semantic = { available: semanticCount === semanticFiles.length }
-  const v2GeneratedFilesPresent = consentNotice !== null && storefrontDelivery !== null && occurredAt !== null
+  const v2GeneratedFilesPresent = consentNotice !== null && storefrontDelivery !== null
   if (!v2GeneratedFilesPresent) return "legacy"
   const checkoutStartNeedsUpgrade = manifest.frontend.enabled && hasLegacyCheckoutStartedBinding(browserClient, originals[paths.checkoutPage])
   const packageUpgradeNeeded =
@@ -974,9 +938,6 @@ async function existingIntegration(projectRoot, originals, manifest) {
       !normalizedText(storefrontDelivery).includes('sourceEventType: "cart.item_added"') ||
       !normalizedText(storefrontDelivery).includes("normalizeSearchQuery")) {
     throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.storefrontDelivery}`)
-  }
-  if (!normalizedText(occurredAt).includes("normalizeOccurredAt")) {
-    throw new Error(`Existing Funnelmetry integration is partial, stale, or owned by another installer version: ${generatedPaths.occurredAt}`)
   }
   if (manifest.frontend.enabled) {
     if (!isKnownManagedPackageVersion(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage)) {
@@ -1017,7 +978,6 @@ async function existingIntegration(projectRoot, originals, manifest) {
     normalizedText(managedDeliveryDispatcher) === normalizedText(expectedManagedDeliveryDispatcher) &&
     normalizedText(consentNotice) === normalizedText(generatedConsentNotice(manifest)) &&
     normalizedText(storefrontDelivery) === normalizedText(configuredStorefrontDelivery(manifest)) &&
-    normalizedText(occurredAt) === normalizedText(generatedOccurredAt()) &&
     (!manifest.frontend.enabled || (packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk", packageVersions.browserSdk, paths.storefrontPackage) && packageHasDependency(originals[paths.storefrontPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.storefrontPackage))) &&
     (!manifest.backend.enabled || packageHasDependency(originals[paths.backendPackage], "@3002tad/funnelmetry-backend-integration-kit", packageVersions.backendIntegrationKit, paths.backendPackage))
   // V2 sources created before installer 0.2.0 are accepted only when every
@@ -1060,7 +1020,9 @@ export async function createPlan(projectRoot, manifest) {
   originals[generatedPaths.cdcCatalogShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcCatalogShadowProfile)
   originals[generatedPaths.cdcInventoryPriceShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcInventoryPriceShadowProfile)
 
-  if (manifest.cdcBackendCutover) {
+  // An existing Browser SDK installation may still carry the retired backend
+  // subscriber. A fresh checkout falls through to the storefront installer.
+  if (manifest.cdcBackendCutover && await readOptionalProjectFile(projectRoot, generatedPaths.browserClient) !== null) {
     const [subscriber, dispatcher] = await Promise.all([
       readOptionalProjectFile(projectRoot, generatedPaths.orderPlacedSubscriber),
       readOptionalProjectFile(projectRoot, generatedPaths.managedDeliveryDispatcher),
@@ -1075,7 +1037,7 @@ export async function createPlan(projectRoot, manifest) {
       backend: { enabled: true, binding: "medusa.order_placed" },
     } : manifest
     const state = await existingIntegration(projectRoot, originals, comparison)
-    if (!["exact", "v2-compatible"].includes(state)) {
+    if (!["exact", "v2-compatible", "upgradeable"].includes(state)) {
       throw new Error(`CDC backend cutover requires a fully installer-owned integration, got ${state}`)
     }
     const cdcChanges = [
@@ -1094,6 +1056,10 @@ export async function createPlan(projectRoot, manifest) {
     if (!installed && packageDependency !== undefined) {
       throw new Error("CDC backend cutover found a residual backend package dependency")
     }
+    const occurredAt = await readOptionalProjectFile(projectRoot, generatedPaths.occurredAt)
+    if (occurredAt !== null && !normalizedText(occurredAt).includes("normalizeOccurredAt")) {
+      throw new Error("Retired backend occurred-at helper is not installer-owned")
+    }
     const changes = [...cdcChanges]
     if (installed) changes.push(
       { path: paths.backendPackage, before: originals[paths.backendPackage],
@@ -1102,21 +1068,21 @@ export async function createPlan(projectRoot, manifest) {
       { path: generatedPaths.orderPlacedSubscriber, before: subscriber, after: null },
       { path: generatedPaths.managedDeliveryDispatcher, before: dispatcher, after: null },
     )
+    if (occurredAt !== null) changes.push({ path: generatedPaths.occurredAt, before: occurredAt, after: null })
     originals[generatedPaths.orderPlacedSubscriber] = subscriber
     originals[generatedPaths.managedDeliveryDispatcher] = dispatcher
     return {
       schemaVersion: "funnelmetry-ci-plan.v2", mode: "plan-only", sourceMutation: false,
-      integrationState: installed ? "cdc-backend-cutover-ready" : "cdc-backend-cutover-applied",
+      integrationState: installed ? "cdc-primary-cleanup-ready" : "cdc-primary",
       host, manifest, sourceFingerprint: sourceFingerprint(originals),
-      cdcShadowOperatorPlan: cdcShadowOperatorPlan(manifest),
       cdcOrderV2OperatorPlan: cdcOrderV2OperatorPlan(manifest),
       capabilities: {
         behavior: "ENABLED", orderPlaced: "DISABLED", commerceConversion: "HISTORICAL_ONLY",
         cartItemPersisted: "ENABLED", searchSubmitted: "ENABLED",
-        cdcReferenceState: manifest.cdcShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
-        cdcOrderV2State: "CUTOVER_DECLARED_RUNTIME_UNVERIFIED",
-        cdcCatalogState: manifest.cdcCatalogShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
-        cdcInventoryPriceState: manifest.cdcInventoryPriceShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
+        cdcReferenceState: "RETIRED_V1",
+        cdcOrderV2State: "CDC_PRIMARY_REFERENCE",
+        cdcCatalogState: manifest.cdcCatalogShadow ? "CDC_PRIMARY_REFERENCE" : "NOT_REQUESTED",
+        cdcInventoryPriceState: manifest.cdcInventoryPriceShadow ? "CDC_PRIMARY_REFERENCE" : "NOT_REQUESTED",
       },
       changes: changes.map(({path:file}) => ({path:file,ownership:"funnelmetry-installer"})),
       patch: changes.map(({path:file,before,after}) => after === null
@@ -1133,7 +1099,6 @@ export async function createPlan(projectRoot, manifest) {
   const cdcChanges = [cdcChange, orderV2Change, catalogChange, inventoryPriceChange].filter(Boolean)
   const cartItemDeclared = manifest.bindings.storefrontServer.includes("cart.item_added")
   const searchDeclared = manifest.bindings.storefrontServer.includes("behavior.search_submitted")
-  const orderPlacedDeclared = manifest.bindings.medusaBackend.includes("medusa.order_placed")
   if (existing === "exact") {
     return {
       schemaVersion: "funnelmetry-ci-plan.v2",
@@ -1143,25 +1108,26 @@ export async function createPlan(projectRoot, manifest) {
       host,
       manifest,
       sourceFingerprint: sourceFingerprint(originals),
-      cdcShadowOperatorPlan: cdcShadowOperatorPlan(manifest),
       cdcOrderV2OperatorPlan: cdcOrderV2OperatorPlan(manifest),
       capabilities: {
         behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
-        orderPlaced: orderPlacedDeclared ? "ENABLED" : "DISABLED",
+        orderPlaced: "DISABLED",
         cartItemPersisted: cartItemDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
         searchSubmitted: searchDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
         orderCreated: "NOT_EMITTED",
         orderAccepted: "NOT_SUPPORTED",
-        commerceConversion: orderPlacedDeclared ? "SOURCE_READY" : "DISABLED",
+        commerceConversion: "HISTORICAL_ONLY",
         payment: "NOT_REQUESTED",
         refund: "NOT_REQUESTED",
-        cdcReferenceState: manifest.cdcShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
-        cdcOrderV2State: manifest.cdcOrderV2Shadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
-        cdcCatalogState: manifest.cdcCatalogShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
-        cdcInventoryPriceState: manifest.cdcInventoryPriceShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
+        cdcReferenceState: "RETIRED_V1",
+        cdcOrderV2State: "CDC_PRIMARY_REFERENCE",
+        cdcCatalogState: manifest.cdcCatalogShadow ? "CDC_PRIMARY_REFERENCE" : "NOT_REQUESTED",
+        cdcInventoryPriceState: manifest.cdcInventoryPriceShadow ? "CDC_PRIMARY_REFERENCE" : "NOT_REQUESTED",
       },
       changes: cdcChanges.map(change => ({ path: change.path, ownership: "funnelmetry-installer" })),
-      patch: cdcChanges.map(change => wholeFilePatch(change.path, change.before, change.after)).join(""),
+      patch: cdcChanges.map(change => change.after === null
+        ? deletedFilePatch(change.path, change.before)
+        : wholeFilePatch(change.path, change.before, change.after)).join(""),
     }
   }
 
@@ -1279,26 +1245,6 @@ export async function createPlan(projectRoot, manifest) {
       }
     }
   }
-  if (manifest.backend.enabled) {
-    const subscriber = configureGeneratedSubscriber(generatedSubscriber(manifest), manifest)
-    const managedDeliveryDispatcher = configureGeneratedManagedDeliveryDispatcher(
-      generatedManagedDeliveryDispatcher(manifest),
-      manifest,
-    )
-    const backendPackage = addDependency(
-      originals[paths.backendPackage],
-      "@3002tad/funnelmetry-backend-integration-kit",
-      packageVersions.backendIntegrationKit,
-      paths.backendPackage,
-    )
-    changes.push(
-      { path: paths.backendPackage, before: originals[paths.backendPackage], after: backendPackage },
-      { path: generatedPaths.managedDeliveryDispatcher, before: refreshManagedBinding ? currentManagedDeliveryDispatcher : null, after: managedDeliveryDispatcher },
-      { path: generatedPaths.occurredAt, before: refreshManagedBinding ? currentOccurredAt : null, after: generatedOccurredAt() },
-      { path: generatedPaths.orderPlacedSubscriber, before: refreshManagedBinding ? currentOrderPlacedSubscriber : null, after: subscriber },
-    )
-  }
-
   changes.push(...cdcChanges)
 
   const effectiveChanges = changes.filter(({ before, after }) => before === null || normalizedText(before) !== normalizedText(after))
@@ -1310,25 +1256,25 @@ export async function createPlan(projectRoot, manifest) {
     host,
     manifest,
     sourceFingerprint: sourceFingerprint(originals),
-    cdcShadowOperatorPlan: cdcShadowOperatorPlan(manifest),
     cdcOrderV2OperatorPlan: cdcOrderV2OperatorPlan(manifest),
     capabilities: {
       behavior: manifest.frontend.enabled ? "ENABLED" : "DISABLED",
-      orderPlaced: orderPlacedDeclared ? "ENABLED" : "DISABLED",
+      orderPlaced: "DISABLED",
       cartItemPersisted: cartItemDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
       searchSubmitted: searchDeclared && semanticSupported ? "ENABLED" : "NOT_SUPPORTED",
       orderCreated: "NOT_EMITTED",
       orderAccepted: "NOT_SUPPORTED",
-      commerceConversion: orderPlacedDeclared ? "SOURCE_READY" : "DISABLED",
+      commerceConversion: "HISTORICAL_ONLY",
       payment: "NOT_REQUESTED",
       refund: "NOT_REQUESTED",
-      cdcReferenceState: manifest.cdcShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
-      cdcOrderV2State: manifest.cdcOrderV2Shadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
-      cdcCatalogState: manifest.cdcCatalogShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
-      cdcInventoryPriceState: manifest.cdcInventoryPriceShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
+      cdcReferenceState: "RETIRED_V1",
+      cdcOrderV2State: "CDC_PRIMARY_REFERENCE",
+      cdcCatalogState: manifest.cdcCatalogShadow ? "CDC_PRIMARY_REFERENCE" : "NOT_REQUESTED",
+      cdcInventoryPriceState: manifest.cdcInventoryPriceShadow ? "CDC_PRIMARY_REFERENCE" : "NOT_REQUESTED",
     },
     changes: effectiveChanges.map(({ path: file }) => ({ path: file, ownership: "funnelmetry-installer" })),
-    patch: effectiveChanges.map(({ path: file, before, after }) => wholeFilePatch(file, before, after)).join(""),
+    patch: effectiveChanges.map(({ path: file, before, after }) => after === null
+      ? deletedFilePatch(file, before) : wholeFilePatch(file, before, after)).join(""),
   }
 }
 
@@ -1347,79 +1293,5 @@ export async function verifyIntegration(projectRoot, manifest) {
     cdcInventoryPriceState: plan.capabilities.cdcInventoryPriceState,
     sourceFingerprint: plan.sourceFingerprint,
     runtimeConformance: "NOT_CHECKED_BY_INSTALLER",
-  }
-}
-
-export async function createCdcRollbackPlan(projectRoot, manifest) {
-  if (!manifest.cdcShadow) throw new Error("rollback-plan requires a cdc_shadow manifest")
-  await inspectMedusa(projectRoot, manifest)
-  const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcShadowProfile)
-  const expected = cdcShadowArtifact(manifest)
-  if (current === null || normalizedText(current) !== normalizedText(expected)) {
-    throw new Error("CDC shadow profile is missing or has drifted; refusing rollback patch")
-  }
-  return {
-    schemaVersion: "funnelmetry-ci-rollback.v1",
-    mode: "rollback-plan-only",
-    sourceMutation: false,
-    retainedRuntimeResources: ["replication_slot", "publication", "kafka_topics", "postgresql_volumes", "credentials"],
-    changes: [{ path: generatedPaths.cdcShadowProfile, ownership: "funnelmetry-installer" }],
-    patch: deletedFilePatch(generatedPaths.cdcShadowProfile, current),
-  }
-}
-
-export async function createCdcOrderV2RollbackPlan(projectRoot, manifest) {
-  if (!manifest.cdcOrderV2Shadow) throw new Error("order-v2-rollback-plan requires cdc_order_v2_shadow manifest")
-  await inspectMedusa(projectRoot, manifest)
-  const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcOrderV2ShadowProfile)
-  const expected = cdcOrderV2Artifact(manifest)
-  if (current === null || normalizedText(current) !== normalizedText(expected)) {
-    throw new Error("CDC order v2 profile is missing or has drifted; refusing rollback patch")
-  }
-  return {
-    schemaVersion: "funnelmetry-ci-rollback.v1",
-    mode: "rollback-plan-only",
-    sourceMutation: false,
-    retainedRuntimeResources: ["replication_slot", "publication", "kafka_topics", "postgresql_volumes", "credentials"],
-    changes: [{ path: generatedPaths.cdcOrderV2ShadowProfile, ownership: "funnelmetry-installer" }],
-    patch: deletedFilePatch(generatedPaths.cdcOrderV2ShadowProfile, current),
-  }
-}
-
-export async function createCdcCatalogRollbackPlan(projectRoot, manifest) {
-  if (!manifest.cdcCatalogShadow) throw new Error("catalog-rollback-plan requires cdc_catalog_shadow manifest")
-  await inspectMedusa(projectRoot, manifest)
-  const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcCatalogShadowProfile)
-  const expected = cdcCatalogArtifact(manifest)
-  if (current === null || normalizedText(current) !== normalizedText(expected)) {
-    throw new Error("CDC catalog shadow profile is missing or has drifted; refusing rollback patch")
-  }
-  return {
-    schemaVersion: "funnelmetry-ci-rollback.v1",
-    mode: "rollback-plan-only",
-    sourceMutation: false,
-    retainedRuntimeResources: ["replication_slot", "publication", "kafka_topics", "postgresql_volumes", "credentials"],
-    changes: [{ path: generatedPaths.cdcCatalogShadowProfile, ownership: "funnelmetry-installer" }],
-    patch: deletedFilePatch(generatedPaths.cdcCatalogShadowProfile, current),
-  }
-}
-
-export async function createCdcInventoryPriceRollbackPlan(projectRoot, manifest) {
-  if (!manifest.cdcInventoryPriceShadow) {
-    throw new Error("inventory-price-rollback-plan requires cdc_inventory_price_shadow manifest")
-  }
-  await inspectMedusa(projectRoot, manifest)
-  const current = await readOptionalProjectFile(projectRoot, generatedPaths.cdcInventoryPriceShadowProfile)
-  const expected = cdcInventoryPriceArtifact(manifest)
-  if (current === null || normalizedText(current) !== normalizedText(expected)) {
-    throw new Error("CDC inventory/price profile is missing or has drifted; refusing rollback patch")
-  }
-  return {
-    schemaVersion: "funnelmetry-ci-rollback.v1",
-    mode: "rollback-plan-only",
-    sourceMutation: false,
-    retainedRuntimeResources: ["replication_slot", "publication", "kafka_topics", "postgresql_volumes", "credentials"],
-    changes: [{ path: generatedPaths.cdcInventoryPriceShadowProfile, ownership: "funnelmetry-installer" }],
-    patch: deletedFilePatch(generatedPaths.cdcInventoryPriceShadowProfile, current),
   }
 }

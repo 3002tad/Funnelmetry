@@ -40,6 +40,12 @@ export function createSourceIngressHandler({ repository, browserKeys, backendKey
     try {
       const auth = authenticateIngress({ event, headers, rawBody, browserKeys, backendKeys, nowMs: nowMs(), maxClockSkewMs })
       if (event.producer === "browser_sdk" && !isAllowedOrigin(origin, auth.credential)) throw new RelayError("origin_not_allowed")
+      // Retired after the Medusa reference moved order state to CDC. Preserve
+      // historical feed records for replay, but reject new native order messages.
+      if (event.source_id === "medusa-reference" && event.source_event_type === "medusa.order_placed") {
+        metrics.increment("funnelmetry_source_ingress_rejected_total", { reason: "source_event_retired" })
+        return response(410, { error: "source_event_retired", reason_code: "source_event_retired" })
+      }
       const stored = repository.accept({
         event,
         rawBody,

@@ -43,33 +43,6 @@ services:
         reservations: {cpus: '0.10', memory: 128M}
         limits: {cpus: '1.00', memory: 512M}
 
-  catalog-sync:
-    image: ${SWARM_WORKERS_IMAGE:?Pin the Workers image digest}
-    command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/catalog-sync/src/main.js]
-    environment:
-      SWARM_WAIT_ROLE: worker
-      SWARM_EXPECTED_SCHEMA_DIGEST: ${SWARM_EXPECTED_SCHEMA_DIGEST:?Set reviewed schema digest}
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: '5432'
-      POSTGRES_DB: funnelmetry_handoff
-      POSTGRES_USER: funnelmetry
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-      CATALOG_SOURCE_ID: medusa-reference
-      CATALOG_MEDUSA_URL: ${SWARM_CATALOG_URL:?Set reviewed HTTPS Medusa URL}
-      CATALOG_MEDUSA_SECRET_KEY_FILE: /run/secrets/catalog_key
-      CATALOG_INTERVAL_MS: '3600000'
-    secrets: [db_password, catalog_key]
-    networks: [data]
-    read_only: true
-    stop_grace_period: 30s
-    deploy:
-      replicas: ${SWARM_CATALOG_SYNC_REPLICAS:-1}
-      restart_policy: {condition: any, delay: 10s}
-      update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
-      resources:
-        reservations: {cpus: '0.10', memory: 128M}
-        limits: {cpus: '1.00', memory: 512M}
-
   dashboard-api:
     environment:
       DASHBOARD_ENABLE_QWEN: 'true'
@@ -83,9 +56,6 @@ secrets:
   source_feed_token:
     external: true
     name: ${SWARM_STACK_NAME:?Set isolated stack name}_source_feed_token_v1
-  catalog_key:
-    external: true
-    name: ${SWARM_STACK_NAME:?Set isolated stack name}_catalog_key_v1
   dashscope_api_key:
     external: true
     name: ${SWARM_STACK_NAME:?Set isolated stack name}_dashscope_api_key_v1

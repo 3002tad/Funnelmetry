@@ -15,19 +15,9 @@ const monitoringImagePattern = /^(?:docker\.io\/)?(?:prom\/prometheus|grafana\/g
 const qdrantImagePattern = /^(?:docker\.io\/)?qdrant\/qdrant:[a-z0-9._-]+@sha256:[a-f0-9]{64}$/;
 
 export function validateSwarmApp(env) {
-  const productReferenceProvider = env.SWARM_PRODUCT_REFERENCE_PROVIDER?.trim() || 'admin_api';
-  if (!['admin_api', 'catalog_cdc'].includes(productReferenceProvider)) {
-    throw Error('SWARM_PRODUCT_REFERENCE_PROVIDER must be admin_api or catalog_cdc');
-  }
-  if (productReferenceProvider === 'catalog_cdc' && env.SWARM_MIGRATION_MODE !== 'PARALLEL_LIVE') {
-    throw Error('catalog_cdc product references require PARALLEL_LIVE mode');
-  }
-  const catalogSyncReplicas = env.SWARM_CATALOG_SYNC_REPLICAS?.trim() || '1';
-  if (!['0', '1'].includes(catalogSyncReplicas)) {
-    throw Error('SWARM_CATALOG_SYNC_REPLICAS must be 0 or 1');
-  }
-  if (catalogSyncReplicas === '0' && productReferenceProvider !== 'catalog_cdc') {
-    throw Error('SWARM_CATALOG_SYNC_REPLICAS=0 requires catalog_cdc product references');
+  const productReferenceProvider = env.SWARM_PRODUCT_REFERENCE_PROVIDER?.trim() || 'catalog_cdc';
+  if (productReferenceProvider !== 'catalog_cdc') {
+    throw Error('SWARM_PRODUCT_REFERENCE_PROVIDER must be catalog_cdc');
   }
   const cdcReferenceOffer = env.SWARM_ENABLE_CDC_REFERENCE_OFFER?.trim() || 'false';
   if (!['true', 'false'].includes(cdcReferenceOffer)) {
@@ -83,7 +73,7 @@ export function validateSwarmApp(env) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.SWARM_ADMIN_EMAIL?.trim() || '')) {
     throw Error('SWARM_ADMIN_EMAIL must be a valid single-line email');
   }
-  return Object.freeze({ domain, tlsMode, productReferenceProvider, catalogSyncReplicas: Number(catalogSyncReplicas), cdcReferenceOffer: cdcReferenceOffer === 'true', cdcReferenceCandidate: cdcReferenceCandidate === 'true', cdcReferenceActive: cdcReferenceActive === 'true', status: 'PLANNING_ONLY' });
+  return Object.freeze({ domain, tlsMode, productReferenceProvider, cdcReferenceOffer: cdcReferenceOffer === 'true', cdcReferenceCandidate: cdcReferenceCandidate === 'true', cdcReferenceActive: cdcReferenceActive === 'true', status: 'PLANNING_ONLY' });
 }
 
 export function validateSwarmCandidate(env) {
@@ -129,10 +119,10 @@ export function validateSwarmCandidate(env) {
     if (!/^(0|[1-9]\d*)$/.test(env.SWARM_INITIAL_AFTER_SEQ || '') || !Number.isSafeInteger(Number(env.SWARM_INITIAL_AFTER_SEQ))) {
       throw Error('SWARM_INITIAL_AFTER_SEQ must be a safe nonnegative integer');
     }
-    if (!env.SWARM_FEED_TOKEN || !env.SWARM_CATALOG_KEY || !env.SWARM_DASHSCOPE_API_KEY) {
-      throw Error('Feed, catalog and Qwen credentials are required for isolated Swarm secrets');
+    if (!env.SWARM_FEED_TOKEN || !env.SWARM_DASHSCOPE_API_KEY) {
+      throw Error('Feed and Qwen credentials are required for isolated Swarm secrets');
     }
-    for (const [key, protocols] of [['SWARM_CATALOG_URL', ['https:']], ['SWARM_DASHSCOPE_BASE_URL', ['https:']]]) {
+    for (const [key, protocols] of [['SWARM_DASHSCOPE_BASE_URL', ['https:']]]) {
       let url;
       try { url = new URL(env[key]); } catch { throw Error(`${key} must be a reviewed HTTPS URL`); }
       if (!protocols.includes(url.protocol) || url.username || url.password || url.hash) throw Error(`${key} must be a reviewed HTTPS URL`);
