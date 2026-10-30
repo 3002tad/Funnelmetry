@@ -1,5 +1,5 @@
 // CDC-11 candidate-only schema upgrade for an EXISTING Pipeline database.
-// No source DB or active analytical binding is modified by these three files.
+// No source DB or active analytical binding is modified by these migrations.
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -49,24 +49,29 @@ async function inspect(client, digest, files) {
     FROM cdc_candidate_migration_journal ORDER BY file_name`) : { rows: [] }
   if (existing && !state.rows.length) throw Error('cdc_candidate_empty_migration_journal')
   const byName = new Map(state.rows.map(row => [row.file_name, row.content_sha256]))
-  if (state.rows.length && state.rows.length !== migrations.length) {
-    throw Error('cdc_candidate_partial_migration_journal')
+  if (byName.size !== state.rows.length || state.rows.length > migrations.length ||
+      state.rows.some((row, index) => row.file_name !== migrations[index]?.file)) {
+    throw Error('cdc_candidate_migration_journal_not_prefix')
   }
   for (let i = 0; i < migrations.length; i++) {
     const migration = migrations[i]
     const expected = createHash('sha256').update(files[i]).digest('hex')
-    if (byName.size && byName.get(migration.file) !== expected) {
+    const applied = i < state.rows.length
+    if (applied && byName.get(migration.file) !== expected) {
       throw Error('cdc_candidate_migration_checksum_drift')
     }
     for (const object of migration.objects) {
       const result = await client.query('SELECT to_regclass($1) AS relation', [`public.${object}`])
       const present = Boolean(result.rows[0]?.relation)
-      if (byName.size ? !present : present) {
+      if (applied ? !present : present) {
         throw Error('cdc_candidate_schema_ownership_or_drift')
       }
     }
   }
-  return { status: byName.size ? 'ALREADY_APPLIED' : 'READY_TO_APPLY', digest }
+  return { status: state.rows.length === migrations.length ? 'ALREADY_APPLIED'
+    : state.rows.length ? 'READY_TO_EXTEND' : 'READY_TO_APPLY',
+  appliedCount: state.rows.length,
+  pendingFiles: migrations.slice(state.rows.length).map(migration => migration.file), digest }
 }
 
 export async function runCandidateMigrations(client, files, mode, expectedDigest) {
@@ -85,17 +90,20 @@ export async function runCandidateMigrations(client, files, mode, expectedDigest
       await client.query('COMMIT')
       return before
     }
-    await client.query(`CREATE TABLE cdc_candidate_migration_journal (
-      file_name text PRIMARY KEY, content_sha256 text NOT NULL,
-      applied_at timestamptz NOT NULL DEFAULT clock_timestamp())`)
-    for (let i = 0; i < migrations.length; i++) {
+    if (before.appliedCount === 0) {
+      await client.query(`CREATE TABLE cdc_candidate_migration_journal (
+        file_name text PRIMARY KEY, content_sha256 text NOT NULL,
+        applied_at timestamptz NOT NULL DEFAULT clock_timestamp())`)
+    }
+    for (let i = before.appliedCount; i < migrations.length; i++) {
       await client.query(files[i])
       await client.query(`INSERT INTO cdc_candidate_migration_journal(file_name,content_sha256)
         VALUES($1,$2)`, [migrations[i].file,
         createHash('sha256').update(files[i]).digest('hex')])
     }
     await client.query('COMMIT')
-    return { status: 'APPLIED_CANDIDATE_ONLY', digest }
+    return { status: 'APPLIED_CANDIDATE_ONLY',
+      appliedFiles: before.pendingFiles, digest }
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {})
     throw error

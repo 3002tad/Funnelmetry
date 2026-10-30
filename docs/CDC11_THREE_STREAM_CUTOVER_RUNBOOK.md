@@ -2,6 +2,17 @@
 
 **Status:** THREE-STREAM TARGET SHADOW RUNNING / NO LIVE CUTOVER. **Date:** 2026-10-30. This is the operator runbook for replacing (1) the reference backend order adapter, (2) Admin API `catalog-sync`, and (3) inventory/price acquisition with CDC. It does not deploy an HTTP Gateway. DEC-119/135 currently approve order-state v2 semantics for shadow development only; CDC-12 live authority still requires a separate decision. The existing Browser SDK and its HTTP ingestion remain in service.
 
+**Read the latest checkpoint first:** Sections below record rollout in chronological
+order; early statements about `wal_level=replica`, stopped workers, or absent
+slots describe earlier checkpoints. The current source uses logical WAL and
+three scoped slots; Connect and four shadow workers are running. The live
+Dashboard still uses API catalog sync, and the native order adapter still
+supplies `order.placed`. CDC-11 has specific remaining gates in Section 7;
+CDC-12 authority and CDC-13 retirement follow only after those gates. The
+candidate migration tool now accepts an exact applied journal prefix so
+additional versioned candidate schema can be applied without replaying 021–023
+or clearing the existing CDC projections; it still requires a reviewed digest.
+
 **Development update 2026-10-30:** The Medusa manifest/planner now emit a
 separate order-v2 shadow profile for a declared coverage epoch with initial
 snapshot, exact order predicate columns and a guarded rollback plan. The
