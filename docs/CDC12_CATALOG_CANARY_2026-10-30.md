@@ -35,6 +35,8 @@ Order v2 and inventory/price analytical authority remain shadow.
    service. Keep `catalog-sync` running during observation. Check the product
    reference response for current source products and a missing product, and
    confirm numbers/order historical amounts are unchanged.
+   `smoke-target-catalog-canary.mjs` performs one authenticated, read-only
+   `/api/v2/products` request and prints only provider/count evidence.
 5. Observe two consecutive monitor cycles and a fresh Dashboard request after
    each. Abort if the catalog lease blocks/expires, the API fails or current
    names diverge. If both cycles pass, `catalog-sync` may be scaled to zero;
