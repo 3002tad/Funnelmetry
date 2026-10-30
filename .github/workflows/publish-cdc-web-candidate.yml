@@ -1,0 +1,38 @@
+name: Publish CDC Web candidate
+
+on:
+  push:
+    tags:
+      - 'cdc-web-candidate-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout exact candidate tag
+        uses: actions/checkout@v4
+
+      - name: Build versioned Dashboard Web image
+        run: |
+          docker build --file infra/docker/dashboard-web.Dockerfile \
+            --label org.opencontainers.image.source=https://github.com/3002tad/Funnelmetry \
+            --tag funnelmetry-cdc-web-candidate .
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --entrypoint sh funnelmetry-cdc-web-candidate -c \
+            'test -f /usr/share/nginx/html/index.html && grep -Rq reference-cdc-current-state /usr/share/nginx/html/assets'
+
+      - name: Publish immutable SHA tag to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/3002tad/funnelmetry-cdc-web-candidate
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag funnelmetry-cdc-web-candidate "$IMAGE:sha-$GITHUB_SHA"
+          docker push "$IMAGE:sha-$GITHUB_SHA"
+          docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA"
