@@ -93,7 +93,7 @@ CATALOG = {
 }
 
 
-def catalog_rows(source_container, pipeline_container, epoch):
+def catalog_rows(source_container, pipeline_container, epoch, *, projection_first=False):
     source_rows = {}
     projected_rows = {}
     for table, (target_id, target_table, fields) in CATALOG.items():
@@ -114,17 +114,23 @@ def catalog_rows(source_container, pipeline_container, epoch):
             target_parts.append(f"'{field}',{target_expr}")
         source_order = "product_id,product_category_id" if table == "product_category_product" else "id"
         target_order = "product_id,category_id" if table == "product_category_product" else target_id
-        source_rows[table] = source(source_container,
-            "SELECT COALESCE(json_agg(json_build_object(" + ",".join(source_parts) +
-            f") ORDER BY {source_order}),'[]'::json)::text FROM public.{table};")
-        projected_rows[table] = pipeline(pipeline_container,
-            "SELECT COALESCE(json_agg(json_build_object(" + ",".join(target_parts) +
-            f") ORDER BY {target_order}),'[]'::json)::text FROM {target_table} "
-            f"WHERE source_id='medusa-reference' AND coverage_epoch_id='{epoch}';")
+        source_sql = ("SELECT COALESCE(json_agg(json_build_object(" +
+            ",".join(source_parts) + f") ORDER BY {source_order}),'[]'::json)::text "
+            f"FROM public.{table};")
+        projection_sql = ("SELECT COALESCE(json_agg(json_build_object(" +
+            ",".join(target_parts) + f") ORDER BY {target_order}),'[]'::json)::text "
+            f"FROM {target_table} WHERE source_id='medusa-reference' "
+            f"AND coverage_epoch_id='{epoch}';")
+        if projection_first:
+            projected_rows[table] = pipeline(pipeline_container, projection_sql)
+            source_rows[table] = source(source_container, source_sql)
+        else:
+            source_rows[table] = source(source_container, source_sql)
+            projected_rows[table] = pipeline(pipeline_container, projection_sql)
     return source_rows, projected_rows
 
 
-def stage2_rows(source_container, pipeline_container, epoch):
+def stage2_rows(source_container, pipeline_container, epoch, *, projection_first=False):
     parts = []
     for table in stage2.TABLES:
         key = ",".join(stage2.KEYS.get(table, ("id",)))
@@ -133,13 +139,19 @@ def stage2_rows(source_container, pipeline_container, epoch):
                      f"jsonb_build_array({key}),'soft_deleted',deleted_at IS NOT NULL,"
                      f"'attributes',jsonb_build_object({attributes}))),'[]'::jsonb) "
                      f"FROM public.{table})")
-    original = source(source_container, "SELECT jsonb_build_object(" + ",".join(parts) + ")::text;")
-    projected = pipeline(pipeline_container,
+    source_sql = "SELECT jsonb_build_object(" + ",".join(parts) + ")::text;"
+    projection_sql = (
         "SELECT COALESCE(jsonb_object_agg(table_name,rows),'{}'::jsonb)::text "
         "FROM (SELECT table_name,jsonb_agg(jsonb_build_object('key',row_key,"
         "'soft_deleted',soft_deleted,'payload',payload)) AS rows "
         "FROM inventory_price_cdc_context_current WHERE source_id='medusa-reference' "
         f"AND coverage_epoch_id='{epoch}' GROUP BY table_name) AS grouped;")
+    if projection_first:
+        projected = pipeline(pipeline_container, projection_sql)
+        original = source(source_container, source_sql)
+    else:
+        original = source(source_container, source_sql)
+        projected = pipeline(pipeline_container, projection_sql)
     return original, projected
 
 

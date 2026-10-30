@@ -573,13 +573,26 @@ correctly after a worker/monitor restart or make this quality policy active.
 `moving_projection_quality.py` is a pure, read-only evaluator for bounded
 source-to-projection row and Kafka-offset lag. Its caller must provide the
 exact profile topic allowlist, canonical row values, a source sample taken
-after the projection sample, persisted first-observed times, and explicit
+after the projection sample for each table, persisted first-observed times, and explicit
 row/offset/age/WAL thresholds. Insert, update and delete differences are
 treated as pending, then blocked when the limit or age is exceeded. Lost slot,
 stopped connector, incomplete snapshot, foreign offset topic and low WAL
 headroom block immediately. This is candidate code only: it is not connected
 to the target monitor or quality leases, has no persistence table for these
 two streams, and does not justify CDC-12 cutover.
+
+**Target read-only probe, 2026-10-30:**
+`probe-target-moving-projections.py` now binds the candidate evaluator to the
+exact four catalog and sixteen inventory/price table profiles. A single probe
+against the live VPS shadow topology returned `PASS_BOUNDED_LAG` for both
+streams, zero pending rows, zero lag on all twenty raw topics, and all six
+connector/snapshot/slot/WAL/offset/pending checks true. The operator copied
+the candidate scripts into separate `/srv/KLTN/.cdc11-moving-probe/`; the
+strict monitor service and its files were untouched. The values 8 pending
+rows, 128 offsets and 10 seconds were probe arguments, **not approved policy**.
+The idle result proves profile/row normalization and target wiring only. It
+does not establish behavior under moving catalog data, persistence across
+restart, a continuous lease, or analytical availability under writes.
 
 ## 1. VPS inventory and baseline provenance
 
