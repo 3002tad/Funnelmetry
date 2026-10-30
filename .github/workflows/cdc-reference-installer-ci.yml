@@ -17,8 +17,10 @@ on:
       - infra/postgres/v2/021_catalog_cdc_candidate.sql
       - infra/postgres/v2/022_inventory_price_cdc_context_candidate.sql
       - infra/postgres/v2/023_reference_order_cdc_v2_candidate.sql
+      - infra/postgres/v2/025_reference_order_cdc_v2_funnel_candidate.sql
       - infra/postgres/v2/024_reference_order_cdc_v2_mapper_candidate.sql
       - infra/postgres/tests/catalog_cdc_candidate_quality.sql
+      - infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql
       - apps/dashboard-api/src/lib/product-reference.js
       - apps/dashboard-api/test/product-reference.test.js
       - infra/docker/pipeline-workers.Dockerfile
@@ -191,6 +193,10 @@ jobs:
           docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff -c \
             "CREATE TABLE handoff_bootstrap(id integer PRIMARY KEY,status text NOT NULL); INSERT INTO handoff_bootstrap VALUES(1,'READY');"
+          docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
+            -U funnelmetry -d funnelmetry_handoff < infra/postgres/v2/001_canonical_ledger.sql
+          docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
+            -U funnelmetry -d funnelmetry_handoff < infra/postgres/v2/002_journey_projection.sql
           common_env=(-e HANDOFF_MODE=PARALLEL_LIVE -e POSTGRES_HOST=postgres \
             -e POSTGRES_DB=funnelmetry_handoff -e POSTGRES_USER=funnelmetry \
             -e POSTGRES_PASSWORD=ci-only-password)
@@ -210,7 +216,10 @@ jobs:
             | jq -e '.status == "ALREADY_APPLIED"'
           docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff -Atc \
-            "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 3
+            "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 4
+          docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
+            -U funnelmetry -d funnelmetry_handoff \
+            < infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql
       - name: Check CDC Docker secret config and isolated worker images
         run: |
           node --test workers/shared/postgres-config.test.mjs

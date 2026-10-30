@@ -25,6 +25,9 @@ export const migrations = Object.freeze([
     'reference_cdc_v2_sink_offsets', 'reference_cdc_v2_quality_state',
     'reference_cdc_v2_order_current_state_readable',
   ] },
+  { file: '025_reference_order_cdc_v2_funnel_candidate.sql', objects: [
+    'reference_cdc_v2_funnel_terminal_candidate',
+  ] },
 ])
 
 export function migrationDigest(files) {

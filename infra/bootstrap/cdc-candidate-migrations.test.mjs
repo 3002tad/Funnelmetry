@@ -39,7 +39,7 @@ test('CDC candidate migration plan is read-only, scoped and checksum bound', asy
 })
 
 test('CDC candidate extension accepts an exact journal prefix and only applies pending files', async () => {
-  const applied = migrations.slice(0, 2)
+  const applied = migrations.slice(0, 3)
   const objects = new Set(applied.flatMap(migration =>
     migration.objects.map(object => `public.${object}`)))
   const journal = applied.map((migration, index) => ({ file_name: migration.file,
@@ -47,12 +47,12 @@ test('CDC candidate extension accepts an exact journal prefix and only applies p
   const client = clientWith(objects, journal)
   const plan = await runCandidateMigrations(client, files, 'plan')
   assert.equal(plan.status, 'READY_TO_EXTEND')
-  assert.deepEqual(plan.pendingFiles, [migrations[2].file])
+  assert.deepEqual(plan.pendingFiles, [migrations[3].file])
   const appliedResult = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
-  assert.deepEqual(appliedResult.appliedFiles, [migrations[2].file])
+  assert.deepEqual(appliedResult.appliedFiles, [migrations[3].file])
   assert.equal(client.statements.filter(({sql}) => sql.startsWith('CREATE TABLE cdc_candidate_migration_journal')).length, 0)
-  assert.equal(client.statements.filter(({sql}) => sql === files[2]).length, 1)
-  assert.equal(client.statements.filter(({sql}) => sql === files[0] || sql === files[1]).length, 0)
+  assert.equal(client.statements.filter(({sql}) => sql === files[3]).length, 1)
+  assert.equal(client.statements.filter(({sql}) => files.slice(0, 3).includes(sql)).length, 0)
 })
 
 test('CDC candidate extension rejects missing earlier migration and changed checksum', async () => {

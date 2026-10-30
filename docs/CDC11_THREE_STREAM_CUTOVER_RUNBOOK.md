@@ -382,6 +382,18 @@ checkout event after restoration. This proves OFF/re-entry and fail-closed
 catch-up on the target for a controlled DB change. It is not a Medusa Admin
 workflow or a published funnel correction/UI test; the latter remains open.
 
+**Correction read-model candidate (migration 025):** A separate read-only
+`reference_cdc_v2_funnel_terminal_candidate` view joins the guarded v2 order
+state to exactly one strong cart journey and a matching `checkout.started`.
+Only a latest post-baseline ON transition with the same cart is visible. OFF,
+baseline-only state, corrected cart without new ON, missing checkout and an
+expired quality lease remove the candidate from the query result immediately.
+The migration does not publish a Funnel Profile, write canonical events,
+change `order.placed`, or expose the candidate in Dashboard. CI exercises
+baseline→ON→OFF→ON and lease expiry in a rolled-back PostgreSQL transaction.
+Target runtime verification and a versioned reference profile/API/UI binding
+remain separate CDC-11 work.
+
 **Observed target order-fact delay and WAL headroom, 2026-10-30:** The
 mapper's `observed_state_at` comes from Debezium transaction END `ts_ms`;
 subtracting that from sink `ingested_at` for the three post-baseline ON facts
