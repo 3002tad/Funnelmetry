@@ -110,8 +110,11 @@ DO $$ BEGIN
       WHERE coverage_epoch_id='cdc25_epoch' AND on_record_id='cdc25_on_again') <> 1
   THEN RAISE EXCEPTION 're-entry did not use latest ON'; END IF;
 END $$;
-UPDATE reference_cdc_v2_quality_state SET valid_until=clock_timestamp()-interval '1 second'
+UPDATE reference_cdc_v2_quality_state
+SET verified_at=clock_timestamp()-interval '1 second',
+    valid_until=clock_timestamp()+interval '20 milliseconds'
 WHERE coverage_epoch_id='cdc25_epoch';
+SELECT pg_sleep(0.1);
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM reference_cdc_v2_funnel_terminal_candidate
              WHERE coverage_epoch_id='cdc25_epoch')
