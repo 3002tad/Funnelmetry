@@ -94,6 +94,54 @@ class QualityDecisionTests(unittest.TestCase):
         self.assertFalse(result["checks"]["mapper_sink_equal"])
         self.assertFalse(result["checks"]["baseline_verified"])
 
+    def test_moving_source_allows_only_short_new_order_backlog(self):
+        value = sample()
+        value["source"]["states"].append({"order_id": "order_2", "active": True,
+                                          "cart_id": "cart_2"})
+        value["mapper"]["pending_ends"] = 1
+        value["topic_ends"][f"{PREFIX}.public.order"] = 2
+        result = quality.evaluate_moving(value, prefix=PREFIX, fact_topic=FACT,
+            minimum_safe_wal_bytes=64 * 1024 * 1024, max_pending_orders=2,
+            max_raw_offset_lag=4, max_pending_seconds=5,
+            pending_first_seen={}, now_seconds=100)
+        self.assertEqual(result["status"], "PASS_BOUNDED_LAG")
+        self.assertEqual(result["pending_first_seen"], {"order_2": 100})
+        stale = quality.evaluate_moving(value, prefix=PREFIX, fact_topic=FACT,
+            minimum_safe_wal_bytes=64 * 1024 * 1024, max_pending_orders=2,
+            max_raw_offset_lag=4, max_pending_seconds=5,
+            pending_first_seen={"order_2": 90}, now_seconds=100)
+        self.assertEqual(stale["status"], "BLOCKED_BY_QUALITY")
+        self.assertFalse(stale["checks"]["pending_fresh"])
+
+    def test_moving_source_blocks_existing_order_correction_and_lost_slot(self):
+        value = sample()
+        value["source"]["states"][0] = {"order_id": "order_1", "active": False,
+                                          "cart_id": None}
+        args = dict(prefix=PREFIX, fact_topic=FACT,
+            minimum_safe_wal_bytes=64 * 1024 * 1024, max_pending_orders=2,
+            max_raw_offset_lag=4, max_pending_seconds=5,
+            pending_first_seen={}, now_seconds=100)
+        result = quality.evaluate_moving(value, **args)
+        self.assertEqual(result["status"], "BLOCKED_BY_QUALITY")
+        self.assertFalse(result["checks"]["state_prefix_consistent"])
+        value = sample()
+        value["source"]["slot_status"] = "lost"
+        self.assertEqual(quality.evaluate_moving(value, **args)["status"],
+                         "BLOCKED_BY_QUALITY")
+
+    def test_moving_source_blocks_unbounded_offset_and_extra_active_order(self):
+        value = sample()
+        args = dict(prefix=PREFIX, fact_topic=FACT,
+            minimum_safe_wal_bytes=64 * 1024 * 1024, max_pending_orders=2,
+            max_raw_offset_lag=4, max_pending_seconds=5,
+            pending_first_seen={}, now_seconds=100)
+        value["topic_ends"][f"{PREFIX}.public.order"] = 6
+        self.assertFalse(quality.evaluate_moving(value, **args)["checks"]["offset_backlog_bounded"])
+        value = sample()
+        value["mapper"]["states"].append({"order_id": "order_old", "active": True,
+                                          "cart_id": "cart_old"})
+        self.assertFalse(quality.evaluate_moving(value, **args)["checks"]["state_prefix_consistent"])
+
 
 if __name__ == "__main__":
     unittest.main()

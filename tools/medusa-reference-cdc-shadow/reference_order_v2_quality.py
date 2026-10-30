@@ -110,3 +110,109 @@ def evaluate(sample, *, prefix, fact_topic, minimum_safe_wal_bytes):
         "fact_offset": sink_offset,
         "slot_safe_wal_size": safe_wal,
     }
+
+
+def evaluate_moving(sample, *, prefix, fact_topic, minimum_safe_wal_bytes,
+                    max_pending_orders, max_raw_offset_lag,
+                    max_pending_seconds, pending_first_seen, now_seconds):
+    """Candidate bounded-lag decision for a source sample taken LAST.
+
+    The mapper/sink may be behind the source only for newly inserted order IDs.
+    Changes to an already observed order, bad lineage, a lost slot, or a stale
+    pending ID fail closed. Caller must persist pending_first_seen across restarts
+    before this decision may publish a live quality lease.
+    """
+    if (not isinstance(max_pending_orders, int) or max_pending_orders < 0 or
+            not isinstance(max_raw_offset_lag, int) or max_raw_offset_lag < 0 or
+            not isinstance(max_pending_seconds, (int, float)) or max_pending_seconds <= 0 or
+            not isinstance(now_seconds, (int, float)) or
+            not isinstance(pending_first_seen, dict)):
+        raise ValueError("moving order quality policy is invalid")
+    result = evaluate(sample, prefix=prefix, fact_topic=fact_topic,
+                      minimum_safe_wal_bytes=minimum_safe_wal_bytes)
+    source = _states((sample.get("source") or {}).get("states"))
+    mapper = _states((sample.get("mapper") or {}).get("states"))
+    sink = _states((sample.get("sink") or {}).get("states"))
+    raw_topics = {f"{prefix}.public.{table}" for table in TABLES} | {
+        f"{prefix}.transaction"}
+    ends = sample.get("topic_ends") or {}
+    mapper_offsets = (sample.get("mapper") or {}).get("offsets") or {}
+    sink_offset = (sample.get("sink") or {}).get("offset")
+    pending = set()
+    comparable = source is not None and mapper is not None and sink is not None
+    existing_equal = comparable
+    if comparable:
+        for order_id, source_state in source.items():
+            mapper_state = mapper.get(order_id)
+            sink_state = sink.get(order_id)
+            if mapper_state is None or sink_state is None:
+                pending.add(order_id)
+            elif mapper_state != source_state or sink_state != source_state:
+                existing_equal = False
+        # A later source sample cannot omit an active projected order unless
+        # that source order was deleted or its lineage has diverged.
+        for order_id, state in mapper.items():
+            if order_id not in source and state[0]:
+                existing_equal = False
+        for order_id, state in sink.items():
+            if order_id not in source and state[0]:
+                existing_equal = False
+        for order_id in set(mapper) & set(sink):
+            if mapper[order_id] != sink[order_id]:
+                existing_equal = False
+        if any(order_id not in mapper for order_id in sink):
+            existing_equal = False
+    next_pending = {}
+    pending_fresh = comparable
+    for order_id in pending:
+        first = pending_first_seen.get(order_id, now_seconds)
+        if not isinstance(first, (int, float)) or first > now_seconds or \
+                now_seconds - first > max_pending_seconds:
+            pending_fresh = False
+        else:
+            next_pending[order_id] = first
+    pending_fresh = pending_fresh and len(pending) <= max_pending_orders
+    offsets_bounded = (set(ends) == raw_topics | {fact_topic} and
+                       set(mapper_offsets).issubset(raw_topics) and
+                       type(sink_offset) is int)
+    raw_backlog = {}
+    if offsets_bounded:
+        for topic in raw_topics:
+            end, applied = ends.get(topic), mapper_offsets.get(topic, 0)
+            if type(end) is not int or type(applied) is not int or \
+                    not 0 <= end - applied <= max_raw_offset_lag:
+                offsets_bounded = False
+                break
+            raw_backlog[topic] = end - applied
+        fact_end = ends.get(fact_topic)
+        offsets_bounded = offsets_bounded and type(fact_end) is int and \
+            0 <= fact_end - sink_offset <= 2 * max_pending_orders
+    mapper_status = sample.get("mapper") or {}
+    outbox = mapper_status.get("outbox_counts") or {}
+    inbox = (sample.get("sink") or {}).get("inbox_counts") or {}
+    record_prefix_valid = (all(type(value) is int and value >= 0 for value in
+                               list(outbox.values()) + list(inbox.values())) and
+                           all(outbox.get(kind, -1) >= count for kind, count in
+                               inbox.items()) and
+                           type(sink_offset) is int and sum(inbox.values()) == sink_offset and
+                           0 <= sum(outbox.values()) - sum(inbox.values()) <=
+                           2 * max_pending_orders and
+                           type(mapper_status.get("pending_ends")) is int and
+                           type(mapper_status.get("unpublished")) is int and
+                           0 <= mapper_status["pending_ends"] <= max_pending_orders and
+                           0 <= mapper_status["unpublished"] <= 2 * max_pending_orders)
+    checks = dict(result["checks"])
+    for strict_key in ("source_mapper_equal", "mapper_sink_equal",
+                       "ordered_prefix_complete", "offsets_caught_up",
+                       "outbox_inbox_equal"):
+        checks.pop(strict_key)
+    checks.update({"state_prefix_consistent": existing_equal,
+                   "ordered_prefix_bounded": record_prefix_valid,
+                   "offset_backlog_bounded": offsets_bounded,
+                   "pending_fresh": pending_fresh})
+    result.update({"status": "PASS_BOUNDED_LAG" if all(checks.values()) else
+                   "BLOCKED_BY_QUALITY", "checks": checks,
+                   "pending_order_count": len(pending),
+                   "pending_first_seen": next_pending,
+                   "raw_offset_backlog": raw_backlog})
+    return result

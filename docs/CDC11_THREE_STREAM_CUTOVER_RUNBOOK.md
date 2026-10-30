@@ -522,6 +522,25 @@ continuous writes without weakening fail-closed behavior, and the same
 target workload proves no false quality block. This is a new failure mode
 found by the target workload, not a reason to repeat CDC-10 clone tests.
 
+**Moving-input diagnosis and read-only candidate, 2026-10-30:** During a
+separate 24-order/three-worker run, the strict order verifier failed while
+source contained 145 orders and sink 142. Slot/Connect, mapper=sink and
+baseline/gap checks passed; three new orders and transaction offsets were
+still in flight (`source_mapper_equal`, `offsets_caught_up` and
+`ordered_prefix_complete` failed). The run ended with all 24 new ON records
+and sink offset 274→322. A new *read-only* bounded-lag evaluator and target
+probe then ran three times while 18 more orders were created: each sample
+found three new source orders pending, raw transaction backlog 24/28/26,
+mapper and sink equal, usable slot, no existing-order state mismatch and
+`PASS_BOUNDED_LAG`. The 18-order workload caught up to sink offset 358.
+Policy limits were passed as probe arguments (8 pending orders, 128 raw
+offsets, 10 seconds) and are **experimental, not approved cutover defaults**.
+The probe does not write a lease or change writer invalidation. Before a live
+quality policy can use it, pending first-seen time must persist across
+monitor restarts; writer/lease transactions, stage-1/stage-2 freshness and
+failure injection must be checked. Do not treat these three passing samples
+as a CDC-12 authority decision.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow
