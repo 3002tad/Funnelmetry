@@ -244,7 +244,7 @@ jobs:
             | jq -e '.status == "ALREADY_APPLIED"'
           docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff -Atc \
-            "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 5
+            "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 6
           docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff \
             < infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql
