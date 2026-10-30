@@ -3,13 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { ApiError } from '../../lib/api'
-import { fetchReferenceCdcFunnelCandidate } from '../../lib/analytics-api'
+import { fetchReferenceCdcCurrentState } from '../../lib/analytics-api'
 
 export function ReferenceCdcCandidatePanel({sourceId,range}:{sourceId:string;range:string}) {
   const [opened,setOpened] = useState(false)
   const query = useQuery({
     queryKey:['reference-cdc-funnel-candidate',sourceId,range],
-    queryFn:()=>fetchReferenceCdcFunnelCandidate(range),
+    queryFn:()=>fetchReferenceCdcCurrentState(range),
     enabled:opened,
     retry:false,
   })
@@ -19,7 +19,7 @@ export function ReferenceCdcCandidatePanel({sourceId,range}:{sourceId:string;ran
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 className="text-sm font-semibold">CDC reference · current state</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Bản thử nghiệm riêng: đơn còn được ghi nhận sau checkout. Có thể giảm khi order chuyển OFF; không phải placed-order conversion hay doanh thu.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Trạng thái đơn hiện còn được ghi nhận sau checkout. Có thể giảm khi order chuyển OFF; không phải placed-order conversion hay doanh thu. Chỉ đọc được khi coverage và quality hợp lệ.</p>
       </div>
       <Button variant="outline" onClick={()=>{setOpened(true);if(opened)void query.refetch()}}>
         {opened?'Làm mới CDC reference':'Xem CDC reference'}
@@ -33,7 +33,8 @@ export function ReferenceCdcCandidatePanel({sourceId,range}:{sourceId:string;ran
       Candidate chưa khả dụng trong môi trường này.
     </p>}
     {data && !query.isError && <>
-      <div className="mt-4 flex flex-wrap gap-2"><Badge>SHADOW / UNPUBLISHED</Badge>
+      <div className="mt-4 flex flex-wrap gap-2"><Badge>{data.profile_status === 'ACTIVE' ?
+        `${data.profile_id}@${data.profile_version} · ACTIVE` : 'SHADOW / UNPUBLISHED'}</Badge>
         <Badge>Coverage gap: {data.historical_gap_status}</Badge>
         <Badge>{data.coverage_epoch_id}</Badge></div>
       <div className="mt-4 grid gap-3 sm:grid-cols-4">

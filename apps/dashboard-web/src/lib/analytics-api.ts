@@ -1,4 +1,4 @@
-import { analyticsSourceId, apiRequest } from "./api"
+import { analyticsSourceId, apiRequest, ApiError } from "./api"
 
 export type QualityStatus = "PROVISIONAL" | "RECONCILING" | "RECONCILED" | "DEGRADED"
 export type OutcomeStatus = "IN_PROGRESS" | "CONVERTED" | "DROPPED" | "TERMINATED" | "INVALID"
@@ -77,12 +77,18 @@ export type FunnelResponse = {
 }
 
 export type ReferenceCdcFunnelCandidateResponse = {
-  status: 'SHADOW_CURRENT_STATE'
+  status: 'SHADOW_CURRENT_STATE' | 'CURRENT_STATE_READY'
   contract_id: 'reference.medusa.order_recorded_state.v2'
   source_id: string
   coverage_epoch_id: string
   historical_gap_status: 'INCOMPLETE'
-  profile_status: 'UNPUBLISHED'
+  profile_status: 'UNPUBLISHED' | 'ACTIVE'
+  profile_id?: string
+  profile_version?: string
+  metric_id?: string
+  metric_version?: string
+  unit?: 'journeys'
+  terminal_mode?: 'RETRACTABLE_CURRENT_STATE'
   cohort: { basis: 'entry_at'; activation_at: string; from: string | null; to: string | null }
   quality_valid_until: string
   totals: {
@@ -296,6 +302,19 @@ export function fetchReferenceCdcFunnelCandidate(range: string) {
   return apiRequest<ReferenceCdcFunnelCandidateResponse>(
     `/api/v2/analytics/reference-cdc-funnel-candidate?${scopeParams(range)}`,
   )
+}
+
+export async function fetchReferenceCdcCurrentState(range: string) {
+  try {
+    return await apiRequest<ReferenceCdcFunnelCandidateResponse>(
+      `/api/v2/analytics/reference-cdc-current-state?${scopeParams(range)}`,
+    )
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return fetchReferenceCdcFunnelCandidate(range)
+    }
+    throw error
+  }
 }
 
 export async function fetchV2Journeys(limit = 50) {

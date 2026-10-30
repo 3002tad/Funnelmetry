@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import express from 'express'
 import {createReferenceCdcFunnelCandidateRepository} from
   '../src/lib/reference-cdc-funnel-candidate.js'
+import {REFERENCE_CDC_PROFILE_V2 as profile} from
+  '../src/lib/reference-cdc-profile-v2.js'
 
 const now = new Date('2026-10-30T12:00:00Z')
 const quality = {status:'CURRENT_STATE_READY',baseline_complete:true,
@@ -12,7 +14,14 @@ const sourceId = 'medusa-reference'
 const coverageEpochId = 'cdc11_order_epoch1'
 const scope = {sourceId,from:null,to:null}
 
-function harness({snapshot = quality, after = quality,
+const binding = {source_instance_id:sourceId,coverage_epoch_id:coverageEpochId,
+  activation_at:'2026-10-30T00:00:00Z',state:'ACTIVE',
+  activated_at:'2026-10-30T10:00:00Z',updated_at:'2026-10-30T10:00:00Z',
+  profile_id:profile.profile_id,profile_version:profile.profile_version,
+  contract_id:profile.contract_id,metric_id:profile.metric_id,definition:profile}
+
+function harness({snapshot = quality, after = quality, active = binding,
+  bindingAfter = active,
   counts = {entrants:'2',item_added:'2',checkout_started:'1',
     currently_recorded_journeys:'1'}} = {}) {
   let countReads = 0
@@ -21,7 +30,15 @@ function harness({snapshot = quality, after = quality,
     if (sql.startsWith('WITH events AS')) {countReads++;return {rows:[counts]}}
     return {rows:[]}
   }}
-  const pool = {async connect(){return client},async query(){return {rows:after ? [after] : []}}}
+  let bindingReads = 0
+  const pool = {async connect(){return client},async query(sql){
+    if (sql.startsWith('SELECT b.source_instance_id')) {
+      bindingReads++
+      const row = bindingReads === 1 ? active : bindingAfter
+      return {rows:row ? [row] : []}
+    }
+    return {rows:after ? [after] : []}
+  }}
   const repository = createReferenceCdcFunnelCandidateRepository({pool,sourceId,
     coverageEpochId,activationAt:'2026-10-30T00:00:00Z',now:()=>now})
   return {repository,get countReads(){return countReads}}
@@ -60,6 +77,19 @@ test('other source never receives reference candidate data', async () => {
   assert.equal(await harness().repository.read({...scope,sourceId:'another-source'}),null)
 })
 
+test('active reference profile is separate and fails closed on binding changes', async () => {
+  const ready = await harness().repository.readActive(scope)
+  assert.equal(ready.status,'CURRENT_STATE_READY')
+  assert.equal(ready.profile_status,'ACTIVE')
+  assert.equal(ready.profile_id,'reference-commerce-current-state')
+  assert.equal(ready.metric_id,'metric.reference_currently_recorded_journey_count')
+  assert.equal(ready.totals.currently_recorded_journeys,1)
+  assert.equal((await harness({active:null}).repository.readActive(scope)).status,'BLOCKED_BY_QUALITY')
+  const changed = await harness({bindingAfter:{...binding,state:'ROLLED_BACK',
+    updated_at:'2026-10-30T12:00:01Z'}}).repository.readActive(scope)
+  assert.equal(changed.reason,'REFERENCE_PROFILE_CHANGED_DURING_READ')
+})
+
 test('candidate route bounds source/query, suppresses blocked counts and disables caching', async () => {
   Object.assign(process.env,{PORT:'32000',CORS_ORIGIN_DASHBOARD:'http://localhost:5180',
     JWT_SECRET:'cdc-route-test-only',JWT_EXPIRES:'1h',
@@ -74,7 +104,9 @@ test('candidate route bounds source/query, suppresses blocked counts and disable
   app.use(createReferenceCdcFunnelCandidateRouter({async read(input){
     calls++
     return input.sourceId === sourceId ? result : null
-  }}))
+  },async readActive(input){return input.sourceId === sourceId ?
+    {status:'CURRENT_STATE_READY',profile_status:'ACTIVE'} : null}},
+  {activeEnabled:true}))
   const server = app.listen(0,'127.0.0.1')
   await new Promise(resolve=>server.once('listening',resolve))
   const base = `http://127.0.0.1:${server.address().port}/api/v2/analytics/reference-cdc-funnel-candidate`
@@ -87,6 +119,10 @@ test('candidate route bounds source/query, suppresses blocked counts and disable
     const ok = await fetch(`${base}?source_id=${sourceId}`)
     assert.equal(ok.status,200)
     assert.equal(ok.headers.get('cache-control'),'no-store')
+    const active = await fetch(`${base.replace('reference-cdc-funnel-candidate',
+      'reference-cdc-current-state')}?source_id=${sourceId}`)
+    assert.equal(active.status,200)
+    assert.equal((await active.json()).profile_status,'ACTIVE')
     result = {status:'BLOCKED_BY_QUALITY',reason:'CDC_QUALITY_UNAVAILABLE'}
     const blocked = await fetch(`${base}?source_id=${sourceId}`)
     assert.equal(blocked.status,503)

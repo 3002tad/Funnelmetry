@@ -1,5 +1,15 @@
 // Read-only, shadow-only funnel candidate. It never publishes a Funnel Profile
 // or aliases the retractable CDC terminal to canonical order.placed.
+import { isDeepStrictEqual } from 'node:util'
+import { REFERENCE_CDC_PROFILE_V2 as profile } from './reference-cdc-profile-v2.js'
+
+const ACTIVE_BINDING_SQL = `SELECT b.source_instance_id,b.coverage_epoch_id,
+  b.activation_at,b.state,b.activated_at,b.updated_at,
+  r.profile_id,r.profile_version,r.contract_id,r.metric_id,r.definition
+  FROM reference_cdc_v2_profile_bindings b
+  JOIN reference_cdc_v2_profile_releases r
+    ON r.profile_id=b.profile_id AND r.profile_version=b.profile_version
+  WHERE b.source_instance_id=$1 AND b.profile_id=$2 AND b.profile_version=$3`
 const QUALITY_SQL = `SELECT status,baseline_complete,historical_gap_status,
   verified_at,valid_until
   FROM reference_cdc_v2_quality_state
@@ -59,13 +69,21 @@ function blocked(reason = 'CDC_QUALITY_UNAVAILABLE') {
   return Object.freeze({status:'BLOCKED_BY_QUALITY',reason})
 }
 
+function activeBinding(row, sourceId, coverageEpochId, activation) {
+  return row?.source_instance_id === sourceId && row.state === 'ACTIVE' &&
+    row.coverage_epoch_id === coverageEpochId &&
+    new Date(row.activation_at).getTime() === Date.parse(activation) &&
+    row.profile_id === profile.profile_id && row.profile_version === profile.profile_version &&
+    row.contract_id === profile.contract_id && row.metric_id === profile.metric_id &&
+    isDeepStrictEqual(row.definition, profile)
+}
+
 export function createReferenceCdcFunnelCandidateRepository({pool, sourceId,
   coverageEpochId, activationAt, now = () => new Date()} = {}) {
   if (!pool?.connect || !pool?.query || !sourceId || !coverageEpochId ||
       !validInstant(activationAt)) throw Error('reference_cdc_funnel_candidate_config_invalid')
   const activation = new Date(activationAt).toISOString()
-  return Object.freeze({
-    async read(scope) {
+  async function read(scope) {
       if (scope?.sourceId !== sourceId) return null
       const client = await pool.connect()
       let quality, row
@@ -113,6 +131,29 @@ export function createReferenceCdcFunnelCandidateRepository({pool, sourceId,
           currently_recorded_journeys:recorded,
           current_state_reach_rate:entrants ? recorded / entrants : null},
       })
+  }
+  return Object.freeze({
+    read,
+    async readActive(scope) {
+      if (scope?.sourceId !== sourceId) return null
+      const params = [sourceId,profile.profile_id,profile.profile_version]
+      const before = (await pool.query(ACTIVE_BINDING_SQL,params)).rows[0]
+      if (!activeBinding(before,sourceId,coverageEpochId,activation)) {
+        return blocked('REFERENCE_PROFILE_INACTIVE')
+      }
+      const result = await read(scope)
+      if (result.status === 'BLOCKED_BY_QUALITY') return result
+      const after = (await pool.query(ACTIVE_BINDING_SQL,params)).rows[0]
+      if (!activeBinding(after,sourceId,coverageEpochId,activation) ||
+          new Date(after.updated_at).getTime() !== new Date(before.updated_at).getTime() ||
+          new Date(after.activated_at).getTime() !== new Date(before.activated_at).getTime()) {
+        return blocked('REFERENCE_PROFILE_CHANGED_DURING_READ')
+      }
+      return Object.freeze({...result,status:'CURRENT_STATE_READY',
+        profile_status:'ACTIVE',profile_id:profile.profile_id,
+        profile_version:profile.profile_version,metric_id:profile.metric_id,
+        metric_version:profile.metric_version,unit:'journeys',
+        terminal_mode:profile.terminal_mode})
     },
   })
 }

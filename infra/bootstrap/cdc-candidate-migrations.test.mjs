@@ -91,7 +91,7 @@ test('CDC candidate extension from the target five-file journal adds projection 
   assert.equal(client.statements.filter(({sql}) => files.slice(0, 5).includes(sql)).length, 0)
 })
 
-test('target six-file journal adds only the independent reference profile schema', async () => {
+test('target six-file journal adds the independent reference profile schema and audit', async () => {
   const applied = migrations.slice(0, 6)
   const objects = new Set(applied.flatMap(migration =>
     migration.objects.map(object => `public.${object}`)))
@@ -99,11 +99,33 @@ test('target six-file journal adds only the independent reference profile schema
     content_sha256: createHash('sha256').update(files[index]).digest('hex') }))
   const client = clientWith(objects, journal)
   const plan = await runCandidateMigrations(client, files, 'plan')
-  assert.deepEqual(plan.pendingFiles, ['028_reference_cdc_v2_profile_candidate.sql'])
+  assert.deepEqual(plan.pendingFiles, [
+    '028_reference_cdc_v2_profile_candidate.sql',
+    '029_reference_cdc_v2_profile_audit.sql',
+  ])
   const result = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
-  assert.deepEqual(result.appliedFiles, ['028_reference_cdc_v2_profile_candidate.sql'])
+  assert.deepEqual(result.appliedFiles, [
+    '028_reference_cdc_v2_profile_candidate.sql',
+    '029_reference_cdc_v2_profile_audit.sql',
+  ])
   assert.equal(client.statements.filter(({sql}) => sql === files[6]).length, 1)
+  assert.equal(client.statements.filter(({sql}) => sql === files[7]).length, 1)
   assert.equal(client.statements.filter(({sql}) => files.slice(0, 6).includes(sql)).length, 0)
+})
+
+test('target seven-file journal extends only the append-only profile audit', async () => {
+  const applied = migrations.slice(0, 7)
+  const objects = new Set(applied.flatMap(migration =>
+    migration.objects.map(object => `public.${object}`)))
+  const journal = applied.map((migration, index) => ({ file_name: migration.file,
+    content_sha256: createHash('sha256').update(files[index]).digest('hex') }))
+  const client = clientWith(objects, journal)
+  const plan = await runCandidateMigrations(client, files, 'plan')
+  assert.deepEqual(plan.pendingFiles, ['029_reference_cdc_v2_profile_audit.sql'])
+  const result = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
+  assert.deepEqual(result.appliedFiles, ['029_reference_cdc_v2_profile_audit.sql'])
+  assert.equal(client.statements.filter(({sql}) => sql === files[7]).length, 1)
+  assert.equal(client.statements.filter(({sql}) => files.slice(0, 7).includes(sql)).length, 0)
 })
 
 test('CDC candidate extension rejects missing earlier migration and changed checksum', async () => {

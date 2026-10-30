@@ -6,4 +6,5 @@ export const ANALYTICS_V2_PATHS = Object.freeze({
   events: "/api/v2/analytics/events",
   dataHealth: "/api/v2/analytics/data-health",
   cdcReferenceCandidate: "/api/v2/analytics/reference-cdc-funnel-candidate",
+  cdcReferenceCurrentState: "/api/v2/analytics/reference-cdc-current-state",
 })

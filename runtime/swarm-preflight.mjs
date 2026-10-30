@@ -40,6 +40,13 @@ export function validateSwarmApp(env) {
   if (!['true', 'false'].includes(cdcReferenceCandidate)) {
     throw Error('SWARM_ENABLE_CDC_REFERENCE_CANDIDATE must be true or false');
   }
+  const cdcReferenceActive = env.SWARM_ENABLE_CDC_REFERENCE_ACTIVE?.trim() || 'false';
+  if (!['true', 'false'].includes(cdcReferenceActive)) {
+    throw Error('SWARM_ENABLE_CDC_REFERENCE_ACTIVE must be true or false');
+  }
+  if (cdcReferenceActive === 'true' && cdcReferenceCandidate !== 'true') {
+    throw Error('ACTIVE CDC reference requires the scoped candidate read path');
+  }
   if (cdcReferenceCandidate === 'true') {
     if (env.SWARM_MIGRATION_MODE !== 'PARALLEL_LIVE') {
       throw Error('CDC reference candidate requires PARALLEL_LIVE mode');
@@ -76,7 +83,7 @@ export function validateSwarmApp(env) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.SWARM_ADMIN_EMAIL?.trim() || '')) {
     throw Error('SWARM_ADMIN_EMAIL must be a valid single-line email');
   }
-  return Object.freeze({ domain, tlsMode, productReferenceProvider, catalogSyncReplicas: Number(catalogSyncReplicas), cdcReferenceOffer: cdcReferenceOffer === 'true', cdcReferenceCandidate: cdcReferenceCandidate === 'true', status: 'PLANNING_ONLY' });
+  return Object.freeze({ domain, tlsMode, productReferenceProvider, catalogSyncReplicas: Number(catalogSyncReplicas), cdcReferenceOffer: cdcReferenceOffer === 'true', cdcReferenceCandidate: cdcReferenceCandidate === 'true', cdcReferenceActive: cdcReferenceActive === 'true', status: 'PLANNING_ONLY' });
 }
 
 export function validateSwarmCandidate(env) {

@@ -83,8 +83,9 @@ export function createApp() {
   shop.use(requireAuth, requireLivePermission('analytics.read'), requireShopRole);
   shop.use(requireAnalyticsCapability);
   shop.use(analyticsV2Router);
-  if (config.features.cdcReferenceCandidate) {
-    shop.use(createReferenceCdcFunnelCandidateRouter());
+  if (config.features.cdcReferenceCandidate || config.features.cdcReferenceActive) {
+    shop.use(createReferenceCdcFunnelCandidateRouter(undefined,
+      { activeEnabled: config.features.cdcReferenceActive }));
   }
   shop.use(createTrafficInputRouter());
   shop.use(createTrafficSourceRegistryRouter());

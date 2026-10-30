@@ -836,6 +836,46 @@ policy or make the order terminal ready for live cutover under sustained writes.
 
 ## 6. CDC-13 cleanup gate
 
+### Reference current-state profile v2 publication (DEC-119/135, 2026-10-30)
+
+The approved identity is `reference-commerce-current-state@2.0.0`, metric
+`metric.reference_currently_recorded_journey_count@2.0.0`, grain journey.
+This is a retractable current-state reach, not the historical
+`commerce-conversion@2.0.0` order.placed conversion. The metadata release and
+binding live in `reference_cdc_v2_profile_releases` and
+`reference_cdc_v2_profile_bindings`; migration 029 adds an append-only binding
+transition audit. Neither migration creates an active binding. Use the
+candidate migration planner and its reviewed digest to extend an existing
+Pipeline DB from migration 028 to 029. Do not modify 028 after it is journaled.
+
+The operator script `apps/dashboard-api/scripts/reference-cdc-profile.mjs`
+requires the exact source, coverage epoch, activation timestamp and a
+`CDC_REFERENCE_DECISION_REF` matching DEC-119/135. It reads the existing DB
+secret file. `publish-shadow` verifies a fresh order-v2 lease and that
+activation follows the BASELINE_COMPLETE record, then writes an immutable
+release and SHADOW binding. `activate` additionally requires
+`CDC_REFERENCE_ACTIVATION_ACK=ACTIVATE_REFERENCE_CURRENT_STATE_V2`; it records
+the state transition and audit row. `rollback` retracts either SHADOW or ACTIVE
+binding; a rolled-back version cannot be silently reactivated or republished.
+Publish a new version/epoch after rollback. These commands never write
+canonical events or change the legacy funnel profile.
+
+Set `DASHBOARD_ENABLE_CDC_REFERENCE_ACTIVE=true` only with the scoped
+candidate variables and reviewed API image. The active endpoint
+`/api/v2/analytics/reference-cdc-current-state` requires an exact ACTIVE
+binding, immutable release definition and fresh quality lease before and
+after reading; otherwise it returns `BLOCKED_BY_QUALITY`. The shadow endpoint
+remains separately available. Dashboard labels the old order.placed funnel
+as historical and does not sum it with the CDC current-state metric.
+Record the image digest, epoch, activation, lease expiry, binding audit ID,
+old profile read path, rollback deadline and a fresh post-activation checkout
+in the CDC-12 authority record before disabling the old authoritative path.
+
+For inventory/price, the current-offer API remains a read-path canary with
+`PASS_SAMPLE_ONLY` for proven simple contexts. Do not promote unsupported
+price-list/reservation/backorder results to an ACTIVE analytical asset. The
+catalog CDC canary remains independent; its API sync service is already 0/0.
+
 Only after the rollback window expires and all consumers/dependencies are inventoried: remove the installer-owned backend order subscriber in a reproducible Medusa branch/installer release; revoke its signing credential; retire old order profile with historical audit preserved; remove `catalog-sync` service and its Admin API sync credential; archive old API-created reference tables only under a migration/retention policy. Do not remove Medusa Admin/Store API, Browser SDK, Source Ingress/Event Feed/Connector used by browser events, or shared volumes as part of this CDC-only change.
 
 ## 7. Present stop conditions

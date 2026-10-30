@@ -46,4 +46,7 @@ END $$;
 SELECT CASE WHEN count(*)=1 AND bool_and(state='ACTIVE')
   THEN 'PROFILE_BINDING_GUARD_PASS' ELSE 'PROFILE_BINDING_GUARD_FAIL' END
 FROM reference_cdc_v2_profile_bindings WHERE source_instance_id='test-source';
+SELECT CASE WHEN array_agg(new_state ORDER BY audit_id) = ARRAY['SHADOW','ACTIVE']::text[]
+  THEN 'PROFILE_AUDIT_PASS' ELSE 'PROFILE_AUDIT_FAIL' END
+FROM reference_cdc_v2_profile_binding_audit WHERE source_instance_id='test-source';
 ROLLBACK;

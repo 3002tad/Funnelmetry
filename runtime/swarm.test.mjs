@@ -95,6 +95,7 @@ test('reference current-offer endpoint requires an explicit CDC live deployment 
 test('order-v2 current-state read path requires an explicit scoped deployment', () => {
   const app = readFileSync(fileURLToPath(new URL('../infra/swarm-app.yml', import.meta.url)), 'utf8');
   assert.match(app, /DASHBOARD_ENABLE_CDC_REFERENCE_CANDIDATE: \$\{SWARM_ENABLE_CDC_REFERENCE_CANDIDATE:-false\}/);
+  assert.match(app, /DASHBOARD_ENABLE_CDC_REFERENCE_ACTIVE: \$\{SWARM_ENABLE_CDC_REFERENCE_ACTIVE:-false\}/);
   for (const key of ['SOURCE_ID', 'COVERAGE_EPOCH_ID', 'ACTIVATION_AT']) {
     assert.ok(app.includes('CDC_REFERENCE_' + key + ': ${SWARM_CDC_REFERENCE_' + key + ':-}'));
   }
@@ -107,6 +108,9 @@ test('order-v2 current-state read path requires an explicit scoped deployment', 
     SWARM_CDC_REFERENCE_COVERAGE_EPOCH_ID: 'cdc11_order_epoch1',
     SWARM_CDC_REFERENCE_ACTIVATION_AT: '2026-10-30T04:29:31.042Z' };
   assert.equal(validateSwarmApp(enabled).cdcReferenceCandidate, true);
+  assert.equal(validateSwarmApp({ ...enabled, SWARM_ENABLE_CDC_REFERENCE_ACTIVE: 'true' }).cdcReferenceActive, true);
+  assert.throws(() => validateSwarmApp({ ...base, SWARM_ENABLE_CDC_REFERENCE_ACTIVE: 'true' }),
+    /requires the scoped candidate/);
   assert.throws(() => validateSwarmApp({ ...enabled, SWARM_MIGRATION_MODE: 'OFFLINE_DEMO' }), /PARALLEL_LIVE/);
   assert.throws(() => validateSwarmApp({ ...enabled, SWARM_CDC_REFERENCE_COVERAGE_EPOCH_ID: '' }), /coverage epoch/);
   assert.throws(() => validateSwarmApp({ ...enabled, SWARM_CDC_REFERENCE_ACTIVATION_AT: '2026-10-30' }), /activation instant/);

@@ -27,6 +27,8 @@ export function FriendlyFunnelsPage() {
   const rate = data?.totals.observed_end_to_end_rate
   return <>
     <PageHeader title="Hành trình chuyển đổi" description="Xem lượt đi qua từng bước của một phễu. Chọn phễu để thay đổi góc nhìn." actions={<Button variant="outline" disabled={funnel.isFetching} onClick={() => void funnel.refetch()}><RefreshCw size={14} className={funnel.isFetching ? "animate-spin" : ""} /> Làm mới</Button>} />
+    <ReferenceCdcCandidatePanel sourceId={sourceId} range={range} />
+    {selected.funnel_profile_id === 'commerce-conversion' && <p className="mb-4 rounded-lg border p-3 text-xs text-muted-foreground">Phễu bên dưới dùng sự kiện order.placed và giữ ngữ nghĩa lịch sử riêng. Không cộng số liệu này với trạng thái CDC hiện hành ở trên.</p>}
     <label className="mb-5 block max-w-md text-sm font-semibold">Chọn hành trình<select className="mt-2 block h-11 w-full rounded-xl border bg-card px-3 text-sm" value={`${selected.funnel_profile_id}:${selected.profile_version}`} onChange={event => setSelectedKey(event.target.value)}>{profiles.data?.profiles.map(profile => <option key={`${profile.funnel_profile_id}:${profile.profile_version}`} value={`${profile.funnel_profile_id}:${profile.profile_version}`}>{profile.display_name} · phiên bản {profile.profile_version}</option>)}</select></label>
     {funnel.isLoading && <div className="skeleton h-80" />}
     {funnel.isError && <EmptyState icon={<CircleOff size={20} />} title="Chưa tải được hành trình này" detail="Phễu có thể chưa hoạt động hoặc chưa có dữ liệu phù hợp." />}
@@ -38,7 +40,6 @@ export function FriendlyFunnelsPage() {
       })}</div></section>
       {(data.totals.degraded > 0 || data.totals.provisional > 0) && <p className="mt-4 flex items-start gap-2 rounded-xl border border-warning/25 bg-warning/5 p-4 text-xs leading-5 text-muted-foreground"><ShieldAlert size={17} className="shrink-0 text-warning" />Một phần dữ liệu vẫn tạm thời hoặc cần kiểm tra chất lượng. Không dùng tỷ lệ này như KPI cuối cùng.</p>}
     </>}
-    <ReferenceCdcCandidatePanel sourceId={sourceId} range={range} />
     <ProgressiveDetails label="Xem phân tích và mã kỹ thuật đầy đủ"><DetailedFunnelsPage /></ProgressiveDetails>
     <p className="mt-4 text-xs text-muted-foreground">Nguồn: {sourceId} · Khoảng xem: {range}.</p>
   </>
