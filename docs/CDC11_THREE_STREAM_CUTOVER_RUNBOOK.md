@@ -90,6 +90,26 @@ the same Docker volume. The backend `/health` returned 200; product count was
 include the network override, or the CDC attachment will be removed. No
 replication role, publication, slot, connector or CDC writer was activated.
 
+**Logical-WAL shadow source rollout, 2026-10-30:** The source owner approved a
+controlled PostgreSQL restart for CDC shadow. The Medusa branch adds a separate
+logical-WAL Compose override and a rendered-config guard; the exact files were
+copied outside the deployed checkout to `/srv/KLTN/.cdc11-medusa-logical.yml`
+and `/srv/KLTN/.cdc11-check-cdc-source-config.mjs`. The guard returned
+`CDC_SOURCE_CONFIG_MATCH` with `CDC_MAX_SLOT_WAL_KEEP_MB=1024`, preserving the
+private alias, persisted volume and loopback port. PostgreSQL restarted healthy
+with `wal_level=logical`, `max_slot_wal_keep_size=1GB`; backend `/health`=200,
+product count=104, private overlay TCP PASS, zero replication slots. The
+provisional 1 GiB cap uses less than 1% of the observed 132 GiB free filesystem
+space and gives 4× the clone's 256 MiB cap. Treat 30 minutes as an operator
+response target, **not** guaranteed retention: the clone workload did not
+measure flash-sale WAL production, and PostgreSQL applies the slot cap at
+checkpoint boundaries. Alert below 512 MiB `safe_wal_size`; block shadow
+readiness below 256 MiB or if `wal_status` is not usable, pending a target
+topology quality monitor and measured load. The source still has no CDC role,
+publication, slot or connector and no live binding was switched. See
+[PostgreSQL replication settings](https://www.postgresql.org/docs/15/runtime-config-replication.html)
+and [slot status semantics](https://www.postgresql.org/docs/15/view-pg-replication-slots.html).
+
 ## 1. Current VPS preflight inventory
 
 Original read-only inventory on `ssh kltn`, 2026-10-29, with updates noted:
@@ -97,7 +117,7 @@ Original read-only inventory on `ssh kltn`, 2026-10-29, with updates noted:
 | Item | Observed state | Consequence |
 |---|---|---|
 | Medusa | `/srv/KLTN/dtc-starter-funnelmetry`, deployed integration branch at `efc7a58`; Compose `medusa_reference` | Its native `order.placed` subscriber still serves the live reference funnel. The CDC feature branch is not deployed. |
-| Medusa PostgreSQL | PostgreSQL 15 container, `wal_level=replica`, **0** replication slots, `max_slot_wal_keep_size=-1`; backup and isolated restore have since passed | Logical CDC is not enabled. A finite WAL retention/resource policy and controlled restart are still prerequisites. |
+| Medusa PostgreSQL | PostgreSQL 15 container; logical WAL and a provisional 1 GiB slot cap are now enabled, **0** replication slots; backup and isolated restore passed | Source transport is configured, but three scoped roles/publications/slots and measured workload/quality gates are still prerequisites. |
 | DB network | Port 5432 remains bound to host `127.0.0.1`; Medusa PostgreSQL is now also attached to `funnelmetry_cdc_source` with alias `medusa-cdc-postgres`; Pipeline uses `funnelmetry_vps_live_data` | Private DNS/TCP checks passed. Replication credentials, publication and WAL configuration remain gated. Do not publish PostgreSQL to the public Internet. |
 | Pipeline | `/srv/KLTN/Funnelmetry` at `b1c0a35` on `main`; `funnelmetry_vps_live` has 18 Swarm services | `catalog-sync` and `source-connector` remain `1/1`. Candidate migrations 021–023 have since been applied in the same DB through a separate feature-branch service; no CDC writer or active binding has started. |
 | Resources | `/var/lib/docker` filesystem: 158 GB total, 134 GB available; host RAM: 15 GiB total, about 11 GiB available at observation time | These are a single observation, not a WAL/flash-sale budget or capacity approval. |
@@ -205,4 +225,4 @@ Only after the rollback window expires and all consumers/dependencies are invent
 
 ## 7. Present stop conditions
 
-At the latest checkpoint, **live cutover is blocked** by `wal_level=replica`, no replication slot or reviewed source role/WAL budget, no target-topology stream conformance, no continuous live quality service, no order-v2 funnel/profile read path, and no verified stage-2 inventory/price resolver. The private DB network and candidate Pipeline schema are prepared, but neither provides CDC source authority. The next executable work is to close these gates on the feature branches and run a target-topology shadow rehearsal. This document does not grant permission to promote a CDC source or change live analytical authority.
+At the latest checkpoint, **live cutover is blocked** by absent replication roles/publications/slots, no target-topology stream conformance or production workload/WAL budget, no continuous live quality service, no order-v2 funnel/profile read path, and no verified stage-2 inventory/price resolver. Private DB networking, logical WAL with a provisional shadow cap, and candidate Pipeline schema are prepared, but none provides CDC analytical authority. The next executable work is to close these gates on the feature branches and run a target-topology shadow rehearsal. This document does not grant permission to promote a CDC source or change live analytical authority.
