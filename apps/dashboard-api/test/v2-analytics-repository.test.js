@@ -105,6 +105,9 @@ test("event browser returns allowlisted business details but not raw payload or 
   const calls = []
   const repository = createV2AnalyticsRepository({ query: async (sql, params) => {
     calls.push({ sql, params })
+    if (sql.includes("to_regclass('public.current_product_reference_names_cdc')")) return [{ installed: true }]
+    if (sql.includes('FROM catalog_cdc_binding b')) return [{ readable: true }]
+    if (sql.includes('FROM current_product_reference_names_cdc')) return []
     return [{
       canonical_event_id: "can_1", event_type: "order.accepted", event_class: "BUSINESS_FACT",
       time_basis: "source_occurred", authoritative_event_time: true, journey_id: "journey_1",
