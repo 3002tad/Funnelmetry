@@ -1,6 +1,6 @@
 # CDC-12 catalog canary — Medusa reference, 2026-10-30
 
-Status: **PREPARED; not yet switched**. This is one stream's release record under
+Status: **CANARY_ACTIVE; catalog Admin API sync stopped 0/0**. This is one stream's release record under
 DEC-119/135 and the [CDC-11 cutover runbook](CDC11_THREE_STREAM_CUTOVER_RUNBOOK.md).
 The user's 2026-10-30 instruction authorizes moving from the measured reference
 load budget to cutover; this record limits that action to the catalog read path.
@@ -66,3 +66,35 @@ remains on `main`; record the exact live spec and reconcile the manifest/image
 pin before declaring CDC-13 cleanup complete. A later stack redeploy from
 `main` may restore the prior image/provider, so do not treat the temporary
 override as a durable installer release.
+
+## Runtime execution evidence
+
+- Candidate GHCR publish run `41047220080` passed build, smoke and push.
+  The previous package path rejected `GITHUB_TOKEN` with `write_package`; the
+  separate candidate package published successfully. VPS pulled and inspected
+  the exact digest above.
+- The previous `dashboard-api` service spec was saved on the VPS at
+  `/srv/KLTN/.cdc12-catalog-service-before-20261030.json` with mode `600`.
+  Candidate image update converged with provider still on `admin_api`; the
+  replacement task became healthy and its schema digest matched live.
+- The guarded SQL transaction inserted one `ACTIVE` binding for
+  `cdc11_catalog_epoch1`; immediately afterward the CDC view had 104 rows and
+  the lease was `PASS`, fresh, with matching source/projection digest and
+  topic/applied offsets. The provider update converged at
+  `2026-10-30 11:26:18 UTC`.
+- The bootstrap `super_admin` received the expected `403` on
+  `/api/v2/products` because its role lacks `analytics.read`. No account was
+  created or modified. The deployed API module was exercised inside the live
+  container in a read-only transaction: `PASS_CATALOG_CDC_MODULE`, 104
+  products, zero missing references, provider `medusa-postgres-cdc-v1`.
+- Monitor cycles at `11:27:07`, `11:28:22` and `11:29:36 UTC` reported both
+  streams `true`, 104 catalog products and 1026 MiB minimum safe WAL. A second
+  module smoke passed before scaling `catalog-sync` to `0/0`. Post-scale API
+  container remained healthy, HTTPS `/health` returned 200, CDC view returned
+  104 rows and catalog lease remained fresh `PASS`.
+
+This proves a bounded current-catalog canary, not catalog-write freshness under
+arbitrary sustained updates. Order v2 and inventory/price analytical
+authority remain shadow. The main-branch stack manifest still specifies the
+previous API image and `catalog-sync=1`; reconcile it before an unrelated
+`docker stack deploy` or CDC-13 cleanup.
