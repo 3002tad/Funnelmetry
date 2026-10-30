@@ -139,6 +139,13 @@ active baseline order, digest
 historical gap `INCOMPLETE` and zero placement-ON facts. After restart, the
 mapper emitted one BASELINE and one BASELINE_COMPLETE record. The separate
 order sink has two inbox records, one current-state row and fact offset two.
+The target read-only `verify-target-projections.py` then returned
+`PASS_SHADOW_POINT_IN_TIME`: catalog source/projection digests both
+`1281d4cd3317b9c5ae8252843274f5f5849aef605c962869ca40355495bf821a`,
+all four catalog table rows/selected attributes and topic ends matched;
+stage-2 row keys, soft-delete flags, selected attributes and topic ends matched
+for all 16 tables. The source still has zero reservation rows and zero price
+list/list-rule rows, so these cases require controlled nonempty validation.
 This proves a shadow snapshot chain on target topology, **not** continuous
 source/projection conformance, inventory availability/price resolution,
 funnel read-path readiness, production load budget or CDC-12 authority. The
