@@ -15,6 +15,13 @@ const monitoringImagePattern = /^(?:docker\.io\/)?(?:prom\/prometheus|grafana\/g
 const qdrantImagePattern = /^(?:docker\.io\/)?qdrant\/qdrant:[a-z0-9._-]+@sha256:[a-f0-9]{64}$/;
 
 export function validateSwarmApp(env) {
+  const productReferenceProvider = env.SWARM_PRODUCT_REFERENCE_PROVIDER?.trim() || 'admin_api';
+  if (!['admin_api', 'catalog_cdc'].includes(productReferenceProvider)) {
+    throw Error('SWARM_PRODUCT_REFERENCE_PROVIDER must be admin_api or catalog_cdc');
+  }
+  if (productReferenceProvider === 'catalog_cdc' && env.SWARM_MIGRATION_MODE !== 'PARALLEL_LIVE') {
+    throw Error('catalog_cdc product references require PARALLEL_LIVE mode');
+  }
   const domain = env.SWARM_PUBLIC_DOMAIN?.trim() || '';
   if (domain.length > 253 || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)) {
     throw Error('SWARM_PUBLIC_DOMAIN must be a reviewed lowercase public DNS hostname');
@@ -37,7 +44,7 @@ export function validateSwarmApp(env) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.SWARM_ADMIN_EMAIL?.trim() || '')) {
     throw Error('SWARM_ADMIN_EMAIL must be a valid single-line email');
   }
-  return Object.freeze({ domain, tlsMode, status: 'PLANNING_ONLY' });
+  return Object.freeze({ domain, tlsMode, productReferenceProvider, status: 'PLANNING_ONLY' });
 }
 
 export function validateSwarmCandidate(env) {

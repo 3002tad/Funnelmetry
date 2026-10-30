@@ -757,6 +757,14 @@ The source owner and Pipeline owner approve one cutover record per stream after 
 
 After each stream, monitor a bounded observation window with source/projection digest, Kafka/DB offsets, WAL headroom, lag, quality lease, Dashboard/API errors and source checkout health. Stop the next stream if any invariant fails. The exact duration and thresholds are `OPEN` until the release record is approved.
 
+For the catalog canary, the Dashboard switch is `SWARM_PRODUCT_REFERENCE_PROVIDER=catalog_cdc`
+in the ignored `runtime/deploy.env`, followed by a reviewed `check-app` and
+`deploy-app`. The default and rollback value is `admin_api`. This switch only
+selects the existing quality-gated name projection; it does not activate a
+binding, stop `catalog-sync`, or change the order/inventory source. Keep the
+old sync running through the observation window; scale it down only after the
+CDC read path and lease pass. A stale or absent lease fails closed.
+
 ## 6. CDC-13 cleanup gate
 
 Only after the rollback window expires and all consumers/dependencies are inventoried: remove the installer-owned backend order subscriber in a reproducible Medusa branch/installer release; revoke its signing credential; retire old order profile with historical audit preserved; remove `catalog-sync` service and its Admin API sync credential; archive old API-created reference tables only under a migration/retention policy. Do not remove Medusa Admin/Store API, Browser SDK, Source Ingress/Event Feed/Connector used by browser events, or shared volumes as part of this CDC-only change.
