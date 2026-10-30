@@ -121,10 +121,10 @@ def main():
     parser.add_argument("--publishable-key-id", required=True)
     parser.add_argument("--acknowledge-live-reference-orders", action="store_true")
     args = parser.parse_args()
-    if not args.acknowledge_live_reference_orders or not 1 <= args.orders <= 24 or \
+    if not args.acknowledge_live_reference_orders or not 1 <= args.orders <= 120 or \
             not 1 <= args.parallelism <= 3 or args.parallelism > args.orders or \
             not re.fullmatch(r"apk_[A-Za-z0-9]+", args.publishable_key_id):
-        parser.error("target acknowledgement, 1..24 orders, 1..3 workers and key ID required")
+        parser.error("target acknowledgement, 1..120 orders, 1..3 workers and key ID required")
     pipeline = pipeline_container()
     before_source = source_state()
     before_sink = sink_state(pipeline)

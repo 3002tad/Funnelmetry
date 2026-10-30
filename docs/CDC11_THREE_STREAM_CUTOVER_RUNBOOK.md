@@ -495,6 +495,33 @@ Connect outage budget; the finite 1 GiB per-slot cap, 512 MiB alert and
 load/outage approval. Do not repeat CDC-10 clone stress or target short-outage
 tests to interpret this sample.
 
+**Sustained target reference workload, 2026-10-30:** The same bounded script
+then created 120 more Store API orders with at most three concurrent
+checkouts. Source count rose 16→136; the order-v2 sink advanced 34→274,
+exactly two records and one ON per new order. The run lasted 137.858 s
+(0.870 order/s); checkout p95/p99 were 3.812/4.073 s, END-to-sink p95/p99
+1.131/1.264 s, and sink catch-up after the last checkout 2.056 s. Nineteen
+resource samples had no errors. Peak CPU was Medusa backend 211.4%, Medusa
+PostgreSQL 41.34%, Kafka 110.98%, Connect 11.6%; peak retained WAL was
+6,906,616 / 6,871,680 / 4,782,256 bytes for catalog / stage-2 / order,
+minimum safe WAL 1,081,392,784 bytes and physical `pg_wal` 32 MiB. Host
+filesystem had 141,462,499,328 bytes free after the run. A fresh two-sample
+quality probe after catch-up returned `PASS_SHADOW_DRY_RUN` for 104 products,
+16 stage-2 tables, 136 orders and fact offset 274; a one-shot candidate
+lease write then returned `PASS_SHADOW_LEASE`.
+
+**Cutover blocker exposed by that workload:** The continuous quality service
+logged `BLOCKED_BY_QUALITY` at 09:55:41 and 09:56:49 UTC while source orders
+were being written, before returning PASS at 09:58:07 UTC. Its order verifier
+requires two successive source/mapper/sink digests and topic ends to be
+identical. This is a quiescence check, so it cannot maintain a readable
+quality lease throughout sustained writes. The transport and bounded resource
+sample passed, but the **analysis availability gate did not**. Do not switch
+live authority until a versioned moving-watermark/freshness policy verifies
+continuous writes without weakening fail-closed behavior, and the same
+target workload proves no false quality block. This is a new failure mode
+found by the target workload, not a reason to repeat CDC-10 clone tests.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow
