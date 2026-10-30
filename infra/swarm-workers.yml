@@ -50,6 +50,7 @@ x-worker-liveness: &worker-liveness
 services:
   profile-publisher:
     <<: *worker
+    image: ${SWARM_PROFILE_PUBLISHER_IMAGE:?Pin the Profile Publisher image digest}
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/funnel-processor/src/publish-reference-profiles.js]
     environment:
       <<: *worker-env
@@ -110,6 +111,7 @@ services:
 
   funnel-processor:
     <<: *worker
+    image: ${SWARM_FUNNEL_PROCESSOR_IMAGE:?Pin the Funnel Processor image digest}
     command: [node, /workspace/infra/docker/swarm-entrypoint.mjs, /workspace/workers/funnel-processor/src/main.js]
     healthcheck: *worker-liveness
     environment:

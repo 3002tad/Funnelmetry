@@ -78,6 +78,18 @@ test('catalog CDC provider can be rendered for live canary and rolled back witho
   assert.equal(dockerEnvironment({}, { SWARM_CATALOG_SYNC_REPLICAS: '0' }).SWARM_CATALOG_SYNC_REPLICAS, '0');
 });
 
+test('CDC funnel retirement pins Publisher and Processor independently', () => {
+  const workers = readFileSync(fileURLToPath(new URL('../infra/swarm-workers.yml', import.meta.url)), 'utf8');
+  assert.match(workers, /profile-publisher:[\s\S]*?image: \$\{SWARM_PROFILE_PUBLISHER_IMAGE:/);
+  assert.match(workers, /funnel-processor:[\s\S]*?image: \$\{SWARM_FUNNEL_PROCESSOR_IMAGE:/);
+  const rendered = dockerEnvironment({}, {
+    SWARM_WORKERS_IMAGE: 'workers-old', SWARM_PROFILE_PUBLISHER_IMAGE: 'publisher-new',
+    SWARM_FUNNEL_PROCESSOR_IMAGE: 'processor-new',
+  });
+  assert.equal(rendered.SWARM_PROFILE_PUBLISHER_IMAGE, 'publisher-new');
+  assert.equal(rendered.SWARM_FUNNEL_PROCESSOR_IMAGE, 'processor-new');
+});
+
 test('reference current-offer endpoint requires an explicit CDC live deployment flag', () => {
   const app = readFileSync(fileURLToPath(new URL('../infra/swarm-app.yml', import.meta.url)), 'utf8');
   assert.match(app, /DASHBOARD_ENABLE_CDC_REFERENCE_OFFER: \$\{SWARM_ENABLE_CDC_REFERENCE_OFFER:-false\}/);
