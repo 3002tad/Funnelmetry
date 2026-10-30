@@ -78,6 +78,20 @@ test('catalog CDC provider can be rendered for live canary and rolled back witho
   assert.equal(dockerEnvironment({}, { SWARM_CATALOG_SYNC_REPLICAS: '0' }).SWARM_CATALOG_SYNC_REPLICAS, '0');
 });
 
+test('reference current-offer endpoint requires an explicit CDC live deployment flag', () => {
+  const app = readFileSync(fileURLToPath(new URL('../infra/swarm-app.yml', import.meta.url)), 'utf8');
+  assert.match(app, /DASHBOARD_ENABLE_CDC_REFERENCE_OFFER: \$\{SWARM_ENABLE_CDC_REFERENCE_OFFER:-false\}/);
+  const base = { SWARM_TLS_MODE: 'local', SWARM_PUBLIC_DOMAIN: 'demo.example.com',
+    SWARM_ADMIN_EMAIL: 'admin@example.com', SWARM_TRAEFIK_IMAGE: 'traefik:v3.6.0@sha256:' + 'a'.repeat(64),
+    SWARM_MIGRATION_MODE: 'PARALLEL_LIVE', SWARM_PRODUCT_REFERENCE_PROVIDER: 'catalog_cdc' };
+  assert.equal(validateSwarmApp(base).cdcReferenceOffer, false);
+  assert.equal(validateSwarmApp({ ...base, SWARM_ENABLE_CDC_REFERENCE_OFFER: 'true' }).cdcReferenceOffer, true);
+  assert.throws(() => validateSwarmApp({ ...base, SWARM_ENABLE_CDC_REFERENCE_OFFER: 'maybe' }),
+    /SWARM_ENABLE_CDC_REFERENCE_OFFER/);
+  assert.throws(() => validateSwarmApp({ ...base, SWARM_PRODUCT_REFERENCE_PROVIDER: 'admin_api',
+    SWARM_ENABLE_CDC_REFERENCE_OFFER: 'true' }), /requires PARALLEL_LIVE and catalog_cdc/);
+});
+
 test('monitoring stays opt-in and joins the same Swarm stack when enabled', () => {
   assert.deepEqual(stackFilesForCommand('deploy-app', { tlsMode: 'local' }, 'PARALLEL_LIVE', true).map(file => file.split(/[\\/]/).at(-1)),
     ['swarm-stack.yml', 'swarm-workers.yml', 'swarm-app.yml', 'swarm-live.yml', 'swarm-monitoring.yml', 'swarm-edge-local.yml']);

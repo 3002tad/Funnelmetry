@@ -23,9 +23,10 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Verify CDC catalog read and Swarm switch
+      - name: Verify CDC catalog and stage-2 reference reads
         run: |
           node --test apps/dashboard-api/test/product-reference.test.js \
+            apps/dashboard-api/src/lib/reference-cdc-offer.test.js \
             runtime/swarm.test.mjs runtime/swarm-preflight.test.mjs
 
       - name: Build API image from the tagged commit

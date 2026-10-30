@@ -19,6 +19,7 @@ import { createModelProviderRouter } from './routes/model-provider.js';
 import { createAgentObservabilityRouter } from './routes/agent-observability.js';
 import { createEvidenceV2Router } from './routes/evidence-v2.js';
 import { createProductsV2Router } from './routes/products-v2.js';
+import { createReferenceCdcOfferRouter } from './routes/reference-cdc-offer.js';
 import { createTrafficInputRouter } from './routes/traffic-input.js';
 import { createTrafficSourceRegistryRouter } from './routes/traffic-source-registry.js';
 import { requireLivePermission } from "./middleware/live-permission.js";
@@ -68,6 +69,7 @@ export function createApp() {
   app.use(createAgentObservabilityRouter());
   app.use(createEvidenceV2Router());
   app.use(createProductsV2Router());
+  if (config.features.cdcReferenceOffer) app.use(createReferenceCdcOfferRouter());
 
   // Insights are business reads, never part of user/system administration.
   app.use('/api/chat/insights', requireLivePermission('insight.read'), (req, res, next) => {

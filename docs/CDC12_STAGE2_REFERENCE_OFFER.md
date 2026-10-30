@@ -1,0 +1,39 @@
+# CDC-12 stage-2 current-offer read path
+
+Status: **candidate, disabled by default**. This is a narrow Medusa reference
+read path for current default price and managed stock. It is not an order fact,
+historical price, revenue measure, or general Medusa price engine.
+
+The endpoint is `GET /api/v2/reference-cdc/current-offer`, requires an
+authenticated `analytics.read` session, and accepts exactly `source_id`,
+`product_id`, `variant_id`, `sales_channel_id`, `region_id`, and `currency_code`.
+It supports only `medusa-reference`. The declared grain is source × variant ×
+sales channel × region × currency. It returns two independent statuses for
+price and inventory, each `PASS_SAMPLE_ONLY` or `UNVERIFIED`; a missing or
+stale quality lease returns HTTP 503 `BLOCKED_BY_QUALITY` for the whole read.
+
+The physical inputs are `catalog_cdc_products_current`,
+`catalog_cdc_variants_current`, `inventory_price_cdc_context_current`,
+`catalog_cdc_binding`, and their two quality leases. One repeatable-read,
+read-only transaction checks active catalog binding, fresh reconciled snapshot,
+source/projection digest and offset equality, usable slot, running connector,
+and all 16 stage-2 table keys before loading the allowlisted current rows.
+The response includes both coverage epochs and lease verification timestamps.
+No Medusa Admin or Store API call occurs on this read path.
+
+The resolver currently accepts one default price in a currency-matched region
+without price list, rule or quantity tier. For managed inventory it accepts
+one required item at one linked location with a matching reservation total;
+unmanaged variants return `inventory_quantity=null`. Unsupported shapes return
+`UNVERIFIED` for the affected result and do not interrupt CDC capture or the
+other result. Current price must never be used to rewrite historical order
+amounts. Existing target conformance covered 120 published variant price and
+currency contexts and 20 managed inventory quantities; the new HTTP read path
+still requires target verification after image publication.
+
+Swarm activation is explicit with `SWARM_ENABLE_CDC_REFERENCE_OFFER=true`,
+only in `PARALLEL_LIVE` with `SWARM_PRODUCT_REFERENCE_PROVIDER=catalog_cdc`.
+The flag defaults to false. Keep it false until the new image is healthy and
+the lease is freshly PASS. Rollback sets the flag false; CDC projection and
+offsets stay intact. This endpoint is a reference candidate and is not yet
+registered as an active semantic tool or general analytical asset.

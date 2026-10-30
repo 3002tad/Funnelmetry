@@ -21,6 +21,7 @@ const features = Object.freeze({
   legacy: featureFlag('DASHBOARD_ENABLE_LEGACY'),
   ai: featureFlag('DASHBOARD_ENABLE_AI'),
   cdcReferenceCandidate: featureFlag('DASHBOARD_ENABLE_CDC_REFERENCE_CANDIDATE'),
+  cdcReferenceOffer: featureFlag('DASHBOARD_ENABLE_CDC_REFERENCE_OFFER'),
 });
 const aiEnv = name => features.ai ? requireEnv(name) : '';
 
