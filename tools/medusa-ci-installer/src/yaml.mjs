@@ -3,6 +3,7 @@ function scalar(value) {
   if (trimmed === "") return null
   if (trimmed === "true") return true
   if (trimmed === "false") return false
+  if (trimmed === "[]") return []
   if (trimmed === "null" || trimmed === "~") return null
   if (/^-?\d+(\.\d+)?$/.test(trimmed)) return Number(trimmed)
   if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {

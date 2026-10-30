@@ -5,6 +5,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { validateManifest } from "../src/manifest.mjs"
+import { parseManifestYaml } from "../src/yaml.mjs"
 import { createCdcCatalogRollbackPlan, createCdcInventoryPriceRollbackPlan, createCdcOrderV2RollbackPlan, createCdcRollbackPlan, createPlan, verifyIntegration } from "../src/planner.mjs"
 
 const rawManifest = {
@@ -382,6 +383,7 @@ async function applyWholeFilePatch(projectRoot, patch) {
 }
 
 test("CDC backend cutover removes only owned order adapter files and is idempotent", async (t) => {
+  assert.deepEqual(parseManifestYaml("bindings:\n  medusa_backend: []").bindings.medusa_backend, [])
   const raw = cdcOrderV2RawManifest()
   const enabled = validateManifest(raw)
   const cutoverRaw = structuredClone(raw)
