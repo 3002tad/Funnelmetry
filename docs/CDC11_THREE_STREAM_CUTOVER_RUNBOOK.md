@@ -550,6 +550,17 @@ the live Dashboard. The strict verifier remains the default. Migration and
 probe need target rehearsal and restart/age-expiry evidence before this can
 become an authoritative freshness policy.
 
+**Target migration 026 rehearsal:** CI for the five-file candidate migration
+passed. On the VPS, the guarded operator plan verified the four existing
+journal checksums and absence of the new table, then applied only migration
+026 in one transaction; a second plan returned `ALREADY_APPLIED`. The
+moving probe ran twice using persisted candidate state and returned
+`PASS_BOUNDED_LAG` with zero pending orders, zero raw offset backlog,
+178 source/sink orders and fact offset 358. The strict monitor remained
+`PASS_SHADOW_LEASE`; no writer invalidation or readable-view policy changed.
+An actual pending order crossing a monitor restart and the failure cases
+still require proof before promotion.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow
