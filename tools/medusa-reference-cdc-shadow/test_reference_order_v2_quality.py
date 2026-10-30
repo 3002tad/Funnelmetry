@@ -57,6 +57,15 @@ class QualityDecisionTests(unittest.TestCase):
         value["topic_ends"][FACT] = 3
         self.assertFalse(decision(value)["checks"]["offsets_caught_up"])
 
+    def test_empty_initial_transaction_topic_needs_no_mapper_offset_row(self):
+        value = sample()
+        transaction = f"{PREFIX}.transaction"
+        value["topic_ends"][transaction] = 0
+        value["mapper"]["offsets"].pop(transaction)
+        self.assertEqual(decision(value)["status"], "PASS")
+        value["topic_ends"][transaction] = 1
+        self.assertFalse(decision(value)["checks"]["offsets_caught_up"])
+
     def test_source_correction_without_cdc_application_blocks(self):
         value = sample()
         value["source"]["states"][0] = {"order_id": "order_1", "active": False,

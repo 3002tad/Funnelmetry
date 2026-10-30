@@ -48,10 +48,15 @@ def evaluate(sample, *, prefix, fact_topic, minimum_safe_wal_bytes):
     safe_wal = source.get("slot_safe_wal_size")
     try:
         safe_wal = int(safe_wal) if safe_wal is not None else None
-        offsets_match = (set(mapper_offsets) == raw_topics and
-                         all(type(mapper_offsets[topic]) is int and
-                             type(ends.get(topic)) is int and
-                             mapper_offsets[topic] == ends[topic]
+        # An initial snapshot may have no transaction END records. Kafka's
+        # transaction topic then ends at zero while the mapper has no offset
+        # row for it yet. Treat only that exact empty prefix as caught up.
+        offsets_match = (set(mapper_offsets).issubset(raw_topics) and
+                         all(type(ends.get(topic)) is int and
+                             ((topic in mapper_offsets and
+                               type(mapper_offsets[topic]) is int and
+                               mapper_offsets[topic] == ends[topic]) or
+                              (topic not in mapper_offsets and ends[topic] == 0))
                              for topic in raw_topics) and
                          type(sink_offset) is int and
                          type(ends.get(fact_topic)) is int and

@@ -146,6 +146,15 @@ all four catalog table rows/selected attributes and topic ends matched;
 stage-2 row keys, soft-delete flags, selected attributes and topic ends matched
 for all 16 tables. The source still has zero reservation rows and zero price
 list/list-rule rows, so these cases require controlled nonempty validation.
+The target order quality probe initially blocked because its shared evaluator
+required a mapper offset row for the empty transaction topic. With no
+transaction END record the Kafka end is zero and the mapper correctly has no
+row; the evaluator now accepts only that exact empty-prefix case and keeps a
+nonzero missing prefix blocked. Seven fault/quality unit tests PASS. Two
+independent target samples then returned `PASS_SHADOW_POINT_IN_TIME` with all
+order checks true: source/mapper/sink state digest
+`2311457e5802cf6f037ff7b12132b92229d881a49f4a32002774531185f98c6a`,
+one current order and fact offset two. No continuous lease was established.
 This proves a shadow snapshot chain on target topology, **not** continuous
 source/projection conformance, inventory availability/price resolution,
 funnel read-path readiness, production load budget or CDC-12 authority. The

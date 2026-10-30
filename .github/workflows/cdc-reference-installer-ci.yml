@@ -95,7 +95,8 @@ jobs:
             tools/medusa-reference-cdc-shadow/install-target-source.py \
             tools/medusa-reference-cdc-shadow/install-target-connect.py \
             tools/medusa-reference-cdc-shadow/activate-target-order-baseline.py \
-            tools/medusa-reference-cdc-shadow/verify-target-projections.py
+            tools/medusa-reference-cdc-shadow/verify-target-projections.py \
+            tools/medusa-reference-cdc-shadow/verify-target-order-quality.py
       - name: Test governed catalog CDC candidate
         run: |
           python -m py_compile \
