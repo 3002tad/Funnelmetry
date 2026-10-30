@@ -765,6 +765,14 @@ binding, stop `catalog-sync`, or change the order/inventory source. Keep the
 old sync running through the observation window; scale it down only after the
 CDC read path and lease pass. A stale or absent lease fails closed.
 
+Publish the API candidate with an annotated `cdc-api-candidate-v*` tag on the
+reviewed feature commit. `.github/workflows/publish-cdc-api-candidate.yml`
+tests the CDC read path, builds and smoke-tests the image, then publishes
+`ghcr.io/3002tad/funnelmetry/handoff-api:sha-<commit>` to GHCR. Record its
+registry digest and the old live image digest in the per-stream cutover record.
+The tag publishes an image only; the Swarm `SWARM_API_IMAGE` pin and
+`SWARM_PRODUCT_REFERENCE_PROVIDER` remain separate deployment decisions.
+
 The target quality monitor now writes catalog/stage-2 and order leases in
 separate transactions. Ordinary order offset drift blocks the order lease but
 does not revoke a reconciled catalog lease; catalog/stage-2 drift has the

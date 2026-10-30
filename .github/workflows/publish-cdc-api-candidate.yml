@@ -1,0 +1,50 @@
+name: Publish CDC API candidate
+
+on:
+  push:
+    tags:
+      - 'cdc-api-candidate-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout exact candidate tag
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify CDC catalog read and Swarm switch
+        run: |
+          node --test apps/dashboard-api/test/product-reference.test.js \
+            runtime/swarm.test.mjs runtime/swarm-preflight.test.mjs
+
+      - name: Build API image from the tagged commit
+        run: |
+          docker build --file infra/docker/dashboard-api.Dockerfile \
+            --tag funnelmetry-cdc-api-candidate .
+          docker run --rm --network none --read-only --cap-drop ALL \
+            funnelmetry-cdc-api-candidate \
+            node /workspace/tools/analytics-image-smoke.mjs
+          docker run --rm --network none --read-only --cap-drop ALL \
+            funnelmetry-cdc-api-candidate \
+            node -e "const fs=require('node:fs');const p='/workspace/apps/dashboard-api/src/lib/product-reference.js';if(!fs.readFileSync(p,'utf8').includes('catalog_cdc'))process.exit(1)"
+
+      - name: Publish immutable SHA tag to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/3002tad/funnelmetry/handoff-api
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag funnelmetry-cdc-api-candidate "$IMAGE:sha-$GITHUB_SHA"
+          docker push "$IMAGE:sha-$GITHUB_SHA"
+          docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA"
