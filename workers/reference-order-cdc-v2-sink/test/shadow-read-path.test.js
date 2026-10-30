@@ -89,6 +89,9 @@ test('read path requires a strong cart key and matching checkout in one journey 
     journeyReads++
     assert.match(sql,/e\.link_confidence='STRONG'/)
     assert.match(sql,/c\.relations->>'cart_id'=\$2/)
+    assert.match(sql,/c\.relations->>'correlation_id'='cart:'\|\|\$2/)
+    assert.match(sql,/c\.relations->>'cart_id' IS NULL OR c\.relations->>'cart_id'=\$2/)
+    assert.match(sql,/c\.relations->>'correlation_id' IS NULL OR/)
     assert.deepEqual(params,['medusa-reference','cart_1'])
     return {rows:[{...journey,checkout_event_id:checkout.canonical_event_id}],rowCount:1}
   }}

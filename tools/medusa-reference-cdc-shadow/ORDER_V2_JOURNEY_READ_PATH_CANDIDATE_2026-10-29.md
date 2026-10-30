@@ -6,6 +6,20 @@
 
 The order and journey stores may be separate PostgreSQL databases. The reader uses a repeatable-read snapshot for the order side and one statement for the journey/cart evidence, then rechecks the quality lease and exact order revision on a fresh order query. Its `BOUND_SHADOW` result remains an observation, **not** a cross-database transactional snapshot or official funnel metric. A later quality failure must block downstream use; readers cannot retain a result past `quality_valid_until`. Historical WAL gaps remain `INCOMPLETE`.
 
+**Target correlation correction, 2026-10-30:** Existing canonical
+`checkout.started` evidence in the VPS stores `relations.correlation_id =
+cart:<cart_id>` and has no `relations.cart_id`, as specified by the Medusa
+identity contract. The candidate SQL previously required only `cart_id` and
+could not match that event. It now accepts either exact cart key or exact
+`cart:<cart_id>` correlation while rejecting records where both keys exist
+and disagree. `PREPARE`/`EXECUTE` of the revised SQL against the live Pipeline
+DB returned the one strong CART journey and its checkout event for baseline
+cart `cart_01M5XVYEXZ1VF38ZP485CQAQRC`. That order remains a snapshot
+baseline and cannot create an ON terminal. The two post-baseline Store API
+test orders lack behavioral checkout evidence; neither may be labeled a
+bound funnel conversion. A real browser-to-order target rehearsal and a
+versioned funnel/profile activation remain open.
+
 **Verification:** package test suite 9/9 PASS. The exact order-state SQL was prepared successfully against the preserved CDC-10 order-v2 chain PostgreSQL clone; only that clone DB was started for the check and it was stopped afterwards, retaining its volume. The exact cart–journey SQL was prepared successfully against the current Pipeline PostgreSQL schema using `PREPARE`/`DEALLOCATE`, without reading business rows or changing data. This proves SQL/schema compatibility, not real cart–journey conformance or a live read-path result.
 
 **Remaining:** execute a fresh target-topology order-v2 epoch with usable slot and valid quality lease; test post-activation checkout ON, OFF and cart correction against Browser SDK journey evidence; define a versioned reference profile/time policy and correction propagation; measure quality/lag/WAL; obtain a separate CDC-12 authority decision and rehearse rollback. The old native `order.placed` analytical path remains authoritative until then.

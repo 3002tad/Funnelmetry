@@ -97,7 +97,12 @@ export const SHADOW_CART_JOURNEY_SQL = `SELECT e.journey_id,e.link_confidence,
    SELECT c.canonical_event_id FROM journey_events je
    JOIN canonical_events c ON c.canonical_event_id=je.canonical_event_id
    WHERE je.journey_id=e.journey_id AND c.source_id=$1
-     AND c.event_type='checkout.started' AND c.relations->>'cart_id'=$2
+     AND c.event_type='checkout.started'
+     AND (c.relations->>'cart_id'=$2 OR
+          c.relations->>'correlation_id'='cart:'||$2)
+     AND (c.relations->>'cart_id' IS NULL OR c.relations->>'cart_id'=$2)
+     AND (c.relations->>'correlation_id' IS NULL OR
+          c.relations->>'correlation_id'='cart:'||$2)
    ORDER BY c.occurred_at DESC,c.canonical_event_id DESC LIMIT 1
  ) checkout ON true
  WHERE e.source_id=$1 AND j.source_id=$1 AND e.entity_type='CART'

@@ -250,6 +250,16 @@ reservation, backorder, kit multi-location and other channel contexts remain
 unverified on this target source. No inventory or price analytical asset was
 published, and no historical order amount was changed.
 
+**Order journey correlation check, 2026-10-30:** The target's sole canonical
+`checkout.started` carries `relations.correlation_id = cart:<cart_id>` rather
+than `relations.cart_id`. The shadow reader now accepts the exact approved
+correlation form, while rejecting contradictory cart keys. Its SQL prepared
+and returned the strong CART journey plus checkout event for the baseline
+order's cart on the live Pipeline DB. Baseline remains `BASELINE_ONLY` and
+cannot become an ON terminal. The two post-baseline orders created through
+Store API have no browser checkout event; they remain unbound for funnel use.
+No official funnel profile/read binding has been activated.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow
@@ -367,4 +377,4 @@ Only after the rollback window expires and all consumers/dependencies are invent
 
 ## 7. Present stop conditions
 
-At the latest checkpoint, **live cutover is blocked** by incomplete target-topology stream conformance and production workload/WAL budget, no order-v2 funnel/profile read path, and no verified stage-2 inventory/price resolver. A bounded operator-side quality monitor is running for three candidate streams, but its PASS lease is neither production freshness certification nor CDC analytical authority. The next executable work is target update/delete/replay and fault/load probes, followed by versioned read-path/resolver conformance and explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
+At the latest checkpoint, **live cutover is blocked** by incomplete target-topology stream conformance and production workload/WAL budget, no bound post-baseline browser-to-order v2 funnel/profile read path, and only sample-level stage-2 inventory/default-price conformance. A bounded operator-side quality monitor is running for three candidate streams, but its PASS lease is neither production freshness certification nor CDC analytical authority. Target replay, restart, fail-closed and short Connect outage have passed; remaining work includes target update/delete/OFF, longer fault/load probes, nonempty price-list/reservation and broader resolver cases, then explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
