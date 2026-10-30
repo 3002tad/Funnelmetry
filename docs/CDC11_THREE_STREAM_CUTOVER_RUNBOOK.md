@@ -437,13 +437,54 @@ was persistently changed. This is a correction-capable candidate query;
 versioned profile identity, UI labels/quality rendering and CDC-12 activation
 remain open.
 
+**Target HTTPS order read-path canary, 2026-10-30:** The candidate API image
+`ghcr.io/3002tad/funnelmetry-cdc-api-candidate@sha256:ba7d8db8488558f64eb4af1843f1034c71a4f03a5f5e906ae8621d097e0c976b`
+is running on the VPS with the reference candidate flag, source ID, coverage
+epoch and an activation instant after the initial snapshot. An existing Data
+Analyst account authenticated through the public HTTPS route. A read-only GET
+to `/api/v2/analytics/reference-cdc-funnel-candidate?source_id=medusa-reference`
+returned HTTP 200, `SHADOW_CURRENT_STATE`, contract
+`reference.medusa.order_recorded_state.v2`, `profile_status=UNPUBLISHED`,
+`historical_gap_status=INCOMPLETE`, and journey counts `1/1/1/1` for
+view/add/checkout/currently recorded. No credential is stored in this record.
+The Swarm service override is temporary; the VPS `main` checkout does not yet
+render these flags or the candidate image. The native `order.placed` profile
+and Backend Adapter remain authoritative. Do not treat this response as the
+published funnel or an immutable conversion.
+The feature-branch manifest now has an opt-in
+`SWARM_ENABLE_CDC_REFERENCE_CANDIDATE` with explicit
+`SWARM_CDC_REFERENCE_SOURCE_ID`, `SWARM_CDC_REFERENCE_COVERAGE_EPOCH_ID` and
+`SWARM_CDC_REFERENCE_ACTIVATION_AT`. Preflight rejects missing scope values,
+an unqualified activation instant and `OFFLINE_DEMO` mode. The default is
+false. This makes a future reviewed release reproducible; it does not update
+the VPS main checkout or publish the profile by itself.
+
+The existing `funnel_profiles`/`funnel_instances` engine records terminal
+canonical event IDs and `CONVERTED` outcomes. It cannot represent a CDC
+current-state OFF retraction by simply changing a profile row. Publish a
+separate versioned reference current-state profile and execution binding,
+preserve the historical placed-order profile under its own identity, and
+route the official reference view to one authority only after quality-gated
+correction behavior and rollback are verified. Never write CDC ON as
+canonical `order.placed` or count both terminals in one profile.
+
+The candidate aggregate now also requires the terminal ON observation to be
+at or after both the declared activation instant and the matched checkout
+event. This prevents an earlier ON from being attributed to a later journey
+entry or checkout. The exact revised SQL was run read-only against the target
+Pipeline PostgreSQL DB for the existing browser checkout and returned the same
+`1/1/1/1` counts. Four targeted API tests and 23 Swarm config tests passed.
+This is a query semantics check, not a newly published profile or a repeat of
+the earlier checkout/replay tests.
+
 **UI candidate code, 2026-10-30:** The Funnel page has a separately labeled
 CDC reference current-state panel with an explicit "view" action. It fetches
 only when opened, presents entrant/add/checkout/currently-recorded journey
 counts without a revenue or immutable-conversion claim, and hides stale
-numbers on a quality error. The UI build passes. Because the target API image
-has not been deployed with its opt-in flag and the v2 reference profile ID is
-still OPEN in Backbone, this is code-level UI preparation, not a live
+numbers on a quality error. The UI build passes. The target API candidate has
+since been deployed behind its opt-in flag, but the v2 reference profile is
+still unpublished and the UI candidate is not the official reference funnel.
+This is code-level UI preparation, not a live
 Dashboard cutover or acceptance test. The existing live funnel remains the
 visible default.
 

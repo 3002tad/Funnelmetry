@@ -36,6 +36,24 @@ export function validateSwarmApp(env) {
   if (cdcReferenceOffer === 'true' && (env.SWARM_MIGRATION_MODE !== 'PARALLEL_LIVE' || productReferenceProvider !== 'catalog_cdc')) {
     throw Error('CDC reference offer requires PARALLEL_LIVE and catalog_cdc');
   }
+  const cdcReferenceCandidate = env.SWARM_ENABLE_CDC_REFERENCE_CANDIDATE?.trim() || 'false';
+  if (!['true', 'false'].includes(cdcReferenceCandidate)) {
+    throw Error('SWARM_ENABLE_CDC_REFERENCE_CANDIDATE must be true or false');
+  }
+  if (cdcReferenceCandidate === 'true') {
+    if (env.SWARM_MIGRATION_MODE !== 'PARALLEL_LIVE') {
+      throw Error('CDC reference candidate requires PARALLEL_LIVE mode');
+    }
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(env.SWARM_CDC_REFERENCE_SOURCE_ID?.trim() || '') ||
+        !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(env.SWARM_CDC_REFERENCE_COVERAGE_EPOCH_ID?.trim() || '')) {
+      throw Error('CDC reference candidate requires source ID and coverage epoch ID');
+    }
+    const activationAt = env.SWARM_CDC_REFERENCE_ACTIVATION_AT?.trim() || '';
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(activationAt) ||
+        Number.isNaN(Date.parse(activationAt))) {
+      throw Error('CDC reference candidate requires a timezone-qualified activation instant');
+    }
+  }
   const domain = env.SWARM_PUBLIC_DOMAIN?.trim() || '';
   if (domain.length > 253 || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)) {
     throw Error('SWARM_PUBLIC_DOMAIN must be a reviewed lowercase public DNS hostname');
@@ -58,7 +76,7 @@ export function validateSwarmApp(env) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.SWARM_ADMIN_EMAIL?.trim() || '')) {
     throw Error('SWARM_ADMIN_EMAIL must be a valid single-line email');
   }
-  return Object.freeze({ domain, tlsMode, productReferenceProvider, catalogSyncReplicas: Number(catalogSyncReplicas), cdcReferenceOffer: cdcReferenceOffer === 'true', status: 'PLANNING_ONLY' });
+  return Object.freeze({ domain, tlsMode, productReferenceProvider, catalogSyncReplicas: Number(catalogSyncReplicas), cdcReferenceOffer: cdcReferenceOffer === 'true', cdcReferenceCandidate: cdcReferenceCandidate === 'true', status: 'PLANNING_ONLY' });
 }
 
 export function validateSwarmCandidate(env) {

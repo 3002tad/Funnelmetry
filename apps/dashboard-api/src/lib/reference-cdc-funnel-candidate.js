@@ -36,7 +36,9 @@ export const FUNNEL_CANDIDATE_SQL = `WITH events AS (
   JOIN canonical_events checkout_event
     ON checkout_event.canonical_event_id=t.checkout_event_id
   WHERE t.source_instance_id=$1 AND t.coverage_epoch_id=$2
+    AND t.observed_state_at::timestamptz >= $3::timestamptz
     AND checkout_event.occurred_at >= ch.checkout_at
+    AND t.observed_state_at::timestamptz >= checkout_event.occurred_at
 )
 SELECT (SELECT count(*) FROM cohort)::bigint AS entrants,
        (SELECT count(*) FROM added)::bigint AS item_added,

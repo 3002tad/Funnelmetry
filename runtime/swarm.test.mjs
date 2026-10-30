@@ -92,6 +92,26 @@ test('reference current-offer endpoint requires an explicit CDC live deployment 
     SWARM_ENABLE_CDC_REFERENCE_OFFER: 'true' }), /requires PARALLEL_LIVE and catalog_cdc/);
 });
 
+test('order-v2 current-state read path requires an explicit scoped deployment', () => {
+  const app = readFileSync(fileURLToPath(new URL('../infra/swarm-app.yml', import.meta.url)), 'utf8');
+  assert.match(app, /DASHBOARD_ENABLE_CDC_REFERENCE_CANDIDATE: \$\{SWARM_ENABLE_CDC_REFERENCE_CANDIDATE:-false\}/);
+  for (const key of ['SOURCE_ID', 'COVERAGE_EPOCH_ID', 'ACTIVATION_AT']) {
+    assert.ok(app.includes('CDC_REFERENCE_' + key + ': ${SWARM_CDC_REFERENCE_' + key + ':-}'));
+  }
+  const base = { SWARM_TLS_MODE: 'local', SWARM_PUBLIC_DOMAIN: 'demo.example.com',
+    SWARM_ADMIN_EMAIL: 'admin@example.com', SWARM_TRAEFIK_IMAGE: 'traefik:v3.6.0@sha256:' + 'a'.repeat(64),
+    SWARM_MIGRATION_MODE: 'PARALLEL_LIVE' };
+  assert.equal(validateSwarmApp(base).cdcReferenceCandidate, false);
+  const enabled = { ...base, SWARM_ENABLE_CDC_REFERENCE_CANDIDATE: 'true',
+    SWARM_CDC_REFERENCE_SOURCE_ID: 'medusa-reference',
+    SWARM_CDC_REFERENCE_COVERAGE_EPOCH_ID: 'cdc11_order_epoch1',
+    SWARM_CDC_REFERENCE_ACTIVATION_AT: '2026-10-30T04:29:31.042Z' };
+  assert.equal(validateSwarmApp(enabled).cdcReferenceCandidate, true);
+  assert.throws(() => validateSwarmApp({ ...enabled, SWARM_MIGRATION_MODE: 'OFFLINE_DEMO' }), /PARALLEL_LIVE/);
+  assert.throws(() => validateSwarmApp({ ...enabled, SWARM_CDC_REFERENCE_COVERAGE_EPOCH_ID: '' }), /coverage epoch/);
+  assert.throws(() => validateSwarmApp({ ...enabled, SWARM_CDC_REFERENCE_ACTIVATION_AT: '2026-10-30' }), /activation instant/);
+});
+
 test('monitoring stays opt-in and joins the same Swarm stack when enabled', () => {
   assert.deepEqual(stackFilesForCommand('deploy-app', { tlsMode: 'local' }, 'PARALLEL_LIVE', true).map(file => file.split(/[\\/]/).at(-1)),
     ['swarm-stack.yml', 'swarm-workers.yml', 'swarm-app.yml', 'swarm-live.yml', 'swarm-monitoring.yml', 'swarm-edge-local.yml']);
