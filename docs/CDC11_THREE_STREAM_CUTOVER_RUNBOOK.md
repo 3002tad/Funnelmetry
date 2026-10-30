@@ -356,6 +356,21 @@ minimum safe WAL 1037 MiB. Live `catalog-sync` and Source Connector stayed
 `1/1`. This proves the reader predicate on the target for these three cases,
 but does not activate a versioned funnel profile or test correction/OFF.
 
+**Target order OFF and restoration, 2026-10-30:** The dedicated browser test
+order `order_01M65NWVVQ1WK7ZATYZK8BKBRB` was temporarily soft deleted by
+a guarded direct PostgreSQL statement after verifying its exact completed
+cart link; it was then restored to `deleted_at=NULL`. The order-v2 sink
+recorded `TRANSITION active=false` at fact offset eight, followed by
+`TRANSITION active=true` at offset nine. Current state is again active for
+the original cart, with fact next offset ten. The quality monitor returned
+`BLOCKED_BY_QUALITY` while source/mapper/sink were catching up, then
+`PASS_SHADOW_LEASE` at 06:44:56 UTC after the target order verifier passed
+source/mapper/sink equality, ordered prefix and caught-up offsets. The full
+guarded reader again returned `BOUND_SHADOW` for the same journey and
+checkout event after restoration. This proves OFF/re-entry and fail-closed
+catch-up on the target for a controlled DB change. It is not a Medusa Admin
+workflow or a published funnel correction/UI test; the latter remains open.
+
 **Observed target order-fact delay and WAL headroom, 2026-10-30:** The
 mapper's `observed_state_at` comes from Debezium transaction END `ts_ms`;
 subtracting that from sink `ingested_at` for the three post-baseline ON facts
@@ -497,4 +512,4 @@ Only after the rollback window expires and all consumers/dependencies are invent
 
 ## 7. Present stop conditions
 
-At the latest checkpoint, **live cutover is blocked** by incomplete target-topology stream conformance and production workload/WAL budget, no published/versioned order-v2 funnel profile or correction path, and untested stage-2 reservation/price-list/rule/tier shapes. The post-baseline browser order passed the guarded shadow journey reader. All 120 current simple Store API variant contexts matched the CDC candidate for price/currency, and the 20 managed variants matched inventory quantity; this does not certify future source shapes. A bounded operator-side quality monitor is running for three candidate streams, but its PASS lease is neither production freshness certification nor CDC analytical authority. Target replay, restart, fail-closed and short Connect outage have passed; remaining work includes target update/delete/OFF, longer fault/load probes and nonempty complex stage-2 cases, then explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
+At the latest checkpoint, **live cutover is blocked** by production workload/WAL budget, no published/versioned order-v2 funnel profile or correction path to analytical/UI results, and untested stage-2 reservation/price-list/rule/tier shapes. The post-baseline browser order passed the guarded shadow journey reader and controlled target OFF→ON restoration; target catalog update/soft delete/relation and price update transport also passed. All 120 current simple Store API variant contexts matched the CDC candidate for price/currency, and the 20 managed variants matched inventory quantity; this does not certify future source shapes. A bounded operator-side quality monitor is running for three candidate streams, but its PASS lease is neither production freshness certification nor CDC analytical authority. Target replay, restart, fail-closed and short Connect outage have passed; remaining work is the specific load/long-outage budget, versioned funnel correction path, complex stage-2 conformance and explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
