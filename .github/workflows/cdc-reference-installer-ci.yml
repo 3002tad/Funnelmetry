@@ -112,6 +112,7 @@ jobs:
             tools/medusa-reference-cdc-shadow/monitor-target-quality.py \
             tools/medusa-reference-cdc-shadow/moving_projection_quality.py \
             tools/medusa-reference-cdc-shadow/probe-target-moving-projections.py \
+            tools/medusa-reference-cdc-shadow/target_shadow_workers.py \
             tools/medusa-reference-cdc-shadow/install-target-projection-pending-quality.py \
             tools/medusa-reference-cdc-shadow/check-target-projection-pending-restart.py \
             tools/medusa-reference-cdc-shadow/target_kafka_offsets.py \
@@ -119,6 +120,7 @@ jobs:
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_monitor_target_quality.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_moving_projection_quality.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_probe_target_moving_projections.py -v
+          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_target_shadow_workers.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_install_target_projection_pending_quality.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_target_kafka_offsets.py -v
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_target_inventory_price_resolver.py -v

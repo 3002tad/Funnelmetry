@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from target_kafka_offsets import read_topic_ends
+from target_shadow_workers import worker_ids, assert_same
 
 
 ROOT = Path(__file__).resolve().parent
@@ -28,6 +29,7 @@ EPOCH = "cdc11_order_epoch1"
 
 
 def sample(args):
+    workers = worker_ids(("order_mapper", "order_sink"))
     topics = [*(f"{PREFIX}.public.{table}" for table in quality.TABLES),
               f"{PREFIX}.transaction", FACT]
     # Read source last. New source rows are allowed to be pending in the
@@ -37,6 +39,7 @@ def sample(args):
     ends = read_topic_ends(args.kafka_container, topics)
     connector = target.connector_running(args.connect_container)
     source = target.source_state(args.source_container, "funnelmetry_cdc_order_v2_e1")
+    assert_same(workers, ("order_mapper", "order_sink"))
     return {"source": source, "mapper": mapper, "sink": sink,
             "topic_ends": ends, "connector_running": connector}
 

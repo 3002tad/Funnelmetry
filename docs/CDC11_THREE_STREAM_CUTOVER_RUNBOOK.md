@@ -617,6 +617,24 @@ storage across process restarts, **not** a live source row pending across a
 restart. The strict monitor continued `PASS_SHADOW_LEASE`; live `catalog-sync`
 and `source-connector` remained 1/1. No CDC-12 authority changed.
 
+**Target moving-projection write probe:** Eight new synthetic Store API orders
+with two checkout workers entered the order-v2 sink as exactly eight ON
+transitions (offset 358→374, source orders 178→186). END→sink p99 was 1.044 s,
+minimum slot safe WAL stayed above 1.07 GiB. Twelve simultaneous candidate
+catalog/stage-2 probe cycles all returned `PASS_BOUNDED_LAG`, zero pending rows
+and zero topic offset lag. The inventory/price `reservation_item` topic still
+ended at zero and `inventory_level` remained at its snapshot prefix; this
+checkout path did not exercise stage-2 row mutation. Therefore the result
+does **not** prove moving catalog/stage-2 quality. A targeted source change in
+their allowlisted columns is still required before lease promotion. Do not
+repeat the 120-order load or full funnel to fill this gap.
+
+**Worker-liveness guard:** Candidate moving probes now require exactly one
+running task for their relevant shadow writers and reject task replacement
+during a sample. A small Kafka backlog alone cannot make an absent writer
+healthy. Target idle catalog/stage-2 probe passed with this guard; strict
+monitor and live bindings were unchanged.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow

@@ -15,6 +15,7 @@ from pathlib import Path
 
 from moving_projection_quality import evaluate
 from target_kafka_offsets import read_topic_ends
+from target_shadow_workers import worker_ids, assert_same
 
 
 ROOT = Path(__file__).resolve().parent
@@ -147,6 +148,7 @@ def write_pending(container, pending, observed_at):
 
 
 def sample(args, current_profiles, first_seen):
+    workers = worker_ids(("catalog", "inventory_price"))
     catalog = current_profiles["catalog"]
     stage = current_profiles["stage"]
     source_catalog, projection_catalog = target.catalog_rows(
@@ -216,6 +218,7 @@ def sample(args, current_profiles, first_seen):
             max_offset_lag=args.max_offset_lag,
             max_pending_seconds=args.max_pending_seconds,
             first_seen=first_seen[name], now_seconds=observed_at)
+    assert_same(workers, ("catalog", "inventory_price"))
     return result, observed_at
 
 
