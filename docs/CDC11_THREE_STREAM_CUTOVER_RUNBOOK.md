@@ -176,9 +176,13 @@ check repeatedly on the VPS; failure blocks candidate quality, and a stopped
 monitor lets its leases expire. Verify service logs and fresh lease timestamps
 before treating a candidate read as current. Each PASS journal line includes
 the minimum slot safe WAL MiB and names any slot below the provisional 512 MiB
-alert threshold; a slot below 256 MiB blocks the lease. The check is relatively expensive
-(two full 23-topic reconciliations per cycle), so its interval and host load
-must be measured before longer operation. Neither the monitor nor a PASS
+alert threshold; a slot below 256 MiB blocks the lease. After a post-restart
+cycle took about 194 seconds including the configured 60-second pause, both
+target verifiers were changed to read all Kafka topic ends in one exact
+partition-checked query per sample. The first optimized cycle finished 14
+seconds after service start; with the 60-second pause this gives a much wider
+lease margin at the observed idle workload. Sustained load remains unmeasured.
+Neither the monitor nor a PASS
 candidate lease switches the Dashboard or grants CDC-12 authority.
 This proves a shadow snapshot chain with a bounded reconciliation lease on
 target topology, **not** full target-topology stream conformance,

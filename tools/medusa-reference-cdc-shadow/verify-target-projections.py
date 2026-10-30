@@ -7,13 +7,14 @@ PASS is not a continuous quality lease or live binding authorization.
 """
 
 import argparse
-import concurrent.futures
 import hashlib
 import importlib.util
 import json
 import re
 import subprocess
 from pathlib import Path
+
+from target_kafka_offsets import read_topic_ends
 
 
 ROOT = Path(__file__).resolve().parent
@@ -41,15 +42,6 @@ def source(container, statement):
 
 def pipeline(container, statement):
     return sql(container, "funnelmetry", "funnelmetry_handoff", statement)
-
-
-def topic_end(container, topic):
-    output = run(["docker", "exec", container, "/opt/kafka/bin/kafka-get-offsets.sh",
-                  "--bootstrap-server", "kafka:9092", "--topic", topic])
-    lines = [line for line in output.splitlines() if line.startswith(topic + ":0:")]
-    if len(lines) != 1:
-        raise ValueError("missing or partitioned target CDC topic")
-    return int(lines[0].rsplit(":", 1)[1])
 
 
 def connector_running(container, name):
@@ -180,8 +172,7 @@ def main():
                                              stage["coverage_epoch_id"])
     topics = [f"{catalog['topic_prefix']}.public.{table}" for table in CATALOG] + [
         f"{stage['topic_prefix']}.public.{table}" for table in stage2.TABLES]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        ends = dict(zip(topics, executor.map(lambda topic: topic_end(args.kafka_container, topic), topics)))
+    ends = read_topic_ends(args.kafka_container, topics)
     catalog_offsets = pipeline(args.pipeline_container,
         "SELECT COALESCE(json_object_agg(topic,next_offset),'{}'::json)::text "
         "FROM catalog_cdc_input_offsets WHERE source_id='medusa-reference' "

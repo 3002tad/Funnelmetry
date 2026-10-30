@@ -6,13 +6,14 @@ not publish a lease or activate a funnel/read path.
 """
 
 import argparse
-import concurrent.futures
 import importlib.util
 import json
 import re
 import subprocess
 import time
 from pathlib import Path
+
+from target_kafka_offsets import read_topic_ends
 
 
 ROOT = Path(__file__).resolve().parent
@@ -32,15 +33,6 @@ def sql(container, user, db, statement):
     output = run(["docker", "exec", "-i", container, "psql", "-X", "-U", user,
                   "-d", db, "-At", "-v", "ON_ERROR_STOP=1"], statement)
     return json.loads(output)
-
-
-def topic_end(container, topic):
-    output = run(["docker", "exec", container, "/opt/kafka/bin/kafka-get-offsets.sh",
-                  "--bootstrap-server", "kafka:9092", "--topic", topic])
-    lines = [line for line in output.splitlines() if line.startswith(topic + ":0:")]
-    if len(lines) != 1:
-        raise ValueError("order quality topic has no exact partition-0 end")
-    return int(lines[0].rsplit(":", 1)[1])
 
 
 def source_state(container, slot):
@@ -112,8 +104,7 @@ def sample(args):
     fact_topic = "cdc_shadow_reference.order_recorded_state.v2"
     topics = [*(f"{prefix}.public.{table}" for table in quality.TABLES),
               f"{prefix}.transaction", fact_topic]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        ends = dict(zip(topics, executor.map(lambda topic: topic_end(args.kafka_container, topic), topics)))
+    ends = read_topic_ends(args.kafka_container, topics)
     return {"source": source_state(args.source_container, "funnelmetry_cdc_order_v2_e1"),
             "mapper": mapper_state(args.mapper_container, "cdc11_order_epoch1"),
             "sink": sink_state(args.pipeline_container, "cdc11_order_epoch1", fact_topic),
