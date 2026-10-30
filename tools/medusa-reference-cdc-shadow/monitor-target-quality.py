@@ -201,11 +201,18 @@ def cycle(profile_dir, seconds, write):
             raise RuntimeError("target CDC source/offset changed between samples")
         if write:
             write_pass(ids, second[0], second[1], seconds)
+        safe_wal = {"catalog": second[0]["catalog"]["slot_safe_wal_size"],
+                    "inventory_price": second[0]["inventory_price"]["slot_safe_wal_size"],
+                    "order": second[1]["slot_safe_wal_size"]}
+        alert_slots = sorted(slot for slot, size in safe_wal.items()
+                             if int(size) < 512 * 1024 * 1024)
         print(json.dumps({"status": "PASS_SHADOW_LEASE" if write else "PASS_SHADOW_DRY_RUN",
                           "catalog_products": second[0]["catalog"]["counts"]["product"]["source"],
                           "stage2_tables": len(second[0]["inventory_price"]["table_counts"]),
                           "order_count": second[1]["source_count"],
                           "fact_offset": second[1]["fact_offset"],
+                          "min_safe_wal_mib": min(int(size) for size in safe_wal.values()) // (1024 * 1024),
+                          "wal_alert_slots": alert_slots,
                           "lease_seconds": seconds if write else 0}, sort_keys=True), flush=True)
         return True
     except (RuntimeError, ValueError, KeyError, TypeError, OSError, json.JSONDecodeError) as error:

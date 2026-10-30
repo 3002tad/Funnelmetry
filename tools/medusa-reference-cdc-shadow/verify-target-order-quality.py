@@ -153,6 +153,7 @@ def main():
     second["baseline_digest"] = (second_sample["mapper"].get("epoch") or {}).get("baseline_digest")
     second["topic_end_offsets"] = second_sample["topic_ends"]
     second["mapper_offsets"] = second_sample["mapper"].get("offsets")
+    second["slot_safe_wal_size"] = second_sample["source"].get("slot_safe_wal_size")
     second["continuous_lease"] = "NOT_ESTABLISHED"
     second["live_binding"] = "UNCHANGED"
     print(json.dumps(second, sort_keys=True))

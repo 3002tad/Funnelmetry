@@ -174,7 +174,9 @@ gate, not a placement/conversion claim. The catalog binding has no active row.
 `infra/systemd/funnelmetry-cdc-shadow-quality.service` runs the same operator
 check repeatedly on the VPS; failure blocks candidate quality, and a stopped
 monitor lets its leases expire. Verify service logs and fresh lease timestamps
-before treating a candidate read as current. The check is relatively expensive
+before treating a candidate read as current. Each PASS journal line includes
+the minimum slot safe WAL MiB and names any slot below the provisional 512 MiB
+alert threshold; a slot below 256 MiB blocks the lease. The check is relatively expensive
 (two full 23-topic reconciliations per cycle), so its interval and host load
 must be measured before longer operation. Neither the monitor nor a PASS
 candidate lease switches the Dashboard or grants CDC-12 authority.

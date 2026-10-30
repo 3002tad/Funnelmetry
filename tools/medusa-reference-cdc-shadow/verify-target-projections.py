@@ -238,7 +238,8 @@ def main():
                           "projection_digest": digest(target_catalog),
                           "topic_end_offsets": catalog_ends,
                           "applied_offsets": catalog_offsets,
-                          "slot_status": slots.get(catalog["slot"], {}).get("status")},
+                          "slot_status": slots.get(catalog["slot"], {}).get("status"),
+                          "slot_safe_wal_size": slots.get(catalog["slot"], {}).get("safe_wal_size")},
               "inventory_price": {"checks": stage_checks,
                                   "table_counts": stage_result["table_counts"],
                                   "source_digest": stage_source_digest,
@@ -246,7 +247,8 @@ def main():
                                   "topic_end_offsets": stage_topic_ends,
                                   "applied_offsets": {topic: int(stage_offsets.get(topic, 0))
                                                       for topic in stage_topic_ends},
-                                  "slot_status": slots.get(stage["slot"], {}).get("status")},
+                                  "slot_status": slots.get(stage["slot"], {}).get("status"),
+                                  "slot_safe_wal_size": slots.get(stage["slot"], {}).get("safe_wal_size")},
               "continuous_lease": "NOT_ESTABLISHED",
               "live_binding": "UNCHANGED"}
     print(json.dumps(report, sort_keys=True))
