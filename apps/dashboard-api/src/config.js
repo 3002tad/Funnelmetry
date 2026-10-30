@@ -20,11 +20,17 @@ function featureFlag(name) {
 const features = Object.freeze({
   legacy: featureFlag('DASHBOARD_ENABLE_LEGACY'),
   ai: featureFlag('DASHBOARD_ENABLE_AI'),
+  cdcReferenceCandidate: featureFlag('DASHBOARD_ENABLE_CDC_REFERENCE_CANDIDATE'),
 });
 const aiEnv = name => features.ai ? requireEnv(name) : '';
 
 export const config = {
   features,
+  cdcReferenceCandidate: features.cdcReferenceCandidate ? Object.freeze({
+    sourceId: requireEnv('CDC_REFERENCE_SOURCE_ID'),
+    coverageEpochId: requireEnv('CDC_REFERENCE_COVERAGE_EPOCH_ID'),
+    activationAt: requireEnv('CDC_REFERENCE_ACTIVATION_AT'),
+  }) : null,
   port: Number(requireEnv("PORT")),
   corsOrigins: requireEnv("CORS_ORIGIN_DASHBOARD")
     .split(",")

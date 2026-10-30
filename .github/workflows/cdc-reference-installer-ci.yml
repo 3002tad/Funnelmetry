@@ -23,6 +23,12 @@ on:
       - infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql
       - apps/dashboard-api/src/lib/product-reference.js
       - apps/dashboard-api/test/product-reference.test.js
+      - apps/dashboard-api/src/lib/reference-cdc-funnel-candidate.js
+      - apps/dashboard-api/src/routes/reference-cdc-funnel-candidate.js
+      - apps/dashboard-api/src/lib/v2-analytics-contract.js
+      - apps/dashboard-api/src/config.js
+      - apps/dashboard-api/src/app.js
+      - apps/dashboard-api/test/reference-cdc-funnel-candidate.test.js
       - infra/docker/pipeline-workers.Dockerfile
       - infra/bootstrap/cdc-candidate-migrations.mjs
       - infra/bootstrap/cdc-candidate-migrations.test.mjs
@@ -164,6 +170,10 @@ jobs:
           python -m py_compile tools/medusa-reference-cdc-shadow/reference_order_v2_quality.py
           python -m py_compile tools/medusa-reference-cdc-shadow/verify-reference-order-v2-quality.py
           python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_reference_order_v2_quality.py -v
+      - name: Check shadow-only reference funnel API candidate
+        run: |
+          node --test apps/dashboard-api/test/reference-cdc-funnel-candidate.test.js
+          node --check apps/dashboard-api/src/routes/reference-cdc-funnel-candidate.js
       - name: Build candidate Workers image
         run: docker build --file infra/docker/pipeline-workers.Dockerfile --tag funnelmetry-workers-cdc-ci .
       - name: Check existing Pipeline DB CDC candidate migration guard

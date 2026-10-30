@@ -416,6 +416,27 @@ The subsequent three-stream quality monitor sample remained
 `PASS_SHADOW_LEASE` with 104 products, 16 stage-2 tables, four orders, fact
 next offset ten and minimum safe WAL headroom 1037 MiB.
 
+**Aggregate API candidate, 2026-10-30:** Dashboard API code now has a separate
+`/api/v2/analytics/reference-cdc-funnel-candidate` route behind
+`DASHBOARD_ENABLE_CDC_REFERENCE_CANDIDATE=false` by default. Enabling it
+requires explicit source ID, coverage epoch and cohort activation timestamp;
+the route remains under the existing authenticated shop zone and requires both
+`analytics.read` and `analytics.workspace.use`.
+Its response is `SHADOW_CURRENT_STATE` with an `UNPUBLISHED` profile status,
+never a Commerce Conversion or historical placement metric. A repeatable-read
+query counts journey-grain product views, item adds and checkout starts, then
+counts distinct journeys with the retractable CDC terminal view. A missing,
+expired or changed quality lease returns `BLOCKED_BY_QUALITY` without counts.
+The exact parameterized SQL was run read-only on the VPS Pipeline DB for the
+target source/epoch and an explicit 2026-10-30 cohort start. Counts were
+`1/1/1/1` for entrants/add/checkout/currently recorded journeys. A guarded
+transaction changed only the candidate current-state row to OFF: the same
+prepared query returned `1/1/1/0`; after `ROLLBACK` it returned `1/1/1/1`.
+No order, source record, canonical event, live API route or published profile
+was persistently changed. This is a correction-capable candidate query;
+versioned profile identity, UI labels/quality rendering and CDC-12 activation
+remain open.
+
 **Observed target order-fact delay and WAL headroom, 2026-10-30:** The
 mapper's `observed_state_at` comes from Debezium transaction END `ts_ms`;
 subtracting that from sink `ingested_at` for the three post-baseline ON facts

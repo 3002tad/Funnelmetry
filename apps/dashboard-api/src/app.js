@@ -11,6 +11,7 @@ import { createMachineMonitoringRouter, createMonitoringCredentialRouter } from 
 import { createMonitoringAlertsRouter } from './routes/monitoring-alerts.js';
 import { usersRouter } from "./routes/users.js";
 import { analyticsV2Router } from "./routes/analytics-v2.js";
+import { createReferenceCdcFunnelCandidateRouter } from './routes/reference-cdc-funnel-candidate.js';
 import { createAdminV2Router } from "./routes/admin-v2.js";
 import { createCatalogV2Router } from './routes/catalog-v2.js';
 import { createRunDiagnosticsRouter } from './routes/run-diagnostics.js';
@@ -80,6 +81,9 @@ export function createApp() {
   shop.use(requireAuth, requireLivePermission('analytics.read'), requireShopRole);
   shop.use(requireAnalyticsCapability);
   shop.use(analyticsV2Router);
+  if (config.features.cdcReferenceCandidate) {
+    shop.use(createReferenceCdcFunnelCandidateRouter());
+  }
   shop.use(createTrafficInputRouter());
   shop.use(createTrafficSourceRegistryRouter());
   for (const router of legacyRouters) shop.use(router);
