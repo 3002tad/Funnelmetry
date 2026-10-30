@@ -437,6 +437,16 @@ was persistently changed. This is a correction-capable candidate query;
 versioned profile identity, UI labels/quality rendering and CDC-12 activation
 remain open.
 
+**UI candidate code, 2026-10-30:** The Funnel page has a separately labeled
+CDC reference current-state panel with an explicit "view" action. It fetches
+only when opened, presents entrant/add/checkout/currently-recorded journey
+counts without a revenue or immutable-conversion claim, and hides stale
+numbers on a quality error. The UI build passes. Because the target API image
+has not been deployed with its opt-in flag and the v2 reference profile ID is
+still OPEN in Backbone, this is code-level UI preparation, not a live
+Dashboard cutover or acceptance test. The existing live funnel remains the
+visible default.
+
 **Observed target order-fact delay and WAL headroom, 2026-10-30:** The
 mapper's `observed_state_at` comes from Debezium transaction END `ts_ms`;
 subtracting that from sink `ingested_at` for the three post-baseline ON facts

@@ -29,6 +29,9 @@ on:
       - apps/dashboard-api/src/config.js
       - apps/dashboard-api/src/app.js
       - apps/dashboard-api/test/reference-cdc-funnel-candidate.test.js
+      - apps/dashboard-web/src/lib/analytics-api.ts
+      - apps/dashboard-web/src/features/funnels/ReferenceCdcCandidatePanel.tsx
+      - apps/dashboard-web/src/features/funnels/FriendlyFunnelsPage.tsx
       - infra/docker/pipeline-workers.Dockerfile
       - infra/bootstrap/cdc-candidate-migrations.mjs
       - infra/bootstrap/cdc-candidate-migrations.test.mjs
@@ -175,6 +178,10 @@ jobs:
           npm ci --prefix apps/dashboard-api --ignore-scripts
           node --test apps/dashboard-api/test/reference-cdc-funnel-candidate.test.js
           node --check apps/dashboard-api/src/routes/reference-cdc-funnel-candidate.js
+      - name: Build reference funnel candidate UI
+        run: |
+          npm ci --prefix apps/dashboard-web --ignore-scripts
+          npm run build --prefix apps/dashboard-web
       - name: Build candidate Workers image
         run: docker build --file infra/docker/pipeline-workers.Dockerfile --tag funnelmetry-workers-cdc-ci .
       - name: Check existing Pipeline DB CDC candidate migration guard

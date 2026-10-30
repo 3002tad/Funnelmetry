@@ -76,6 +76,24 @@ export type FunnelResponse = {
   }>
 }
 
+export type ReferenceCdcFunnelCandidateResponse = {
+  status: 'SHADOW_CURRENT_STATE'
+  contract_id: 'reference.medusa.order_recorded_state.v2'
+  source_id: string
+  coverage_epoch_id: string
+  historical_gap_status: 'INCOMPLETE'
+  profile_status: 'UNPUBLISHED'
+  cohort: { basis: 'entry_at'; activation_at: string; from: string | null; to: string | null }
+  quality_valid_until: string
+  totals: {
+    entrants: number
+    item_added: number
+    checkout_started: number
+    currently_recorded_journeys: number
+    current_state_reach_rate: number | null
+  }
+}
+
 export type JourneyListItem = {
   journey_id: string
   status: string
@@ -272,6 +290,12 @@ export function fetchV2Funnel(profileId: string, version: string, range: string)
   const params = scopeParams(range)
   params.set("profile_version", version)
   return apiRequest<FunnelResponse>(`/api/v2/analytics/funnels/${encodeURIComponent(profileId)}?${params}`)
+}
+
+export function fetchReferenceCdcFunnelCandidate(range: string) {
+  return apiRequest<ReferenceCdcFunnelCandidateResponse>(
+    `/api/v2/analytics/reference-cdc-funnel-candidate?${scopeParams(range)}`,
+  )
 }
 
 export async function fetchV2Journeys(limit = 50) {

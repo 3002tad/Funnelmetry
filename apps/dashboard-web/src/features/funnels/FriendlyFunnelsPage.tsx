@@ -11,6 +11,7 @@ import { fetchV2Funnel, fetchV2Overview } from "../../lib/analytics-api"
 import { eventName } from "../../lib/event-labels"
 import { compact } from "../../lib/utils"
 import { FunnelsPage as DetailedFunnelsPage } from "./FunnelsPage"
+import { ReferenceCdcCandidatePanel } from './ReferenceCdcCandidatePanel'
 
 export function FriendlyFunnelsPage() {
   const { range, sourceId } = useOutletContext<ShellContext>()
@@ -20,7 +21,7 @@ export function FriendlyFunnelsPage() {
   const funnel = useQuery({ queryKey: ["v2-funnel", sourceId, range, selected?.funnel_profile_id, selected?.profile_version], queryFn: () => fetchV2Funnel(selected!.funnel_profile_id, selected!.profile_version, range), enabled: Boolean(selected) })
   if (profiles.isLoading) return <div className="skeleton h-80" />
   if (profiles.isError) return <EmptyState icon={<CircleOff size={20} />} title="Chưa tải được các phễu" detail="Kiểm tra kết nối và phiên đăng nhập, rồi thử lại." />
-  if (!selected) return <EmptyState icon={<CircleOff size={20} />} title="Chưa có phễu để xem" detail="Phễu sẽ xuất hiện sau khi được xuất bản và có dữ liệu phù hợp." />
+  if (!selected) return <><EmptyState icon={<CircleOff size={20} />} title="Chưa có phễu để xem" detail="Phễu sẽ xuất hiện sau khi được xuất bản và có dữ liệu phù hợp." /><ReferenceCdcCandidatePanel sourceId={sourceId} range={range} /></>
 
   const data = funnel.data
   const rate = data?.totals.observed_end_to_end_rate
@@ -37,6 +38,7 @@ export function FriendlyFunnelsPage() {
       })}</div></section>
       {(data.totals.degraded > 0 || data.totals.provisional > 0) && <p className="mt-4 flex items-start gap-2 rounded-xl border border-warning/25 bg-warning/5 p-4 text-xs leading-5 text-muted-foreground"><ShieldAlert size={17} className="shrink-0 text-warning" />Một phần dữ liệu vẫn tạm thời hoặc cần kiểm tra chất lượng. Không dùng tỷ lệ này như KPI cuối cùng.</p>}
     </>}
+    <ReferenceCdcCandidatePanel sourceId={sourceId} range={range} />
     <ProgressiveDetails label="Xem phân tích và mã kỹ thuật đầy đủ"><DetailedFunnelsPage /></ProgressiveDetails>
     <p className="mt-4 text-xs text-muted-foreground">Nguồn: {sourceId} · Khoảng xem: {range}.</p>
   </>
