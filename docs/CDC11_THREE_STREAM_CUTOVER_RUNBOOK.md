@@ -250,6 +250,25 @@ reservation, backorder, kit multi-location and other channel contexts remain
 unverified on this target source. No inventory or price analytical asset was
 published, and no historical order amount was changed.
 
+**Current-catalog stage-2 coverage and Store API batch comparison,
+2026-10-30:** Read-only audit `1dbdcab` reconciled source/projection before
+and after enumerating all 120 published variant/channel/EUR contexts. The
+resolver returned a supported inventory shape for all 120 (100 unmanaged,
+20 single-item managed at eligible locations) and a simple default price for
+all 120. Commit `c88ef9d` then fetched 104 products through the local Medusa
+Store API using two existing publishable keys, compared every variant's CDC
+candidate price/currency and the 20 managed variants' inventory quantities,
+and returned `PASS_CURRENT_SOURCE_SHAPES_ONLY`: 120 matched, zero mismatches.
+The comparison did not write source or Pipeline data; it guarded numeric/raw
+source consistency and required source/projection/offset stability before and
+after the API reads. The source presently has zero reservation items, zero
+price lists and zero price-list rules. Its two `price_rule` rows are linked to
+price sets without a current variant link; they do not cover an active Store
+API variant. Therefore this is broad conformance for the **current simple
+catalog shape**, not proof of reservation, backorder, price-list/rule/tier,
+multi-location kit or future catalog changes. No availability or price asset
+has been activated, and historical order amounts remain untouched.
+
 **Order journey correlation check, 2026-10-30:** The initial target canonical
 `checkout.started` carried `relations.correlation_id = cart:<cart_id>` rather
 than `relations.cart_id`. The shadow reader now accepts the exact approved
@@ -413,4 +432,4 @@ Only after the rollback window expires and all consumers/dependencies are invent
 
 ## 7. Present stop conditions
 
-At the latest checkpoint, **live cutover is blocked** by incomplete target-topology stream conformance and production workload/WAL budget, no published/versioned order-v2 funnel profile or correction path, and only sample-level stage-2 inventory/default-price conformance. The post-baseline browser order passed the guarded shadow journey reader. A bounded operator-side quality monitor is running for three candidate streams, but its PASS lease is neither production freshness certification nor CDC analytical authority. Target replay, restart, fail-closed and short Connect outage have passed; remaining work includes target update/delete/OFF, longer fault/load probes, nonempty price-list/reservation and broader resolver cases, then explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
+At the latest checkpoint, **live cutover is blocked** by incomplete target-topology stream conformance and production workload/WAL budget, no published/versioned order-v2 funnel profile or correction path, and untested stage-2 reservation/price-list/rule/tier shapes. The post-baseline browser order passed the guarded shadow journey reader. All 120 current simple Store API variant contexts matched the CDC candidate for price/currency, and the 20 managed variants matched inventory quantity; this does not certify future source shapes. A bounded operator-side quality monitor is running for three candidate streams, but its PASS lease is neither production freshness certification nor CDC analytical authority. Target replay, restart, fail-closed and short Connect outage have passed; remaining work includes target update/delete/OFF, longer fault/load probes and nonempty complex stage-2 cases, then explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
