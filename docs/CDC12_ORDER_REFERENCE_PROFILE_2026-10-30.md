@@ -51,12 +51,55 @@ returned HTTP 200. The source checkout is still on its older `main` revision;
 an official merged, pinned deployment manifest is required before this is
 considered durable.
 
-The order stream is **profile active, source adapter not retired**. Before
-removing the adapter via the source-owned installer, finish the official
-read-path retirement of the old order.placed profile for new reference
-comparisons, record a bounded observation/rollback window, verify a new
-post-activation checkout and OFF correction through the active API, and pin
-the release in the deploy manifest. Keep historical order.placed data and
-Browser SDK/Source Feed for behavioral traffic. Catalog CDC and stage-2
-current-offer canaries remain separately quality-gated; this record does not
-promote unsupported price or stock contexts.
+The profile was initially activated with the native source adapter still
+running. The subsequent source cutover and current boundary are recorded
+below. Browser SDK/Source Feed continues to carry behavioral traffic;
+catalog and stage-2 offer reads remain separately quality-gated.
+
+## Source cutover and current runtime, 2026-10-30
+
+- Medusa CI plan `41086240367` and propose `41086240678` passed. The installer
+  generated commit `097d830` from `funnelmetry.integration.yaml` with
+  `medusa_backend: []` and an explicit `cdc_backend_cutover` declaration. The
+  patch removed only the native order subscriber, delivery dispatcher and
+  backend kit dependency; Browser SDK and storefront hooks remain.
+- On the VPS, backend image was built from `097d830` and only the backend
+  Compose container was recreated. The new backend returned `/health` 200;
+  its image has neither native order subscriber nor dispatcher. PostgreSQL,
+  its three CDC slots, Redis and storefront were not recreated.
+- The historical `commerce-conversion@2.0.0` and `online-payment@1.0.0`
+  activations were ended at `2026-10-30 16:24:13 UTC`. The funnel processor
+  now checks `disabled_at` against event time; the publisher does not reactivate
+  a retired profile. Historical records remain readable. Pipeline PostgreSQL
+  CI run `41088288058` passed. The Workers candidate publication run
+  `41088822337` passed, digest
+  `sha256:bac8e49600aefa92accec823ccf5e39db34da76e733d987f770b45057c9278a0`.
+- One post-cutover checkout created
+  `order_01M66T4RKN0MDNX8Q2CX5W9NBA` linked to
+  `cart_01M66T4P2DFBE36RHC8ZMKK3EP`. CDC order state became ON at fact
+  Kafka offset 375; inbox contains STATE 374 and TRANSITION 375. The canonical
+  ledger has zero `order.placed` for that order. This verifies the new order
+  used CDC without the retired adapter; it does not assert conversion or
+  paid revenue.
+- API candidate publish run `41090226457` passed, digest
+  `sha256:40d642e8ec2af59896e00e963edfed7d10133423956cacd5fcb13e1a3dbbdb76`.
+  After rollout, authenticated analyst reads returned HTTP 200 for the active
+  CDC current state and for the historical commerce funnel (2 entrants,
+  2 observed conversions). The CDC response still reports
+  `historical_gap_status=INCOMPLETE`. The storefront and Medusa public health
+  endpoints returned HTTP 200.
+- The feature checkout `/srv/KLTN/Funnelmetry-cdc-profile` has an ignored
+  `runtime/deploy.env` with pinned API/Web/Publisher/Processor digests,
+  `catalog_cdc`, `catalog-sync=0`, active order-v2 scope and stage-2 offer flag.
+  `node runtime/swarm.mjs check-app` passed. The old VPS main checkout is not
+  an approved redeploy source for this cutover. A full stack redeploy from the
+  feature checkout has not been performed; current services are scoped
+  overrides. Catalog and stage-2 leases were `PASS` and unexpired after the
+  checkout, with the three CDC stream services running.
+
+This closes the native backend order adapter on the Medusa reference runtime.
+The separate Source Ingress/HTTPS Feed remains for browser behavioral events.
+The stage-2 current-offer read path remains reference-shape gated; an ACTIVE
+semantic analytical asset/tool for broader inventory or price analysis is
+still pending. No new OFF mutation was made after cutover because the same
+CDC OFF/ON source transition had already been exercised before activation.
