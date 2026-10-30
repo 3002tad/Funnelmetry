@@ -192,7 +192,7 @@ export function createFunnelProfileRepository({ pool } = {}) {
           `INSERT INTO funnel_profile_activations (source_id, funnel_profile_id, profile_version, enabled_at)
            VALUES ($1, $2, $3, $4)
            ON CONFLICT (source_id, funnel_profile_id, profile_version)
-           DO UPDATE SET disabled_at = NULL`,
+           DO NOTHING`,
           [sourceId, profile.funnel_profile_id, profile.profile_version, publishedAt],
         )
         await client.query("COMMIT")
@@ -226,10 +226,11 @@ export function createFunnelRepository({ pool, now = () => new Date().toISOStrin
                ON s.funnel_profile_id = p.funnel_profile_id AND s.profile_version = p.profile_version
              LEFT JOIN funnel_profile_negative_events n
                ON n.funnel_profile_id = p.funnel_profile_id AND n.profile_version = p.profile_version
-            WHERE a.source_id = $1 AND a.disabled_at IS NULL
+            WHERE a.source_id = $1
+              AND (a.disabled_at IS NULL OR $3::timestamptz < a.disabled_at)
               AND (s.event_type = $2 OR n.event_type = $2)
             ORDER BY p.funnel_profile_id, p.profile_version`,
-          [event.source_id, event.event_type],
+          [event.source_id, event.event_type, event.occurred_at],
         )
         const updates = []
         const lateConversions = []

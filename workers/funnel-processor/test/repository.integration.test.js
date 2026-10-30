@@ -38,6 +38,27 @@ test("projects a late commerce sequence and preserves a post-conversion negative
     )
     const activations = await pool.query("SELECT * FROM funnel_profile_activations")
     assert.equal(activations.rowCount, 1)
+    await pool.query(
+      `UPDATE funnel_profile_activations SET disabled_at = '2026-08-29T00:00:02.000Z'
+        WHERE source_id = 'source-one' AND funnel_profile_id = $1 AND profile_version = $2`,
+      [persistedProfile.funnel_profile_id, persistedProfile.profile_version],
+    )
+    await profileRepository.publish({
+      sourceId: "source-one",
+      profile: persistedProfile,
+      publishedAt: "2026-08-29T00:00:03.000Z",
+    })
+    const retired = await pool.query(
+      `SELECT disabled_at FROM funnel_profile_activations
+        WHERE source_id = 'source-one' AND funnel_profile_id = $1 AND profile_version = $2`,
+      [persistedProfile.funnel_profile_id, persistedProfile.profile_version],
+    )
+    assert.equal(retired.rows[0].disabled_at.toISOString(), "2026-08-29T00:00:02.000Z")
+    await pool.query(
+      `UPDATE funnel_profile_activations SET disabled_at = NULL
+        WHERE source_id = 'source-one' AND funnel_profile_id = $1 AND profile_version = $2`,
+      [persistedProfile.funnel_profile_id, persistedProfile.profile_version],
+    )
     const timeouts = await pool.query("SELECT next_step_id, timeout_seconds FROM funnel_profile_transition_timeouts")
     assert.deepEqual(timeouts.rows, [{ next_step_id: "cart", timeout_seconds: "300" }])
     await pool.query(
@@ -85,6 +106,21 @@ test("projects a late commerce sequence and preserves a post-conversion negative
     assert.deepEqual(steps.rows.map((row) => row.step_id), ["view", "cart", "checkout", "order"])
     const branches = await pool.query("SELECT event_type FROM funnel_instance_branches")
     assert.deepEqual(branches.rows.map((row) => row.event_type), ["order.cancelled"])
+    await pool.query(
+      `UPDATE funnel_profile_activations SET disabled_at = '2026-08-29T01:00:06.000Z'
+        WHERE source_id = 'source-one' AND funnel_profile_id = $1 AND profile_version = $2`,
+      [persistedProfile.funnel_profile_id, persistedProfile.profile_version],
+    )
+    await repository.project({
+      journeyId: "journey_1",
+      canonicalEvent: canonicalEvent({
+        canonical_event_id: "can_after_retirement",
+        source_event_id: "source:after-retirement",
+        occurred_at: "2026-08-29T01:00:07.000Z",
+      }),
+    })
+    const afterRetirement = await pool.query("SELECT COUNT(*)::int AS n FROM funnel_instances")
+    assert.equal(afterRetirement.rows[0].n, 1)
   } finally {
     await pool.end()
     await admin.query(`DROP SCHEMA ${schema} CASCADE`)

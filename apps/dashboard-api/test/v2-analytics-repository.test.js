@@ -34,7 +34,7 @@ test("returns observed profile cohorts without claiming a final conversion rate"
   assert.deepEqual(calls[0].params, ["medusa-reference", "2026-08-01T00:00:00.000Z"])
 })
 
-test("resolves an active profile version and preserves zero-denominator step state", async () => {
+test("resolves a published historical profile version and preserves zero-denominator step state", async () => {
   const calls = []
   const responses = [
     [{
@@ -62,6 +62,8 @@ test("resolves an active profile version and preserves zero-denominator step sta
   assert.equal(result.totals.observed_end_to_end_rate, null)
   assert.equal(result.totals.late_conversion_rate, null)
   assert.equal(result.totals.final_end_to_end_rate, null)
+  assert.match(calls[0].sql, /a\.disabled_at/)
+  assert.doesNotMatch(calls[0].sql, /a\.disabled_at IS NULL/)
   assert.match(calls[2].sql, /instances\.source_id = \$1/)
   assert.deepEqual(calls[2].params, ["medusa-reference", "commerce-conversion", "1.0.0"])
 })

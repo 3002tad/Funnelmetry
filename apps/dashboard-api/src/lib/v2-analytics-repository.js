@@ -115,11 +115,11 @@ export function createV2AnalyticsRepository({ query } = {}) {
     const rows = await query(
       `SELECT p.funnel_profile_id, p.profile_version, p.display_name, p.subject_scope,
               p.entry_event_type, p.conversion_horizon_seconds, p.late_arrival_grace_seconds,
-              p.published_at
+              p.published_at, a.disabled_at
          FROM funnel_profiles p
          JOIN funnel_profile_activations a
            ON a.funnel_profile_id = p.funnel_profile_id AND a.profile_version = p.profile_version
-        WHERE a.source_id = $1 AND a.disabled_at IS NULL AND p.funnel_profile_id = $2${versionClause}
+        WHERE a.source_id = $1 AND p.funnel_profile_id = $2${versionClause}
         ORDER BY p.published_at DESC
         LIMIT 1`,
       params,
