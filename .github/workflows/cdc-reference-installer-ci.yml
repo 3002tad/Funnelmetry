@@ -18,9 +18,13 @@ on:
       - infra/postgres/v2/022_inventory_price_cdc_context_candidate.sql
       - infra/postgres/v2/023_reference_order_cdc_v2_candidate.sql
       - infra/postgres/v2/025_reference_order_cdc_v2_funnel_candidate.sql
+      - infra/postgres/v2/026_reference_order_cdc_v2_pending_quality_candidate.sql
+      - infra/postgres/v2/027_projection_pending_quality_candidate.sql
+      - infra/postgres/v2/028_reference_cdc_v2_profile_candidate.sql
       - infra/postgres/v2/024_reference_order_cdc_v2_mapper_candidate.sql
       - infra/postgres/tests/catalog_cdc_candidate_quality.sql
       - infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql
+      - infra/postgres/tests/reference_cdc_v2_profile_candidate.sql
       - apps/dashboard-api/src/lib/product-reference.js
       - apps/dashboard-api/test/product-reference.test.js
       - apps/dashboard-api/src/lib/reference-cdc-funnel-candidate.js
@@ -247,10 +251,14 @@ jobs:
             | jq -e '.status == "ALREADY_APPLIED"'
           docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff -Atc \
-            "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 6
+            "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 7
           docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff \
             < infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql
+          docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
+            -U funnelmetry -d funnelmetry_handoff \
+            < infra/postgres/tests/reference_cdc_v2_profile_candidate.sql \
+            | grep -F PROFILE_BINDING_GUARD_PASS
       - name: Check CDC Docker secret config and isolated worker images
         run: |
           node --test workers/shared/postgres-config.test.mjs

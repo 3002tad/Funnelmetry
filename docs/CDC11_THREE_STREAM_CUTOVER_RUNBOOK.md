@@ -468,6 +468,17 @@ route the official reference view to one authority only after quality-gated
 correction behavior and rollback are verified. Never write CDC ON as
 canonical `order.placed` or count both terminals in one profile.
 
+**Profile schema candidate:** Migration 028 creates separate immutable
+`reference_cdc_v2_profile_releases` and mutable
+`reference_cdc_v2_profile_bindings`, with at most one ACTIVE reference profile
+per source. It inserts no release or binding and does not activate a read
+path. The binding records source, coverage epoch, activation instant, state
+and decision reference. The existing six-file migration journal must be an
+exact prefix before applying 028. PostgreSQL CI checks that a second ACTIVE
+profile is refused and a published definition cannot be edited. Profile
+definition/metric ID and the operator publication step still require a
+separate reviewed release before any authority switch.
+
 The candidate aggregate now also requires the terminal ON observation to be
 at or after both the declared activation instant and the matched checkout
 event. This prevents an earlier ON from being attributed to a later journey
