@@ -394,6 +394,28 @@ baseline→ON→OFF→ON and lease expiry in a rolled-back PostgreSQL transactio
 Target runtime verification and a versioned reference profile/API/UI binding
 remain separate CDC-11 work.
 
+**Target migration 025 and correction query, 2026-10-30:** CI run
+`41018070468` passed the real PostgreSQL migration rehearsal and the
+rolled-back baseline→ON→OFF→ON→lease-expiry regression. On the VPS the
+Pipeline candidate journal first contained exactly 021–023 with the reviewed
+checksums. The SQL file SHA-256 was
+`ff1133cabc79e4290014c7d5898982c80a74a0988565956f0455f4c10ffd0004`;
+a transaction guarded the journal prefix and absence of the new view, created
+the view, inserted its checksum and committed. Querying the view for browser
+order `order_01M65NWVVQ1WK7ZATYZK8BKBRB` yielded one row with the expected
+cart, strong journey, checkout event and latest ON at offset nine. In a second
+transaction, a guarded update set only this candidate current-state row to
+`active=false`; the view then returned zero rows. `ROLLBACK` restored the row,
+and the view returned one row again. The transaction did not alter Medusa,
+Kafka, canonical events, the active funnel profile or Dashboard authority.
+The view proves a target read-model retraction, **not yet** a versioned
+reference funnel metric/API/UI correction. The official candidate migrator
+will recognize the inserted journal checksum and view on its next release;
+the target application image has not been rolled for this DB-only addition.
+The subsequent three-stream quality monitor sample remained
+`PASS_SHADOW_LEASE` with 104 products, 16 stage-2 tables, four orders, fact
+next offset ten and minimum safe WAL headroom 1037 MiB.
+
 **Observed target order-fact delay and WAL headroom, 2026-10-30:** The
 mapper's `observed_state_at` comes from Debezium transaction END `ts_ms`;
 subtracting that from sink `ingested_at` for the three post-baseline ON facts
