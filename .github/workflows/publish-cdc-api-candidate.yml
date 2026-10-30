@@ -31,6 +31,7 @@ jobs:
       - name: Build API image from the tagged commit
         run: |
           docker build --file infra/docker/dashboard-api.Dockerfile \
+            --label org.opencontainers.image.source=https://github.com/3002tad/Funnelmetry \
             --tag funnelmetry-cdc-api-candidate .
           docker run --rm --network none --read-only --cap-drop ALL \
             funnelmetry-cdc-api-candidate \
@@ -42,7 +43,7 @@ jobs:
       - name: Publish immutable SHA tag to GHCR
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE: ghcr.io/3002tad/funnelmetry/handoff-api
+          IMAGE: ghcr.io/3002tad/funnelmetry-cdc-api-candidate
         run: |
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker tag funnelmetry-cdc-api-candidate "$IMAGE:sha-$GITHUB_SHA"

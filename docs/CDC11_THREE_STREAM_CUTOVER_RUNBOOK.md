@@ -768,7 +768,9 @@ CDC read path and lease pass. A stale or absent lease fails closed.
 Publish the API candidate with an annotated `cdc-api-candidate-v*` tag on the
 reviewed feature commit. `.github/workflows/publish-cdc-api-candidate.yml`
 tests the CDC read path, builds and smoke-tests the image, then publishes
-`ghcr.io/3002tad/funnelmetry/handoff-api:sha-<commit>` to GHCR. Record its
+`ghcr.io/3002tad/funnelmetry-cdc-api-candidate:sha-<commit>` to GHCR. The
+separate candidate package is used because this repository's `GITHUB_TOKEN`
+cannot write the existing `funnelmetry/handoff-api` package. Record its
 registry digest and the old live image digest in the per-stream cutover record.
 The tag publishes an image only; the Swarm `SWARM_API_IMAGE` pin and
 `SWARM_PRODUCT_REFERENCE_PROVIDER` remain separate deployment decisions.
