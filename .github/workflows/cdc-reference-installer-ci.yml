@@ -35,6 +35,10 @@ on:
       - apps/dashboard-api/test/reference-cdc-profile-operator.test.js
       - apps/dashboard-api/src/routes/reference-cdc-funnel-candidate.js
       - apps/dashboard-api/src/lib/v2-analytics-contract.js
+      - apps/dashboard-api/src/lib/v2-analytics-repository.js
+      - apps/dashboard-api/test/v2-analytics-repository.test.js
+      - workers/funnel-processor/src/repository.js
+      - workers/funnel-processor/test/repository.integration.test.js
       - apps/dashboard-api/src/config.js
       - apps/dashboard-api/src/app.js
       - apps/dashboard-api/test/reference-cdc-funnel-candidate.test.js
@@ -199,7 +203,8 @@ jobs:
         run: |
           npm ci --prefix apps/dashboard-api --ignore-scripts
           node --test apps/dashboard-api/test/reference-cdc-funnel-candidate.test.js \
-            apps/dashboard-api/test/reference-cdc-profile-operator.test.js
+            apps/dashboard-api/test/reference-cdc-profile-operator.test.js \
+            apps/dashboard-api/test/v2-analytics-repository.test.js
           node --check apps/dashboard-api/src/routes/reference-cdc-funnel-candidate.js
           node --check apps/dashboard-api/scripts/reference-cdc-profile.mjs
       - name: Build reference funnel candidate UI
@@ -232,6 +237,10 @@ jobs:
             sleep 1
           done
           test "$ready" -eq 1
+          docker run --rm --network funnelmetry-cdc-migration-ci \
+            -e TEST_DATABASE_URL=postgres://funnelmetry:ci-only-password@postgres:5432/funnelmetry_handoff \
+            --entrypoint node funnelmetry-workers-cdc-ci \
+            /workspace/workers/funnel-processor/test/repository.integration.test.js
           docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
             -U funnelmetry -d funnelmetry_handoff -c \
             "CREATE TABLE handoff_bootstrap(id integer PRIMARY KEY,status text NOT NULL); INSERT INTO handoff_bootstrap VALUES(1,'READY');"
