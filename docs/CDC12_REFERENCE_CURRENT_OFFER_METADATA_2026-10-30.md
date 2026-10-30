@@ -52,3 +52,25 @@ current runtime availability, without providing an executable tool.
 
 The separate DB-GPT/Agent work will determine future tool contracts. No
 stage-2 tool is required for this CDC reference cutover.
+
+## VPS activation evidence, 2026-10-30
+
+- Pipeline commits `af1c1f2` and `f41eb04`; PostgreSQL migration rehearsal and
+  API candidate publication CI passed. Published API digest:
+  `sha256:d71c3886294287a4e8a5fcedeb28df24dec166c160f8b295bcb1693330a52fcb`.
+- Candidate migration plan found eight applied migrations and only
+  `030_reference_current_offer_metadata.sql` pending. Reviewed digest
+  `a58bf97f248685d5bcd1985f389a6d2fc639952d0f4a4de3c7e06cbb89b6c0d7`
+  was applied; no prior candidate migration was rerun.
+- Operator publication returned `SHADOW`, then `ACTIVE` for
+  `asset.reference_medusa_current_offer@1.0.0`. Both CDC leases and exact
+  source epochs passed the activation gate.
+- Dashboard API service converged on the published digest. An authenticated
+  `analyst@example.local` request to the metadata endpoint returned HTTP 200,
+  `ACTIVE`, `REFERENCE_CURRENT_ONLY`, catalog epoch `cdc11_catalog_epoch1`,
+  and stage-2 epoch `cdc11_inventory_price_epoch1`.
+- The feature checkout's ignored `runtime/deploy.env` pins that API digest;
+  `check-app` and `check-host` passed. This was a scoped API service update,
+  not a full-stack `deploy-app`: the latter would reset independently enabled
+  runtime flags from the current stack template. Full manifest reconciliation
+  remains separate deployment work.
