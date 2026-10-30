@@ -1,0 +1,44 @@
+name: Publish CDC Workers candidate
+
+on:
+  push:
+    tags:
+      - 'cdc-workers-candidate-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout exact candidate tag
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify funnel retirement code
+        run: |
+          node --check workers/funnel-processor/src/repository.js
+          node --test workers/funnel-processor/test/medusa-reference.test.js
+      - name: Build Workers image from the tagged commit
+        run: |
+          docker build --file infra/docker/pipeline-workers.Dockerfile \
+            --label org.opencontainers.image.source=https://github.com/3002tad/Funnelmetry \
+            --tag funnelmetry-cdc-workers-candidate .
+          docker run --rm --network none --read-only --cap-drop ALL \
+            funnelmetry-cdc-workers-candidate \
+            node -e "const fs=require('node:fs');const p='/workspace/workers/funnel-processor/src/repository.js';const s=fs.readFileSync(p,'utf8');if(!s.includes('DO NOTHING')||!s.includes('a.disabled_at'))process.exit(1)"
+      - name: Publish immutable SHA tag to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/3002tad/funnelmetry-cdc-workers-candidate
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag funnelmetry-cdc-workers-candidate "$IMAGE:sha-$GITHUB_SHA"
+          docker push "$IMAGE:sha-$GITHUB_SHA"
+          docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA"
