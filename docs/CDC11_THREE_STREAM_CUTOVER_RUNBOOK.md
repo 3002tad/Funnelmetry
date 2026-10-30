@@ -765,6 +765,13 @@ binding, stop `catalog-sync`, or change the order/inventory source. Keep the
 old sync running through the observation window; scale it down only after the
 CDC read path and lease pass. A stale or absent lease fails closed.
 
+The target quality monitor now writes catalog/stage-2 and order leases in
+separate transactions. Ordinary order offset drift blocks the order lease but
+does not revoke a reconciled catalog lease; catalog/stage-2 drift has the
+inverse effect. Shared Connect/Kafka/worker inventory failure still blocks all
+candidate leases. This change does not relax the strict order reconciliation
+policy or make the order terminal ready for live cutover under sustained writes.
+
 ## 6. CDC-13 cleanup gate
 
 Only after the rollback window expires and all consumers/dependencies are inventoried: remove the installer-owned backend order subscriber in a reproducible Medusa branch/installer release; revoke its signing credential; retire old order profile with historical audit preserved; remove `catalog-sync` service and its Admin API sync credential; archive old API-created reference tables only under a migration/retention policy. Do not remove Medusa Admin/Store API, Browser SDK, Source Ingress/Event Feed/Connector used by browser events, or shared volumes as part of this CDC-only change.

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Refresh bounded CDC-11 shadow quality leases from two stable target samples.
+"""Refresh CDC-11 candidate leases from two stable samples per stream.
 
 Operator-side service. It changes only candidate quality rows, never source
 Medusa data, Dashboard binding, catalog-sync or funnel metadata. A failed
-probe blocks existing candidate leases; a stopped monitor lets them expire.
+probe blocks only its stream's candidate lease; shared infrastructure or worker
+inventory failure blocks all leases. A stopped monitor lets them expire.
 """
 
 import argparse
@@ -77,12 +78,24 @@ def sample(ids, profile_dir):
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         catalog = executor.submit(probe, "verify-target-projections.py", ids, profile_dir)
         order = executor.submit(probe, "verify-target-order-quality.py", ids, profile_dir)
-        return catalog.result(), order.result()
+        def result(future):
+            try:
+                return future.result()
+            except (RuntimeError, ValueError, KeyError, TypeError, OSError,
+                    json.JSONDecodeError) as error:
+                return error
+        return result(catalog), result(order)
 
 
 def stable(a, b):
     first_catalog, first_order = a
     second_catalog, second_order = b
+    return stable_catalog(first_catalog, second_catalog) and stable_order(first_order, second_order)
+
+
+def stable_catalog(first_catalog, second_catalog):
+    if isinstance(first_catalog, Exception) or isinstance(second_catalog, Exception):
+        return False
     for field in ("catalog", "inventory_price"):
         left, right = first_catalog[field], second_catalog[field]
         if left["source_digest"] != right["source_digest"] or \
@@ -90,6 +103,12 @@ def stable(a, b):
                 left["topic_end_offsets"] != right["topic_end_offsets"] or \
                 left["applied_offsets"] != right["applied_offsets"]:
             return False
+    return True
+
+
+def stable_order(first_order, second_order):
+    if isinstance(first_order, Exception) or isinstance(second_order, Exception):
+        return False
     return (first_order["source_digest"] == second_order["source_digest"] and
             first_order["mapper_digest"] == second_order["mapper_digest"] and
             first_order["sink_digest"] == second_order["sink_digest"] and
@@ -134,15 +153,13 @@ def upsert_lease(table, epoch, value, kind, seconds):
             f"ON CONFLICT(source_id) DO UPDATE SET {updates};")
 
 
-def write_pass(ids, catalog, order, seconds):
+def write_catalog_pass(ids, catalog, seconds):
     catalog_value, stage_value = catalog["catalog"], catalog["inventory_price"]
     catalog_offsets = json_literal(catalog_value["applied_offsets"])
     stage_nonzero = {topic: offset for topic, offset in stage_value["applied_offsets"].items()
                      if offset > 0}
     stage_offsets = json_literal(stage_nonzero)
     statement = f"""BEGIN;
-      SELECT next_offset FROM reference_cdc_v2_sink_offsets
-        WHERE fact_topic={literal(FACT)} AND partition=0 FOR UPDATE;
       SELECT next_offset FROM catalog_cdc_input_offsets
         WHERE source_id={literal(SOURCE_ID)} AND coverage_epoch_id={literal(CATALOG_EPOCH)}
         FOR SHARE;
@@ -156,12 +173,23 @@ def write_pass(ids, catalog, order, seconds):
           OR (SELECT COALESCE(jsonb_object_agg(topic,next_offset),'{{}}'::jsonb)
             FROM inventory_price_cdc_input_offsets WHERE source_id={literal(SOURCE_ID)}
             AND coverage_epoch_id={literal(STAGE_EPOCH)} AND partition=0) <> {stage_offsets}
-          OR (SELECT next_offset FROM reference_cdc_v2_sink_offsets
-            WHERE fact_topic={literal(FACT)} AND partition=0) <> {int(order['fact_offset'])}
         THEN RAISE EXCEPTION 'CDC shadow offsets changed after quality sample'; END IF;
       END $$;
       {upsert_lease('catalog_cdc_quality_lease', CATALOG_EPOCH, catalog_value, 'catalog', seconds)}
       {upsert_lease('inventory_price_cdc_quality_lease', STAGE_EPOCH, stage_value, 'stage2', seconds)}
+      COMMIT;"""
+    write_transaction(ids, statement)
+
+
+def write_order_pass(ids, order, seconds):
+    statement = f"""BEGIN;
+      SELECT next_offset FROM reference_cdc_v2_sink_offsets
+        WHERE fact_topic={literal(FACT)} AND partition=0 FOR UPDATE;
+      DO $$ BEGIN
+        IF (SELECT next_offset FROM reference_cdc_v2_sink_offsets
+            WHERE fact_topic={literal(FACT)} AND partition=0) <> {int(order['fact_offset'])}
+        THEN RAISE EXCEPTION 'CDC order offset changed after quality sample'; END IF;
+      END $$;
       UPDATE reference_cdc_v2_quality_state SET status='CURRENT_STATE_READY',
         reason='TARGET_SOURCE_MAPPER_SINK_RECONCILED',
         verified_at=clock_timestamp(),
@@ -175,6 +203,10 @@ def write_pass(ids, catalog, order, seconds):
           AND status='CURRENT_STATE_READY' AND valid_until>clock_timestamp())
         THEN RAISE EXCEPTION 'order quality row not updated'; END IF; END $$;
       COMMIT;"""
+    write_transaction(ids, statement)
+
+
+def write_transaction(ids, statement):
     output = run(["docker", "exec", "-i", ids["pipeline"], "psql", "-X", "-U",
                   "funnelmetry", "-d", "funnelmetry_handoff", "-At",
                   "-v", "ON_ERROR_STOP=1"], statement)
@@ -182,16 +214,22 @@ def write_pass(ids, catalog, order, seconds):
         raise RuntimeError("quality lease transaction did not commit")
 
 
-def write_blocked(ids):
-    statement = """BEGIN;
+def write_blocked(ids, streams=("catalog", "order")):
+    updates = []
+    if "catalog" in streams:
+        updates.append("""
       UPDATE catalog_cdc_quality_lease SET status='BLOCKED_BY_QUALITY',
         valid_until=clock_timestamp() WHERE source_id='medusa-reference';
       UPDATE inventory_price_cdc_quality_lease SET status='BLOCKED_BY_QUALITY',
-        valid_until=clock_timestamp() WHERE source_id='medusa-reference';
+        valid_until=clock_timestamp() WHERE source_id='medusa-reference';""")
+    if "order" in streams:
+        updates.append("""
       UPDATE reference_cdc_v2_quality_state SET status='BLOCKED_BY_QUALITY',
         reason='TARGET_RECONCILIATION_FAILED',valid_until=clock_timestamp()
-        WHERE source_instance_id='medusa-reference' AND coverage_epoch_id='cdc11_order_epoch1';
-      COMMIT;"""
+        WHERE source_instance_id='medusa-reference' AND coverage_epoch_id='cdc11_order_epoch1';""")
+    if not updates:
+        return
+    statement = "BEGIN;" + "".join(updates) + "COMMIT;"
     run(["docker", "exec", "-i", ids["pipeline"], "psql", "-X", "-U", "funnelmetry",
          "-d", "funnelmetry_handoff", "-At", "-v", "ON_ERROR_STOP=1"], statement)
 
@@ -205,24 +243,37 @@ def cycle(profile_dir, seconds, write):
         second = sample(ids, profile_dir)
         if container_ids() != ids:
             raise RuntimeError("target CDC worker changed or stopped during quality sample")
-        if not stable(first, second):
-            raise RuntimeError("target CDC source/offset changed between samples")
+        passed = {"catalog": stable_catalog(first[0], second[0]),
+                  "order": stable_order(first[1], second[1])}
         if write:
-            write_pass(ids, second[0], second[1], seconds)
-        safe_wal = {"catalog": second[0]["catalog"]["slot_safe_wal_size"],
-                    "inventory_price": second[0]["inventory_price"]["slot_safe_wal_size"],
-                    "order": second[1]["slot_safe_wal_size"]}
+            for stream, value, writer in (("catalog", second[0], write_catalog_pass),
+                                          ("order", second[1], write_order_pass)):
+                if passed[stream]:
+                    try:
+                        writer(ids, value, seconds)
+                    except (RuntimeError, ValueError, KeyError, TypeError, OSError):
+                        passed[stream] = False
+                if not passed[stream]:
+                    write_blocked(ids, (stream,))
+        safe_wal = {}
+        if passed["catalog"]:
+            safe_wal.update({"catalog": second[0]["catalog"]["slot_safe_wal_size"],
+                             "inventory_price": second[0]["inventory_price"]["slot_safe_wal_size"]})
+        if passed["order"]:
+            safe_wal["order"] = second[1]["slot_safe_wal_size"]
         alert_slots = sorted(slot for slot, size in safe_wal.items()
                              if int(size) < 512 * 1024 * 1024)
-        print(json.dumps({"status": "PASS_SHADOW_LEASE" if write else "PASS_SHADOW_DRY_RUN",
-                          "catalog_products": second[0]["catalog"]["counts"]["product"]["source"],
-                          "stage2_tables": len(second[0]["inventory_price"]["table_counts"]),
-                          "order_count": second[1]["source_count"],
-                          "fact_offset": second[1]["fact_offset"],
-                          "min_safe_wal_mib": min(int(size) for size in safe_wal.values()) // (1024 * 1024),
+        print(json.dumps({"status": ("PASS_SHADOW_LEASE" if write else "PASS_SHADOW_DRY_RUN")
+                          if all(passed.values()) else "BLOCKED_BY_QUALITY",
+                          "streams": passed,
+                          "catalog_products": second[0]["catalog"]["counts"]["product"]["source"] if passed["catalog"] else None,
+                          "stage2_tables": len(second[0]["inventory_price"]["table_counts"]) if passed["catalog"] else None,
+                          "order_count": second[1]["source_count"] if passed["order"] else None,
+                          "fact_offset": second[1]["fact_offset"] if passed["order"] else None,
+                          "min_safe_wal_mib": min(int(size) for size in safe_wal.values()) // (1024 * 1024) if safe_wal else None,
                           "wal_alert_slots": alert_slots,
                           "lease_seconds": seconds if write else 0}, sort_keys=True), flush=True)
-        return True
+        return all(passed.values())
     except (RuntimeError, ValueError, KeyError, TypeError, OSError, json.JSONDecodeError) as error:
         if write:
             try:
