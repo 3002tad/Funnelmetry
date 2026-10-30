@@ -142,6 +142,26 @@ function cdcOrderV2Profile(value) {
   }
 }
 
+function cdcBackendCutover(value, orderV2) {
+  if (value === undefined) return null
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("cdc_backend_cutover must be a mapping")
+  }
+  const keys = new Set(["mode", "profile", "coverage_epoch_id", "decision_ref"])
+  const unknown = Object.keys(value).filter(key => !keys.has(key))
+  if (unknown.length) throw new Error(`Unsupported cdc_backend_cutover field(s): ${unknown.join(", ")}`)
+  if (!orderV2 || value.mode !== "replace_native_order_subscriber" ||
+      value.profile !== "reference.medusa.order_recorded_state.v2" ||
+      value.coverage_epoch_id !== orderV2.coverageEpochId ||
+      !/^DEC-[0-9]+(?:[/:._ A-Za-z0-9-]{0,160})$/.test(value.decision_ref ?? "")) {
+    throw new Error("cdc_backend_cutover requires approved order v2 epoch and decision ref")
+  }
+  return {
+    mode: value.mode, profile: value.profile,
+    coverageEpochId: value.coverage_epoch_id, decisionRef: value.decision_ref,
+  }
+}
+
 function cdcCatalogProfile(value) {
   if (value === undefined) return null
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("cdc_catalog_shadow must be a mapping")
@@ -290,9 +310,16 @@ export function validateManifest(raw) {
   const bindings = raw.bindings ?? {}
   const browser = bindingList(bindings.browser, "bindings.browser", browserBindings)
   const storefrontServer = bindingList(bindings.storefront_server, "bindings.storefront_server", storefrontServerBindings)
-  const medusaBackend = bindingList(bindings.medusa_backend, "bindings.medusa_backend", medusaBackendBindings)
+  const cdcOrderV2Shadow = cdcOrderV2Profile(raw.cdc_order_v2_shadow)
+  const backendCutover = cdcBackendCutover(raw.cdc_backend_cutover, cdcOrderV2Shadow)
+  if (backendCutover && (!Array.isArray(bindings.medusa_backend) ||
+      bindings.medusa_backend.length !== 0)) {
+    throw new Error("bindings.medusa_backend must be [] for CDC cutover")
+  }
+  const medusaBackend = backendCutover ? []
+    : bindingList(bindings.medusa_backend, "bindings.medusa_backend", medusaBackendBindings)
   requireCompleteProfile(storefrontServer, storefrontServerBindings, "bindings.storefront_server")
-  requireCompleteProfile(medusaBackend, medusaBackendBindings, "bindings.medusa_backend")
+  if (!backendCutover) requireCompleteProfile(medusaBackend, medusaBackendBindings, "bindings.medusa_backend")
   const reliability = raw.reliability ?? {}
   const retry = reliability.retry ?? {}
   const circuitBreaker = reliability.circuit_breaker ?? {}
@@ -313,13 +340,14 @@ export function validateManifest(raw) {
     },
     bindings: { browser, storefrontServer, medusaBackend },
     cdcShadow: cdcShadowProfile(raw.cdc_shadow),
-    cdcOrderV2Shadow: cdcOrderV2Profile(raw.cdc_order_v2_shadow),
+    cdcOrderV2Shadow,
+    cdcBackendCutover: backendCutover,
     cdcCatalogShadow: cdcCatalogProfile(raw.cdc_catalog_shadow),
     cdcInventoryPriceShadow: cdcInventoryPriceProfile(raw.cdc_inventory_price_shadow),
     // Internal compatibility for the current generator. The public manifest
     // source of truth is the explicit bindings block above.
     frontend: { enabled: true, events: browser },
-    backend: { enabled: true, binding: medusaBackend[0] },
+    backend: { enabled: medusaBackend.length > 0, binding: medusaBackend[0] },
     reliability: {
       failureMode: reliability.failure_mode ?? "fail_open",
       timeoutMs: optionalPositiveInteger(reliability.timeout_ms, "reliability.timeout_ms", 800),

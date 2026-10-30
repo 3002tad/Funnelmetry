@@ -372,10 +372,66 @@ async function applyWholeFilePatch(projectRoot, patch) {
       .map((line) => line.slice(1))
       .join("\n")
     const target = path.join(projectRoot, match[1])
+    if (section.includes("\ndeleted file mode 100644\n")) {
+      await rm(target)
+      continue
+    }
     await mkdir(path.dirname(target), { recursive: true })
     await writeFile(target, `${output}\n`)
   }
 }
+
+test("CDC backend cutover removes only owned order adapter files and is idempotent", async (t) => {
+  const raw = cdcOrderV2RawManifest()
+  const enabled = validateManifest(raw)
+  const cutoverRaw = structuredClone(raw)
+  cutoverRaw.bindings.medusa_backend = []
+  cutoverRaw.cdc_backend_cutover = {
+    mode: "replace_native_order_subscriber",
+    profile: "reference.medusa.order_recorded_state.v2",
+    coverage_epoch_id: "cdc11_order_epoch1",
+    decision_ref: "DEC-119/135-2026-10-30",
+  }
+  const cutover = validateManifest(cutoverRaw)
+  assert.equal(cutover.backend.enabled, false)
+  const invalid = structuredClone(cutoverRaw)
+  invalid.cdc_backend_cutover.coverage_epoch_id = "wrong_epoch"
+  assert.throws(() => validateManifest(invalid), /approved order v2 epoch/)
+  invalid.cdc_backend_cutover.coverage_epoch_id = "cdc11_order_epoch1"
+  invalid.bindings.medusa_backend = ["medusa.order_placed"]
+  assert.throws(() => validateManifest(invalid), /must be \[\]/)
+
+  let root
+  try { root = await mkdtemp(path.join(os.tmpdir(), "funnelmetry-cdc-backend-cutover-")) }
+  catch (error) {
+    if (error?.code === "EPERM") { t.skip("temporary directory unavailable"); return }
+    throw error
+  }
+  try {
+    await cp(fixtureRoot, root, { recursive: true })
+    await applyWholeFilePatch(root, (await createPlan(root, enabled)).patch)
+    const plan = await createPlan(root, cutover)
+    assert.equal(plan.capabilities.orderPlaced, "DISABLED")
+    assert.equal(plan.capabilities.cdcOrderV2State, "CUTOVER_DECLARED_RUNTIME_UNVERIFIED")
+    assert.deepEqual(plan.changes.map(change => change.path), [
+      "apps/backend/package.json",
+      "apps/backend/src/subscribers/funnelmetry-order-placed.ts",
+      "apps/backend/src/funnelmetry/managed-delivery-dispatcher.ts",
+    ])
+    assert.match(plan.patch, /deleted file mode 100644/)
+    assert.doesNotMatch(plan.patch, /apps\/storefront/)
+    await applyWholeFilePatch(root, plan.patch)
+    assert.equal((await createPlan(root, cutover)).patch, "")
+    assert.equal((await verifyIntegration(root, cutover)).cdcOrderV2State,
+      "CUTOVER_DECLARED_RUNTIME_UNVERIFIED")
+    const backendPackage = JSON.parse(await readFile(path.join(root, "apps/backend/package.json")))
+    const storefrontPackage = JSON.parse(await readFile(path.join(root, "apps/storefront/package.json")))
+    assert.equal(backendPackage.dependencies?.["@3002tad/funnelmetry-backend-integration-kit"], undefined)
+    assert.equal(storefrontPackage.dependencies?.["@3002tad/funnelmetry-backend-integration-kit"], "0.2.3")
+    await writeFile(path.join(root, "apps/backend/src/subscribers/funnelmetry-order-placed.ts"), "unowned\n")
+    await assert.rejects(() => createPlan(root, cutover), /partial order adapter/)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
 
 test("planner creates PR-ready artifacts without mutating the Medusa checkout", async () => {
   const before = await Promise.all(fixtureFiles.map(async (file) => [file, await readFile(path.join(fixtureRoot, file), "utf8")]))

@@ -559,6 +559,18 @@ function addDependency(content, dependency, version, file) {
   return `${JSON.stringify({ ...packageJson, dependencies }, null, 2)}\n`
 }
 
+function removeDependency(content, dependency, file) {
+  let packageJson
+  try { packageJson = JSON.parse(content) }
+  catch { throw new Error(`Pinned Medusa layout has invalid JSON in ${file}`) }
+  if (!Object.hasOwn(packageJson.dependencies ?? {}, dependency)) {
+    throw new Error(`Expected installer-owned dependency is missing in ${file}`)
+  }
+  const dependencies = { ...packageJson.dependencies }
+  delete dependencies[dependency]
+  return `${JSON.stringify({ ...packageJson, dependencies }, null, 2)}\n`
+}
+
 function addFunnelmetryAlias(content, file) {
   let tsConfig
   try {
@@ -1047,6 +1059,70 @@ export async function createPlan(projectRoot, manifest) {
   originals[generatedPaths.cdcOrderV2ShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcOrderV2ShadowProfile)
   originals[generatedPaths.cdcCatalogShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcCatalogShadowProfile)
   originals[generatedPaths.cdcInventoryPriceShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcInventoryPriceShadowProfile)
+
+  if (manifest.cdcBackendCutover) {
+    const [subscriber, dispatcher] = await Promise.all([
+      readOptionalProjectFile(projectRoot, generatedPaths.orderPlacedSubscriber),
+      readOptionalProjectFile(projectRoot, generatedPaths.managedDeliveryDispatcher),
+    ])
+    if ((subscriber === null) !== (dispatcher === null)) {
+      throw new Error("CDC backend cutover refuses a partial order adapter")
+    }
+    const installed = subscriber !== null
+    const comparison = installed ? {
+      ...manifest,
+      bindings: { ...manifest.bindings, medusaBackend: ["medusa.order_placed"] },
+      backend: { enabled: true, binding: "medusa.order_placed" },
+    } : manifest
+    const state = await existingIntegration(projectRoot, originals, comparison)
+    if (!["exact", "v2-compatible"].includes(state)) {
+      throw new Error(`CDC backend cutover requires a fully installer-owned integration, got ${state}`)
+    }
+    const cdcChanges = [
+      await cdcShadowChange(projectRoot, manifest),
+      await cdcOrderV2Change(projectRoot, manifest),
+      await cdcCatalogChange(projectRoot, manifest),
+      await cdcInventoryPriceChange(projectRoot, manifest),
+    ].filter(Boolean)
+    const packageDependency = JSON.parse(originals[paths.backendPackage]).dependencies?.[
+      "@3002tad/funnelmetry-backend-integration-kit"]
+    if (installed && !isKnownManagedPackageVersion(originals[paths.backendPackage],
+        "@3002tad/funnelmetry-backend-integration-kit",
+        packageVersions.backendIntegrationKit, paths.backendPackage)) {
+      throw new Error("CDC backend cutover refuses an unknown backend package version")
+    }
+    if (!installed && packageDependency !== undefined) {
+      throw new Error("CDC backend cutover found a residual backend package dependency")
+    }
+    const changes = [...cdcChanges]
+    if (installed) changes.push(
+      { path: paths.backendPackage, before: originals[paths.backendPackage],
+        after: removeDependency(originals[paths.backendPackage],
+          "@3002tad/funnelmetry-backend-integration-kit", paths.backendPackage) },
+      { path: generatedPaths.orderPlacedSubscriber, before: subscriber, after: null },
+      { path: generatedPaths.managedDeliveryDispatcher, before: dispatcher, after: null },
+    )
+    originals[generatedPaths.orderPlacedSubscriber] = subscriber
+    originals[generatedPaths.managedDeliveryDispatcher] = dispatcher
+    return {
+      schemaVersion: "funnelmetry-ci-plan.v2", mode: "plan-only", sourceMutation: false,
+      integrationState: installed ? "cdc-backend-cutover-ready" : "cdc-backend-cutover-applied",
+      host, manifest, sourceFingerprint: sourceFingerprint(originals),
+      cdcShadowOperatorPlan: cdcShadowOperatorPlan(manifest),
+      cdcOrderV2OperatorPlan: cdcOrderV2OperatorPlan(manifest),
+      capabilities: {
+        behavior: "ENABLED", orderPlaced: "DISABLED", commerceConversion: "HISTORICAL_ONLY",
+        cartItemPersisted: "ENABLED", searchSubmitted: "ENABLED",
+        cdcReferenceState: manifest.cdcShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
+        cdcOrderV2State: "CUTOVER_DECLARED_RUNTIME_UNVERIFIED",
+        cdcCatalogState: manifest.cdcCatalogShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
+        cdcInventoryPriceState: manifest.cdcInventoryPriceShadow ? "SHADOW_ONLY" : "NOT_REQUESTED",
+      },
+      changes: changes.map(({path:file}) => ({path:file,ownership:"funnelmetry-installer"})),
+      patch: changes.map(({path:file,before,after}) => after === null
+        ? deletedFilePatch(file,before) : wholeFilePatch(file,before,after)).join(""),
+    }
+  }
 
   const semanticSupported = [originals[paths.cartData], originals[paths.storeSearch], originals[paths.storePage], originals[paths.storeTemplate], originals[paths.paginatedProducts]].every((value) => value !== null)
   const existing = await existingIntegration(projectRoot, originals, manifest)

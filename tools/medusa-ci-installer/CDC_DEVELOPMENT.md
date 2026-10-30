@@ -93,10 +93,40 @@ canonical mapping or live funnel activation for it.
 
 ## First implementation gate
 
-The first implementation gate is met for the **count-only shadow reference**:
+The first implementation gate was met for the **count-only shadow reference**:
 Medusa 2.19.0 schema and successful/failed/retried order behavior were probed
 in a separate PostgreSQL clone; a PostgreSQL inbox/outbox mapper and analytical
-sink passed ON/OFF, restart, full replay and duplicate checks. Live Medusa
-PostgreSQL remains outside this installer and has no CDC activation. Amount,
-currency, historical bootstrap, load/WAL budget, source-owned cancellation,
-and exact native `order.placed` equivalence remain open gates.
+sink passed ON/OFF, restart, full replay and duplicate checks. This is
+historical clone evidence. The target Medusa reference now has three CDC
+capture streams and an active, separately named v2 current-state profile;
+native `order.placed` remains present until the installer cutover below.
+
+## Reference Backend Adapter cutover manifest
+
+After the Pipeline owner has activated `reference-commerce-current-state@2.0.0`
+for the exact order-v2 coverage epoch and recorded the rollback checkpoint, the
+source owner may declare the cutover in `funnelmetry.integration.yaml`:
+
+```yaml
+bindings:
+  medusa_backend: []
+cdc_backend_cutover:
+  mode: replace_native_order_subscriber
+  profile: reference.medusa.order_recorded_state.v2
+  coverage_epoch_id: cdc11_order_epoch1
+  decision_ref: DEC-119/135-2026-10-30
+```
+
+Keep the browser and storefront-server bindings, plus the existing
+`cdc_order_v2_shadow` profile block. The planner validates the exact epoch,
+recognized installer-owned source files and package version. It generates a
+patch deleting only `funnelmetry-order-placed.ts` and its managed dispatcher,
+and removes the backend app's integration-kit dependency. The same package
+remains in the storefront app for the fail-open search/cart hooks. The
+`occurred-at.ts` utility remains because the source's unit test imports it;
+it emits no event and performs no network call. A partial or drifted adapter
+fails closed. Rerunning the planner after applying the patch returns no
+changes. The manifest and planner do not verify that a live CDC binding is
+healthy; that is an explicit Pipeline cutover gate. Rollback of a deployed
+source build requires restoring the prior manifest and rerunning the installer
+on a new reviewed branch, while the old native event feed is still retained.
