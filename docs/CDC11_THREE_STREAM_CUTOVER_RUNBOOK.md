@@ -471,6 +471,30 @@ belonged to the intentional Connect outage. This supports sustained
 low-volume shadow reconciliation after catch-up, not a workload or outage
 SLO under flash-sale traffic.
 
+**Bounded target workload, 2026-10-30:** The reproducible
+`tools/medusa-reference-cdc-shadow/probe-target-bounded-load.py` created 12
+synthetic Store API orders on the Medusa reference VPS with at most two
+concurrent checkouts. Source order count increased 4→16; the order-v2 sink
+offset increased 10→34 (two records per order), with 12 distinct ON
+transitions. The workload lasted 16.725 s (0.717 order/s); checkout p95/p99
+were 3.153/3.313 s, and the sink caught up 1.119 s after the last checkout.
+Debezium END-to-sink p95/p99 were 1.055/1.178 s, **not** source-commit-to-API
+or browser-to-Dashboard latency. Three resource samples had no errors:
+Medusa backend peak CPU 149.34%, PostgreSQL 38.7%, Kafka 20.89%, Connect
+2.5%; PostgreSQL block I/O at the last sample was 3.56 MB read / 1.58 MB
+written (cumulative Docker counter, not workload delta). Peak retained WAL
+was 591,704 / 556,768 / 626,352 bytes for catalog / stage-2 / order slots;
+minimum safe WAL was 1,087,707,696 bytes for each, and physical `pg_wal`
+peaked at 32 MiB. The quality monitor briefly blocked while source/sink
+changed, then a fresh two-sample read-only probe returned
+`PASS_SHADOW_DRY_RUN`: 104 products, 16 stage-2 tables, 16 orders and fact
+offset 34. This is bounded **reference** evidence only. Twelve orders and
+three resource samples cannot certify a sustained flash-sale or 30-minute
+Connect outage budget; the finite 1 GiB per-slot cap, 512 MiB alert and
+256 MiB quality stop remain conservative operational limits until a separate
+load/outage approval. Do not repeat CDC-10 clone stress or target short-outage
+tests to interpret this sample.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow
