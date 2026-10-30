@@ -184,6 +184,11 @@ seconds after service start; with the 60-second pause this gives a much wider
 lease margin at the observed idle workload. Sustained load remains unmeasured.
 Neither the monitor nor a PASS
 candidate lease switches the Dashboard or grants CDC-12 authority.
+The monitor also requires one running container for each of the four shadow
+workers at both ends of its sample. A missing/replaced worker blocks the
+candidate lease, including when the first container inventory fails. This
+guard is necessary during a deliberate worker replay: matching old DB rows
+alone do not show that a stopped consumer can process a new source change.
 This proves a shadow snapshot chain with a bounded reconciliation lease on
 target topology, **not** full target-topology stream conformance,
 inventory availability/price resolution,

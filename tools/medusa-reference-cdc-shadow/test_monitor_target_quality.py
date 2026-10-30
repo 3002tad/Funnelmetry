@@ -35,6 +35,25 @@ class MonitorTargetQualityTest(unittest.TestCase):
             self.assertFalse(monitor.cycle(Path("."), 240, True))
             blocked.assert_called_once_with({"pipeline": "id"})
 
+    def test_worker_changed_between_samples_blocks_lease(self):
+        first, second = sample(), sample()
+        with patch.object(monitor, "container_ids", side_effect=[{"pipeline": "id"},
+                                                               {"pipeline": "new-id"}]), \
+             patch.object(monitor, "sample", side_effect=[first, second]), \
+             patch.object(monitor.time, "sleep"), \
+             patch.object(monitor, "write_blocked") as blocked, \
+             patch.object(monitor, "write_pass") as passed:
+            self.assertFalse(monitor.cycle(Path("."), 240, True))
+            blocked.assert_called_once_with({"pipeline": "id"})
+            passed.assert_not_called()
+
+    def test_missing_worker_blocks_prior_lease(self):
+        with patch.object(monitor, "container_ids", side_effect=RuntimeError("catalog worker missing")), \
+             patch.object(monitor, "one_container", return_value="pipeline-id"), \
+             patch.object(monitor, "write_blocked") as blocked:
+            self.assertFalse(monitor.cycle(Path("."), 240, True))
+            blocked.assert_called_once_with({"pipeline": "pipeline-id"})
+
 
 if __name__ == "__main__":
     unittest.main()

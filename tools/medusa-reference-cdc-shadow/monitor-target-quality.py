@@ -22,6 +22,10 @@ SERVICES = {
     "mapper": "funnelmetry_cdc_target_shadow_order-mapper-db",
     "kafka": "funnelmetry_vps_live_kafka",
     "connect": "funnelmetry_cdc_target_shadow_connect",
+    "catalog_writer": "funnelmetry_cdc_target_shadow_catalog-writer",
+    "inventory_price_writer": "funnelmetry_cdc_target_shadow_inventory-price-writer",
+    "order_mapper": "funnelmetry_cdc_target_shadow_order-mapper",
+    "order_sink": "funnelmetry_cdc_target_shadow_order-sink",
 }
 SOURCE = "medusa_reference-postgres-1"
 SOURCE_ID = "medusa-reference"
@@ -38,15 +42,16 @@ def run(command, stdin=None):
     return result.stdout.strip()
 
 
+def one_container(key, service):
+    ids = run(["docker", "ps", "-q", "--filter",
+               f"label=com.docker.swarm.service.name={service}"]).splitlines()
+    if len(ids) != 1 or not re.fullmatch(r"[a-f0-9]{12,64}", ids[0]):
+        raise RuntimeError(f"{key} target service does not have one running container")
+    return ids[0]
+
+
 def container_ids():
-    result = {}
-    for key, service in SERVICES.items():
-        ids = run(["docker", "ps", "-q", "--filter",
-                   f"label=com.docker.swarm.service.name={service}"]).splitlines()
-        if len(ids) != 1 or not re.fullmatch(r"[a-f0-9]{12,64}", ids[0]):
-            raise RuntimeError(f"{key} target service does not have one running container")
-        result[key] = ids[0]
-    return result
+    return {key: one_container(key, service) for key, service in SERVICES.items()}
 
 
 def probe(script, ids, profile_dir):
@@ -192,11 +197,14 @@ def write_blocked(ids):
 
 
 def cycle(profile_dir, seconds, write):
-    ids = container_ids()
+    ids = {}
     try:
+        ids = container_ids()
         first = sample(ids, profile_dir)
         time.sleep(1)
         second = sample(ids, profile_dir)
+        if container_ids() != ids:
+            raise RuntimeError("target CDC worker changed or stopped during quality sample")
         if not stable(first, second):
             raise RuntimeError("target CDC source/offset changed between samples")
         if write:
@@ -218,7 +226,9 @@ def cycle(profile_dir, seconds, write):
     except (RuntimeError, ValueError, KeyError, TypeError, OSError, json.JSONDecodeError) as error:
         if write:
             try:
-                write_blocked(ids)
+                pipeline_id = ids.get("pipeline") or one_container(
+                    "pipeline", SERVICES["pipeline"])
+                write_blocked({"pipeline": pipeline_id})
             except (RuntimeError, OSError):
                 pass  # bounded prior lease expires if the Pipeline DB is unavailable
         print(json.dumps({"status": "BLOCKED_BY_QUALITY", "reason": str(error)[:120]}),
