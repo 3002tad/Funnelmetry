@@ -63,7 +63,7 @@ services:
     read_only: true
     stop_grace_period: 30s
     deploy:
-      replicas: 1
+      replicas: ${SWARM_CATALOG_SYNC_REPLICAS:-1}
       restart_policy: {condition: any, delay: 10s}
       update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
       resources:

@@ -67,6 +67,17 @@ pin before declaring CDC-13 cleanup complete. A later stack redeploy from
 `main` may restore the prior image/provider, so do not treat the temporary
 override as a durable installer release.
 
+The CDC feature branch now renders `catalog-sync` replicas from
+`SWARM_CATALOG_SYNC_REPLICAS` (default `1`). A reproducible deployment of this
+canary must pin the candidate API digest above, set
+`SWARM_PRODUCT_REFERENCE_PROVIDER=catalog_cdc` and
+`SWARM_CATALOG_SYNC_REPLICAS=0` in the private deployment environment, and
+confirm the active binding and lease before deploying. Preflight rejects a
+zero sync replica count while the API still uses `admin_api`. Rollback sets the
+provider to `admin_api` and sync replicas to `1` together. These values are
+not yet present on the VPS `main` checkout; the live service override remains
+the runtime authority until a reviewed release reaches that checkout.
+
 ## Runtime execution evidence
 
 - Candidate GHCR publish run `41047220080` passed build, smoke and push.

@@ -22,6 +22,13 @@ export function validateSwarmApp(env) {
   if (productReferenceProvider === 'catalog_cdc' && env.SWARM_MIGRATION_MODE !== 'PARALLEL_LIVE') {
     throw Error('catalog_cdc product references require PARALLEL_LIVE mode');
   }
+  const catalogSyncReplicas = env.SWARM_CATALOG_SYNC_REPLICAS?.trim() || '1';
+  if (!['0', '1'].includes(catalogSyncReplicas)) {
+    throw Error('SWARM_CATALOG_SYNC_REPLICAS must be 0 or 1');
+  }
+  if (catalogSyncReplicas === '0' && productReferenceProvider !== 'catalog_cdc') {
+    throw Error('SWARM_CATALOG_SYNC_REPLICAS=0 requires catalog_cdc product references');
+  }
   const domain = env.SWARM_PUBLIC_DOMAIN?.trim() || '';
   if (domain.length > 253 || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)) {
     throw Error('SWARM_PUBLIC_DOMAIN must be a reviewed lowercase public DNS hostname');
@@ -44,7 +51,7 @@ export function validateSwarmApp(env) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.SWARM_ADMIN_EMAIL?.trim() || '')) {
     throw Error('SWARM_ADMIN_EMAIL must be a valid single-line email');
   }
-  return Object.freeze({ domain, tlsMode, productReferenceProvider, status: 'PLANNING_ONLY' });
+  return Object.freeze({ domain, tlsMode, productReferenceProvider, catalogSyncReplicas: Number(catalogSyncReplicas), status: 'PLANNING_ONLY' });
 }
 
 export function validateSwarmCandidate(env) {

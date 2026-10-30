@@ -58,16 +58,24 @@ test('parallel-live candidate includes connector/catalog/AI overlay before edge'
 
 test('catalog CDC provider can be rendered for live canary and rolled back without changing source sync', () => {
   const app = readFileSync(fileURLToPath(new URL('../infra/swarm-app.yml', import.meta.url)), 'utf8');
+  const live = readFileSync(fileURLToPath(new URL('../infra/swarm-live.yml', import.meta.url)), 'utf8');
   assert.match(app, /PRODUCT_REFERENCE_PROVIDER: \$\{SWARM_PRODUCT_REFERENCE_PROVIDER:-admin_api\}/);
+  assert.match(live, /catalog-sync:[\s\S]*?replicas: \$\{SWARM_CATALOG_SYNC_REPLICAS:-1\}/);
   const base = { SWARM_TLS_MODE: 'local', SWARM_PUBLIC_DOMAIN: 'demo.example.com',
     SWARM_ADMIN_EMAIL: 'admin@example.com', SWARM_TRAEFIK_IMAGE: 'traefik:v3.6.0@sha256:' + 'a'.repeat(64),
     SWARM_MIGRATION_MODE: 'PARALLEL_LIVE' };
   assert.equal(validateSwarmApp(base).productReferenceProvider, 'admin_api');
   assert.equal(validateSwarmApp({ ...base, SWARM_PRODUCT_REFERENCE_PROVIDER: 'catalog_cdc' }).productReferenceProvider, 'catalog_cdc');
+  assert.equal(validateSwarmApp({ ...base, SWARM_PRODUCT_REFERENCE_PROVIDER: 'catalog_cdc',
+    SWARM_CATALOG_SYNC_REPLICAS: '0' }).catalogSyncReplicas, 0);
+  assert.throws(() => validateSwarmApp({ ...base, SWARM_CATALOG_SYNC_REPLICAS: '0' }), /requires catalog_cdc/);
+  assert.throws(() => validateSwarmApp({ ...base, SWARM_PRODUCT_REFERENCE_PROVIDER: 'catalog_cdc',
+    SWARM_CATALOG_SYNC_REPLICAS: '2' }), /SWARM_CATALOG_SYNC_REPLICAS/);
   assert.throws(() => validateSwarmApp({ ...base, SWARM_PRODUCT_REFERENCE_PROVIDER: 'catalog_cdc',
     SWARM_MIGRATION_MODE: 'OFFLINE_DEMO' }), /PARALLEL_LIVE/);
   assert.throws(() => validateSwarmApp({ ...base, SWARM_PRODUCT_REFERENCE_PROVIDER: 'unknown' }), /SWARM_PRODUCT_REFERENCE_PROVIDER/);
   assert.equal(dockerEnvironment({}, { SWARM_PRODUCT_REFERENCE_PROVIDER: 'catalog_cdc' }).SWARM_PRODUCT_REFERENCE_PROVIDER, 'catalog_cdc');
+  assert.equal(dockerEnvironment({}, { SWARM_CATALOG_SYNC_REPLICAS: '0' }).SWARM_CATALOG_SYNC_REPLICAS, '0');
 });
 
 test('monitoring stays opt-in and joins the same Swarm stack when enabled', () => {
