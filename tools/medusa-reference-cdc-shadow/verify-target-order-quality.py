@@ -150,6 +150,9 @@ def main():
         first_sample["topic_ends"] == second_sample["topic_ends"]
     second["checks"]["stable_two_samples"] = stable
     second["status"] = "PASS_SHADOW_POINT_IN_TIME" if stable else "BLOCKED_BY_QUALITY"
+    second["baseline_digest"] = (second_sample["mapper"].get("epoch") or {}).get("baseline_digest")
+    second["topic_end_offsets"] = second_sample["topic_ends"]
+    second["mapper_offsets"] = second_sample["mapper"].get("offsets")
     second["continuous_lease"] = "NOT_ESTABLISHED"
     second["live_binding"] = "UNCHANGED"
     print(json.dumps(second, sort_keys=True))

@@ -65,6 +65,28 @@ def digest(value):
                                      ensure_ascii=False).encode()).hexdigest()
 
 
+def stage2_digest(rows, *, source_side):
+    canonical = {}
+    for table in stage2.TABLES:
+        projected = []
+        for row in rows.get(table, []):
+            original = row["attributes"] if source_side else row["payload"]
+            attributes = {}
+            for field in stage2.ATTRIBUTES[table]:
+                value = original.get(field)
+                if table == "price_list" and field in ("starts_at", "ends_at"):
+                    value = stage2.timestamp_microseconds(value)
+                elif table == "price_list_rule" and field == "value":
+                    value = json.loads(value) if isinstance(value, str) else value
+                elif not source_side:
+                    value = stage2.scalar_text(value)
+                attributes[field] = value
+            projected.append({"key": row["key"], "soft_deleted": row["soft_deleted"],
+                              "attributes": attributes})
+        canonical[table] = sorted(projected, key=lambda row: json.dumps(row["key"]))
+    return digest(canonical)
+
+
 CATALOG = {
     "product": ("product_id", "catalog_cdc_products_current",
                 ("id", "title", "handle", "status", "collection_id", "updated_at", "deleted")),
@@ -185,6 +207,8 @@ def main():
         "wal_headroom_ge_256m": int(slots.get(catalog["slot"], {}).get("safe_wal_size") or 0) >= 256 * 1024 * 1024,
         "offsets_caught_up": all(int(catalog_offsets.get(topic, -1)) == ends[topic]
                                  for topic in topics if topic.startswith(catalog["topic_prefix"] + ".")),
+        "no_foreign_offset_topics": set(catalog_offsets).issubset(
+            {topic for topic in topics if topic.startswith(catalog["topic_prefix"] + ".")}),
         "rows_equal": all(source_catalog[table] == target_catalog[table] for table in CATALOG),
     }
     stage_ends = {table: ends[f"{stage['topic_prefix']}.public.{table}"] for table in stage2.TABLES}
@@ -195,6 +219,15 @@ def main():
     stage_checks = dict(stage_result["checks"])
     stage_checks["wal_headroom_ge_256m"] = int(
         slots.get(stage["slot"], {}).get("safe_wal_size") or 0) >= 256 * 1024 * 1024
+    stage_checks["no_foreign_offset_topics"] = set(stage_offsets).issubset(
+        {topic for topic in topics if topic.startswith(stage["topic_prefix"] + ".")})
+    catalog_ends = {topic: ends[topic] for topic in topics
+                    if topic.startswith(catalog["topic_prefix"] + ".")}
+    stage_topic_ends = {topic: ends[topic] for topic in topics
+                        if topic.startswith(stage["topic_prefix"] + ".")}
+    stage_source_digest = stage2_digest(source_stage, source_side=True)
+    stage_projection_digest = stage2_digest(target_stage, source_side=False)
+    stage_checks["semantic_digest_equal"] = stage_source_digest == stage_projection_digest
     report = {"status": "PASS_SHADOW_POINT_IN_TIME" if all(catalog_checks.values()) and
               all(stage_checks.values()) else "BLOCKED_BY_QUALITY",
               "catalog": {"checks": catalog_checks,
@@ -202,9 +235,18 @@ def main():
                                               "projection": len(target_catalog[table])}
                                      for table in CATALOG},
                           "source_digest": digest(source_catalog),
-                          "projection_digest": digest(target_catalog)},
+                          "projection_digest": digest(target_catalog),
+                          "topic_end_offsets": catalog_ends,
+                          "applied_offsets": catalog_offsets,
+                          "slot_status": slots.get(catalog["slot"], {}).get("status")},
               "inventory_price": {"checks": stage_checks,
-                                  "table_counts": stage_result["table_counts"]},
+                                  "table_counts": stage_result["table_counts"],
+                                  "source_digest": stage_source_digest,
+                                  "projection_digest": stage_projection_digest,
+                                  "topic_end_offsets": stage_topic_ends,
+                                  "applied_offsets": {topic: int(stage_offsets.get(topic, 0))
+                                                      for topic in stage_topic_ends},
+                                  "slot_status": slots.get(stage["slot"], {}).get("status")},
               "continuous_lease": "NOT_ESTABLISHED",
               "live_binding": "UNCHANGED"}
     print(json.dumps(report, sort_keys=True))

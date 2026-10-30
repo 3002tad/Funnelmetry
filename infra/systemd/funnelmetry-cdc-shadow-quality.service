@@ -1,0 +1,22 @@
+[Unit]
+Description=Funnelmetry CDC-11 target shadow quality monitor
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/srv/KLTN
+ExecStart=/usr/bin/python3 /srv/KLTN/.cdc11-tools/monitor-target-quality.py --profile-dir /srv/KLTN/.cdc11-profiles --write-shadow-lease --loop --interval-seconds 60 --lease-seconds 240
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=funnelmetry-cdc-shadow-quality
+
+[Install]
+WantedBy=multi-user.target

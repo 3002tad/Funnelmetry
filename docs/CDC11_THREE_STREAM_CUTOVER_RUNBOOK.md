@@ -155,8 +155,32 @@ independent target samples then returned `PASS_SHADOW_POINT_IN_TIME` with all
 order checks true: source/mapper/sink state digest
 `2311457e5802cf6f037ff7b12132b92229d881a49f4a32002774531185f98c6a`,
 one current order and fact offset two. No continuous lease was established.
-This proves a shadow snapshot chain on target topology, **not** continuous
-source/projection conformance, inventory availability/price resolution,
+One explicitly acknowledged Store API checkout then created reference order
+`order_01M65HX4QF1M8A84N97AF3KA83` while the native adapter and CDC shadow
+both ran. The order quality probe again returned all checks true with two
+source/mapper/sink current orders and fact offset four. Inbox types were one
+BASELINE, one BASELINE_COMPLETE, one inactive STATE and **one active
+TRANSITION** for the new order; no baseline row became a placement ON. The
+catalog and stage-2 point-in-time reconciliation still passed after checkout.
+This verifies target post-baseline ON propagation but not OFF, replay,
+long-outage recovery or the versioned funnel read path.
+The operator-side `monitor-target-quality.py` subsequently compared two stable
+source/projection samples for all three streams. Its dry run and candidate
+write both passed: 104 products, 16 stage-2 tables, two current orders and
+fact offset four. A 240-second lease was written only to
+`catalog_cdc_quality_lease`, `inventory_price_cdc_quality_lease` and
+`reference_cdc_v2_quality_state`; the latter remains a reference current-state
+gate, not a placement/conversion claim. The catalog binding has no active row.
+`infra/systemd/funnelmetry-cdc-shadow-quality.service` runs the same operator
+check repeatedly on the VPS; failure blocks candidate quality, and a stopped
+monitor lets its leases expire. Verify service logs and fresh lease timestamps
+before treating a candidate read as current. The check is relatively expensive
+(two full 23-topic reconciliations per cycle), so its interval and host load
+must be measured before longer operation. Neither the monitor nor a PASS
+candidate lease switches the Dashboard or grants CDC-12 authority.
+This proves a shadow snapshot chain with a bounded reconciliation lease on
+target topology, **not** full target-topology stream conformance,
+inventory availability/price resolution,
 funnel read-path readiness, production load budget or CDC-12 authority. The
 native adapter, Source Connector, Dashboard `admin_api` binding and
 `catalog-sync` remain active. A reviewer rejected widening the private script
@@ -279,4 +303,4 @@ Only after the rollback window expires and all consumers/dependencies are invent
 
 ## 7. Present stop conditions
 
-At the latest checkpoint, **live cutover is blocked** by incomplete target-topology stream conformance and production workload/WAL budget, no continuous live quality service, no order-v2 funnel/profile read path, and no verified stage-2 inventory/price resolver. Private DB networking, logical WAL, three scoped source roles/publications/slots, initial snapshots and candidate projections are running, but none provides CDC analytical authority. The next executable work is continuous reconciliation, update/delete/replay and fault/load probes, then explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
+At the latest checkpoint, **live cutover is blocked** by incomplete target-topology stream conformance and production workload/WAL budget, no order-v2 funnel/profile read path, and no verified stage-2 inventory/price resolver. A bounded operator-side quality monitor is running for three candidate streams, but its PASS lease is neither production freshness certification nor CDC analytical authority. The next executable work is target update/delete/replay and fault/load probes, followed by versioned read-path/resolver conformance and explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
