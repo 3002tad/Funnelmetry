@@ -269,6 +269,17 @@ catalog shape**, not proof of reservation, backorder, price-list/rule/tier,
 multi-location kit or future catalog changes. No availability or price asset
 has been activated, and historical order amounts remain untouched.
 
+**Catalog candidate read path without activation, 2026-10-30:** The target
+`catalog_cdc_binding` table has no row for `medusa-reference`. In one Pipeline
+PostgreSQL transaction, an `ACTIVE` binding for `cdc11_catalog_epoch1` was
+inserted, the guarded `current_product_reference_names_cdc` view was compared
+with the current API-sync view, and the transaction was explicitly rolled
+back. Both views returned 104 product names with zero missing IDs or title
+mismatches. A query after rollback confirmed zero binding rows. This tests
+the candidate view against current descriptive names while leaving the
+Dashboard provider `admin_api` and `catalog-sync` unchanged. It does not
+constitute a CDC-12 decision, sustained quality evidence or a live cutover.
+
 **Order journey correlation check, 2026-10-30:** The initial target canonical
 `checkout.started` carried `relations.correlation_id = cart:<cart_id>` rather
 than `relations.cart_id`. The shadow reader now accepts the exact approved
@@ -314,6 +325,30 @@ four current orders, fact offset eight, 104 products, 16 stage-2 tables and
 minimum safe WAL 1037 MiB. Live `catalog-sync` and Source Connector stayed
 `1/1`. This proves the reader predicate on the target for these three cases,
 but does not activate a versioned funnel profile or test correction/OFF.
+
+**Observed target order-fact delay and WAL headroom, 2026-10-30:** The
+mapper's `observed_state_at` comes from Debezium transaction END `ts_ms`;
+subtracting that from sink `ingested_at` for the three post-baseline ON facts
+gave 0.578 s, 70.785 s and 0.745 s. The 70.785 s observation is the
+deliberate short Connect outage and catch-up. This is an END-to-sink interval,
+not source commit-to-API or browser-to-dashboard latency; three observations
+do not support a p95/p99 claim. A later read-only PostgreSQL slot check found
+all three target slots active and `reserved`, retained WAL 302,016 / 301,864 /
+77,736 bytes for catalog / stage 2 / order respectively, minimum
+`safe_wal_size` 1,088,333,816 bytes and 32 MiB physical `pg_wal` at that
+instant. These idle/low-volume values cannot size a 30-minute outage or
+flash-sale budget; a bounded target workload is still required before
+CDC-12.
+
+**Steady target quality observation, 2026-10-30:** Parsing the monitor's
+systemd JSON journal from 05:54:10 through 06:32:34 UTC yielded 32 consecutive
+`PASS_SHADOW_LEASE` cycles and zero blocked cycles in that interval. The
+largest interval between checks was 75.22 s, minimum reported safe WAL was
+1037 MiB, and the order source/sink count reached four. Earlier in the same
+journal window, two `BLOCKED_BY_QUALITY` cycles at 05:27:04 and 05:28:09 UTC
+belonged to the intentional Connect outage. This supports sustained
+low-volume shadow reconciliation after catch-up, not a workload or outage
+SLO under flash-sale traffic.
 
 ## 1. VPS inventory and baseline provenance
 
