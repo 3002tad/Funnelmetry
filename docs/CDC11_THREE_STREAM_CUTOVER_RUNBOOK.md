@@ -279,6 +279,23 @@ reader's `BOUND_SHADOW` predicate for this order; no official funnel terminal
 or analytical binding was changed. The test uses one browser order and does
 not establish cross-traffic completeness or production latency.
 
+**Full shadow reader on the target, 2026-10-30:** Pipeline commit `a5b01fc`
+adds a read-only order probe that calls the existing lease/revision guarded
+`createShadowOrderJourneyReadPath`; CI run `41011511568` passed. The worker
+image built from that commit is pinned as
+`funnelmetry/cdc-workers-candidate@sha256:460a668f938d2241c3c5692265dd1d1c60e04562bfea4a2ee173be05211b7d99`
+for the order-sink shadow service only. Running the probe in that service
+returned `BOUND_SHADOW` for the browser order above, with its expected strong
+journey and checkout event. It returned `BASELINE_ONLY` for
+`order_01M5XWG33TD2A4EGX94NYA3EQZ` and `CHECKOUT_UNVERIFIED` for the
+post-baseline Store API order `order_01M65HX4QF1M8A84N97AF3KA83`; the
+non-bound results deliberately exit nonzero. The order-sink converged to
+`1/1`; the three-stream monitor continued to report `PASS_SHADOW_LEASE` with
+four current orders, fact offset eight, 104 products, 16 stage-2 tables and
+minimum safe WAL 1037 MiB. Live `catalog-sync` and Source Connector stayed
+`1/1`. This proves the reader predicate on the target for these three cases,
+but does not activate a versioned funnel profile or test correction/OFF.
+
 ## 1. VPS inventory and baseline provenance
 
 The table combines the 2026-10-29 preflight with the 2026-10-30 shadow
@@ -396,4 +413,4 @@ Only after the rollback window expires and all consumers/dependencies are invent
 
 ## 7. Present stop conditions
 
-At the latest checkpoint, **live cutover is blocked** by incomplete target-topology stream conformance and production workload/WAL budget, no bound post-baseline browser-to-order v2 funnel/profile read path, and only sample-level stage-2 inventory/default-price conformance. A bounded operator-side quality monitor is running for three candidate streams, but its PASS lease is neither production freshness certification nor CDC analytical authority. Target replay, restart, fail-closed and short Connect outage have passed; remaining work includes target update/delete/OFF, longer fault/load probes, nonempty price-list/reservation and broader resolver cases, then explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
+At the latest checkpoint, **live cutover is blocked** by incomplete target-topology stream conformance and production workload/WAL budget, no published/versioned order-v2 funnel profile or correction path, and only sample-level stage-2 inventory/default-price conformance. The post-baseline browser order passed the guarded shadow journey reader. A bounded operator-side quality monitor is running for three candidate streams, but its PASS lease is neither production freshness certification nor CDC analytical authority. Target replay, restart, fail-closed and short Connect outage have passed; remaining work includes target update/delete/OFF, longer fault/load probes, nonempty price-list/reservation and broader resolver cases, then explicit CDC-12 authority decisions per stream. This document does not grant permission to promote a CDC source or change live analytical authority.
