@@ -37,6 +37,11 @@ Order v2 and inventory/price analytical authority remain shadow.
    confirm numbers/order historical amounts are unchanged.
    `smoke-target-catalog-canary.mjs` performs one authenticated, read-only
    `/api/v2/products` request and prints only provider/count evidence.
+   The bootstrap `super_admin` cannot use that route because it intentionally
+   lacks `analytics.read`. In that case, feed `smoke-target-catalog-module.mjs`
+   to the live API container's `node --input-type=module`; it checks all active
+   products through the deployed `attachProductReferences` module in a read-only
+   DB transaction without creating or modifying a user.
 5. Observe two consecutive monitor cycles and a fresh Dashboard request after
    each. Abort if the catalog lease blocks/expires, the API fails or current
    names diverge. If both cycles pass, `catalog-sync` may be scaled to zero;
