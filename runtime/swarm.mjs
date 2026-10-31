@@ -10,6 +10,7 @@ import { validateSwarmApp, validateSwarmCandidate } from './swarm-preflight.mjs'
 import { normalizeSwarmEnv } from './swarm-config.mjs';
 import { checkSingleNodeHost } from './swarm-host-check.mjs';
 import { schemaFiles, schemaDigest } from '../infra/bootstrap/bootstrap-swarm.mjs';
+import { guardedServices, liveDeploymentDrift, assertReviewedLiveDrift } from './swarm-live-deploy-guard.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const stackFile = join(root, 'infra', 'swarm-stack.yml');
@@ -146,6 +147,20 @@ async function serviceExists(name, env) {
   }
 }
 
+async function inspectGuardedServices(stackName, env) {
+  const services = {};
+  for (const service of guardedServices) {
+    try {
+      const value = await docker(['service', 'inspect', `${stackName}_${service}`,
+        '--format', '{{json .Spec.TaskTemplate.ContainerSpec}}'], env);
+      services[service] = JSON.parse(value);
+    } catch (error) {
+      if (!/No such service|not found/i.test(error.message)) throw error;
+    }
+  }
+  return services;
+}
+
 export async function run(command) {
   const parsed = normalizeSwarmEnv(parseEnv(await readFile(join(root, 'runtime', 'deploy.env'), 'utf8')));
   const plan = validateSwarmCandidate(parsed);
@@ -160,6 +175,11 @@ export async function run(command) {
   const files = stackFiles.flatMap(file => ['-c', file]);
   if (command === 'check' || command === 'check-app' || command === 'check-internal') {
     await docker(['stack', 'config', ...files], env);
+    if (command !== 'check') {
+      const drift = liveDeploymentDrift(parsed, await inspectGuardedServices(plan.stackName, env));
+      if (drift.digest) console.log(`REVIEW_REQUIRED: ${drift.changes.map(change =>
+        `${change.service}.${change.field}`).join(', ')}; SWARM_DEPLOY_CHANGE_ACK=${drift.digest}`);
+    }
     console.log(`PASS: ${plan.stackName} ${internalOnly ? 'internal-only app' : withApp ? 'HTTPS app' : 'phase-1 data'} stack renders; runtime, DNS and image pulls unverified`);
     return;
   }
@@ -327,6 +347,10 @@ export async function run(command) {
     }
   }
   await docker(['stack', 'config', ...files], env);
+  if (withApp) {
+    const drift = liveDeploymentDrift(parsed, await inspectGuardedServices(plan.stackName, env));
+    assertReviewedLiveDrift(drift, parsed.SWARM_DEPLOY_CHANGE_ACK);
+  }
   await docker(stackDeployArgs(stackFiles, plan.stackName), env);
   console.log(`Submitted ${plan.stackName} ${internalOnly ? 'internal-only app' : withApp ? 'HTTPS app' : 'phase-1 data'} stack; verify tasks and readiness before live feed.`);
 }
