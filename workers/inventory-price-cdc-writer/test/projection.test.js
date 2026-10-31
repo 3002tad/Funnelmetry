@@ -14,7 +14,7 @@ function envelope(op='r', after=row, marker='last') {
 
 test('stage-2 writer allowlist matches the versioned profile', async () => {
   const {readFile} = await import('node:fs/promises')
-  const profile = await readFile(new URL('../../../tools/medusa-reference-cdc-shadow/install-inventory-price-shadow.py',
+  const profile = await readFile(new URL('../../../tools/cdc-operations/verifier/inventory_price_profile.py',
     import.meta.url), 'utf8')
   for (const [table, fields] of Object.entries(fieldsByTable)) {
     assert.match(profile, new RegExp(`"${table}": \\(`))

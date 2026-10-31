@@ -22,6 +22,7 @@ Do not rename slots, topics, groups or epochs as part of a service rollout.
 `backup-runtime.sh` and `verify-backup-restore.sh` capture and rehearse
 recovery before a stateful cutover. The `cleanup-cdc14*` scripts use the
 dated inventory and are **one-time migration tools**, not recurring jobs.
-The old verifier engine under `tools/medusa-reference-cdc-shadow/` remains
-a compatibility dependency of `monitor-quality.py`; its fixture Compose
-files do not define the live runtime.
+The active verifier engine and its fixed source table allowlist live under
+`tools/cdc-operations/verifier/`. Physical slot/topic names containing
+`shadow` are retained for offset continuity; the verifier does not create a
+second CDC runtime. Historical clone probes are archived separately.

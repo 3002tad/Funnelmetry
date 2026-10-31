@@ -524,7 +524,7 @@ low-volume shadow reconciliation after catch-up, not a workload or outage
 SLO under flash-sale traffic.
 
 **Bounded target workload, 2026-10-30:** The reproducible
-`tools/medusa-reference-cdc-shadow/probe-target-bounded-load.py` created 12
+`tools/archive/medusa-reference-cdc-shadow/probe-target-bounded-load.py` created 12
 synthetic Store API orders on the Medusa reference VPS with at most two
 concurrent checkouts. Source order count increased 4→16; the order-v2 sink
 offset increased 10→34 (two records per order), with 12 distinct ON
@@ -724,7 +724,7 @@ The catalog and inventory/price artifact schemas are now v2 and v3,
 respectively; their domain contracts did not change. The exact older artifacts
 can be upgraded by the reviewed CI planner patch. Pin the new planner commit
 before running Medusa workflows; an old planner must reject the new manifest.
-Run `node tools/medusa-reference-cdc-shadow/check-target-profiles.mjs
+Run `node tools/archive/medusa-reference-cdc-shadow/check-target-profiles.mjs
 --medusa-root <Medusa checkout>` with the exact non-secret `CDC_*` environment
 variables intended for `infra/swarm-cdc-shadow.yml`. It fails closed on an
 older profile, mismatched epoch/source/topic or resource collision. A PASS
@@ -780,7 +780,7 @@ manifest and digest review.
 ## 4. Shadow on target topology, by dependency order
 
 1. Deploy pinned Kafka Connect and raw CDC topics with names separate from the clone projects and from the existing Source Connector. Start **catalog stage 1** initial snapshot, then stage 2 initial snapshot, then order v2 epoch snapshot/transaction stream. Record a source LSN/transaction checkpoint for each profile; do not compare unrelated Kafka offsets as one global sequence.
-2. Run candidate writers into separate governed tables. Apply migration 021 for stage 1, migration 022 for stage-2 context, migration 023 for the order v2 sink and migration 024 for its mapper DB; keep the catalog binding `SHADOW` and Dashboard provider `admin_api`. Migrations 022–024 create no active business analytical binding. Check stage-2 source keys/relations and order-v2 mapper/sink schema independently. The [stage-2 governed candidate clone evidence](../../../tools/medusa-reference-cdc-shadow/INVENTORY_PRICE_GOVERNED_CANDIDATE_EVIDENCE_2026-10-29.md) proves context/replay and one-shot lease invalidation only; [order v2 mapper→sink evidence](../../../tools/medusa-reference-cdc-shadow/REFERENCE_ORDER_V2_MAPPER_CHAIN_CANDIDATE_EVIDENCE_2026-10-29.md) proves chain/replay on preserved clone raw topics only. Neither is a target-topology production quality monitor. Do not move clone volumes or Kafka offsets into live.
+2. Run candidate writers into separate governed tables. Apply migration 021 for stage 1, migration 022 for stage-2 context, migration 023 for the order v2 sink and migration 024 for its mapper DB; keep the catalog binding `SHADOW` and Dashboard provider `admin_api`. Migrations 022–024 create no active business analytical binding. Check stage-2 source keys/relations and order-v2 mapper/sink schema independently. The [stage-2 governed candidate clone evidence](../../../tools/archive/medusa-reference-cdc-shadow/INVENTORY_PRICE_GOVERNED_CANDIDATE_EVIDENCE_2026-10-29.md) proves context/replay and one-shot lease invalidation only; [order v2 mapper→sink evidence](../../../tools/archive/medusa-reference-cdc-shadow/REFERENCE_ORDER_V2_MAPPER_CHAIN_CANDIDATE_EVIDENCE_2026-10-29.md) proves chain/replay on preserved clone raw topics only. Neither is a target-topology production quality monitor. Do not move clone volumes or Kafka offsets into live.
 3. Reconcile source rows and relationships at a declared checkpoint: counts and row-level digest, snapshot-complete marker, per-topic end/applied offsets, connector/task status, slot/WAL state, orphan checks, source identity, epoch and observed lag. Repeat while Medusa receives real updates; check update, soft/hard delete, relation change, duplicate, replay, restart and outage. A PASS at one instant is not a continuous freshness guarantee.
 4. For order v2, verify BASELINE produces no ON; after activation, successful checkout produces one ON and compensation produces OFF as specified. Check cart/order/journey binding, event-time basis, correction propagation to funnel and UI, and `INCOMPLETE` behavior after any gap. Do not infer order amount/currency or native placement from current-state snapshot.
 5. For this Medusa reference, stage-2 acceptance covers CDC capture and current

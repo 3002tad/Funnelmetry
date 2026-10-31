@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location("stage2_profile", ROOT / "install-inventory-price-shadow.py")
+spec = importlib.util.spec_from_file_location("stage2_profile", ROOT / "inventory_price_profile.py")
 stage2 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(stage2)
 TABLES = tuple(stage2.TABLES)

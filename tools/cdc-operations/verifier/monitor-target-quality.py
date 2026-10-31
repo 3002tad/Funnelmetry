@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Refresh CDC-11 candidate leases from two stable samples per stream.
+"""Refresh active Medusa CDC quality leases from two stable samples per stream.
 
-Operator-side service. It changes only candidate quality rows, never source
+Operator-side service. It changes only quality rows, never source
 Medusa data, Dashboard binding, catalog-sync or funnel metadata. A failed
-probe blocks only its stream's candidate lease; shared infrastructure or worker
+probe blocks only its stream's lease; shared infrastructure or worker
 inventory failure blocks all leases. A stopped monitor lets them expire.
 """
 
 import argparse
 import concurrent.futures
 import json
-import os
 import re
 import subprocess
 import sys
@@ -19,9 +18,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-CDC_STACK = os.environ.get("CDC_RUNTIME_STACK", "funnelmetry_cdc_target_shadow")
-if not re.fullmatch(r"funnelmetry_cdc(?:_target_shadow)?", CDC_STACK):
-    raise ValueError("unsupported CDC runtime stack")
+CDC_STACK = "funnelmetry_cdc"
 SERVICES = {
     "pipeline": "funnelmetry_vps_live_postgres",
     "mapper": f"{CDC_STACK}_order-mapper-db",

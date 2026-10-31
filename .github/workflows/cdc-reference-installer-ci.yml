@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/cdc-reference-installer-ci.yml
       - tools/ci/**
+      - tools/cdc-operations/**
       - tools/medusa-ci-installer/**
       - packages/behavior-event-catalog/**
       - packages/browser-sdk/**
@@ -20,6 +21,7 @@ on:
   pull_request:
     paths:
       - tools/ci/**
+      - tools/cdc-operations/**
       - tools/medusa-ci-installer/**
       - packages/behavior-event-catalog/**
       - packages/browser-sdk/**
@@ -67,3 +69,5 @@ jobs:
           done
           npm ci --prefix workers/reference-order-cdc-v2-mapper --ignore-scripts
           node --check workers/reference-order-cdc-v2-mapper/src/main.js
+      - name: Verify active CDC quality monitor
+        run: python3 -m unittest tools/cdc-operations/verifier/test_monitor_target_quality.py

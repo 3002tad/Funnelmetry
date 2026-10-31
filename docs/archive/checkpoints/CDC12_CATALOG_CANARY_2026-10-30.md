@@ -28,7 +28,7 @@ Order v2 and inventory/price analytical authority remain shadow.
 2. Pre-pull the candidate digest on the single Swarm node. Update only
    `funnelmetry_vps_live_dashboard-api` to that image while provider stays
    `admin_api`; require a healthy replacement task and no API 5xx.
-3. Apply `tools/medusa-reference-cdc-shadow/activate-target-catalog-canary.sql`
+3. Apply `tools/archive/medusa-reference-cdc-shadow/activate-target-catalog-canary.sql`
    with `psql -X -v ON_ERROR_STOP=1`. The single transaction refuses a stale
    lease, different epoch, existing binding or missing readable products.
 4. Set `PRODUCT_REFERENCE_PROVIDER=catalog_cdc` on only the Dashboard API

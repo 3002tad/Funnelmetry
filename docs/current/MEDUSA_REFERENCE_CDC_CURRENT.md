@@ -18,7 +18,7 @@ Khi mất slot/WAL, khoảng không thể quan sát giữ `historical_gap_status
 ## Runtime và quyền sở hữu
 
 - Stack `funnelmetry_cdc` có bảy service: Connect, order mapper DB, catalog writer, inventory/price writer, cart line item mapper, order mapper, order sink. Manifest: [`infra/swarm-cdc-live.yml`](../../infra/swarm-cdc-live.yml); launcher: [`runtime/cdc-live.mjs`](../../runtime/cdc-live.mjs). Runtime env cục bộ và secret không vào Git.
-- Quality monitor dùng [`tools/cdc-operations/monitor-quality.py`](../../tools/cdc-operations/monitor-quality.py) và profile/lease. Lệnh, phạm vi quyền và phục hồi ở [CDC operations](../../tools/cdc-operations/README.md).
+- Quality monitor dùng [`tools/cdc-operations/monitor-quality.py`](../../tools/cdc-operations/monitor-quality.py), verifier/allowlist trong cùng thư mục operations và profile/lease. Clone/probe CDC cũ đã chuyển vào archive; runtime không nhập code từ archive. Lệnh, phạm vi quyền và phục hồi ở [CDC operations](../../tools/cdc-operations/README.md).
 - Medusa source owner cấp logical replication, publication/slot và allowlist. Pipeline operator quản lý Connect, Kafka, writer/sink, quality và backup. [CDC installer](../../tools/medusa-ci-installer/CDC_DEVELOPMENT.md) sinh cấu hình tích hợp qua CI, không tự vận hành DB/Connect.
 - Tên volume/topic/slot có chữ `shadow` được giữ để bảo toàn state và offset; worker runtime là `ACTIVE_REFERENCE_V2`. Không đổi tên vật lý nếu chưa có migration epoch/snapshot riêng.
 

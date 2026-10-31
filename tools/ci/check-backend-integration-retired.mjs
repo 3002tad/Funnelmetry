@@ -34,6 +34,10 @@ for (const directory of ['apps', 'packages', 'workers', 'infra', 'runtime', 'int
     if (/FUNNELMETRY_BACKEND_SIGNING_KEY|SOURCE_INGRESS_BACKEND_KEYS_JSON|INPUT_GATEWAY_BACKEND_KEYS_JSON/.test(source)) {
       fail(path, 'contains retired backend credential')
     }
+    if (relativePath.startsWith('tools/cdc-operations/') &&
+        source.includes('medusa-reference-cdc-shadow')) {
+      fail(path, 'active CDC operations depend on archived shadow probes')
+    }
     const cleanupOnly = relativePath === 'tools/medusa-ci-installer/src/planner.mjs' ||
       relativePath === 'tools/medusa-ci-installer/test/planner.test.mjs'
     const admissionOnly = relativePath === 'apps/edge-relay/src/relay-handler.js' ||
@@ -68,7 +72,7 @@ for (const retiredPath of [
   'packages/backend-integration-kit',
   'tools/v2-e2e',
   'tools/medusa-reference-simulator',
-  'tools/medusa-reference-cdc-shadow/shadow-order-placed-wal.cjs',
+  'tools/medusa-reference-cdc-shadow',
 ]) {
   const absolute = join(rootPath, retiredPath)
   if (existsSync(absolute)) {
