@@ -1,328 +1,67 @@
-name: CDC reference installer CI
+name: Two-path acquisition CI
 
 on:
   push:
-    branches:
-      - feature/cdc-medusa-v1
-      - feature/two-path-acquisition
+    branches: [main, feature/two-path-acquisition]
     paths:
       - .github/workflows/cdc-reference-installer-ci.yml
+      - tools/ci/**
       - tools/medusa-ci-installer/**
-      - apps/edge-relay/src/relay-handler.js
-      - apps/edge-relay/test/source-ingress-handler.test.js
-      - infra/swarm-live.yml
-      - runtime/swarm-preflight.mjs
-      - runtime/swarm.mjs
-      - runtime/swarm.test.mjs
-      - runtime/swarm-live-deploy-guard.mjs
-      - runtime/swarm-live-deploy-guard.test.mjs
-      - tools/medusa-reference-cdc-shadow/**
-      - workers/catalog-cdc-writer/**
-      - workers/inventory-price-cdc-writer/**
-      - workers/cart-line-item-cdc-mapper/**
-      - workers/reference-order-cdc-v2-sink/**
-      - workers/reference-order-cdc-v2-mapper/**
-      - workers/shared/postgres-config.mjs
-      - workers/shared/postgres-config.test.mjs
-      - infra/postgres/v2/021_catalog_cdc_candidate.sql
-      - infra/postgres/v2/022_inventory_price_cdc_context_candidate.sql
-      - infra/postgres/v2/023_reference_order_cdc_v2_candidate.sql
-      - infra/postgres/v2/025_reference_order_cdc_v2_funnel_candidate.sql
-      - infra/postgres/v2/026_reference_order_cdc_v2_pending_quality_candidate.sql
-      - infra/postgres/v2/027_projection_pending_quality_candidate.sql
-      - infra/postgres/v2/028_reference_cdc_v2_profile_candidate.sql
-      - infra/postgres/v2/029_reference_cdc_v2_profile_audit.sql
-      - infra/postgres/v2/030_reference_current_offer_metadata.sql
-      - infra/postgres/v2/031_cart_line_item_cdc.sql
-      - infra/postgres/tests/reference_current_offer_metadata.sql
-      - infra/postgres/v2/024_reference_order_cdc_v2_mapper_candidate.sql
-      - infra/postgres/tests/catalog_cdc_candidate_quality.sql
-      - infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql
-      - infra/postgres/tests/reference_cdc_v2_profile_candidate.sql
-      - apps/dashboard-api/src/lib/product-reference.js
-      - apps/dashboard-api/test/product-reference.test.js
-      - apps/dashboard-api/src/lib/reference-cdc-funnel-candidate.js
-      - apps/dashboard-api/src/lib/reference-cdc-profile-v2.js
-      - apps/dashboard-api/src/lib/reference-cdc-profile-operator.js
-      - apps/dashboard-api/scripts/reference-cdc-profile.mjs
-      - apps/dashboard-api/test/reference-cdc-profile-operator.test.js
-      - apps/dashboard-api/src/routes/reference-cdc-funnel-candidate.js
-      - apps/dashboard-api/src/lib/v2-analytics-contract.js
-      - apps/dashboard-api/src/lib/v2-analytics-repository.js
-      - apps/dashboard-api/src/lib/reference-cdc-offer-metadata.js
-      - apps/dashboard-api/src/routes/catalog-v2.js
-      - apps/dashboard-api/scripts/reference-current-offer-metadata.mjs
-      - apps/dashboard-api/test/reference-cdc-offer-metadata.test.js
-      - apps/dashboard-api/test/catalog-v2.test.js
-      - apps/dashboard-api/test/v2-analytics-repository.test.js
-      - workers/funnel-processor/src/repository.js
-      - workers/funnel-processor/test/repository.integration.test.js
-      - apps/dashboard-api/src/config.js
-      - apps/dashboard-api/src/app.js
-      - apps/dashboard-api/test/reference-cdc-funnel-candidate.test.js
-      - apps/dashboard-web/src/lib/analytics-api.ts
-      - apps/dashboard-web/src/features/funnels/ReferenceCdcCandidatePanel.tsx
-      - apps/dashboard-web/src/features/funnels/FriendlyFunnelsPage.tsx
-      - infra/docker/pipeline-workers.Dockerfile
-      - infra/bootstrap/cdc-candidate-migrations.mjs
-      - infra/bootstrap/cdc-candidate-migrations.test.mjs
       - packages/behavior-event-catalog/**
       - packages/browser-sdk/**
+      - apps/edge-relay/**
+      - integrations/medusa/**
       - workers/canonical-normalizer/**
-      - infra/docker/dashboard-api.Dockerfile
-      - infra/bootstrap/baseline-v2-schema.mjs
-      - infra/bootstrap/bootstrap-handoff.mjs
-      - infra/bootstrap/bootstrap-handoff.test.mjs
-      - infra/bootstrap/bootstrap-swarm.mjs
-      - infra/bootstrap/bootstrap-swarm.test.mjs
+      - workers/cart-line-item-cdc-mapper/**
+      - workers/catalog-cdc-writer/**
+      - workers/inventory-price-cdc-writer/**
+      - workers/reference-order-cdc-v2-mapper/**
+      - workers/reference-order-cdc-v2-sink/**
+  pull_request:
+    paths:
+      - tools/ci/**
+      - tools/medusa-ci-installer/**
+      - packages/behavior-event-catalog/**
+      - packages/browser-sdk/**
+      - apps/edge-relay/**
+      - integrations/medusa/**
+      - workers/**
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  validate:
+  two-path-contract:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Check CDC installer Python syntax
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/package-lock.json
+      - name: Install package workspace
+        run: npm ci --prefix packages --ignore-scripts
+      - name: Enforce Backend Integration retirement
+        run: node tools/ci/check-backend-integration-retired.mjs
+      - name: Verify installer fresh and upgrade paths
+        run: node --test tools/medusa-ci-installer/test/*.test.mjs
+      - name: Verify Browser SDK and catalog
         run: |
-          python -m py_compile \
-            tools/medusa-reference-cdc-shadow/install-reference.py \
-            tools/medusa-reference-cdc-shadow/clone-db.py \
-            tools/medusa-reference-cdc-shadow/prepare-private.py
-      - name: Test CDC runtime installer guards
-        run: python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_install_reference.py -v
-      - name: Test catalog and inventory/price shadow profiles
+          npm test --prefix packages/behavior-event-catalog
+          npm test --prefix packages/browser-sdk
+      - name: Verify HTTP retirement admission
+        run: node --test apps/edge-relay/test/*.test.js
+      - name: Verify canonical admission
         run: |
-          python -m py_compile \
-            tools/medusa-reference-cdc-shadow/install-catalog-shadow.py \
-            tools/medusa-reference-cdc-shadow/install-inventory-price-shadow.py \
-            tools/medusa-reference-cdc-shadow/prepare-inventory-price-private.py \
-            tools/medusa-reference-cdc-shadow/prepare-inventory-price-projection-private.py \
-            tools/medusa-reference-cdc-shadow/verify-inventory-price-snapshot.py \
-            tools/medusa-reference-cdc-shadow/verify-inventory-price-projection.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-shadow.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-replay.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-nonempty.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-store-api.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-api-semantics.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-checkout.py \
-            tools/medusa-reference-cdc-shadow/run-store-js.py
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_catalog_shadow.py -v
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_shadow.py -v
-          node --check tools/medusa-reference-cdc-shadow/inventory-price-projector/main.mjs
-          node --check tools/medusa-reference-cdc-shadow/checkout-shadow.mjs
-      - name: Check CDC recovery syntax and semantic guards
-        run: |
-          python -m py_compile \
-            tools/medusa-reference-cdc-shadow/verify-recovery-epoch.py \
-            tools/medusa-reference-cdc-shadow/activate-recovery-baseline.py \
-            tools/medusa-reference-cdc-shadow/probe-cdc10-snapshot-interrupt.py \
-            tools/medusa-reference-cdc-shadow/probe-cdc10-second-slot-loss.py \
-            tools/medusa-reference-cdc-shadow/probe-cdc10-sustained-recovery.py
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_recovery_epoch.py -v
-          node --check tools/medusa-reference-cdc-shadow/reference-recovery-mapper/main.mjs
-          node --check tools/medusa-reference-cdc-shadow/reference-recovery-analytics/main.mjs
-      - name: Test Medusa CI planner
-        run: npm test --prefix tools/medusa-ci-installer
-      - name: Test browser search and CDC cart acquisition
-        run: |
-          npm ci --prefix packages --ignore-scripts
-          node --test packages/behavior-event-catalog/test/behavior-event-catalog.test.js packages/browser-sdk/test/browser-sdk.test.js
           npm ci --prefix workers/canonical-normalizer --ignore-scripts
-          node --test workers/canonical-normalizer/test/normalizer.test.js
-          npm ci --prefix workers/cart-line-item-cdc-mapper --ignore-scripts
-          npm test --prefix workers/cart-line-item-cdc-mapper
-          node --check workers/cart-line-item-cdc-mapper/src/main.js
-      - name: Verify CDC-13 retirement boundaries
+          npm test --prefix workers/canonical-normalizer
+      - name: Verify CDC cart/order/catalog projections
         run: |
-          npm ci --prefix apps/edge-relay --ignore-scripts
-          node --test apps/edge-relay/test/source-ingress-handler.test.js
-          node --test runtime/swarm.test.mjs runtime/swarm-preflight.test.mjs runtime/swarm-live-deploy-guard.test.mjs
-      - name: Check three-stream target profile binding
-        run: |
-          node --test tools/medusa-reference-cdc-shadow/check-target-profiles.test.mjs \
-            tools/medusa-reference-cdc-shadow/install-target-topics.test.mjs
-          python -m py_compile \
-            tools/medusa-reference-cdc-shadow/install-target-source.py \
-            tools/medusa-reference-cdc-shadow/install-target-connect.py \
-            tools/medusa-reference-cdc-shadow/activate-target-order-baseline.py \
-            tools/medusa-reference-cdc-shadow/verify-target-projections.py \
-            tools/medusa-reference-cdc-shadow/verify-target-order-quality.py \
-            tools/medusa-reference-cdc-shadow/checkout-target-shadow.py \
-            tools/medusa-reference-cdc-shadow/monitor-target-quality.py \
-            tools/medusa-reference-cdc-shadow/moving_projection_quality.py \
-            tools/medusa-reference-cdc-shadow/probe-target-moving-projections.py \
-            tools/medusa-reference-cdc-shadow/target_shadow_workers.py \
-            tools/medusa-reference-cdc-shadow/install-target-projection-pending-quality.py \
-            tools/medusa-reference-cdc-shadow/check-target-projection-pending-restart.py \
-            tools/medusa-reference-cdc-shadow/target_kafka_offsets.py \
-            tools/medusa-reference-cdc-shadow/verify-target-inventory-price-resolver.py
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_monitor_target_quality.py -v
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_moving_projection_quality.py -v
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_probe_target_moving_projections.py -v
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_target_shadow_workers.py -v
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_install_target_projection_pending_quality.py -v
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_target_kafka_offsets.py -v
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_target_inventory_price_resolver.py -v
-      - name: Test governed catalog CDC candidate
-        run: |
-          python -m py_compile \
-            tools/medusa-reference-cdc-shadow/verify-catalog-governed-candidate.py \
-            tools/medusa-reference-cdc-shadow/probe-catalog-governed-candidate.py \
-            tools/medusa-reference-cdc-shadow/prepare-catalog-governed-private.py \
-            tools/medusa-reference-cdc-shadow/publish-catalog-governed-quality.py
-          npm ci --prefix workers/catalog-cdc-writer --ignore-scripts
-          npm test --prefix workers/catalog-cdc-writer
-          node --test apps/dashboard-api/test/product-reference.test.js
-      - name: Test governed inventory/price context candidate
-        run: |
-          python -m py_compile \
-            tools/medusa-reference-cdc-shadow/prepare-inventory-price-governed-private.py \
-            tools/medusa-reference-cdc-shadow/verify-inventory-price-governed-candidate.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-governed-candidate.py \
-            tools/medusa-reference-cdc-shadow/publish-inventory-price-governed-quality.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-quality-invalidation.py \
-            tools/medusa-reference-cdc-shadow/verify-inventory-price-source-numeric.py \
-            tools/medusa-reference-cdc-shadow/probe-inventory-price-multilocation.py
-          npm ci --prefix workers/inventory-price-cdc-writer --ignore-scripts
-          npm test --prefix workers/inventory-price-cdc-writer
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_governed_profile.py -v
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_governed_quality.py -v
-      - name: Check inventory/price resolution candidate
-        run: |
-          python -m py_compile tools/medusa-reference-cdc-shadow/inventory_price_resolution_candidate.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/probe-inventory-price-resolver-candidate.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/catalog_cdc_pair_candidate.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/probe-inventory-price-cdc-only-candidate.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/probe-combined-cdc-transition.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/probe-combined-cdc-replay.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/probe-combined-cdc-kit.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/probe-combined-cdc-region-sale.py
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_inventory_price_resolution_candidate.py -v
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_catalog_cdc_pair_candidate.py -v
-      - name: Check reference order CDC v2 sink candidate
-        run: |
-          python -m py_compile \
-            tools/medusa-reference-cdc-shadow/prepare-reference-order-v2-governed-private.py \
-            tools/medusa-reference-cdc-shadow/verify-reference-order-v2-governed-candidate.py \
-            tools/medusa-reference-cdc-shadow/probe-reference-order-v2-governed-replay.py
-          npm ci --prefix workers/reference-order-cdc-v2-sink --ignore-scripts
-          npm test --prefix workers/reference-order-cdc-v2-sink
-          node --check workers/reference-order-cdc-v2-sink/src/main.js
-      - name: Check reference order CDC v2 mapper candidate
-        run: |
-          python -m py_compile tools/medusa-reference-cdc-shadow/prepare-reference-order-v2-mapper-private.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/prepare-reference-order-v2-chain-private.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/activate-reference-order-v2-mapper-candidate.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/verify-reference-order-v2-chain-candidate.py
+          for worker in cart-line-item-cdc-mapper catalog-cdc-writer inventory-price-cdc-writer reference-order-cdc-v2-sink; do
+            npm ci --prefix "workers/$worker" --ignore-scripts
+            npm test --prefix "workers/$worker"
+          done
           npm ci --prefix workers/reference-order-cdc-v2-mapper --ignore-scripts
           node --check workers/reference-order-cdc-v2-mapper/src/main.js
-      - name: Check reference order CDC v2 quality gate
-        run: |
-          python -m py_compile tools/medusa-reference-cdc-shadow/reference_order_v2_quality.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/verify-reference-order-v2-quality.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/probe-target-moving-order-quality.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/install-target-pending-quality.py
-          python -m py_compile tools/medusa-reference-cdc-shadow/probe-target-moving-projections.py
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_install_target_pending_quality.py -v
-          python -m unittest discover -s tools/medusa-reference-cdc-shadow -p test_reference_order_v2_quality.py -v
-      - name: Check shadow-only reference funnel API candidate
-        run: |
-          npm ci --prefix apps/dashboard-api --ignore-scripts
-          node --test apps/dashboard-api/test/reference-cdc-funnel-candidate.test.js \
-            apps/dashboard-api/test/reference-cdc-profile-operator.test.js \
-            apps/dashboard-api/test/reference-cdc-offer-metadata.test.js \
-            apps/dashboard-api/test/catalog-v2.test.js \
-            apps/dashboard-api/test/v2-analytics-repository.test.js
-          node --check apps/dashboard-api/src/routes/reference-cdc-funnel-candidate.js
-          node --check apps/dashboard-api/scripts/reference-cdc-profile.mjs
-          node --check apps/dashboard-api/scripts/reference-current-offer-metadata.mjs
-      - name: Build reference funnel candidate UI
-        run: |
-          npm ci --prefix apps/dashboard-web --ignore-scripts
-          npm run build --prefix apps/dashboard-web
-      - name: Build candidate Workers image
-        run: docker build --file infra/docker/pipeline-workers.Dockerfile --tag funnelmetry-workers-cdc-ci .
-      - name: Check existing Pipeline DB CDC candidate migration guard
-        run: node --test infra/bootstrap/cdc-candidate-migrations.test.mjs infra/bootstrap/bootstrap-handoff.test.mjs infra/bootstrap/bootstrap-swarm.test.mjs
-      - name: Rehearse candidate migration against fresh PostgreSQL
-        run: |
-          docker build --file infra/docker/dashboard-api.Dockerfile --tag funnelmetry-api-cdc-ci .
-          docker network create funnelmetry-cdc-migration-ci
-          docker run -d --name funnelmetry-cdc-migration-ci-db \
-            --network funnelmetry-cdc-migration-ci --network-alias postgres \
-            -e POSTGRES_DB=funnelmetry_handoff -e POSTGRES_USER=funnelmetry \
-            -e POSTGRES_PASSWORD=ci-only-password postgres:15-alpine
-          trap 'docker rm -f funnelmetry-cdc-migration-ci-db >/dev/null 2>&1 || true; docker network rm funnelmetry-cdc-migration-ci >/dev/null 2>&1 || true' EXIT
-          # pg_isready can succeed against the temporary init server just
-          # before the official image shuts it down for its final restart.
-          ready=0
-          for attempt in $(seq 1 30); do
-            if docker logs funnelmetry-cdc-migration-ci-db 2>&1 | grep -Fq 'PostgreSQL init process complete; ready for start up.' && \
-               docker exec funnelmetry-cdc-migration-ci-db psql -X -U funnelmetry \
-                 -d funnelmetry_handoff -Atqc 'SELECT 1' >/dev/null 2>&1; then
-              ready=1
-              break
-            fi
-            sleep 1
-          done
-          test "$ready" -eq 1
-          docker run --rm --network funnelmetry-cdc-migration-ci \
-            -e TEST_DATABASE_URL=postgres://funnelmetry:ci-only-password@postgres:5432/funnelmetry_handoff \
-            -v "$PWD/infra/postgres:/workspace/infra/postgres:ro" \
-            --entrypoint node funnelmetry-workers-cdc-ci \
-            /workspace/workers/funnel-processor/test/repository.integration.test.js
-          docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
-            -U funnelmetry -d funnelmetry_handoff -c \
-            "CREATE TABLE handoff_bootstrap(id integer PRIMARY KEY,status text NOT NULL); INSERT INTO handoff_bootstrap VALUES(1,'READY');"
-          docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
-            -U funnelmetry -d funnelmetry_handoff < infra/postgres/v2/001_canonical_ledger.sql
-          docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
-            -U funnelmetry -d funnelmetry_handoff < infra/postgres/v2/002_journey_projection.sql
-          common_env=(-e HANDOFF_MODE=PARALLEL_LIVE -e POSTGRES_HOST=postgres \
-            -e POSTGRES_DB=funnelmetry_handoff -e POSTGRES_USER=funnelmetry \
-            -e POSTGRES_PASSWORD=ci-only-password)
-          plan="$(docker run --rm --network funnelmetry-cdc-migration-ci \
-            "${common_env[@]}" --entrypoint node funnelmetry-api-cdc-ci \
-            /workspace/infra/bootstrap/cdc-candidate-migrations.mjs plan)"
-          digest="$(printf '%s' "$plan" | jq -r '.digest')"
-          test "$(printf '%s' "$plan" | jq -r '.status')" = READY_TO_APPLY
-          docker run --rm --network funnelmetry-cdc-migration-ci \
-            "${common_env[@]}" -e CDC_SHADOW_MIGRATION_ACK=CDC11_CANDIDATE_ONLY \
-            -e CDC_EXPECTED_MIGRATION_DIGEST="$digest" --entrypoint node \
-            funnelmetry-api-cdc-ci /workspace/infra/bootstrap/cdc-candidate-migrations.mjs apply \
-            | jq -e '.status == "APPLIED_CANDIDATE_ONLY"'
-          docker run --rm --network funnelmetry-cdc-migration-ci \
-            "${common_env[@]}" --entrypoint node funnelmetry-api-cdc-ci \
-            /workspace/infra/bootstrap/cdc-candidate-migrations.mjs plan \
-            | jq -e '.status == "ALREADY_APPLIED"'
-          docker exec funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
-            -U funnelmetry -d funnelmetry_handoff -Atc \
-              "SELECT count(*) FROM cdc_candidate_migration_journal" | grep -Fx 10
-          docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
-            -U funnelmetry -d funnelmetry_handoff \
-            < infra/postgres/tests/reference_order_cdc_v2_funnel_candidate.sql
-            profile_test="$(docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
-              -U funnelmetry -d funnelmetry_handoff \
-              < infra/postgres/tests/reference_cdc_v2_profile_candidate.sql)"
-            printf '%s\n' "$profile_test" | grep -F PROFILE_BINDING_GUARD_PASS
-            printf '%s\n' "$profile_test" | grep -F PROFILE_AUDIT_PASS
-          metadata_test="$(docker exec -i funnelmetry-cdc-migration-ci-db psql -X -v ON_ERROR_STOP=1 \
-            -U funnelmetry -d funnelmetry_handoff \
-            < infra/postgres/tests/reference_current_offer_metadata.sql 2>&1)"
-          printf '%s\n' "$metadata_test" | grep -F REFERENCE_OFFER_METADATA_GUARD_PASS
-      - name: Check CDC Docker secret config and isolated worker images
-        run: |
-          node --test workers/shared/postgres-config.test.mjs
-          docker build --file workers/catalog-cdc-writer/Dockerfile.shadow --tag funnelmetry-catalog-cdc-shadow-ci .
-          docker build --file workers/inventory-price-cdc-writer/Dockerfile.shadow --tag funnelmetry-inventory-price-cdc-shadow-ci .
-          docker build --file workers/reference-order-cdc-v2-mapper/Dockerfile.shadow --tag funnelmetry-order-v2-mapper-shadow-ci .
-          docker build --file workers/reference-order-cdc-v2-sink/Dockerfile.shadow --tag funnelmetry-order-v2-sink-shadow-ci .

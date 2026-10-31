@@ -47,7 +47,7 @@ services:
       CANONICAL_NORMALIZER_CONSUMER_GROUP_ID: swarm-scale-normalizer-v1
       CANONICAL_NORMALIZER_INSTANCE_ID: swarm-scale-fixture
       CANONICAL_NORMALIZER_INSTANCE_ID_MODE: container
-      CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH: /workspace/integrations/medusa/canonical-mappings.v1.json
+      CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH: /workspace/integrations/medusa/canonical-mappings.v2.json
       WORKER_HEALTH_PORT: '32110'
     networks: [data]
     read_only: true

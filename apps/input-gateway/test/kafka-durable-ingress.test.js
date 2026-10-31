@@ -9,7 +9,7 @@ const event = {
   source_event_type: "order.placed",
   source_schema_version: "1.0",
   occurred_at: "2026-08-27T03:00:00.000Z",
-  producer: "source_bridge",
+  producer: "browser_sdk",
   source_payload: { order_id: "order_1" },
 }
 

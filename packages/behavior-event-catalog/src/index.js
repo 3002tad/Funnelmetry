@@ -1,4 +1,4 @@
-export const BEHAVIOR_EVENT_CATALOG_VERSION = "behavior-event-catalog.v3"
+export const BEHAVIOR_EVENT_CATALOG_VERSION = "behavior-event-catalog.v4"
 export const BEHAVIOR_SOURCE_SCHEMA_VERSION = "2.0"
 
 export const BEHAVIOR_EVENT_DEFINITIONS = Object.freeze({
@@ -6,7 +6,6 @@ export const BEHAVIOR_EVENT_DEFINITIONS = Object.freeze({
   "behavior.scroll_depth_reached": Object.freeze({ event_class: "CLIENT_OBSERVATION", producer: "browser" }),
   "promotion.banner_impression": Object.freeze({ event_class: "CLIENT_OBSERVATION", producer: "browser" }),
   "promotion.banner_clicked": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
-  "behavior.search_submitted": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "source_server" }),
   "behavior.search_query_submitted": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
   "context.cart_linked": Object.freeze({ event_class: "CLIENT_OBSERVATION", producer: "browser" }),
   "behavior.filter_applied": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
@@ -39,7 +38,6 @@ const forbiddenPayloadKeys = new Set([
 const pageInstancePattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 const filterKeyPattern = /^[a-z][a-z0-9_]{0,63}$/
-const searchOutcomes = new Set(["succeeded", "failed"])
 const normalizedSearchQueryMaxLength = 160
 
 function plainObject(value, field) {
@@ -186,23 +184,6 @@ function bannerClicked(payload) {
   return Object.freeze(result)
 }
 
-function searchSubmitted(payload) {
-  assertKnownFields(payload, new Set(["search_interaction_id", "query_normalized", "outcome", "result_count"]), "behavior.search_submitted")
-  const outcome = requiredString(payload.outcome, "outcome", { pattern: null, maxLength: 16 })
-  if (!searchOutcomes.has(outcome)) throw new Error("outcome is unsupported")
-  const result = {
-    search_interaction_id: id(payload.search_interaction_id, "search_interaction_id"),
-    query_normalized: normalizedSearchQuery(payload.query_normalized),
-    outcome,
-  }
-  if (outcome === "succeeded") {
-    result.result_count = nonNegativeInteger(payload.result_count, "result_count")
-  } else if (payload.result_count !== undefined) {
-    throw new Error("result_count is only allowed when outcome is succeeded")
-  }
-  return Object.freeze(result)
-}
-
 function searchQuerySubmitted(payload) {
   assertKnownFields(payload, new Set(["search_interaction_id", "query_normalized", "page_instance_id"]), "behavior.search_query_submitted")
   return Object.freeze({
@@ -270,7 +251,6 @@ const payloadValidators = Object.freeze({
   "behavior.scroll_depth_reached": scrollDepthReached,
   "promotion.banner_impression": bannerImpression,
   "promotion.banner_clicked": bannerClicked,
-  "behavior.search_submitted": searchSubmitted,
   "behavior.search_query_submitted": searchQuerySubmitted,
   "context.cart_linked": cartContextLinked,
   "behavior.filter_applied": filterApplied,

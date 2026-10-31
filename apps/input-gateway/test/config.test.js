@@ -6,7 +6,6 @@ function validEnv() {
   return {
     INPUT_GATEWAY_INSTANCE_ID: "gateway-1",
     INPUT_GATEWAY_BROWSER_KEYS_JSON: JSON.stringify({ browser: { source_id: "shop", secret: "write-key" } }),
-    INPUT_GATEWAY_BACKEND_KEYS_JSON: JSON.stringify({ bridge: { source_id: "shop", secret: "hmac-key" } }),
     KAFKA_BOOTSTRAP_SERVERS: "kafka-1:9092,kafka-2:9092",
     KAFKA_TOPIC_RAW: "funnelmetry.raw.v1",
     KAFKA_TOPIC_INGRESS_RECEIPTS: "funnelmetry.ingress.receipts.v1",
@@ -23,7 +22,6 @@ test("loads a complete gateway configuration", () => {
   assert.equal(config.port, 31001)
   assert.deepEqual(config.kafka.brokers, ["kafka-1:9092", "kafka-2:9092"])
   assert.deepEqual(config.corsOrigins, ["http://localhost:8000", "http://localhost:9000"])
-  assert.equal(config.backendKeys.bridge.secret, "hmac-key")
   assert.deepEqual(config.coordination, { mode: "single_replica" })
 })
 
@@ -48,7 +46,7 @@ test("loads PostgreSQL coordination and requires its database URL", () => {
 test("rejects missing Kafka and credential configuration", () => {
   assert.throws(() => loadConfig({}), /INPUT_GATEWAY_INSTANCE_ID is required/)
   assert.throws(
-    () => loadConfig({ ...validEnv(), INPUT_GATEWAY_BACKEND_KEYS_JSON: "{}", KAFKA_TOPIC_RAW: "" }),
+    () => loadConfig({ ...validEnv(), KAFKA_TOPIC_RAW: "" }),
     /KAFKA_TOPIC_RAW is required/,
   )
 })

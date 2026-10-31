@@ -68,7 +68,7 @@ test("returns duplicate with the original ingress sequence", async () => {
   }
 })
 
-test("rejects retired Medusa order messages but accepts storefront server events", async () => {
+test("rejects every retired Medusa backend event", async () => {
   const { handler, dispose } = createHandler()
   try {
     const event = {
@@ -93,17 +93,17 @@ test("rejects retired Medusa order messages but accepts storefront server events
     })
     assert.equal(result.httpStatus, 410)
     assert.equal(result.body.reason_code, "source_event_retired")
-    const cart = { ...event, event_id: 'cart:cart_1:item_added:1',
-      source_event_type: 'cart.item_added', aggregate: { type: 'cart', id: 'cart_1' },
-      source_payload: { cart_id: 'cart_1', product_id: 'prod_1', quantity: 1 } }
-    const cartBody = JSON.stringify(cart)
-    const cartSignature = createHmac('sha256', 'backend-secret').update(`${timestamp}.${cartBody}`).digest('hex')
-    const accepted = await handler({ headers: {
+    const search = { ...event, event_id: 'medusa:search:search_1',
+      source_event_type: 'behavior.search_submitted', aggregate: { type: 'search', id: 'search_1' },
+      source_payload: { search_interaction_id: 'search_1', query_normalized: 'shoes', outcome: 'succeeded' } }
+    const searchBody = JSON.stringify(search)
+    const searchSignature = createHmac('sha256', 'backend-secret').update(`${timestamp}.${searchBody}`).digest('hex')
+    const retired = await handler({ headers: {
       'x-funnelmetry-source-key-id': 'source-backend', 'x-funnelmetry-timestamp': timestamp,
-      'x-funnelmetry-request-id': 'req_2', 'x-funnelmetry-signature': cartSignature,
-    }, body: cartBody })
-    assert.equal(accepted.httpStatus, 202)
-    assert.equal(accepted.body.ingress_seq, 1)
+      'x-funnelmetry-request-id': 'req_2', 'x-funnelmetry-signature': searchSignature,
+    }, body: searchBody })
+    assert.equal(retired.httpStatus, 410)
+    assert.equal(retired.body.reason_code, 'source_event_retired')
   } finally {
     dispose()
   }

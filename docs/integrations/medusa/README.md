@@ -9,15 +9,15 @@ The current target has two source paths:
 Its payload has `query_normalized`, `search_interaction_id` and `page_instance_id` only.
 The SDK envelope supplies `occurred_at`, `anonymous_id`, `session_id`, the default
 session `correlation_id`, and raw first-touch `utm_source` when present. The page instance
-links the search to a page view; session and time locate it in the browser journey.
-No result count, outcome or search-to-product causal claim is made.
+links the search to a page view. The approved use is standalone Search Demand Analytics:
+submission volume, normalized keyword popularity/frequency, time trends, sessions with
+search, and optional raw `utm_source` breakdown. No result count, outcome, conversion or
+search-to-product/cart/order attribution claim is made.
 When add-to-cart succeeds, the Browser SDK emits `context.cart_linked` with cart ID and
 page instance. It retains the session-to-cart relationship in the canonical record
-without counting as an additional add-to-cart step. The current journey resolver does
-not merge a pre-existing browser journey with a CDC cart journey; such a join needs a
-separate governed analytical projection. Until then, search-to-cart conversion is not
-an active metric. Without this bridge or a later checkout event, anonymous search and
-CDC cart cannot even be safely associated from source evidence.
+without counting as an additional add-to-cart step. This identity evidence is not a
+dependency of Search Demand Analytics. Search-to-cart is not part of the current contract;
+any future attribution requires a separately governed, versioned analytical projection.
 
 `cart.item_added` is derived from positive quantity changes in `cart_line_item` CDC after
 an initial snapshot establishes baseline. The CDC event carries cart, line item, variant,

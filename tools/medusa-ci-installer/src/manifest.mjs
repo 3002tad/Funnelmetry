@@ -12,10 +12,6 @@ const browserBindings = new Set([
   "behavior.search_query_submitted",
   "context.cart_linked",
 ])
-const storefrontServerBindings = new Set([
-  "behavior.search_submitted",
-  "cart.item_added",
-])
 const cdcShadowTables = [
   "public.order:id,deleted_at",
   "public.order_cart:id,order_id,cart_id",
@@ -275,8 +271,7 @@ function ingressUrl(value, name) {
 
 export function validateManifest(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Manifest root must be a mapping")
-  if (!["funnelmetry.io/v2", "funnelmetry.io/v3"].includes(raw.apiVersion)) throw new Error("apiVersion must be funnelmetry.io/v2 or v3")
-  const twoPath = raw.apiVersion === "funnelmetry.io/v3"
+  if (raw.apiVersion !== "funnelmetry.io/v3") throw new Error("apiVersion must be funnelmetry.io/v3")
   if (raw.kind !== "InputIntegration") throw new Error("kind must be InputIntegration")
 
   const host = raw.host ?? {}
@@ -294,13 +289,11 @@ export function validateManifest(raw) {
   const sourceKeyId = requiredString(auth.source_key_id, "auth.source_key_id")
   const bindings = raw.bindings ?? {}
   const browser = bindingList(bindings.browser, "bindings.browser", browserBindings)
-  const storefrontServer = twoPath ? (() => {
-    if (!Array.isArray(bindings.storefront_server) || bindings.storefront_server.length !== 0) {
-      throw new Error("bindings.storefront_server must be [] in two-path acquisition")
-    }
-    return []
-  })() : bindingList(bindings.storefront_server, "bindings.storefront_server", storefrontServerBindings)
-  if (twoPath && (!["behavior.search_query_submitted", "context.cart_linked"]
+  if (!Array.isArray(bindings.storefront_server) || bindings.storefront_server.length !== 0) {
+    throw new Error("bindings.storefront_server must be [] in two-path acquisition")
+  }
+  const storefrontServer = []
+  if (!(["behavior.search_query_submitted", "context.cart_linked"]
     .every(event => browser.includes(event)))) {
     throw new Error("bindings.browser must include browser search and cart context linkage")
   }
@@ -317,8 +310,7 @@ export function validateManifest(raw) {
     throw new Error("CDC primary reference requires catalog and inventory/price profiles")
   }
   const medusaBackend = []
-  if (!twoPath) requireCompleteProfile(storefrontServer, storefrontServerBindings, "bindings.storefront_server")
-  const cdcCartLineItem = twoPath ? cdcCartLineItemProfile(raw.cdc_cart_line_item) : null
+  const cdcCartLineItem = cdcCartLineItemProfile(raw.cdc_cart_line_item)
   const reliability = raw.reliability ?? {}
   const retry = reliability.retry ?? {}
   const circuitBreaker = reliability.circuit_breaker ?? {}
@@ -330,12 +322,12 @@ export function validateManifest(raw) {
     source: { id: sourceId },
     ingest: {
       browserUrl: ingressUrl(raw.ingest?.browser_url, "ingest.browser_url"),
-      backendUrl: twoPath ? null : ingressUrl(raw.ingest?.backend_url, "ingest.backend_url"),
+      backendUrl: null,
     },
     auth: {
       sourceKeyId,
       browserWriteKeyRef: secretReference(auth.browser_write_key_ref, "auth.browser_write_key_ref"),
-      backendSigningKeyRef: twoPath ? null : secretReference(auth.backend_signing_key_ref, "auth.backend_signing_key_ref"),
+      backendSigningKeyRef: null,
     },
     bindings: { browser, storefrontServer, medusaBackend },
     cdcShadow: null,
@@ -344,10 +336,6 @@ export function validateManifest(raw) {
     cdcCatalogShadow,
     cdcInventoryPriceShadow,
     cdcCartLineItem,
-    // Internal compatibility for the current generator. The public manifest
-    // source of truth is the explicit bindings block above.
-    frontend: { enabled: true, events: browser },
-    backend: { enabled: medusaBackend.length > 0, binding: medusaBackend[0] },
     reliability: {
       failureMode: reliability.failure_mode ?? "fail_open",
       timeoutMs: optionalPositiveInteger(reliability.timeout_ms, "reliability.timeout_ms", 800),

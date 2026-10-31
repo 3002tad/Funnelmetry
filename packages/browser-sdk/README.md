@@ -28,15 +28,16 @@ chỉ phát sau khi phần tử hiển thị tối thiểu 50% liên tục trong
 phát `behavior.search_query_submitted` khi người dùng submit form tìm kiếm sau consent.
 Payload gồm `query_normalized`, `search_interaction_id`, `page_instance_id`; envelope tự gắn
 `occurred_at`, `anonymous_id`, `session_id`, `correlation_id=session_id` và raw first-touch
-`utm_source` khi có. `page_instance_id` nối với page view; session và thời gian cho phép đặt
-search vào hành trình trước product view, cart và checkout. Event không có outcome/result count,
-không khẳng định người dùng xem hay mua sản phẩm cụ thể do lần search đó dẫn tới. SDK vẫn từ chối
-legacy `behavior.search_submitted` do server phát. Tracking search fail-open, không chặn navigation.
+`utm_source` khi có. `page_instance_id` nối search với page view. Phạm vi phân tích đã duyệt là
+Search Demand Analytics độc lập: lượt submit, top/tần suất keyword, xu hướng theo thời gian,
+session có search và phân rã theo `utm_source`. Event không có outcome/result count, không claim
+conversion hoặc attribution search→product/cart/order. Contract server search cũ không còn
+trong Catalog. Tracking search fail-open, không chặn navigation.
 Sau khi add-to-cart thành công, host gọi `trackCartContext(cart_id, page_instance_id)` đúng
 một lần cho mỗi cart/session. Event `context.cart_linked` ghi quan hệ session browser
 với `cart_id` của CDC; nó không được tính là một lần thêm giỏ hoặc thay
-`cart.item_added`. Journey resolver hiện chưa tự gộp hai journey đã tồn tại; metric
-search→cart cần projection phân tích riêng trước khi công bố.
+`cart.item_added`. Event liên kết này không phải dependency của Search Demand Analytics.
+Nếu phát triển attribution search→cart trong tương lai, cần analytical contract versioned riêng.
 Filter và banner click vẫn là semantic hook explicit của host.
 
 `trackPageView` deduplicate theo `page_instance_id`. Host phải tạo một page context cho mỗi page

@@ -20,13 +20,10 @@ function ensureDurableIngress(durableIngress) {
 export function createIngressHandler({
   durableIngress,
   browserKeys = {},
-  backendKeys = {},
   now = () => new Date().toISOString(),
-  nowMs = () => Date.now(),
   createAttemptId = randomUUID,
   maxBodyBytes = 128 * 1024,
   maxPayloadBytes = 64 * 1024,
-  maxClockSkewMs = 5 * 60 * 1000,
 } = {}) {
   const rawIngress = ensureDurableIngress(durableIngress)
 
@@ -59,11 +56,7 @@ export function createIngressHandler({
       auth = authenticateIngress({
         event,
         headers,
-        rawBody,
         browserKeys,
-        backendKeys,
-        nowMs: nowMs(),
-        maxClockSkewMs,
       })
     } catch (error) {
       const reasonCode = error instanceof IngressAuthError ? error.reasonCode : "auth_failed"

@@ -20,10 +20,8 @@ const runtime = createKafkaRuntime({ ...config.kafka, receiptCoordinator })
 const handleIngress = createIngressHandler({
   durableIngress: runtime.durableIngress,
   browserKeys: config.browserKeys,
-  backendKeys: config.backendKeys,
   maxBodyBytes: config.maxBodyBytes,
   maxPayloadBytes: config.maxPayloadBytes,
-  maxClockSkewMs: config.maxClockSkewMs,
 })
 const server = createIngressHttpServer({
   handleIngress,

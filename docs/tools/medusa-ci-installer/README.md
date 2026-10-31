@@ -11,10 +11,12 @@ search. Search submit calls `trackSearchQuery` without waiting for tracking. Its
 payload includes normalized/sanitized keyword, search interaction ID and page instance
 ID. The Browser SDK envelope adds session/anonymous identity, occurrence time,
 session correlation and first-touch `utm_source` when available. V3 does not generate
-search outcome/result count or modify the Search API.
+search outcome/result count or modify the Search API. The approved use is standalone
+Search Demand Analytics; no search-to-cart conversion or attribution is generated.
 After the storefront add action succeeds, the patch returns the existing cart ID to the
 browser and emits `context.cart_linked` once per cart/session. This is a linkage
-observation; the CDC stream alone supplies the `cart.item_added` fact.
+observation; the CDC stream alone supplies the `cart.item_added` fact. This bridge is
+not required by the search analytics contract.
 
 V3 also emits a `funnelmetry/cdc-cart-line-item.json` profile. The installer only
 generates configuration; source and target operators still create the PostgreSQL

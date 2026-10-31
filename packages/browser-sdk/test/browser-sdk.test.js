@@ -13,7 +13,7 @@ test("rejects event types outside the approved behavior catalog", () => {
     endpoint: "https://ingest.example.test",
     writeKey: "public-write-key",
     allowedEventTypes: ["behavior.raw_dom_captured"],
-  }), /browser-producible in Behavior Event Catalog v2/)
+  }), /browser-producible in Behavior Event Catalog v4/)
 })
 
 test("keeps the same event in the queue until a durable receipt arrives", async () => {
@@ -335,14 +335,14 @@ test("removes an event after a durable Relay receipt without counting it as Pipe
   assert.equal(sdk.getMetrics().accepted, 0)
 })
 
-test("browser SDK cannot be configured to queue server-side search events", () => {
+test("browser SDK cannot be configured with the retired server search event", () => {
   assert.throws(() => createBrowserSdk({
     sourceId: "medusa-reference",
     sourceKeyId: "medusa-reference-dev",
     endpoint: "https://ingest.example.test",
     writeKey: "public-write-key",
     allowedEventTypes: ["behavior.search_submitted"],
-  }), /browser-producible in Behavior Event Catalog v2/)
+  }), /not browser-producible/)
 })
 
 test("page helper creates a stable page context and emits a validated page view", async () => {

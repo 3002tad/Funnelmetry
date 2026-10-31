@@ -14,7 +14,7 @@ try{
   const ids=new Set(),manifest=[]
   for(const message of input.messages){
     const result=normalize.normalize(message)
-    if(result.status!=='normalized'||result.canonicalEvent.source_id!=='medusa-reference'||result.outcome.mapping_version!=='medusa-browser-schema1-catalog-v2')throw Error()
+    if(result.status!=='normalized'||result.canonicalEvent.source_id!=='medusa-reference'||result.outcome.mapping_version!=='medusa-browser-schema1-catalog-v4')throw Error()
     if(ids.has(result.canonicalEvent.canonical_event_id))throw Error()
     ids.add(result.canonicalEvent.canonical_event_id)
     manifest.push({source_event_id:result.outcome.source_event_id,canonical_event_id:result.canonicalEvent.canonical_event_id,raw_record_id:result.outcome.raw_record_id})

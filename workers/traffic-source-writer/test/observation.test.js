@@ -43,7 +43,7 @@ test('separates absent, empty-string, invalid and synthetic UTM metadata', () =>
 })
 
 test('non-browser facts are not projected into traffic observations', () => {
-  assert.equal(extract({ ...event, producer: 'source_bridge', source_event_type: 'medusa.order_placed' }), null)
+  assert.equal(extract({ ...event, producer: 'source_bridge', source_event_type: 'payment.captured' }), null)
 })
 
 test('rejects mismatched identity, missing envelope fields and bad raw timestamps', () => {

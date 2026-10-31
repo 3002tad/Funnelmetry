@@ -42,13 +42,11 @@ host vào streaming/KPI core.
 `quality.authoritative_event_time=false` và không được giả làm source occurrence time.
 
 Mapping source-native được nạp tùy chọn qua `CANONICAL_NORMALIZER_MAPPING_CONFIG_PATH`.
-Reference Medusa dùng artifact versioned trong `integrations/medusa` cho
-`medusa.order_placed` schema 2.0 -> `order.placed` (mapping `medusa-order-placed-v2`). Schema 1.0
-không còn active native order mapping; cần kế hoạch replay riêng, không đoán đơn vị tiền. Ingress vẫn
-giữ native event type và `mapping_version` là provenance của canonical semantics. `cart.item_added`
-chỉ được passthrough khi source-side hook phát sau source-confirmed line-item result; không đổi
-browser add-click thành business fact. `order.accepted`, payment và refund chỉ bật sau native hook
-và conformance test chứng minh authoritative transition.
+Reference Medusa dùng `integrations/medusa/canonical-mappings.v2.json` với danh sách mapping rỗng:
+commerce và master data đi qua các projection CDC, không qua source event producer. Browser SDK chỉ
+phát các event behavioral trong Behavior Event Catalog hiện hành. Source Ingress trả `410
+source_event_retired` cho hai loại producer Medusa cũ; dữ liệu đã lưu trước cutover không bị xóa bởi
+thay đổi admission này.
 
 ## Chạy
 

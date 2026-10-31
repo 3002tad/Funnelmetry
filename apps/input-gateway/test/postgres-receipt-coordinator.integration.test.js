@@ -16,7 +16,7 @@ const event = {
   source_event_type: "order.placed",
   source_schema_version: "1.0",
   occurred_at: "2026-09-05T03:00:00.000Z",
-  producer: "source_bridge",
+  producer: "browser_sdk",
   source_payload: { amount: 125000, order_id: "order_1" },
 }
 const receipt = {

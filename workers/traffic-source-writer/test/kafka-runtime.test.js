@@ -59,7 +59,7 @@ test('non-browser business event is skipped without creating a traffic row', asy
   const kafka = fakeKafka()
   const worker = runtime(kafka, { persist: async () => assert.fail('must not persist') })
   await worker.start()
-  await kafka.deliver({ ...browserEvent, producer: 'source_bridge', source_event_type: 'medusa.order_placed' })
+  await kafka.deliver({ ...browserEvent, producer: 'source_bridge', source_event_type: 'payment.captured' })
   assert.equal(kafka.commits.length, 1)
   await worker.stop()
 })

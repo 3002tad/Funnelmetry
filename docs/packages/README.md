@@ -7,7 +7,11 @@ Các package README dưới đây là **ngoại lệ vị trí**: chúng nằm c
 - [Behavior Event Catalog](../../packages/behavior-event-catalog/README.md)
 - [Time Semantics Contract](../../packages/time-semantics-contract/README.md)
 - [Browser SDK](../../packages/browser-sdk/README.md)
-- [Backend Integration Kit](../../packages/backend-integration-kit/README.md)
 - [Reconciliation Contract](../../packages/reconciliation-contract/README.md)
+
+Backend Integration Kit đã retired theo DEC-144. Artifact GitHub Packages cũ được giữ immutable
+để tái lập lịch sử; không còn source package, release workflow, dependency hoặc tài liệu sử dụng active.
+GitHub Packages không cung cấp REST endpoint cập nhật trạng thái deprecation và registry đã từ chối
+`npm deprecate`, vì vậy retirement được enforcement bằng CI/source governance thay vì xóa artifact.
 
 Quyết định và semantics chuẩn vẫn theo [Backbone Master](https://github.com/3002tad/System_Backbone/blob/main/MASTER_SPECIFICATION.md). Các README mô tả implementation của package tại version code hiện hành.

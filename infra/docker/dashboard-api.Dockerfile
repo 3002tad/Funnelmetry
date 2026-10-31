@@ -13,7 +13,7 @@ COPY apps/dashboard-api/scripts ./scripts
 COPY analytics/src /workspace/analytics/src
 COPY analytics/metadata /workspace/analytics/metadata
 COPY analytics/sql /workspace/analytics/sql
-COPY integrations/medusa/canonical-mappings.v1.json /workspace/integrations/medusa/canonical-mappings.v1.json
+COPY integrations/medusa/canonical-mappings.v2.json /workspace/integrations/medusa/canonical-mappings.v2.json
 COPY infra/postgres /workspace/infra/postgres
 COPY infra/bootstrap/bootstrap-handoff.mjs /workspace/infra/bootstrap/bootstrap-handoff.mjs
 COPY infra/bootstrap/baseline-v2-schema.mjs /workspace/infra/bootstrap/baseline-v2-schema.mjs

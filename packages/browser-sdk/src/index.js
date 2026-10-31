@@ -208,7 +208,7 @@ export function createBrowserSdk(options) {
   const allowedEventTypes = new Set(options.allowedEventTypes ?? [])
   for (const eventType of allowedEventTypes) {
     if (!isBehaviorEventType(eventType) || getBehaviorEventDefinition(eventType).producer !== "browser") {
-      throw new Error(`Event '${eventType}' is not browser-producible in Behavior Event Catalog v2`)
+      throw new Error(`Event '${eventType}' is not browser-producible in Behavior Event Catalog v4`)
     }
   }
   if (allowedEventTypes.size === 0) throw new Error("allowedEventTypes must not be empty")

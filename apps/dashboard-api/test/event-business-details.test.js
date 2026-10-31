@@ -12,7 +12,6 @@ test('placement major-unit amounts remain decimal strings and never become minor
 })
 
 test('business details exclude arbitrary nested payload and unsafe values', () => {
-  assert.equal(eventBusinessDetails('behavior.search_submitted', { query_normalized: 'private' }), null)
   const result = eventBusinessDetails('order.created', { order_id: 'order_1', email: 'secret', total_minor: 0, currency_code: 'usd', items: [{ product_id: 'prod_1', name: 'private', address: {}, quantity: -1, unit_price_minor: Number.MAX_SAFE_INTEGER + 1 }] })
   assert.deepEqual(result, { order_id: 'order_1', total_minor: 0, currency_code: 'USD', items: [{ product_id: 'prod_1' }], items_truncated: false })
 })

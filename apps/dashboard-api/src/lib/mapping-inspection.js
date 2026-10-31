@@ -3,8 +3,8 @@ import {createHash} from 'node:crypto'
 
 export function inspectMappingDocument(document) {
   const token=v=>typeof v==='string'&&/^[A-Za-z0-9*][A-Za-z0-9._:*\-]{0,191}$/.test(v)
-  if(document?.schema_version!=='canonical-mappings.v1'||!token(document.source_id)
-    ||!Array.isArray(document.mappings)||!document.mappings.length||document.mappings.length>500) throw Error('invalid_mapping_document')
+  if(document?.schema_version!=='canonical-mappings.v2'||!token(document.source_id)
+    ||!Array.isArray(document.mappings)||document.mappings.length>500) throw Error('invalid_mapping_document')
   const selectors=new Set()
   const mappings=document.mappings.map(row=>{
     const keys=['source_event_type','source_schema_version','event_type','event_class','mapping_version']
@@ -18,9 +18,9 @@ export function inspectMappingDocument(document) {
 }
 export async function loadMappingInspection(){
   // Fixed allowlisted artifact, never a user-controlled path or uploaded document.
-  const buffer=await readFile(new URL('../../../../integrations/medusa/canonical-mappings.v1.json',import.meta.url))
+  const buffer=await readFile(new URL('../../../../integrations/medusa/canonical-mappings.v2.json',import.meta.url))
   if(buffer.length>262144)throw Error('mapping_document_too_large')
   return {...inspectMappingDocument(JSON.parse(buffer.toString('utf8'))),
-    artifact:'integrations/medusa/canonical-mappings.v1.json',sha256:createHash('sha256').update(buffer).digest('hex'),
+    artifact:'integrations/medusa/canonical-mappings.v2.json',sha256:createHash('sha256').update(buffer).digest('hex'),
     checked_at:new Date().toISOString(),scope:'SOURCE_NATIVE_ARTIFACT_ONLY',runtime_status:'UNVERIFIED',read_only:true}
 }

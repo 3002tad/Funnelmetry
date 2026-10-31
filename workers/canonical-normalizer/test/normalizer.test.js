@@ -107,7 +107,6 @@ test("maps every behavior catalog event to its approved authority class", () => 
     "behavior.scroll_depth_reached": { page_type: "home", page_instance_id: "page:session-1:home-1", depth_percent: 25 },
     "promotion.banner_impression": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: "page:session-1:home-1", visible_percent: 50, visible_ms: 1000 },
     "promotion.banner_clicked": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: "page:session-1:home-1" },
-    "behavior.search_submitted": { search_interaction_id: "search:interaction-1", query_normalized: "running shoes", outcome: "succeeded", result_count: 5 },
     "behavior.search_query_submitted": { search_interaction_id: "search:interaction-1", query_normalized: "running shoes", page_instance_id: "page:session-1:home-1" },
     "context.cart_linked": { cart_id: "cart_1", page_instance_id: "page:session-1:home-1" },
     "behavior.filter_applied": { page_instance_id: "page:session-1:home-1", filter_keys: ["category"], active_filter_count: 1 },
@@ -143,18 +142,6 @@ test('V2-only behavior rejects legacy and unknown schemas without guessing paylo
   }
   const result = createNormalizer().normalize(rawInput(ingressEvent({ source_event_type: 'cart.add_clicked' })))
   assert.equal(result.status, 'unsupported')
-})
-
-test('V2 search requires server producer, new payload and distinct mapping identity', () => {
-  const event = ingressEvent({ source_event_type: 'behavior.search_submitted', producer: 'source_bridge',
-    source_payload: { search_interaction_id: 'search:1', query_normalized: 'shoes', outcome: 'succeeded', result_count: 2 } })
-  const normalizer = createNormalizer()
-  const valid = normalizer.normalize(rawInput(event))
-  assert.equal(valid.status, 'normalized')
-  assert.equal(valid.canonicalEvent.mapping_version, 'canonical-behavior-v2')
-  assert.equal(normalizer.normalize(rawInput({ ...event, producer: 'browser_sdk' })).status, 'quarantined')
-  assert.equal(normalizer.normalize(rawInput({ ...event, source_payload: { page_instance_id: 'page:1', query_length_bucket: '3-5' } })).status, 'quarantined')
-  assert.equal(normalizer.normalize(rawInput({ ...event, source_payload: { ...event.source_payload, query_normalized: 'user@example.com' } })).status, 'quarantined')
 })
 
 test('browser search keeps funnel identity, time and page context in canonical event', () => {
@@ -194,7 +181,7 @@ test('deployed Medusa schema 1 browser uses v2 validation without restoring v1 c
   const event = ingressEvent({ source_id: 'medusa-reference', source_schema_version: '1.0' })
   const result = normalizer.normalize(rawInput(event))
   assert.equal(result.status, 'normalized')
-  assert.equal(result.canonicalEvent.mapping_version, 'medusa-browser-schema1-catalog-v2')
+  assert.equal(result.canonicalEvent.mapping_version, 'medusa-browser-schema1-catalog-v4')
   assert.equal(normalizer.normalize(rawInput({ ...event, source_payload: { product_id: 'p1' } })).status, 'quarantined')
   assert.equal(normalizer.normalize(rawInput({ ...event, producer: 'source_bridge' })).status, 'quarantined')
   for (const type of ['cart.add_clicked', 'behavior.search_submitted']) {
@@ -203,32 +190,11 @@ test('deployed Medusa schema 1 browser uses v2 validation without restoring v1 c
   assert.equal(normalizer.normalize(rawInput({ ...event, source_id: 'other-shop' })).status, 'unsupported')
 })
 
-test("loads the Medusa source-native order mapping without weakening canonical semantics", async () => {
-  const mappingPath = new URL("../../../integrations/medusa/canonical-mappings.v1.json", import.meta.url)
-  const registry = await loadMappingRegistry(mappingPath)
-  const normalizer = createNormalizer({ registry, now: () => normalizedAt })
-  const result = normalizer.normalize(rawInput(ingressEvent({
-    source_id: "medusa-reference",
-    event_id: "medusa:order.placed:order_1",
-    source_event_type: "medusa.order_placed",
-    source_schema_version: '2.0',
-    producer: "source_bridge",
-    aggregate: { type: "order", id: "order_1" },
-    correlation_id: 'cart:cart_1',
-    source_payload: { order_id: "order_1", cart_id: 'cart_1', currency_code: "usd", total_amount: '12.00', amount_unit: 'major', amount_semantics: 'medusa.order.total', items: [] },
-  })))
-
-  assert.equal(result.status, "normalized")
-  assert.equal(result.canonicalEvent.event_type, "order.placed")
-  assert.equal(result.canonicalEvent.event_class, "BUSINESS_FACT")
-  assert.equal(result.canonicalEvent.mapping_version, "medusa-order-placed-v2")
-  assert.equal(result.canonicalEvent.data.order_id, "order_1")
-})
-
-test("does not apply the Medusa native mapping to another source", async () => {
-  const mappingPath = new URL("../../../integrations/medusa/canonical-mappings.v1.json", import.meta.url)
+test("does not apply a retired Medusa native producer mapping", async () => {
+  const mappingPath = new URL("../../../integrations/medusa/canonical-mappings.v2.json", import.meta.url)
   const registry = await loadMappingRegistry(mappingPath)
   const result = createNormalizer({ registry, now: () => normalizedAt }).normalize(rawInput(ingressEvent({
+    source_id: "medusa-reference",
     source_event_type: "medusa.order_placed",
     producer: "source_bridge",
   })))

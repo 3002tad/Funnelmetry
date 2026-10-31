@@ -73,11 +73,9 @@ export function loadConfig(env = process.env) {
     port: positiveInteger(env, "INPUT_GATEWAY_PORT", 31000),
     maxBodyBytes: positiveInteger(env, "INPUT_GATEWAY_MAX_BODY_BYTES", 128 * 1024),
     maxPayloadBytes: positiveInteger(env, "INPUT_GATEWAY_MAX_PAYLOAD_BYTES", 64 * 1024),
-    maxClockSkewMs: positiveInteger(env, "INPUT_GATEWAY_MAX_CLOCK_SKEW_MS", 5 * 60 * 1000),
     shutdownTimeoutMs: positiveInteger(env, "INPUT_GATEWAY_SHUTDOWN_TIMEOUT_MS", 10_000),
     corsOrigins: Object.freeze(stringList(env.INPUT_GATEWAY_CORS_ORIGINS)),
     browserKeys: credentialRegistry(env, "INPUT_GATEWAY_BROWSER_KEYS_JSON"),
-    backendKeys: credentialRegistry(env, "INPUT_GATEWAY_BACKEND_KEYS_JSON"),
     coordination: coordinationConfig(env),
     kafka: Object.freeze({
       recoverFencedClaims: recoveryValue === 'true',

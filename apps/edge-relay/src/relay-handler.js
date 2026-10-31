@@ -42,7 +42,8 @@ export function createSourceIngressHandler({ repository, browserKeys, backendKey
       if (event.producer === "browser_sdk" && !isAllowedOrigin(origin, auth.credential)) throw new RelayError("origin_not_allowed")
       // Retired after the Medusa reference moved order state to CDC. Preserve
       // historical feed records for replay, but reject new native order messages.
-      if (event.source_id === "medusa-reference" && event.source_event_type === "medusa.order_placed") {
+      if (event.source_id === "medusa-reference" &&
+          ["medusa.order_placed", "behavior.search_submitted"].includes(event.source_event_type)) {
         metrics.increment("funnelmetry_source_ingress_rejected_total", { reason: "source_event_retired" })
         return response(410, { error: "source_event_retired", reason_code: "source_event_retired" })
       }
@@ -59,8 +60,8 @@ export function createSourceIngressHandler({ repository, browserKeys, backendKey
         event_id: stored.record.event_id,
         ingress_seq: stored.record.ingress_seq,
         accepted_at: stored.record.accepted_at,
-        // Retained during migration because current Browser SDK and Backend Kit
-        // validate accepted receipts by this field. It identifies a Source record,
+        // Retained because the current Browser SDK validates accepted receipts by
+        // this field. It identifies a Source record,
         // never a Kafka/Pipeline handoff.
         ingestion_id: `source:${stored.record.event_feed_id}:${stored.record.ingress_seq}`,
         received_at: stored.record.accepted_at,

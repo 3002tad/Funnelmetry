@@ -28,7 +28,7 @@ export function createPassthroughMappings(mappingVersion = "canonical-passthroug
     event_class: eventClass,
     mapping_version: eventType === 'behavior.search_query_submitted' ? 'canonical-search-query-v3'
       : eventType === 'context.cart_linked' ? 'canonical-cart-context-v1'
-      : Object.hasOwn(BEHAVIOR_EVENT_DEFINITIONS, eventType) ? 'canonical-behavior-v2' : mappingVersion,
+      : Object.hasOwn(BEHAVIOR_EVENT_DEFINITIONS, eventType) ? 'canonical-behavior-v4' : mappingVersion,
     ...(eventType === 'context.cart_linked'
       ? { map_relations: event => ({ cart_id: event.source_payload.cart_id }) } : {}),
     map_data: (event) => {
@@ -36,7 +36,7 @@ export function createPassthroughMappings(mappingVersion = "canonical-passthroug
       const definition = BEHAVIOR_EVENT_DEFINITIONS[eventType]
       if (!definition) return event.source_payload
       const producer = definition.producer === 'source_server' ? 'source_bridge' : 'browser_sdk'
-      if (event.producer !== producer) throw new Error('Behavior producer does not match Catalog v2')
+      if (event.producer !== producer) throw new Error('Behavior producer does not match Catalog v4')
       return validateBehaviorPayload(eventType, event.source_payload)
     },
   }))
@@ -45,7 +45,7 @@ export function createPassthroughMappings(mappingVersion = "canonical-passthroug
   const referenceBrowserMappings = mappings
     .filter(mapping => BEHAVIOR_EVENT_DEFINITIONS[mapping.event_type]?.producer === 'browser')
     .map(mapping => Object.freeze({ ...mapping, source_id: 'medusa-reference',
-      source_schema_version: '1.0', mapping_version: 'medusa-browser-schema1-catalog-v2' }))
+      source_schema_version: '1.0', mapping_version: 'medusa-browser-schema1-catalog-v4' }))
   return [...mappings, ...referenceBrowserMappings]
 }
 

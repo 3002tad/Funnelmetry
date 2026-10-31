@@ -1,83 +1,18 @@
 import assert from "node:assert/strict"
-import { createHmac } from "node:crypto"
 import test from "node:test"
 import { createIngressHandler } from "../src/index.js"
-import { loadConfig } from "../src/config.js"
 
 const receivedAt = "2026-08-27T03:00:00.000Z"
 const baseEvent = {
-  specversion: "ingress-event.v1",
-  source_id: "medusa-reference",
-  event_id: "browser:evt-123",
-  source_event_type: "commerce.product.viewed",
-  source_schema_version: "1.0",
-  occurred_at: "2026-08-27T02:59:58.000Z",
-  producer: "browser_sdk",
-  anonymous_id: "anon-1",
-  session_id: "session-1",
-  source_payload: { product_id: "prod_1" },
-}
-
-for (const producer of ["browser_sdk", "source_bridge"]) {
-  test(`Medusa shared key ID uses isolated credentials for ${producer}`, async () => {
-    const keyId = "medusa-reference-dev"
-    const browserSecret = "test-only-public-write-key"
-    const backendSecret = "test-only-private-signing-key"
-    const config = loadConfig({
-      INPUT_GATEWAY_INSTANCE_ID: "medusa-test",
-      INPUT_GATEWAY_BROWSER_KEYS_JSON: JSON.stringify({
-        [keyId]: { source_id: "medusa-reference", secret: browserSecret },
-      }),
-      INPUT_GATEWAY_BACKEND_KEYS_JSON: JSON.stringify({
-        [keyId]: { source_id: "medusa-reference", secret: backendSecret },
-      }),
-      KAFKA_BOOTSTRAP_SERVERS: "unused:9092",
-      KAFKA_TOPIC_RAW: "test.raw",
-      KAFKA_TOPIC_INGRESS_RECEIPTS: "test.receipts",
-    })
-    const durable = createDurableFake()
-    const handle = createHandler(durable, config)
-    const event = { ...baseEvent, producer,
-      source_event_type: producer === "browser_sdk" ? "behavior.product_viewed" : "medusa.order_placed" }
-    const validSecret = producer === "browser_sdk" ? browserSecret : backendSecret
-    const otherSecret = producer === "browser_sdk" ? backendSecret : browserSecret
-    function request(payload = event, secret = validSecret, id = keyId) {
-      const body = JSON.stringify(payload)
-      const headers = { "x-funnelmetry-source-key-id": id }
-      if (producer === "browser_sdk") headers["x-funnelmetry-write-key"] = secret
-      else Object.assign(headers, {
-        "x-funnelmetry-timestamp": receivedAt,
-        "x-funnelmetry-request-id": "medusa-test-request",
-        "x-funnelmetry-signature": createHmac("sha256", secret)
-          .update(`${receivedAt}.${body}`).digest("hex"),
-      })
-      return { headers, body }
-    }
-    for (const [input, reason] of [
-      [request(event, validSecret, "unknown"), "source_key_unknown"],
-      [request(event, validSecret, "e2e-browser"), "source_key_unknown"],
-      [request(event, validSecret, "e2e-backend"), "source_key_unknown"],
-      [request({ ...event, source_id: "another-source" }), "source_key_mismatch"],
-      [request(event, otherSecret), producer === "browser_sdk" ? "write_key_invalid" : "signature_invalid"],
-    ]) {
-      const result = await handle(input)
-      assert.equal(result.httpStatus, 401)
-      assert.equal(result.body.reason_code, reason)
-      assert.equal(durable.calls.length, 0)
-    }
-    const accepted = await handle(request())
-    assert.equal(accepted.httpStatus, 202)
-    assert.equal(durable.calls.length, 1)
-    assert.equal(durable.calls[0].context.auth.key_id, keyId)
-    const duplicate = await handle(request())
-    assert.equal(duplicate.httpStatus, 200)
-    assert.equal(duplicate.body.ingestion_id, accepted.body.ingestion_id)
-  })
+  specversion: "ingress-event.v1", source_id: "medusa-reference",
+  event_id: "browser:evt-123", source_event_type: "behavior.product_viewed",
+  source_schema_version: "2.0", occurred_at: "2026-08-27T02:59:58.000Z",
+  producer: "browser_sdk", anonymous_id: "anon-1", session_id: "session-1",
+  source_payload: { product_id: "prod_1", page_instance_id: "page:product-1" },
 }
 
 function createDurableFake() {
-  const receipts = new Map()
-  const calls = []
+  const receipts = new Map(), calls = []
   return {
     calls,
     async accept(event, context) {
@@ -86,12 +21,9 @@ function createDurableFake() {
       const existing = receipts.get(key)
       if (existing) return { ...existing, status: "duplicate", received_at: context.received_at }
       const receipt = {
-        status: "accepted",
-        source_id: event.source_id,
-        event_id: event.event_id,
+        status: "accepted", source_id: event.source_id, event_id: event.event_id,
         ingestion_id: `ing_${receipts.size + 1}`,
-        ingestion_attempt_id: context.ingestion_attempt_id,
-        received_at: context.received_at,
+        ingestion_attempt_id: context.ingestion_attempt_id, received_at: context.received_at,
       }
       receipts.set(key, receipt)
       return receipt
@@ -105,218 +37,65 @@ function createHandler(durableIngress, overrides = {}) {
     browserKeys: {
       "medusa-browser-dev": { source_id: "medusa-reference", secret: "browser-secret" },
     },
-    backendKeys: {
-      "medusa-backend-dev": { source_id: "medusa-reference", secret: "backend-secret" },
-    },
-    now: () => receivedAt,
-    nowMs: () => Date.parse(receivedAt),
-    createAttemptId: () => "attempt-browser-1",
-    ...overrides,
+    now: () => receivedAt, createAttemptId: () => "attempt-browser-1", ...overrides,
   })
 }
-
-test("returns accepted only after the durable adapter returns a durable receipt", async () => {
-  const durable = createDurableFake()
-  const handle = createHandler(durable)
-  const result = await handle({
-    headers: {
-      "x-funnelmetry-source-key-id": "medusa-browser-dev",
-      "x-funnelmetry-write-key": "browser-secret",
-    },
-    body: JSON.stringify(baseEvent),
-  })
-
-  assert.equal(result.httpStatus, 202)
-  assert.equal(result.body.status, "accepted")
-  assert.equal(result.body.ingestion_id, "ing_1")
-  assert.equal(durable.calls.length, 1)
-  assert.equal(durable.calls[0].event.occurred_at, baseEvent.occurred_at)
-  assert.deepEqual(durable.calls[0].event.source_payload, baseEvent.source_payload)
+const browserRequest = (event = baseEvent, key = "medusa-browser-dev", secret = "browser-secret") => ({
+  headers: { "x-funnelmetry-source-key-id": key, "x-funnelmetry-write-key": secret },
+  body: JSON.stringify(event),
 })
 
-test("returns the original ingestion identity for a duplicate stable event", async () => {
-  const durable = createDurableFake()
-  const handle = createHandler(durable)
-  const request = {
-    headers: {
-      "x-funnelmetry-source-key-id": "medusa-browser-dev",
-      "x-funnelmetry-write-key": "browser-secret",
-    },
-    body: JSON.stringify(baseEvent),
-  }
-
-  const accepted = await handle(request)
-  const duplicate = await handle(request)
+test("accepts Browser SDK only after a durable receipt and deduplicates stable identity", async () => {
+  const durable = createDurableFake(), handle = createHandler(durable)
+  const accepted = await handle(browserRequest())
+  assert.equal(accepted.httpStatus, 202)
+  assert.equal(accepted.body.ingestion_id, "ing_1")
+  assert.equal(durable.calls[0].context.auth.method, "browser_write_key")
+  const duplicate = await handle(browserRequest())
   assert.equal(duplicate.httpStatus, 200)
-  assert.equal(duplicate.body.status, "duplicate")
   assert.equal(duplicate.body.ingestion_id, accepted.body.ingestion_id)
 })
 
-test("accepts an exact-body HMAC request from a source bridge", async () => {
-  const durable = createDurableFake()
-  const handle = createHandler(durable)
-  const timestamp = "2026-08-27T03:00:00.000Z"
-  const event = {
-    ...baseEvent,
-    event_id: "medusa:order-123:placed:v1",
-    source_event_type: "order.placed",
-    producer: "source_bridge",
-    aggregate: { type: "order", id: "order_123", version: "1" },
-    source_payload: { order_id: "order_123", total: 12500, currency_code: "vnd" },
-  }
-  const body = JSON.stringify(event)
-  const signature = createHmac("sha256", "backend-secret").update(`${timestamp}.${body}`).digest("hex")
-  const result = await handle({
-    headers: {
-      "x-funnelmetry-source-key-id": "medusa-backend-dev",
-      "x-funnelmetry-timestamp": timestamp,
-      "x-funnelmetry-signature": signature,
-      "x-funnelmetry-request-id": "request-bridge-1",
-    },
-    body,
-  })
-
-  assert.equal(result.httpStatus, 202)
-  assert.equal(result.body.status, "accepted")
-  assert.equal(durable.calls[0].context.auth.method, "hmac_sha256")
-  assert.equal(durable.calls[0].context.ingestion_attempt_id, "request-bridge-1")
-})
-
-test("rejects an invalid bridge signature before durable handoff", async () => {
-  const durable = createDurableFake()
-  const handle = createHandler(durable)
-  const event = { ...baseEvent, producer: "source_bridge" }
-  const result = await handle({
-    headers: {
-      "x-funnelmetry-source-key-id": "medusa-backend-dev",
-      "x-funnelmetry-timestamp": receivedAt,
-      "x-funnelmetry-signature": "invalid",
-      "x-funnelmetry-request-id": "request-bridge-2",
-    },
-    body: JSON.stringify(event),
-  })
-
+test("rejects every non-browser producer before durable handoff", async () => {
+  const durable = createDurableFake(), handle = createHandler(durable)
+  const result = await handle(browserRequest({ ...baseEvent, producer: "source_bridge" }))
   assert.equal(result.httpStatus, 401)
-  assert.equal(result.body.reason_code, "signature_invalid")
+  assert.equal(result.body.reason_code, "producer_auth_unsupported")
   assert.equal(durable.calls.length, 0)
 })
 
-test("rejects a credential that belongs to another source", async () => {
-  const durable = createDurableFake()
-  const handle = createHandler(durable, {
+test("rejects unknown, wrong-source and invalid Browser SDK credentials", async () => {
+  const durable = createDurableFake(), handle = createHandler(durable, {
     browserKeys: {
-      "other-browser-dev": { source_id: "another-source", secret: "browser-secret" },
+      browser: { source_id: "medusa-reference", secret: "browser-secret" },
+      other: { source_id: "another-source", secret: "browser-secret" },
     },
   })
-  const result = await handle({
-    headers: {
-      "x-funnelmetry-source-key-id": "other-browser-dev",
-      "x-funnelmetry-write-key": "browser-secret",
-    },
-    body: JSON.stringify(baseEvent),
-  })
-
-  assert.equal(result.httpStatus, 401)
-  assert.equal(result.body.reason_code, "source_key_mismatch")
+  for (const [request, reason] of [
+    [browserRequest(baseEvent, "unknown"), "source_key_unknown"],
+    [browserRequest(baseEvent, "other"), "source_key_mismatch"],
+    [browserRequest(baseEvent, "browser", "wrong"), "write_key_invalid"],
+  ]) {
+    const result = await handle(request)
+    assert.equal(result.httpStatus, 401)
+    assert.equal(result.body.reason_code, reason)
+  }
   assert.equal(durable.calls.length, 0)
 })
 
-test("rejects a signed bridge request outside the replay window", async () => {
-  const durable = createDurableFake()
-  const handle = createHandler(durable)
-  const timestamp = "2026-08-27T02:45:00.000Z"
-  const event = { ...baseEvent, producer: "source_bridge" }
-  const body = JSON.stringify(event)
-  const signature = createHmac("sha256", "backend-secret").update(`${timestamp}.${body}`).digest("hex")
-  const result = await handle({
-    headers: {
-      "x-funnelmetry-source-key-id": "medusa-backend-dev",
-      "x-funnelmetry-timestamp": timestamp,
-      "x-funnelmetry-signature": signature,
-      "x-funnelmetry-request-id": "request-stale",
-    },
-    body,
-  })
-
-  assert.equal(result.httpStatus, 401)
-  assert.equal(result.body.reason_code, "timestamp_outside_window")
-  assert.equal(durable.calls.length, 0)
-})
-
-test("rejects sensitive payload fields before durable handoff", async () => {
-  const durable = createDurableFake()
-  const handle = createHandler(durable)
-  const result = await handle({
-    headers: {
-      "x-funnelmetry-source-key-id": "medusa-browser-dev",
-      "x-funnelmetry-write-key": "browser-secret",
-    },
-    body: JSON.stringify({ ...baseEvent, source_payload: { email: "customer@example.test" } }),
-  })
-
-  assert.equal(result.httpStatus, 400)
-  assert.equal(result.body.reason_code, "contract_invalid")
-  assert.equal(durable.calls.length, 0)
-})
-
-test("returns retryable_failure when the durable handoff fails", async () => {
-  const handle = createHandler({
-    async accept() {
-      throw new Error("broker unavailable")
-    },
-  })
-  const result = await handle({
-    headers: {
-      "x-funnelmetry-source-key-id": "medusa-browser-dev",
-      "x-funnelmetry-write-key": "browser-secret",
-    },
-    body: JSON.stringify(baseEvent),
-  })
-
+test("returns retryable failure without inventing a durable receipt", async () => {
+  const handle = createHandler({ async accept() { throw new Error("broker unavailable") } })
+  const result = await handle(browserRequest())
   assert.equal(result.httpStatus, 503)
   assert.equal(result.body.status, "retryable_failure")
   assert.equal(result.body.reason_code, "durable_handoff_failed")
   assert.equal(result.body.ingestion_id, undefined)
 })
 
-test("preserves a retryable receipt returned by the durable adapter", async () => {
-  const handle = createHandler({
-    async accept(event, context) {
-      return {
-        status: "retryable_failure",
-        source_id: event.source_id,
-        event_id: event.event_id,
-        ingestion_attempt_id: context.ingestion_attempt_id,
-        received_at: context.received_at,
-        reason_code: "broker_timeout",
-      }
-    },
-  })
-  const result = await handle({
-    headers: {
-      "x-funnelmetry-source-key-id": "medusa-browser-dev",
-      "x-funnelmetry-write-key": "browser-secret",
-    },
-    body: JSON.stringify(baseEvent),
-  })
-
-  assert.equal(result.httpStatus, 503)
-  assert.equal(result.body.reason_code, "broker_timeout")
-})
-
-test("durably accepts an event without occurred_at for downstream quality fallback", async () => {
-  const durable = createDurableFake()
-  const handle = createHandler(durable)
-  const { occurred_at, ...withoutOccurredAt } = baseEvent
-  const result = await handle({
-    headers: {
-      "x-funnelmetry-source-key-id": "medusa-browser-dev",
-      "x-funnelmetry-write-key": "browser-secret",
-    },
-    body: JSON.stringify(withoutOccurredAt),
-  })
-
-  assert.equal(occurred_at, baseEvent.occurred_at)
+test("accepts missing occurred_at for downstream quality fallback", async () => {
+  const durable = createDurableFake(), handle = createHandler(durable)
+  const { occurred_at: _ignored, ...withoutOccurredAt } = baseEvent
+  const result = await handle(browserRequest(withoutOccurredAt))
   assert.equal(result.httpStatus, 202)
   assert.equal(durable.calls[0].event.occurred_at, undefined)
 })

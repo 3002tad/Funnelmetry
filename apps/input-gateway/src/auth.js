@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { timingSafeEqual } from "node:crypto"
 
 export class IngressAuthError extends Error {
   constructor(reasonCode) {
@@ -42,37 +42,13 @@ function authenticateBrowser({ event, headers, browserKeys }) {
   return { key_id: keyId, method: "browser_write_key" }
 }
 
-function authenticateBridge({ event, headers, rawBody, backendKeys, nowMs, maxClockSkewMs }) {
-  const keyId = readHeader(headers, "x-funnelmetry-source-key-id")
-  const credential = resolveCredential(backendKeys, keyId, event)
-  const timestamp = readHeader(headers, "x-funnelmetry-timestamp")
-  const signature = readHeader(headers, "x-funnelmetry-signature")
-  const requestId = readHeader(headers, "x-funnelmetry-request-id")
-  if (!requestId) throw new IngressAuthError("request_id_missing")
-  const timestampMs = Date.parse(String(timestamp ?? ""))
-  if (!Number.isFinite(timestampMs)) throw new IngressAuthError("timestamp_invalid")
-  if (Math.abs(nowMs - timestampMs) > maxClockSkewMs) throw new IngressAuthError("timestamp_outside_window")
-  const expected = createHmac("sha256", credential.secret)
-    .update(`${timestamp}.${rawBody}`)
-    .digest("hex")
-  if (!safeEqual(signature, expected)) throw new IngressAuthError("signature_invalid")
-  return { key_id: keyId, method: "hmac_sha256", request_id: requestId }
-}
-
 export function authenticateIngress({
   event,
   headers,
-  rawBody,
   browserKeys = {},
-  backendKeys = {},
-  nowMs = Date.now(),
-  maxClockSkewMs = 5 * 60 * 1000,
 }) {
   if (event.producer === "browser_sdk") {
     return authenticateBrowser({ event, headers, browserKeys })
-  }
-  if (event.producer === "source_bridge") {
-    return authenticateBridge({ event, headers, rawBody, backendKeys, nowMs, maxClockSkewMs })
   }
   throw new IngressAuthError("producer_auth_unsupported")
 }

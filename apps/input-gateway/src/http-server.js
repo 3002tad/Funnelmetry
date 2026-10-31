@@ -19,8 +19,6 @@ function corsHeaders(origin, allowedOrigins) {
       "content-type",
       "x-funnelmetry-source-key-id",
       "x-funnelmetry-write-key",
-      "x-funnelmetry-timestamp",
-      "x-funnelmetry-signature",
       "x-funnelmetry-request-id",
     ].join(", "),
     "access-control-max-age": "600",
