@@ -52,7 +52,9 @@ jobs:
           npm test --prefix packages/behavior-event-catalog
           npm test --prefix packages/browser-sdk
       - name: Verify HTTP retirement admission
-        run: node --test apps/edge-relay/test/*.test.js
+        run: |
+          npm ci --prefix apps/edge-relay --ignore-scripts
+          npm test --prefix apps/edge-relay
       - name: Verify canonical admission
         run: |
           npm ci --prefix workers/canonical-normalizer --ignore-scripts
