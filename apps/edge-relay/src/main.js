@@ -10,11 +10,9 @@ const metrics = createMetrics()
 const handleSourceIngress = createSourceIngressHandler({
   repository,
   browserKeys: config.browserKeys,
-  backendKeys: config.backendKeys,
   metrics,
   maxBodyBytes: config.maxBodyBytes,
   maxPayloadBytes: config.maxPayloadBytes,
-  maxClockSkewMs: config.maxClockSkewMs,
 })
 const server = createSourceIngressHttpServer({
   handleSourceIngress,

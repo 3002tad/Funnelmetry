@@ -1,5 +1,4 @@
 import assert from "node:assert/strict"
-import { createHmac } from "node:crypto"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -21,13 +20,10 @@ function createHandler() {
     handler: createSourceIngressHandler({
       repository,
       browserKeys: browserKeys(),
-      backendKeys: { "source-backend": { source_id: "medusa-reference", secret: "backend-secret" } },
       metrics: metrics(),
       maxBodyBytes: 1024 * 10,
       maxPayloadBytes: 1024 * 10,
-      maxClockSkewMs: 60_000,
       now: () => "2026-09-16T00:00:00.000Z",
-      nowMs: () => Date.parse("2026-09-16T00:00:00.000Z"),
     }),
     dispose: () => { repository.close(); rmSync(directory, { recursive: true, force: true }) },
   }
@@ -80,30 +76,20 @@ test("rejects every retired Medusa backend event", async () => {
       source_payload: { order_id: "order_1", currency_code: "usd" },
     }
     const body = JSON.stringify(event)
-    const timestamp = "2026-09-16T00:00:00.000Z"
-    const signature = createHmac("sha256", "backend-secret").update(`${timestamp}.${body}`).digest("hex")
-    const result = await handler({
-      headers: {
-        "x-funnelmetry-source-key-id": "source-backend",
-        "x-funnelmetry-timestamp": timestamp,
-        "x-funnelmetry-request-id": "req_1",
-        "x-funnelmetry-signature": signature,
-      },
-      body,
-    })
+    const result = await handler({ body })
     assert.equal(result.httpStatus, 410)
     assert.equal(result.body.reason_code, "source_event_retired")
     const search = { ...event, event_id: 'medusa:search:search_1',
       source_event_type: 'behavior.search_submitted', aggregate: { type: 'search', id: 'search_1' },
       source_payload: { search_interaction_id: 'search_1', query_normalized: 'shoes', outcome: 'succeeded' } }
     const searchBody = JSON.stringify(search)
-    const searchSignature = createHmac('sha256', 'backend-secret').update(`${timestamp}.${searchBody}`).digest('hex')
-    const retired = await handler({ headers: {
-      'x-funnelmetry-source-key-id': 'source-backend', 'x-funnelmetry-timestamp': timestamp,
-      'x-funnelmetry-request-id': 'req_2', 'x-funnelmetry-signature': searchSignature,
-    }, body: searchBody })
+    const retired = await handler({ body: searchBody })
     assert.equal(retired.httpStatus, 410)
     assert.equal(retired.body.reason_code, 'source_event_retired')
+    const other = await handler({ body: JSON.stringify({ ...event,
+      event_id: 'medusa:unknown:1', source_event_type: 'payment.captured' }) })
+    assert.equal(other.httpStatus, 401)
+    assert.equal(other.body.reason_code, 'producer_auth_unsupported')
   } finally {
     dispose()
   }

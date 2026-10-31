@@ -28,9 +28,6 @@ test("Source Ingress starts and shuts down without the retired delivery worker",
       SOURCE_INGRESS_BROWSER_KEYS_JSON: JSON.stringify({
         browser: { source_id: "medusa-reference", secret: "browser-secret", allowed_origins: ["https://shop.example.test"] },
       }),
-      SOURCE_INGRESS_BACKEND_KEYS_JSON: JSON.stringify({
-        backend: { source_id: "medusa-reference", secret: "backend-secret" },
-      }),
       SOURCE_INGRESS_EVENT_FEED_TOKENS_JSON: JSON.stringify({ connector: "feed-token" }),
       SOURCE_INGRESS_MIN_FREE_DISK_BYTES: "1",
     },

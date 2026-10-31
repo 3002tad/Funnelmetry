@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { timingSafeEqual } from "node:crypto"
 import { RelayError } from "./errors.js"
 
 export function getHeader(headers, name) {
@@ -33,23 +33,8 @@ function authenticateBrowser({ headers, event, browserKeys }) {
   return { credential: resolved.credential, keyId: resolved.keyId, authentication: { key_id: resolved.keyId, method: "browser_write_key" } }
 }
 
-function authenticateBackend({ headers, event, rawBody, backendKeys, nowMs, maxClockSkewMs }) {
-  const resolved = resolveCredential(backendKeys, getHeader(headers, "x-funnelmetry-source-key-id"), event)
-  const timestamp = getHeader(headers, "x-funnelmetry-timestamp")
-  const requestId = getHeader(headers, "x-funnelmetry-request-id")
-  const signature = getHeader(headers, "x-funnelmetry-signature")
-  if (!requestId) throw new RelayError("request_id_missing")
-  const timestampMs = Date.parse(String(timestamp ?? ""))
-  if (!Number.isFinite(timestampMs)) throw new RelayError("timestamp_invalid")
-  if (Math.abs(nowMs - timestampMs) > maxClockSkewMs) throw new RelayError("timestamp_outside_window")
-  const expected = createHmac("sha256", resolved.credential.secret).update(`${timestamp}.${rawBody}`).digest("hex")
-  if (!safeEqual(signature, expected)) throw new RelayError("signature_invalid")
-  return { authentication: { key_id: resolved.keyId, method: "hmac_sha256", request_id: String(requestId) } }
-}
-
-export function authenticateIngress({ event, headers, rawBody, browserKeys, backendKeys, nowMs = Date.now(), maxClockSkewMs }) {
+export function authenticateIngress({ event, headers, browserKeys }) {
   if (event.producer === "browser_sdk") return authenticateBrowser({ headers, event, browserKeys })
-  if (event.producer === "source_bridge") return authenticateBackend({ headers, event, rawBody, backendKeys, nowMs, maxClockSkewMs })
   throw new RelayError("producer_auth_unsupported")
 }
 

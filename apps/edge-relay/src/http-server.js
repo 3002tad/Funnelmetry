@@ -45,7 +45,7 @@ function corsHeaders(origin, allowedOrigins) {
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "content-type, x-funnelmetry-source-key-id, x-funnelmetry-write-key, x-funnelmetry-timestamp, x-funnelmetry-signature, x-funnelmetry-request-id",
+    "access-control-allow-headers": "content-type, x-funnelmetry-source-key-id, x-funnelmetry-write-key, x-funnelmetry-request-id",
     "access-control-max-age": "600",
     vary: "Origin",
   }

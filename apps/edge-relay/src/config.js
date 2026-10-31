@@ -60,12 +60,10 @@ export function loadConfig(env = process.env) {
     maxEventLogEvents: positiveInteger(env, "SOURCE_INGRESS_MAX_EVENT_LOG_EVENTS", 100000),
     maxEventLogBytes: positiveInteger(env, "SOURCE_INGRESS_MAX_EVENT_LOG_BYTES", 1024 * 1024 * 1024),
     minFreeDiskBytes: positiveInteger(env, "SOURCE_INGRESS_MIN_FREE_DISK_BYTES", 256 * 1024 * 1024),
-    maxClockSkewMs: positiveInteger(env, "SOURCE_INGRESS_MAX_CLOCK_SKEW_MS", 5 * 60 * 1000),
     eventFeedMaxLimit: positiveInteger(env, "SOURCE_INGRESS_EVENT_FEED_MAX_LIMIT", 100),
     eventFeedMaxWaitSeconds: positiveInteger(env, "SOURCE_INGRESS_EVENT_FEED_MAX_WAIT_SECONDS", 25),
     adminToken: env.SOURCE_INGRESS_ADMIN_TOKEN?.trim() || null,
     browserKeys: parseCredentialRegistry(env, "SOURCE_INGRESS_BROWSER_KEYS_JSON"),
-    backendKeys: parseCredentialRegistry(env, "SOURCE_INGRESS_BACKEND_KEYS_JSON"),
     eventFeedTokens: parseFeedTokens(env),
   })
 }

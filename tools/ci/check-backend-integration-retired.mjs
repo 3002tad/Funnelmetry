@@ -31,8 +31,8 @@ for (const directory of ['apps', 'packages', 'workers', 'infra', 'runtime', 'int
     if (/\b(?:import|require)\s*\(?[^\n]*backend-integration-kit/.test(source)) {
       fail(path, 'imports retired Backend Integration Kit')
     }
-    if (source.includes('FUNNELMETRY_BACKEND_SIGNING_KEY')) {
-      fail(path, 'contains retired backend signing credential')
+    if (/FUNNELMETRY_BACKEND_SIGNING_KEY|SOURCE_INGRESS_BACKEND_KEYS_JSON|INPUT_GATEWAY_BACKEND_KEYS_JSON/.test(source)) {
+      fail(path, 'contains retired backend credential')
     }
     const cleanupOnly = relativePath === 'tools/medusa-ci-installer/src/planner.mjs' ||
       relativePath === 'tools/medusa-ci-installer/test/planner.test.mjs'
@@ -82,6 +82,10 @@ if (!/^\s*storefront_server:\s*\[\]\s*$/m.test(manifest) ||
     !/^\s*medusa_backend:\s*\[\]\s*$/m.test(manifest)) {
   fail(join(rootPath, 'tools/medusa-ci-installer/examples/funnelmetry.integration.v3.yaml'),
     'server/backend bindings must both be empty')
+}
+const sourceIngressEnvExample = join(rootPath, 'apps/edge-relay/deploy/source-ingress.server.env.example')
+if (/SOURCE_INGRESS_BACKEND_KEYS_JSON|SOURCE_INGRESS_MAX_CLOCK_SKEW_MS/.test(read(sourceIngressEnvExample))) {
+  fail(sourceIngressEnvExample, 'retired backend authentication remains in Source Ingress env example')
 }
 
 if (failures.length) {

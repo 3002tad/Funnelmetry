@@ -14,14 +14,14 @@ function errorResponse(error) {
   if (code === "event_log_capacity_exhausted" || code === "event_log_disk_low") {
     return response(503, { error: "retryable_failure", reason_code: code })
   }
-  if (["source_key_id_missing", "source_key_unknown", "source_key_mismatch", "write_key_invalid", "request_id_missing", "timestamp_invalid", "timestamp_outside_window", "signature_invalid"].includes(code)) {
+  if (["source_key_id_missing", "source_key_unknown", "source_key_mismatch", "write_key_invalid", "producer_auth_unsupported"].includes(code)) {
     return response(401, { error: "unauthorized", reason_code: code })
   }
   if (code === "origin_not_allowed") return response(403, { error: code, reason_code: code })
   return response(500, { error: "internal_error" })
 }
 
-export function createSourceIngressHandler({ repository, browserKeys, backendKeys, metrics, maxBodyBytes, maxPayloadBytes, maxClockSkewMs, now = () => new Date().toISOString(), nowMs = Date.now }) {
+export function createSourceIngressHandler({ repository, browserKeys, metrics, maxBodyBytes, maxPayloadBytes, now = () => new Date().toISOString() }) {
   return async function handleSourceIngress({ headers = {}, body, origin }) {
     const rawBody = Buffer.isBuffer(body) ? body.toString("utf8") : String(body ?? "")
     if (Buffer.byteLength(rawBody, "utf8") > maxBodyBytes) {
@@ -37,16 +37,15 @@ export function createSourceIngressHandler({ repository, browserKeys, backendKey
       return response(400, { error: "contract_invalid", reason_code: "contract_invalid", detail: error instanceof Error ? error.message : "unknown_error" })
     }
 
+    if (event.source_id === "medusa-reference" &&
+        ["medusa.order_placed", "behavior.search_submitted"].includes(event.source_event_type)) {
+      metrics.increment("funnelmetry_source_ingress_rejected_total", { reason: "source_event_retired" })
+      return response(410, { error: "source_event_retired", reason_code: "source_event_retired" })
+    }
+
     try {
-      const auth = authenticateIngress({ event, headers, rawBody, browserKeys, backendKeys, nowMs: nowMs(), maxClockSkewMs })
-      if (event.producer === "browser_sdk" && !isAllowedOrigin(origin, auth.credential)) throw new RelayError("origin_not_allowed")
-      // Retired after the Medusa reference moved order state to CDC. Preserve
-      // historical feed records for replay, but reject new native order messages.
-      if (event.source_id === "medusa-reference" &&
-          ["medusa.order_placed", "behavior.search_submitted"].includes(event.source_event_type)) {
-        metrics.increment("funnelmetry_source_ingress_rejected_total", { reason: "source_event_retired" })
-        return response(410, { error: "source_event_retired", reason_code: "source_event_retired" })
-      }
+      const auth = authenticateIngress({ event, headers, browserKeys })
+      if (!isAllowedOrigin(origin, auth.credential)) throw new RelayError("origin_not_allowed")
       const stored = repository.accept({
         event,
         rawBody,

@@ -21,11 +21,9 @@ async function createRuntime() {
   const handler = createSourceIngressHandler({
     repository,
     browserKeys: browserKeys(),
-    backendKeys: { "source-backend": { source_id: "medusa-reference", secret: "backend-secret" } },
     metrics: metricStore,
     maxBodyBytes: 1024 * 10,
     maxPayloadBytes: 1024 * 10,
-    maxClockSkewMs: 60_000,
   })
   const server = createSourceIngressHttpServer({
     handleSourceIngress: handler,
