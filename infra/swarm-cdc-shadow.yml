@@ -1,3 +1,5 @@
+# ARCHIVED CDC-11 fixture: CDC-14 live runtime uses infra/swarm-cdc-live.yml.
+# Do not deploy this fixture against the Medusa production slots/groups.
 # CDC-11 target-topology candidate. Deploy as a SEPARATE Swarm stack, never as
 # an overlay on the live application stack. Zero-replica workers are intentional:
 # migrate/check the governed DB, connector profiles and Kafka topics first.

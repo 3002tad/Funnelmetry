@@ -1,8 +1,10 @@
 # CDC-14 — hợp nhất CDC runtime và dọn tài nguyên thử nghiệm trên VPS
 
-Trạng thái: **INVENTORY COMPLETE / IMPLEMENTATION PENDING** (2026-10-31, VPS `kltn`).
-Đây là chặng vận hành tiếp theo sau DEC-142/CDC-13; **chưa dừng, xóa hay đổi tên
-service/volume/source** trong lần kiểm kê này. Bản chụp tên từng tài nguyên:
+Trạng thái: **COMPLETE / PRIMARY CDC RUNTIME ACTIVE**
+(2026-10-31, VPS `kltn`). Phần kiểm kê bên dưới là baseline trước cutover;
+kết quả thực thi nằm tại
+[CDC14_RUNTIME_EXECUTION_2026-10-31.md](CDC14_RUNTIME_EXECUTION_2026-10-31.md).
+Bản chụp tên từng tài nguyên trước cutover:
 [CDC14_VPS_RESOURCE_INVENTORY_2026-10-31.json](CDC14_VPS_RESOURCE_INVENTORY_2026-10-31.json).
 JSON chỉ chứa tên, trạng thái, image ID và đường dẫn; không chứa giá trị secret.
 
