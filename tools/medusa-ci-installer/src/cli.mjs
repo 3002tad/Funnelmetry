@@ -46,6 +46,9 @@ async function main() {
   const config = required(options, "config")
   const project = required(options, "project")
   const manifest = await loadManifest(config)
+  if (manifest.apiVersion !== "funnelmetry.io/v3") {
+    throw new Error("V2 installer is retired; use funnelmetry.io/v3 Browser SDK + CDC acquisition")
+  }
 
   if (command === "doctor") {
     const host = await inspectMedusa(project, manifest)

@@ -161,8 +161,8 @@ async function inspectGuardedServices(stackName, env) {
   return services;
 }
 
-export async function run(command) {
-  const parsed = normalizeSwarmEnv(parseEnv(await readFile(join(root, 'runtime', 'deploy.env'), 'utf8')));
+export async function run(command, envFile = join(root, 'runtime', 'deploy.env')) {
+  const parsed = normalizeSwarmEnv(parseEnv(await readFile(resolve(root, envFile), 'utf8')));
   const plan = validateSwarmCandidate(parsed);
   parsed.SWARM_EXPECTED_SCHEMA_DIGEST = await localSchemaDigest();
   const env = dockerEnvironment(process.env, parsed);
@@ -177,8 +177,8 @@ export async function run(command) {
     await docker(['stack', 'config', ...files], env);
     if (command !== 'check') {
       const drift = liveDeploymentDrift(parsed, await inspectGuardedServices(plan.stackName, env));
-      if (drift.digest) console.log(`REVIEW_REQUIRED: ${drift.changes.map(change =>
-        `${change.service}.${change.field}`).join(', ')}; SWARM_DEPLOY_CHANGE_ACK=${drift.digest}`);
+      if (drift.digest) console.log(`REVIEW_REQUIRED: ${JSON.stringify(drift.changes)}; ` +
+        `SWARM_DEPLOY_CHANGE_ACK=${drift.digest}`);
     }
     console.log(`PASS: ${plan.stackName} ${internalOnly ? 'internal-only app' : withApp ? 'HTTPS app' : 'phase-1 data'} stack renders; runtime, DNS and image pulls unverified`);
     return;
@@ -356,6 +356,6 @@ export async function run(command) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  try { await run(process.argv[2]); }
+  try { await run(process.argv[2], process.argv[3]); }
   catch (error) { console.error(`Swarm candidate stopped: ${error.message}`); process.exitCode = 1; }
 }

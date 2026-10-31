@@ -4,7 +4,7 @@
 
 1. Xác nhận stack/service/task với `docker stack services <stack>` và `docker service ps <service>`; xem log khi replica không đạt desired state. One-shot jobs Complete có thể hiển thị `0/1`.
 2. Kiểm tra Source Connector feed/cursor và Kafka handoff riêng với projection downstream; Feed có event không chứng minh normalizer/ledger/funnel đã cập nhật.
-3. Kiểm tra CDC Connect, ba profile, Kafka offset, writer/sink và quality lease. Với order state, đối chiếu coverage epoch, current ON/OFF, fact offset và inbox; với catalog/offer, đối chiếu snapshot/current source và freshness.
+3. Kiểm tra CDC Connect, bốn profile (order, catalog, inventory/price, cart line item), Kafka offset, writer/sink và quality lease. Với order state, đối chiếu coverage epoch, current ON/OFF, fact offset và inbox; với catalog/offer, đối chiếu snapshot/current source và freshness; với cart, snapshot phải chỉ tạo baseline và outbox pending phải về 0.
 4. Kiểm tra Dashboard API/Web qua đường tunnel, quyền role và endpoint liên quan. HTTP 200 hoặc container healthy chỉ là một tín hiệu, không thay đối soát dữ liệu.
 
 Các lệnh/probe CDC và điều kiện phục hồi cụ thể nằm ở [CDC operations](../../tools/cdc-operations/README.md). Dùng [test suite](../../tests/README.md) cho thay đổi code; `node runtime/swarm.mjs check`/`check-app` chỉ kiểm tra cấu hình/render. Tránh chạy fixture Compose hoặc reset cursor/volume trên live stack.

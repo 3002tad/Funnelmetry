@@ -58,5 +58,5 @@ if (command === 'check') {
     throw Error('old CDC target still has running or desired replicas; stop-first required')
   }
   await docker(['stack', 'deploy', '--with-registry-auth', '-c', stackFile, config.CDC_STACK_NAME])
-  process.stdout.write('CDC-14 stack submitted; verify six replicas, offsets and quality leases\n')
+  process.stdout.write('CDC stack submitted; verify seven replicas, offsets and quality leases\n')
 }

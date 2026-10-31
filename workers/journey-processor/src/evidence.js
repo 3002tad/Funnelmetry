@@ -20,7 +20,8 @@ function add(evidence, seen, item) {
 export function extractJourneyEvidence(event) {
   const evidence = []
   const seen = new Set()
-  const correlationId = nonEmpty(event.relations?.correlation_id)
+  const correlationId = event.event_type === "context.cart_linked"
+    ? undefined : nonEmpty(event.relations?.correlation_id)
   if (correlationId) add(evidence, seen, {
     entity_type: "CORRELATION",
     entity_key: correlationId,

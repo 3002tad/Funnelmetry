@@ -33,5 +33,6 @@ node tools/medusa-ci-installer/src/cli.mjs plan `
 ```
 
 Runtime secrets are supplied by the host secret manager. The YAML carries only
-references and public endpoints. The old V2 manifest and server hooks are historical
-compatibility inputs; they are not the current acquisition target.
+references and public endpoints. The public CLI rejects V2 manifests, so it cannot
+generate the retired backend package/server hooks. V2 generator code is retained
+only for historical test/upgrade analysis and is not an active installation path.

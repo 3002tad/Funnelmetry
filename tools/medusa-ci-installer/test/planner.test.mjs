@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
+import { spawnSync } from 'node:child_process'
 import { loadManifest, validateManifest } from '../src/manifest.mjs'
 import { createPlan, verifyIntegration } from '../src/planner.mjs'
 import { parseManifestYaml } from '../src/yaml.mjs'
@@ -11,6 +12,14 @@ import { parseManifestYaml } from '../src/yaml.mjs'
 const fixture = fileURLToPath(new URL('./fixtures/medusa-dtc/', import.meta.url))
 const example = fileURLToPath(new URL('../examples/funnelmetry.integration.yaml', import.meta.url))
 const twoPathExample = fileURLToPath(new URL('../examples/funnelmetry.integration.v3.yaml', import.meta.url))
+
+test('public CLI refuses the retired V2 server-delivery installer', () => {
+  const cli = fileURLToPath(new URL('../src/cli.mjs', import.meta.url))
+  const result = spawnSync(process.execPath, [cli, 'doctor', '--config', example, '--project', fixture],
+    { encoding: 'utf8' })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /V2 installer is retired/)
+})
 
 async function applyPatch(projectRoot, patch) {
   for (const section of patch.split(/(?=diff --git )/)) {
