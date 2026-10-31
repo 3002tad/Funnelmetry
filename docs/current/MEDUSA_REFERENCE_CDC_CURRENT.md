@@ -25,3 +25,12 @@ Khi mất slot/WAL, khoảng không thể quan sát giữ `historical_gap_status
 Browser SDK/storefront behavioral hooks vẫn dùng Source Ingress → HTTPS Event Feed → Source Connector → Kafka. Source Ingress chỉ xác thực Browser SDK bằng browser write key; đường HMAC `source_bridge` đã gỡ và hai event Medusa `medusa.order_placed`, `behavior.search_submitted` bị từ chối bằng HTTP 410. CDC không đi qua Event Feed. Admin/Store API vẫn phục vụ cửa hàng; Admin API `catalog-sync` không còn là đường phân tích. Native backend `order.placed` sender đã bỏ; các funnel lịch sử dựa trên event đó không được tự động chuyển thành CDC conversion. Gateway HTTP phía Pipeline chưa cutover.
 
 Đường kiểm chứng hiện hành ở [vận hành](OPERATIONS.md). Các hồ sơ canary, cutover và dọn runtime đã chuyển vào [archive](../archive/README.md); không dùng giá trị đếm/offset của chúng làm trạng thái mới nhất.
+
+## Trạng thái case chuyển đổi
+
+Case DEC-144 đã đóng ngày 2026-10-31: Browser SDK search và CDC cart đã được
+kiểm chứng trên VPS tới canonical ledger; bảy service CDC chạy 1/1 và quality
+monitor đạt `PASS_ACTIVE_LEASE`. Backend Integration Kit đã bị loại khỏi source,
+CI và GitHub Packages. Nhánh `feature/two-path-acquisition` đã được đưa vào
+Pipeline `main`. Medusa reference tiếp tục ở nhánh tích hợp do installer sinh
+code, không merge code tích hợp vào Medusa `main`.
