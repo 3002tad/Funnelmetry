@@ -3,13 +3,15 @@
 import { readFile } from 'node:fs/promises'
 import { parseEnv } from 'node:util'
 import { spawn } from 'node:child_process'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const command = process.argv[2]
 if (!['check', 'deploy'].includes(command)) {
   throw Error('usage: node runtime/cdc-live.mjs check|deploy [env-file]')
 }
-const envFile = resolve(process.argv[3] || 'runtime/cdc-live.env')
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const envFile = resolve(root, process.argv[3] || 'runtime/cdc-live.env')
 const config = parseEnv(await readFile(envFile, 'utf8'))
 const required = [
   'CDC_STACK_NAME', 'CDC_WORKERS_IMAGE', 'CDC_CONNECT_IMAGE', 'CDC_POSTGRES_IMAGE',
@@ -32,7 +34,7 @@ for (const key of ['CDC_WORKERS_IMAGE', 'CDC_CONNECT_IMAGE', 'CDC_POSTGRES_IMAGE
   if (!/^[-\w./]+@sha256:[a-f0-9]{64}$/.test(config[key])) throw Error(`${key} must pin a digest`)
 }
 const env = { ...process.env, ...config }
-const stackFile = resolve('infra/swarm-cdc-live.yml')
+const stackFile = resolve(root, 'infra/swarm-cdc-live.yml')
 async function docker(args) {
   return await new Promise((done, fail) => {
     const child = spawn('docker', args, { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
