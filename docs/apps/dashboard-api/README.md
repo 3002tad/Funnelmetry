@@ -1,5 +1,7 @@
 # dashboard-api
 
+> README này chứa cả ghi nhận triển khai theo mốc. Luồng dữ liệu và semantic contract hiện hành nằm ở [tài liệu dữ liệu](../../current/DATA.md); kiểm tra env/image/runtime của deployment trước khi dùng các ví dụ cũ.
+
 ## Evidence human notes
 
 Evidence list `GET /api/v2/evidence` also accepts `source_id` (exact, max 200),

@@ -1,5 +1,7 @@
 # Funnelmetry dashboard web
 
+> README này chứa cả ghi nhận triển khai theo mốc. Để biết năng lực và giới hạn của phiên bản hiện hành, xem [năng lực hệ thống](../../current/CAPABILITIES.md); bằng chứng theo ngày bên dưới không tự xác nhận image đang chạy.
+
 ## Giao diện SaaS dễ bắt đầu
 
 Menu mặc định chỉ hiện các trang thường dùng; `Xem tất cả chức năng` mở lại đầy đủ route mà tài khoản được cấp quyền. Trang Tổng quan, Phễu, Sản phẩm, Sự kiện, Chất lượng dữ liệu, Tình trạng Pipeline và Xử lý dữ liệu trình bày thông điệp chính trước, còn bảng/mã kỹ thuật nằm trong phần `Xem chi tiết`. Trang đăng nhập dùng minh họa SVG cùng ngôn ngữ thị giác. Không thay đổi quyền backend, metric/event semantics hoặc dữ liệu được lưu. Hình minh họa SVG là trang trí, không phải biểu đồ dữ liệu; các thanh tỷ lệ Phễu lấy từ API và được ghi là số đã quan sát, chưa phải KPI cuối cùng.

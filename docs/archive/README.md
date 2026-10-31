@@ -1,5 +1,7 @@
 # Archive tài liệu Pipeline
 
+[`checkpoints/`](checkpoints/) giữ hồ sơ kiểm thử, canary, cutover và các runbook pha cũ từng nằm ở gốc `docs/`. Các trang ở đường dẫn gốc chỉ là chỉ dẫn tương thích. Đọc [bộ tài liệu hiện hành](../current/README.md) khi cần triển khai hoặc mô tả phiên bản đang chạy.
+
 - [Analytics và AI](ANALYTICS_AI_HISTORY.md): activation, ranking, registry và Polars prototype theo mốc.
 - [Ingestion và recovery](INGESTION_RECOVERY_HISTORY.md): Source Connector, behavior/order mapping, Kafka và replay.
 - [Demo và handoff](DEMO_HANDOFF_HISTORY.md): private ingress, launcher, image/digest và bàn giao cũ.

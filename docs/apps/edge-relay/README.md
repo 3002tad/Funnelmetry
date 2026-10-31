@@ -1,5 +1,7 @@
 # @funnelmetry/source-ingress
 
+> Đối chiếu [kiến trúc hiện hành](../../current/SYSTEM.md) trước khi dùng hướng dẫn triển khai trong tài liệu component này; các đoạn Compose/đường chuyển đổi cũ không phải runbook Pipeline Swarm hiện hành.
+
 Thư mục này giữ source code migration của Edge Relay cũ, nhưng runtime hiện là
 **Source Ingress + Durable Event Log + Authenticated Event Feed API**. Nó không
 canonicalize event, không biết Pipeline host và tuyệt đối không push/retry POST

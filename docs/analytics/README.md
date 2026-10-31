@@ -1,5 +1,7 @@
 # Analytical assets and metadata coverage
 
+> Tài liệu bên dưới chứa cả ghi nhận theo mốc. Trạng thái và semantic contract hiện hành nằm ở [tài liệu dữ liệu](../current/DATA.md) và [năng lực](../current/CAPABILITIES.md). `catalog-sync` Admin API đã nghỉ; Medusa catalog hiện dùng CDC projection.
+
 ## Chat V2 knowledge lookup (Qdrant, opt-in)
 
 `knowledge.lookup` is a read-only Chat V2 route for definition/meaning questions.
@@ -51,7 +53,7 @@ This document retains chronological implementation stages. Statements such as �
 | Order ranking | [Order ranking history](../archive/ANALYTICS_AI_HISTORY.md#order-ranking) | Read the 02/10 activation follow-up |
 | Product ranking | [Product ranking history](../archive/ANALYTICS_AI_HISTORY.md#product-ranking) | Historical unit price × quantity, not paid revenue; 03/10 activation |
 | Admin registry/diagnostics | [Admin inspection](../archive/ANALYTICS_AI_HISTORY.md#admin-registry) | Read-only; acceptance limits per page |
-| Product names | [Catalog sync](../workers/catalog-sync/README.md) | Current descriptive reference; not historical price authority |
+| Product names | [Medusa CDC](../MEDUSA_REFERENCE_CDC_CURRENT.md) | Current descriptive reference; not historical price authority |
 | Tests / earlier readiness | [Staging readiness](../../tests/evidence/ANALYTICS_AI_EVIDENCE_2026-09-25.md#staging-readiness), [Qwen evaluation](../../tests/evidence/ANALYTICS_AI_EVIDENCE_2026-09-25.md#qwen-evaluation) | Dated evidence, not general accuracy claims |
 | Runtime / deployment | [Swarm operations](../SWARM_MIGRATION.md) | Activation is separate from code installation |
 

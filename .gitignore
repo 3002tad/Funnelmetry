@@ -19,6 +19,8 @@ __pycache__/
 *.py[cod]
 
 checkpoints/
+!docs/archive/checkpoints/
+!docs/archive/checkpoints/*.md
 *.log
 
 .DS_Store

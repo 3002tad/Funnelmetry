@@ -1,5 +1,7 @@
 # @funnelmetry/input-gateway
 
+> Đây là tài liệu component Gateway. Gateway HTTP phía Pipeline chưa cutover làm ingress behavioral hiện hành; xem [kiến trúc](../../current/SYSTEM.md) và [dữ liệu](../../current/DATA.md) trước khi dùng lệnh triển khai trong tài liệu này.
+
 HTTP/security boundary cho `IngressEvent v1`.
 
 Phần hiện có:
