@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
-import { dockerEnvironment, stackDeployArgs, stackFilesForCommand, validateAppSecrets, validateDbSecret, validateTlsFilePath, validateTunnelDeploymentAck } from './swarm.mjs';
+import { deploymentEnvPath, dockerEnvironment, stackDeployArgs, stackFilesForCommand, validateAppSecrets, validateDbSecret, validateTlsFilePath, validateTunnelDeploymentAck } from './swarm.mjs';
 import { validateSwarmApp, validateSwarmCandidate } from './swarm-preflight.mjs';
 
 test('fresh independent machine can start from the nonsecret pinned release example', () => {
@@ -21,6 +21,13 @@ test('Swarm deploy forwards client registry credentials for pinned private image
     'stack', 'deploy', '--with-registry-auth', '--compose-file', 'data.yml',
     '--compose-file', 'app.yml', 'candidate',
   ]);
+});
+
+test('live deploy requires a deliberate absolute env file', () => {
+  assert.throws(() => deploymentEnvPath('deploy-app'), /explicit absolute env-file path/);
+  assert.throws(() => deploymentEnvPath('deploy-app', 'runtime/deploy.env'), /explicit absolute env-file path/);
+  assert.equal(deploymentEnvPath('deploy-app', fileURLToPath(new URL('./deploy.env', import.meta.url))),
+    fileURLToPath(new URL('./deploy.env', import.meta.url)));
 });
 
 test('internal-only candidate adds API and workers without publishing an edge', () => {

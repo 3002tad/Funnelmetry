@@ -161,8 +161,15 @@ async function inspectGuardedServices(stackName, env) {
   return services;
 }
 
-export async function run(command, envFile = join(root, 'runtime', 'deploy.env')) {
-  const parsed = normalizeSwarmEnv(parseEnv(await readFile(resolve(root, envFile), 'utf8')));
+export function deploymentEnvPath(command, envFile) {
+  if (command?.startsWith('deploy') && (!envFile || !isAbsolute(envFile))) {
+    throw Error('Live deploy requires an explicit absolute env-file path; run check-app with the same path first');
+  }
+  return resolve(root, envFile || join(root, 'runtime', 'deploy.env'));
+}
+
+export async function run(command, envFile) {
+  const parsed = normalizeSwarmEnv(parseEnv(await readFile(deploymentEnvPath(command, envFile), 'utf8')));
   const plan = validateSwarmCandidate(parsed);
   parsed.SWARM_EXPECTED_SCHEMA_DIGEST = await localSchemaDigest();
   const env = dockerEnvironment(process.env, parsed);
@@ -197,7 +204,7 @@ export async function run(command, envFile = join(root, 'runtime', 'deploy.env')
     return;
   }
   if (!['create-db-secret', 'create-app-secrets', 'create-tls-secrets', 'create-live-secrets', 'create-monitoring-secrets', 'deploy', 'deploy-internal', 'deploy-app'].includes(command)) {
-    throw Error('Usage: node runtime/swarm.mjs check|check-internal|check-app|check-host|create-db-secret|create-app-secrets|create-tls-secrets|create-live-secrets|create-monitoring-secrets|deploy|deploy-internal|deploy-app');
+    throw Error('Usage: node runtime/swarm.mjs check|check-internal|check-app|check-host|create-db-secret|create-app-secrets|create-tls-secrets|create-live-secrets|create-monitoring-secrets|deploy|deploy-internal|deploy-app [absolute-env-file]');
   }
   await managerReady(env);
   const secretName = `${plan.stackName}_db_password_v1`;
