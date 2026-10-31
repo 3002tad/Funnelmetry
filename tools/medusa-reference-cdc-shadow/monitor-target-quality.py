@@ -10,6 +10,7 @@ inventory failure blocks all leases. A stopped monitor lets them expire.
 import argparse
 import concurrent.futures
 import json
+import os
 import re
 import subprocess
 import sys
@@ -18,15 +19,18 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
+CDC_STACK = os.environ.get("CDC_RUNTIME_STACK", "funnelmetry_cdc_target_shadow")
+if not re.fullmatch(r"funnelmetry_cdc(?:_target_shadow)?", CDC_STACK):
+    raise ValueError("unsupported CDC runtime stack")
 SERVICES = {
     "pipeline": "funnelmetry_vps_live_postgres",
-    "mapper": "funnelmetry_cdc_target_shadow_order-mapper-db",
+    "mapper": f"{CDC_STACK}_order-mapper-db",
     "kafka": "funnelmetry_vps_live_kafka",
-    "connect": "funnelmetry_cdc_target_shadow_connect",
-    "catalog_writer": "funnelmetry_cdc_target_shadow_catalog-writer",
-    "inventory_price_writer": "funnelmetry_cdc_target_shadow_inventory-price-writer",
-    "order_mapper": "funnelmetry_cdc_target_shadow_order-mapper",
-    "order_sink": "funnelmetry_cdc_target_shadow_order-sink",
+    "connect": f"{CDC_STACK}_connect",
+    "catalog_writer": f"{CDC_STACK}_catalog-writer",
+    "inventory_price_writer": f"{CDC_STACK}_inventory-price-writer",
+    "order_mapper": f"{CDC_STACK}_order-mapper",
+    "order_sink": f"{CDC_STACK}_order-sink",
 }
 SOURCE = "medusa_reference-postgres-1"
 SOURCE_ID = "medusa-reference"
@@ -263,7 +267,9 @@ def cycle(profile_dir, seconds, write):
             safe_wal["order"] = second[1]["slot_safe_wal_size"]
         alert_slots = sorted(slot for slot, size in safe_wal.items()
                              if int(size) < 512 * 1024 * 1024)
-        print(json.dumps({"status": ("PASS_SHADOW_LEASE" if write else "PASS_SHADOW_DRY_RUN")
+        print(json.dumps({"status": ("PASS_ACTIVE_LEASE" if write else "PASS_ACTIVE_DRY_RUN")
+                          if CDC_STACK == "funnelmetry_cdc" and all(passed.values()) else
+                          ("PASS_SHADOW_LEASE" if write else "PASS_SHADOW_DRY_RUN")
                           if all(passed.values()) else "BLOCKED_BY_QUALITY",
                           "streams": passed,
                           "catalog_products": second[0]["catalog"]["counts"]["product"]["source"] if passed["catalog"] else None,
@@ -292,7 +298,8 @@ def main():
     parser.add_argument("--profile-dir", type=Path, required=True)
     parser.add_argument("--lease-seconds", type=int, default=240)
     parser.add_argument("--interval-seconds", type=int, default=60)
-    parser.add_argument("--write-shadow-lease", action="store_true")
+    parser.add_argument("--write-lease", "--write-shadow-lease", dest="write_lease",
+                        action="store_true")
     parser.add_argument("--loop", action="store_true")
     args = parser.parse_args()
     if not 90 <= args.lease_seconds <= 600 or not 15 <= args.interval_seconds <= 300:
@@ -300,7 +307,7 @@ def main():
     if not args.profile_dir.is_dir():
         raise ValueError("target profile directory missing")
     while True:
-        passed = cycle(args.profile_dir, args.lease_seconds, args.write_shadow_lease)
+        passed = cycle(args.profile_dir, args.lease_seconds, args.write_lease)
         if not args.loop:
             return 0 if passed else 1
         time.sleep(args.interval_seconds)

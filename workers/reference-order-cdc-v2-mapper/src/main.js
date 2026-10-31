@@ -13,7 +13,7 @@ const brokers = (process.env.KAFKA_BROKERS ?? '').split(',').filter(Boolean)
 const tables = ['order', 'order_cart', 'cart']
 const rowTopics = new Map(tables.map(table => [`${prefix}.public.${table}`, table]))
 const transactionTopic = `${prefix}.transaction`
-if (process.env.REFERENCE_CDC_MODE !== 'SHADOW_ONLY' ||
+if (!['SHADOW_ONLY', 'ACTIVE_REFERENCE_V2'].includes(process.env.REFERENCE_CDC_MODE) ||
     !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(epoch ?? '') ||
     !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(previousEpoch ?? '') ||
     previousEpoch === epoch ||
@@ -432,7 +432,8 @@ try {
   await processReady()
   await publishPending()
   console.info(JSON.stringify({ service: 'reference-order-cdc-v2-mapper',
-    status: 'READY', epoch, source_instance_id: sourceId, scope: 'SHADOW_ONLY' }))
+    status: 'READY', epoch, source_instance_id: sourceId,
+    scope: process.env.REFERENCE_CDC_MODE }))
   await consumer.run({ autoCommit: false, partitionsConsumedConcurrently: 1,
     eachBatchAutoResolve: false,
     eachBatch: async ({ batch, heartbeat, resolveOffset }) => {

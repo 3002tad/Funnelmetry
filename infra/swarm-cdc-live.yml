@@ -1,0 +1,152 @@
+# CDC-14 primary Medusa reference CDC stack. Deploy only after the old target
+# services are stopped. Preserve exact source slots, Kafka topics/groups,
+# coverage epochs and mapper DB volume when moving service ownership.
+x-cdc-worker: &cdc-worker
+  image: ${CDC_WORKERS_IMAGE:?Pin the reviewed CDC Workers image digest}
+  read_only: true
+  stop_grace_period: 45s
+  networks: [pipeline_data]
+  deploy:
+    replicas: 1
+    restart_policy: {condition: any, delay: 10s}
+    update_config: {parallelism: 1, order: stop-first, failure_action: rollback}
+    resources:
+      reservations: {cpus: '0.10', memory: 128M}
+      limits: {cpus: '1.00', memory: 512M}
+
+services:
+  connect:
+    image: ${CDC_CONNECT_IMAGE:?Pin the reviewed Debezium Connect image digest}
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: ${CDC_CONNECT_GROUP_ID:?Set a distinct CDC Connect group}
+      CONFIG_STORAGE_TOPIC: ${CDC_CONNECT_CONFIG_TOPIC:?Set a distinct Connect config topic}
+      OFFSET_STORAGE_TOPIC: ${CDC_CONNECT_OFFSET_TOPIC:?Set a distinct Connect offset topic}
+      STATUS_STORAGE_TOPIC: ${CDC_CONNECT_STATUS_TOPIC:?Set a distinct Connect status topic}
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: '1'
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: '1'
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: '1'
+      JAVA_OPTS: ${CDC_CONNECT_JAVA_OPTS:--Xms256m -Xmx768m}
+    networks: [pipeline_data, source_cdc]
+    stop_grace_period: 60s
+    deploy:
+      replicas: 1
+      restart_policy: {condition: any, delay: 10s}
+      resources:
+        reservations: {cpus: '0.25', memory: 512M}
+        limits: {cpus: '1.50', memory: 2G}
+
+  order-mapper-db:
+    image: ${CDC_POSTGRES_IMAGE:?Pin the reviewed PostgreSQL image digest}
+    environment:
+      POSTGRES_DB: reference_cdc_mapper
+      POSTGRES_USER: reference_cdc_mapper
+      POSTGRES_PASSWORD_FILE: /run/secrets/mapper_db_password
+    secrets: [mapper_db_password]
+    volumes: [order-mapper-data:/var/lib/postgresql/data]
+    networks: [mapper_data]
+    stop_grace_period: 60s
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U reference_cdc_mapper -d reference_cdc_mapper']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.funnelmetry.stateful == true
+      restart_policy: {condition: any, delay: 10s}
+      resources:
+        reservations: {cpus: '0.25', memory: 256M}
+        limits: {cpus: '1.00', memory: 1G}
+
+  catalog-writer:
+    <<: *cdc-worker
+    command: [node, /workspace/workers/catalog-cdc-writer/src/main.js]
+    environment:
+      CATALOG_CDC_SOURCE_ID: ${CDC_SOURCE_ID:?Match Medusa profile source_id}
+      CATALOG_CDC_COVERAGE_EPOCH: ${CDC_CATALOG_EPOCH:?Set distinct catalog coverage epoch}
+      CATALOG_CDC_TOPIC_PREFIX: ${CDC_CATALOG_TOPIC_PREFIX:?Match catalog profile}
+      CATALOG_CDC_GROUP_ID: ${CDC_CATALOG_GROUP_ID:?Set distinct catalog writer group}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: funnelmetry_handoff
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD_FILE: /run/secrets/pipeline_db_password
+    secrets: [pipeline_db_password]
+
+  inventory-price-writer:
+    <<: *cdc-worker
+    command: [node, /workspace/workers/inventory-price-cdc-writer/src/main.js]
+    environment:
+      INVENTORY_PRICE_CDC_SOURCE_ID: ${CDC_SOURCE_ID:?Match Medusa profile source_id}
+      INVENTORY_PRICE_CDC_COVERAGE_EPOCH: ${CDC_INVENTORY_PRICE_EPOCH:?Set distinct inventory/price epoch}
+      INVENTORY_PRICE_CDC_TOPIC_PREFIX: ${CDC_INVENTORY_PRICE_TOPIC_PREFIX:?Match inventory/price profile}
+      INVENTORY_PRICE_CDC_GROUP_ID: ${CDC_INVENTORY_PRICE_GROUP_ID:?Set distinct inventory/price group}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: funnelmetry_handoff
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD_FILE: /run/secrets/pipeline_db_password
+    secrets: [pipeline_db_password]
+
+  order-mapper:
+    <<: *cdc-worker
+    command: [node, /workspace/workers/reference-order-cdc-v2-mapper/src/main.js]
+    environment:
+      REFERENCE_CDC_MODE: ACTIVE_REFERENCE_V2
+      SOURCE_INSTANCE_ID: ${CDC_SOURCE_ID:?Match Medusa profile source_id}
+      COVERAGE_EPOCH_ID: ${CDC_ORDER_EPOCH:?Match order v2 profile epoch}
+      PREVIOUS_COVERAGE_EPOCH_ID: ${CDC_PREVIOUS_ORDER_EPOCH:?Record previous or unobserved epoch}
+      SOURCE_TOPIC_PREFIX: ${CDC_ORDER_TOPIC_PREFIX:?Match order v2 profile}
+      FACT_TOPIC: ${CDC_ORDER_FACT_TOPIC:?Match order v2 profile}
+      KAFKA_GROUP_ID: ${CDC_ORDER_MAPPER_GROUP_ID:?Set distinct order mapper group}
+      KAFKA_BROKERS: kafka:9092
+      POSTGRES_HOST: order-mapper-db
+      POSTGRES_DB: reference_cdc_mapper
+      POSTGRES_USER: reference_cdc_mapper
+      POSTGRES_PASSWORD_FILE: /run/secrets/mapper_db_password
+    secrets: [mapper_db_password]
+    networks: [pipeline_data, mapper_data]
+
+  order-sink:
+    <<: *cdc-worker
+    command: [node, /workspace/workers/reference-order-cdc-v2-sink/src/main.js]
+    environment:
+      REFERENCE_CDC_MODE: ACTIVE_REFERENCE_V2
+      SOURCE_INSTANCE_ID: ${CDC_SOURCE_ID:?Match Medusa profile source_id}
+      COVERAGE_EPOCH_ID: ${CDC_ORDER_EPOCH:?Match order v2 profile epoch}
+      FACT_TOPIC: ${CDC_ORDER_FACT_TOPIC:?Match order v2 profile}
+      KAFKA_GROUP_ID: ${CDC_ORDER_SINK_GROUP_ID:?Set distinct order sink group}
+      KAFKA_BROKERS: kafka:9092
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: funnelmetry_handoff
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD_FILE: /run/secrets/pipeline_db_password
+    secrets: [pipeline_db_password]
+
+secrets:
+  pipeline_db_password:
+    external: true
+    name: ${CDC_PIPELINE_DB_PASSWORD_SECRET:?Use the existing Pipeline DB secret name}
+  mapper_db_password:
+    external: true
+    name: ${CDC_MAPPER_DB_PASSWORD_SECRET:?Create a distinct mapper DB secret}
+
+networks:
+  pipeline_data:
+    external: true
+    name: ${CDC_PIPELINE_DATA_NETWORK:?Use the existing Pipeline overlay network}
+  source_cdc:
+    external: true
+    name: ${CDC_SOURCE_NETWORK:?Use a new private attachable source overlay}
+  mapper_data:
+    driver: overlay
+    internal: true
+
+volumes:
+  order-mapper-data:
+    external: true
+    name: ${CDC_MAPPER_DATA_VOLUME:?Reuse the existing durable mapper DB volume}

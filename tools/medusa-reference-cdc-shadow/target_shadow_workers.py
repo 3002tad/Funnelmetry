@@ -1,14 +1,18 @@
 """Exact task identity guard for moving-quality CDC-11 candidate probes."""
 
 import re
+import os
 import subprocess
 
 
+CDC_STACK = os.environ.get("CDC_RUNTIME_STACK", "funnelmetry_cdc_target_shadow")
+if not re.fullmatch(r"funnelmetry_cdc(?:_target_shadow)?", CDC_STACK):
+    raise ValueError("unsupported CDC runtime stack")
 SERVICES = {
-    "catalog": "funnelmetry_cdc_target_shadow_catalog-writer",
-    "inventory_price": "funnelmetry_cdc_target_shadow_inventory-price-writer",
-    "order_mapper": "funnelmetry_cdc_target_shadow_order-mapper",
-    "order_sink": "funnelmetry_cdc_target_shadow_order-sink",
+    "catalog": f"{CDC_STACK}_catalog-writer",
+    "inventory_price": f"{CDC_STACK}_inventory-price-writer",
+    "order_mapper": f"{CDC_STACK}_order-mapper",
+    "order_sink": f"{CDC_STACK}_order-sink",
 }
 
 

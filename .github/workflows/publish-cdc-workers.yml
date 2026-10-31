@@ -1,0 +1,42 @@
+name: Publish primary CDC Workers
+
+on:
+  push:
+    tags:
+      - 'cdc-workers-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout exact tag
+        uses: actions/checkout@v4
+      - name: Check CDC-14 runtime source
+        run: |
+          node --check workers/reference-order-cdc-v2-mapper/src/main.js
+          node --check workers/reference-order-cdc-v2-sink/src/main.js
+          node --check runtime/cdc-live.mjs
+      - name: Build primary Workers image
+        run: |
+          docker build --file infra/docker/pipeline-workers.Dockerfile \
+            --label org.opencontainers.image.source=https://github.com/3002tad/Funnelmetry \
+            --tag funnelmetry-cdc-workers .
+          docker run --rm --network none --read-only --cap-drop ALL \
+            funnelmetry-cdc-workers node --check /workspace/workers/reference-order-cdc-v2-mapper/src/main.js
+          docker run --rm --network none --read-only --cap-drop ALL \
+            funnelmetry-cdc-workers node --check /workspace/workers/reference-order-cdc-v2-sink/src/main.js
+      - name: Publish immutable SHA tag
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/3002tad/funnelmetry-cdc-workers
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag funnelmetry-cdc-workers "$IMAGE:sha-$GITHUB_SHA"
+          docker push "$IMAGE:sha-$GITHUB_SHA"
+          docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA"

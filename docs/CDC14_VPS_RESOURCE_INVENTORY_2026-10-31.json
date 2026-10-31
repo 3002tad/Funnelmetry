@@ -1,0 +1,1657 @@
+{
+  "schema": "cdc14-vps-resource-inventory.v1",
+  "observed_at_utc": "2026-10-30T18:19:50Z",
+  "host": "kltn",
+  "method": "read-only docker and /srv/KLTN inventory; no secret values",
+  "classification_note": "candidate means inspect ownership and backup before deleting; names alone do not prove resource is disposable",
+  "services": [
+    {
+      "name": "funnelmetry_cdc_target_shadow_candidate-schema",
+      "replicas": "0/0",
+      "image": "funnelmetry/api-cdc-candidate:57dd1e4",
+      "classification": "retired_zero_replica_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_catalog-writer",
+      "replicas": "1/1",
+      "image": "funnelmetry/cdc-workers-candidate@sha256:ac52de46374e25ac0a85a9c412f992b8913fc0da2e168e4fa1a05a818eef9b8c",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_connect",
+      "replicas": "1/1",
+      "image": "quay.io/debezium/connect@sha256:ef19acc1188babedc8bee6e890bb6e429903b919c07f5ad509befaec5bcdfb14",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_inventory-price-writer",
+      "replicas": "1/1",
+      "image": "funnelmetry/cdc-workers-candidate@sha256:ac52de46374e25ac0a85a9c412f992b8913fc0da2e168e4fa1a05a818eef9b8c",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_order-mapper",
+      "replicas": "1/1",
+      "image": "funnelmetry/cdc-workers-candidate@sha256:ac52de46374e25ac0a85a9c412f992b8913fc0da2e168e4fa1a05a818eef9b8c",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_order-mapper-db",
+      "replicas": "1/1",
+      "image": "postgres@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_order-sink",
+      "replicas": "1/1",
+      "image": "funnelmetry/cdc-workers-candidate@sha256:460a668f938d2241c3c5692265dd1d1c60e04562bfea4a2ee173be05211b7d99",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_vps_live_bootstrap",
+      "replicas": "0/1",
+      "image": "ghcr.io/3002tad/funnelmetry/handoff-api@sha256:864b9d4ff3b175bbcf76145910b460795ac5bfa68fbdfa847380288ba89bb684",
+      "classification": "one_shot_service_verify_before_removal"
+    },
+    {
+      "name": "funnelmetry_vps_live_canonical-ledger-writer",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:a23a7597192c16367ac0627390acbc6a18a210bca0ef9ddad3556fd1cfaec93a",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_canonical-normalizer",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:f61aa962eae67c8133c26d29bba68567abf001836b8d2bc19e48c4e691c901b9",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_dashboard-api",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry-cdc-api-candidate@sha256:d8819e71ec8134ff5b866ada6130c0b0ef304d30e48bbd27381d8dbb65f1bfd9",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_dashboard-web",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry-cdc-web-candidate@sha256:6996de259f8fdbd67ea49400d10f2b5390f84b6bd2eaeb62fe3165b847aa7887",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_edge",
+      "replicas": "1/1",
+      "image": "traefik:v3.6.0",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_funnel-maturity-scheduler",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:a23a7597192c16367ac0627390acbc6a18a210bca0ef9ddad3556fd1cfaec93a",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_funnel-processor",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry-cdc-workers-candidate@sha256:bac8e49600aefa92accec823ccf5e39db34da76e733d987f770b45057c9278a0",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_ingress-telemetry-writer",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:a23a7597192c16367ac0627390acbc6a18a210bca0ef9ddad3556fd1cfaec93a",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_journey-processor",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:a23a7597192c16367ac0627390acbc6a18a210bca0ef9ddad3556fd1cfaec93a",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_kafka",
+      "replicas": "1/1",
+      "image": "apache/kafka:3.9.1",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_kafka-topics",
+      "replicas": "0/1",
+      "image": "ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:a23a7597192c16367ac0627390acbc6a18a210bca0ef9ddad3556fd1cfaec93a",
+      "classification": "one_shot_service_verify_before_removal"
+    },
+    {
+      "name": "funnelmetry_vps_live_kpi-projector",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:a23a7597192c16367ac0627390acbc6a18a210bca0ef9ddad3556fd1cfaec93a",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_postgres",
+      "replicas": "1/1",
+      "image": "postgres:15-alpine",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_profile-publisher",
+      "replicas": "0/1",
+      "image": "ghcr.io/3002tad/funnelmetry-cdc-workers-candidate@sha256:bac8e49600aefa92accec823ccf5e39db34da76e733d987f770b45057c9278a0",
+      "classification": "one_shot_service_verify_before_removal"
+    },
+    {
+      "name": "funnelmetry_vps_live_source-connector",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:a23a7597192c16367ac0627390acbc6a18a210bca0ef9ddad3556fd1cfaec93a",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_traffic-source-writer",
+      "replicas": "1/1",
+      "image": "ghcr.io/3002tad/funnelmetry/handoff-workers@sha256:a23a7597192c16367ac0627390acbc6a18a210bca0ef9ddad3556fd1cfaec93a",
+      "classification": "active_main_or_source"
+    }
+  ],
+  "containers": [
+    {
+      "name": "funnelmetry_vps_live_dashboard-api.1.a2qeko5o55l3a0nkrcdswd66e",
+      "status": "Up 15 minutes (healthy)",
+      "image": "d8819e71ec81",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "medusa_reference-backend-1",
+      "status": "Up 35 minutes",
+      "image": "medusa_reference-backend",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_source_ingress-source-ingress-1",
+      "status": "Up 37 minutes (healthy)",
+      "image": "funnelmetry_source_ingress-source-ingress",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_dashboard-api.1.bsf3k7v065pbph00m8x9cufir",
+      "status": "Exited (1) 15 minutes ago",
+      "image": "d71c38862942",
+      "classification": "swarm_task_history_or_one_shot"
+    },
+    {
+      "name": "funnelmetry_vps_live_dashboard-api.1.ib839r70qyu91p2fvo5hyl4m9",
+      "status": "Exited (1) About an hour ago",
+      "image": "40d642e8ec2a",
+      "classification": "swarm_task_history_or_one_shot"
+    },
+    {
+      "name": "funnelmetry_vps_live_profile-publisher.1.m8t07srztgjur5zvff6yecaxw",
+      "status": "Exited (0) 2 hours ago",
+      "image": "bac8e49600ae",
+      "classification": "swarm_task_history_or_one_shot"
+    },
+    {
+      "name": "funnelmetry_vps_live_funnel-processor.1.lgl8nrys6qi5y50r45m24e74r",
+      "status": "Up 2 hours (healthy)",
+      "image": "bac8e49600ae",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_dashboard-web.1.ffp167zb42ikgi2o7fe2gpopt",
+      "status": "Up 2 hours (healthy)",
+      "image": "6996de259f8f",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_dashboard-api.1.uqvb1nftqpkcl9cpywtr2odi9",
+      "status": "Exited (1) 2 hours ago",
+      "image": "1764b2875b1f",
+      "classification": "swarm_task_history_or_one_shot"
+    },
+    {
+      "name": "funnelmetry_vps_live_dashboard-api.1.qzv9t3terdaafsp3427qrm29b",
+      "status": "Exited (1) 3 hours ago",
+      "image": "e547def2929a",
+      "classification": "swarm_task_history_or_one_shot"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_order-sink.1.varxbxi7k0xxz0cs10o34qy3q",
+      "status": "Up 12 hours",
+      "image": "460a668f938d",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_connect.1.h3yjtcq0icjet5566zv5mjzfw",
+      "status": "Up 13 hours",
+      "image": "ef19acc1188b",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_catalog-writer.1.v1x33g0f8jy9jhjttnce0eypc",
+      "status": "Up 13 hours",
+      "image": "ac52de46374e",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_order-mapper.1.xj8ridr16ea8j7xzrfl2aqkti",
+      "status": "Up 13 hours",
+      "image": "ac52de46374e",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_order-sink.1.k2wvr5ywu140kiz1bqsygiugd",
+      "status": "Exited (0) 12 hours ago",
+      "image": "ac52de46374e",
+      "classification": "swarm_task_history"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_inventory-price-writer.1.9xt900c9fbetjo5ihwiph0s48",
+      "status": "Up 13 hours",
+      "image": "ac52de46374e",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_order-mapper.1.ru5vq3rj8c8uk52e8yd2qr7hl",
+      "status": "Exited (0) 13 hours ago",
+      "image": "ac52de46374e",
+      "classification": "swarm_task_history"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_order-sink.1.v9kbdazx6vrycrfd4rpnmn7ic",
+      "status": "Exited (0) 13 hours ago",
+      "image": "ac52de46374e",
+      "classification": "swarm_task_history"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_inventory-price-writer.1.espjzx9sebyygafbp3u4y1c56",
+      "status": "Exited (0) 13 hours ago",
+      "image": "ac52de46374e",
+      "classification": "swarm_task_history"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_catalog-writer.1.xt8q69znwk8gc74arhvow4and",
+      "status": "Exited (0) 13 hours ago",
+      "image": "ac52de46374e",
+      "classification": "swarm_task_history"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_catalog-writer.1.j7p1go6kb70lyo5un703fg7jd",
+      "status": "Exited (1) 14 hours ago",
+      "image": "ac52de46374e",
+      "classification": "swarm_task_history"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_catalog-writer.1.w14x066qw4ef1jvc44t8anepb",
+      "status": "Exited (1) 14 hours ago",
+      "image": "ac52de46374e",
+      "classification": "swarm_task_history"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_catalog-writer.1.la7dkxopkmk9w507jc6uu4yoz",
+      "status": "Exited (1) 14 hours ago",
+      "image": "ac52de46374e",
+      "classification": "swarm_task_history"
+    },
+    {
+      "name": "medusa_reference-postgres-1",
+      "status": "Up 23 hours (healthy)",
+      "image": "postgres:15-alpine",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_order-mapper-db.1.8kc5at9m7sqld86xnvv2tmoph",
+      "status": "Up 24 hours",
+      "image": "54e0dd8e8cdd",
+      "classification": "active_cdc_misnamed_shadow"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1-backend-1",
+      "status": "Exited (137) 25 hours ago",
+      "image": "240e7f7abc11",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1-redis-1",
+      "status": "Exited (0) 25 hours ago",
+      "image": "redis:7.4-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1-source-ingress-1",
+      "status": "Exited (0) 25 hours ago",
+      "image": "6e997fc9abf7",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1-inventory-price-governed-writer-1",
+      "status": "Exited (0) 25 hours ago",
+      "image": "funnelmetry_cdc_combined_shadow_c1-inventory-price-governed-writer",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1-catalog-governed-writer-1",
+      "status": "Exited (0) 25 hours ago",
+      "image": "funnelmetry_cdc_combined_shadow_c1-catalog-governed-writer",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1-inventory-price-projection-db-1",
+      "status": "Exited (0) 25 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1-catalog-projection-db-1",
+      "status": "Exited (0) 25 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1-connect-1",
+      "status": "Exited (143) 25 hours ago",
+      "image": "quay.io/debezium/connect:3.6",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1-kafka-1",
+      "status": "Exited (143) 25 hours ago",
+      "image": "apache/kafka:3.9.1",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1-postgres-1",
+      "status": "Exited (0) 25 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-postgres-1",
+      "status": "Exited (0) 27 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-chain-sink-1",
+      "status": "Exited (0) 27 hours ago",
+      "image": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-chain-sink",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-chain-db-1",
+      "status": "Exited (0) 25 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-mapper-1",
+      "status": "Exited (0) 27 hours ago",
+      "image": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-mapper",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-mapper-db-1",
+      "status": "Exited (0) 27 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-governed-sink-1",
+      "status": "Exited (0) 30 hours ago",
+      "image": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-governed-sink",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b-inventory-price-governed-writer-1",
+      "status": "Exited (0) 26 hours ago",
+      "image": "funnelmetry_cdc_inventory_price_shadow_stage2b-inventory-price-governed-writer",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b-backend-1",
+      "status": "Exited (137) 27 hours ago",
+      "image": "240e7f7abc11",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b-source-ingress-1",
+      "status": "Exited (0) 27 hours ago",
+      "image": "6e997fc9abf7",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b-redis-1",
+      "status": "Exited (0) 27 hours ago",
+      "image": "redis:7.4-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b-inventory-price-projector-1",
+      "status": "Exited (0) 26 hours ago",
+      "image": "funnelmetry_cdc_inventory_price_shadow_stage2b-inventory-price-projector",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b-inventory-price-projection-db-1",
+      "status": "Exited (0) 26 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b-connect-1",
+      "status": "Exited (143) 26 hours ago",
+      "image": "quay.io/debezium/connect:3.6",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b-kafka-1",
+      "status": "Exited (143) 26 hours ago",
+      "image": "apache/kafka:3.9.1",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b-postgres-1",
+      "status": "Exited (0) 26 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a-backend-1",
+      "status": "Exited (137) 32 hours ago",
+      "image": "240e7f7abc11",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a-source-ingress-1",
+      "status": "Exited (0) 32 hours ago",
+      "image": "6e997fc9abf7",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a-redis-1",
+      "status": "Exited (0) 32 hours ago",
+      "image": "redis:7.4-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1-catalog-governed-writer-1",
+      "status": "Exited (0) 32 hours ago",
+      "image": "funnelmetry_cdc_catalog_shadow_catalog1-catalog-governed-writer",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a-inventory-price-projector-1",
+      "status": "Exited (0) 33 hours ago",
+      "image": "funnelmetry_cdc_inventory_price_shadow_stage2a-inventory-price-projector",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a-inventory-price-projection-db-1",
+      "status": "Exited (0) 33 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a-connect-1",
+      "status": "Exited (143) 33 hours ago",
+      "image": "quay.io/debezium/connect:3.6",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a-kafka-1",
+      "status": "Exited (143) 33 hours ago",
+      "image": "apache/kafka:3.9.1",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a-postgres-1",
+      "status": "Exited (0) 32 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-recovery-mapper-1",
+      "status": "Exited (0) 2 days ago",
+      "image": "funnelmetry_cdc_shadow_cdc10-recovery-mapper",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-recovery4-mapper-1",
+      "status": "Exited (0) 2 days ago",
+      "image": "funnelmetry_cdc_shadow_cdc10-recovery4-mapper",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-recovery4-projection-db-1",
+      "status": "Exited (0) 2 days ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-recovery-analytics-sink-1",
+      "status": "Exited (0) 2 days ago",
+      "image": "funnelmetry_cdc_shadow_cdc10-recovery-analytics-sink",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-recovery-projection-db-1",
+      "status": "Exited (0) 2 days ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-recovery-analytics-db-1",
+      "status": "Exited (0) 30 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1-catalog-projector-1",
+      "status": "Exited (0) 2 days ago",
+      "image": "funnelmetry_cdc_catalog_shadow_catalog1-catalog-projector",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1-catalog-projection-db-1",
+      "status": "Exited (0) 32 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1-connect-1",
+      "status": "Exited (143) 32 hours ago",
+      "image": "quay.io/debezium/connect:3.6",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1-kafka-1",
+      "status": "Exited (143) 32 hours ago",
+      "image": "apache/kafka:3.9.1",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1-postgres-1",
+      "status": "Exited (0) 32 hours ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-backend-1",
+      "status": "Exited (137) 2 days ago",
+      "image": "240e7f7abc11",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-redis-1",
+      "status": "Exited (0) 2 days ago",
+      "image": "redis:7.4-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-source-ingress-1",
+      "status": "Exited (0) 2 days ago",
+      "image": "6e997fc9abf7",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-reference-analytics-sink-1",
+      "status": "Exited (0) 3 days ago",
+      "image": "funnelmetry_cdc_shadow_cdc10-reference-analytics-sink",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-reference-mapper-1",
+      "status": "Exited (0) 3 days ago",
+      "image": "funnelmetry_cdc_shadow_cdc10-reference-mapper",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-reference-projection-db-1",
+      "status": "Exited (0) 3 days ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-reference-analytics-db-1",
+      "status": "Exited (0) 3 days ago",
+      "image": "postgres:15-alpine",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-connect-1",
+      "status": "Exited (143) 27 hours ago",
+      "image": "quay.io/debezium/connect:3.6",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10-kafka-1",
+      "status": "Exited (143) 27 hours ago",
+      "image": "apache/kafka:3.9.1",
+      "classification": "exited_test_clone"
+    },
+    {
+      "name": "medusa_reference-storefront-1",
+      "status": "Up 4 days",
+      "image": "medusa_reference-storefront",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_traffic-source-writer.1.xbx3vayd0hrzud6nshbqaf8tr",
+      "status": "Up 4 days (healthy)",
+      "image": "a23a7597192c",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_profile-publisher.1.iqqkaqrl3tuf1eenwh3862m5l",
+      "status": "Exited (0) 4 days ago",
+      "image": "a23a7597192c",
+      "classification": "swarm_task_history_or_one_shot"
+    },
+    {
+      "name": "funnelmetry_vps_live_kpi-projector.1.ztb4a50e2g0ywr7spfgqsccc1",
+      "status": "Up 4 days (healthy)",
+      "image": "a23a7597192c",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_journey-processor.1.q86shdp15fb8c0fw2tao1f24o",
+      "status": "Up 4 days (healthy)",
+      "image": "a23a7597192c",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_ingress-telemetry-writer.1.eu2iubwv42fk9jst0r1tv1wk9",
+      "status": "Up 4 days (healthy)",
+      "image": "a23a7597192c",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_edge.1.s9w687i1q9sinf5xejcpll5a4",
+      "status": "Up 4 days",
+      "image": "traefik:v3.6.0",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_source-connector.1.u8wx8lqjii0ezdm2y3fj75xvi",
+      "status": "Up 4 days (healthy)",
+      "image": "a23a7597192c",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_funnel-maturity-scheduler.1.zr597s9bp4qo48nubjtincg3y",
+      "status": "Up 4 days",
+      "image": "a23a7597192c",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_canonical-normalizer.1.hvwcgrlgzem595v0mxrboooo4",
+      "status": "Up 4 days (healthy)",
+      "image": "f61aa962eae6",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_canonical-ledger-writer.1.xp3rwguuuhni12dk3bsau3303",
+      "status": "Up 4 days (healthy)",
+      "image": "a23a7597192c",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_funnel-processor.1.sx85phfz8jktx4heebz8q13ky",
+      "status": "Exited (0) 2 hours ago",
+      "image": "a23a7597192c",
+      "classification": "swarm_task_history_or_one_shot"
+    },
+    {
+      "name": "funnelmetry_vps_live_dashboard-web.1.td5pwqvn1upfpnn16dj9qmk5z",
+      "status": "Exited (0) 2 hours ago",
+      "image": "4f5be28249e3",
+      "classification": "swarm_task_history_or_one_shot"
+    },
+    {
+      "name": "funnelmetry_vps_live_bootstrap.1.z9uq9vnj2hr6p2tkeaxmh24c4",
+      "status": "Exited (0) 4 days ago",
+      "image": "864b9d4ff3b1",
+      "classification": "swarm_task_history_or_one_shot"
+    },
+    {
+      "name": "funnelmetry_vps_live_kafka.1.i4x1fr80b19b3273br09fdj01",
+      "status": "Up 4 days (healthy)",
+      "image": "apache/kafka:3.9.1",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_postgres.1.fdgyrw3gs0jf3264dga5a6y03",
+      "status": "Up 4 days (healthy)",
+      "image": "postgres:15-alpine",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_vps_live_kafka-topics.1.el4nwsvoamter3a4qzgmtz6c8",
+      "status": "Exited (0) 4 days ago",
+      "image": "a23a7597192c",
+      "classification": "swarm_task_history_or_one_shot"
+    },
+    {
+      "name": "funnelmetry-tunnel-cloudflared-1",
+      "status": "Up 4 days",
+      "image": "c6c7ae1d5dfd",
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "medusa_reference-redis-1",
+      "status": "Up 4 days (healthy)",
+      "image": "redis:7.4-alpine",
+      "classification": "active_main_or_source"
+    }
+  ],
+  "volumes": [
+    {
+      "name": "0d0714707d305db318df62f5df8daab9f0f680be65d1f72585d3e2058f2b3e22",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "0f61b2d6791c76208b8aac37a44d523702d554e9e37052eeff64df992047ed31",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "1e4cd55609351b92f13e271710949978e23ec2344e1ec15fdbb1d59cbf7fe316",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "2ce329553e691f117d66119fd6a55d21d870a301a5e83a9b1f557e0f0ac719f3",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "3edf899b90d341c52dd8c24fb4c3de01bede186a4967c145ea5d3f3e088547cb",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "4f48560fef451dddc20af38f36a73ec99e3e4fd27b701908e3f772cd74dd9148",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "4faa44d073fd039a685a306a18775ca6e4e7b3dd4e1ae89c7f8720ef19130838",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "5c4d7e38316997607ac63a3c65d96c84bdb237239328165697554bdfbb34c646",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "8a06e0819f2e033c0f7cbc36f6e0e080a5f03db090a7c01987e59229cf9478fe",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "8ab6b2c090e3cca88522c9d678ca8b9fd4fd1a4696efaaf29d1359ec01d9a91c",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "9aea1d9c71004c007e90584ae50854b89a3b6ced5290cf643ce07a978d6fd08b",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "28f4e5bb3e8287628a8028916d31a2192613216ec2dc6ae234585279b3c70246",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "31b58f03b2593c1ecab568759e38865bacaf32d311d02ecdaf329fcfd8f4cb6c",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "37a9ed3f1cd595733d912824e700b7cf3756523a46612ba62c140182dd893843",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "194b8acac40ecb1ebf65f458663cf2c76bf8dd84399f5a99208bab3b07b05a48",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "357b42b79a21c903a84cfef6802a74f2e7b59a06cfe01df433e877d90539ab11",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "377e22bae001d42a13043b3da3dad55acace8324f19dafa77f813aeb80b11cd9",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "525f500ffd4c5a241f90bf502b5e39fa5875211c483c4c88893998bef959325e",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "816cc5be8a09d9f16f13186aa7c80962f0333305b04d671590c55ab2be722223",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "1133d03cfa9e384814912f74e6c68a1fd176de957f58520fed5aa3b196d1c660",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "3667bd28553bc9a6a59d885bc430020269a22ccaa69a3c4f6254ef7d32e05bf7",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "4261a3b427fb713e2a0d2c1ecd3c60ea7470fdab9d076bce999075a78b97c4f4",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "6659e1a5f13db67742a21b38f4c96c22ca3fe5a7b67f277ca448a237df769f72",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "7703d929814a8806355a484a6b2cd2b17f9b5f196c1990d0b76a298bcd27f519",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "80251b88835e33c6e6a6bad143848de17975db90a7b8a8a23daa94efc222e9a5",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "5743122cac38806d0e20484042acaead6b8871940dda63dff2a2aecb97def5fd",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "97300297d6a591efdd21f7d1831b6e3baf531f0292f45e80fe101012e32bb69a",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "a348b1b4045a83ab35ec1178178733a146a2f892e4c4eb59995918588f5b0475",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "aefe303f50f43a2d9eb9432ae143ffdc92d7ffc7d805cf4dd827b6d4598f3715",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "b40c861719093f2866285dacb295c0fade1fb38b1ffd803861de79c1f42f84bd",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "b58f18610481bca2c210f75593eb9ccf5689aca5277f90f90f75c588bfa23ed3",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "bc98eeb06911af37af649df1c74740061558f7358cace99d420538cc93c858e6",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "cace57665b0d01cb511ab6f8ff707790f1f91cd32fffd6e9e3690e1438138817",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "d527df36bc1c78d68db471b123f4378b227ea0f070fc6061ba3505aa3a55a09f",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "d899f2e8849ba3eeb95cf5ee26ab925e382bdac9462387ae03e521e773b0ba3c",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "e8efa6216e31c06d9b7d9f9798652780056119603f664e3752e1a92729da861a",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "f2abda50fc51929e9dc55a19c4472b996a9479cb3142d5e285422a057603d6da",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "f97b861fa0f0b455847ca6240a2878c4869343778339d9782731c02a21404589",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "fb7cd2095926e4e6b10bde335d767a1a3ea8cdad6619c268aad5d153f8636043",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "fe7f4eac68e9809ab6139c43bb4c2582821022b9b61a6d771b166ae22bbf9eca",
+      "classification": "anonymous_ownership_unverified"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1_catalog-projection-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1_kafka-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1_postgres-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1_catalog-projection-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1_inventory-price-projection-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1_kafka-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1_postgres-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1_source-event-log",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a_inventory-price-projection-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a_kafka-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a_postgres-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a_source-event-log",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b_inventory-price-projection-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b_kafka-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b_postgres-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b_source-event-log",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_kafka-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_postgres-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_recovery4-projection-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_recovery-analytics-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_recovery-projection-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_reference-analytics-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_reference-order-v2-chain-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_reference-order-v2-mapper-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_reference-projection-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_source-event-log",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_kafka-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_postgres-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_reference-analytics-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_reference-projection-data",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_source-event-log",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_order-mapper-data",
+      "classification": "active_cdc_state_keep"
+    },
+    {
+      "name": "funnelmetry_source_ingress_source-event-log-data",
+      "classification": "active_main_or_source_keep"
+    },
+    {
+      "name": "funnelmetry_vps_live_db-data",
+      "classification": "active_main_or_source_keep"
+    },
+    {
+      "name": "funnelmetry_vps_live_kafka-data",
+      "classification": "active_main_or_source_keep"
+    },
+    {
+      "name": "medusa_reference_postgres_data",
+      "classification": "active_main_or_source_keep"
+    },
+    {
+      "name": "medusa_reference_redis_data",
+      "classification": "active_main_or_source_keep"
+    }
+  ],
+  "networks": [
+    {
+      "name": "bridge",
+      "driver": "bridge",
+      "classification": "main_or_docker_builtin"
+    },
+    {
+      "name": "docker_gwbridge",
+      "driver": "bridge",
+      "classification": "main_or_docker_builtin"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1_shadow",
+      "driver": "bridge",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1_shadow",
+      "driver": "bridge",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a_shadow",
+      "driver": "bridge",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b_shadow",
+      "driver": "bridge",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10_shadow",
+      "driver": "bridge",
+      "classification": "test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_source",
+      "driver": "overlay",
+      "classification": "active_cdc_keep"
+    },
+    {
+      "name": "funnelmetry_cdc_target_shadow_mapper_data",
+      "driver": "overlay",
+      "classification": "active_cdc_keep"
+    },
+    {
+      "name": "funnelmetry_source_ingress_default",
+      "driver": "bridge",
+      "classification": "main_or_docker_builtin"
+    },
+    {
+      "name": "funnelmetry_vps_live_data",
+      "driver": "overlay",
+      "classification": "main_or_docker_builtin"
+    },
+    {
+      "name": "host",
+      "driver": "host",
+      "classification": "main_or_docker_builtin"
+    },
+    {
+      "name": "ingress",
+      "driver": "overlay",
+      "classification": "main_or_docker_builtin"
+    },
+    {
+      "name": "medusa_reference_default",
+      "driver": "bridge",
+      "classification": "main_or_docker_builtin"
+    },
+    {
+      "name": "none",
+      "driver": "null",
+      "classification": "main_or_docker_builtin"
+    }
+  ],
+  "compose_projects": [
+    {
+      "name": "funnelmetry-tunnel",
+      "status": "running(1)",
+      "config_files": [
+        "/srv/KLTN/cloudflared.compose.yml"
+      ],
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "funnelmetry_cdc_catalog_shadow_catalog1",
+      "status": "exited(6)",
+      "config_files": [
+        "/srv/KLTN/cdc-shadow-catalog1/compose.yml",
+        "/srv/KLTN/cdc-shadow-catalog1/compose.catalog-projection.yml",
+        "/srv/KLTN/cdc-shadow-catalog1/compose.catalog-governed-candidate.yml"
+      ],
+      "classification": "exited_test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_combined_shadow_c1",
+      "status": "exited(10)",
+      "config_files": [
+        "/srv/KLTN/Funnelmetry-cdc-combined/tools/medusa-reference-cdc-shadow/compose.yml",
+        "/srv/KLTN/Funnelmetry-cdc-combined/tools/medusa-reference-cdc-shadow/compose.catalog-projection.yml",
+        "/srv/KLTN/Funnelmetry-cdc-combined/tools/medusa-reference-cdc-shadow/compose.inventory-price-projection.yml",
+        "/srv/KLTN/Funnelmetry-cdc-combined/tools/medusa-reference-cdc-shadow/compose.catalog-governed-candidate.yml",
+        "/srv/KLTN/Funnelmetry-cdc-combined/tools/medusa-reference-cdc-shadow/compose.inventory-price-governed-candidate.yml"
+      ],
+      "classification": "exited_test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2a",
+      "status": "exited(8)",
+      "config_files": [
+        "/srv/KLTN/cdc-shadow-inventory-price1/compose.yml",
+        "/srv/KLTN/cdc-shadow-inventory-price1/compose.inventory-price-projection.yml"
+      ],
+      "classification": "exited_test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_inventory_price_shadow_stage2b",
+      "status": "exited(9)",
+      "config_files": [
+        "/srv/KLTN/cdc-shadow-inventory-price2/compose.yml",
+        "/srv/KLTN/cdc-shadow-inventory-price2/compose.inventory-price-projection.yml",
+        "/srv/KLTN/cdc-shadow-inventory-price2/compose.inventory-price-governed-candidate.yml"
+      ],
+      "classification": "exited_test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_cdc_shadow_cdc10",
+      "status": "exited(21)",
+      "config_files": [
+        "/srv/KLTN/cdc-shadow/compose.yml",
+        "/srv/KLTN/cdc-shadow/compose.cdc10-recovery-drill.yml",
+        "/srv/KLTN/cdc-shadow/compose.reference-order-v2-mapper-candidate.yml",
+        "/srv/KLTN/cdc-shadow/compose.reference-order-v2-chain-candidate.yml",
+        "/srv/KLTN/cdc-shadow/compose.recovery-epoch.yml",
+        "/srv/KLTN/cdc-shadow/compose.reference-order-v2-governed-candidate.yml",
+        "/srv/KLTN/cdc-shadow/compose.recovery-epoch4-probe.yml",
+        "/srv/KLTN/cdc-shadow-cdc10/compose.yml",
+        "/srv/KLTN/cdc-shadow-cdc10/compose.reference-mapper.yml",
+        "/srv/KLTN/cdc-shadow-cdc10/compose.reference-analytics.yml"
+      ],
+      "classification": "exited_test_clone_candidate"
+    },
+    {
+      "name": "funnelmetry_source_ingress",
+      "status": "running(1)",
+      "config_files": [
+        "/srv/KLTN/Funnelmetry-cdc-profile/apps/edge-relay/deploy/docker-compose.server.yml"
+      ],
+      "classification": "active_main_or_source"
+    },
+    {
+      "name": "medusa_reference",
+      "status": "running(4)",
+      "config_files": [
+        "/srv/KLTN/dtc-starter-funnelmetry/runtime/docker-compose.yml",
+        "/srv/KLTN/dtc-starter-funnelmetry/runtime/docker-compose.vps.yml",
+        "/srv/KLTN/.cdc11-medusa-network.yml",
+        "/srv/KLTN/.cdc11-medusa-logical.yml"
+      ],
+      "classification": "active_main_or_source"
+    }
+  ],
+  "top_level_paths": [
+    {
+      "path": "/srv/KLTN/.cdc11-topic-bootstrap",
+      "type": "d",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/.cdc12-stage2",
+      "type": "d",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-medusa-network.yml",
+      "type": "f",
+      "classification": "active_or_reserved_keep"
+    },
+    {
+      "path": "/srv/KLTN/dtc-starter-funnelmetry-pre-cdc12",
+      "type": "d",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-tools",
+      "type": "d",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/Funnelmetry-cdc-workers-build",
+      "type": "d",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/.cdc-target-shadow.env",
+      "type": "f",
+      "classification": "active_or_reserved_keep"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-medusa-logical.yml",
+      "type": "f",
+      "classification": "active_or_reserved_keep"
+    },
+    {
+      "path": "/srv/KLTN/cdc-shadow-inventory-price2",
+      "type": "d",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "path": "/srv/KLTN/cdc-shadow-cdc10",
+      "type": "d",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "path": "/srv/KLTN/Funnelmetry-cdc-profile",
+      "type": "d",
+      "classification": "active_or_reserved_keep"
+    },
+    {
+      "path": "/srv/KLTN/.cdc12-order-v2",
+      "type": "d",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-profiles",
+      "type": "d",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/Funnelmetry",
+      "type": "d",
+      "classification": "active_or_reserved_keep"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-source-state",
+      "type": "d",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-backups",
+      "type": "d",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/.cdc12-catalog-service-before-20261030.json",
+      "type": "f",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/cdc-shadow",
+      "type": "d",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "path": "/srv/KLTN/DB-GPT",
+      "type": "d",
+      "classification": "active_or_reserved_keep"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-install-target-source.py",
+      "type": "f",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-check-cdc-source-config.mjs",
+      "type": "f",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/Funnelmetry-cdc-combined",
+      "type": "d",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "path": "/srv/KLTN/cloudflared.compose.yml",
+      "type": "f",
+      "classification": "active_or_reserved_keep"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-moving-probe",
+      "type": "d",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/cdc-shadow-inventory-price1",
+      "type": "d",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "path": "/srv/KLTN/dtc-starter-funnelmetry",
+      "type": "d",
+      "classification": "active_or_reserved_keep"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-migration027",
+      "type": "d",
+      "classification": "review_usage_before_cleanup"
+    },
+    {
+      "path": "/srv/KLTN/cdc-shadow-catalog1",
+      "type": "d",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "path": "/srv/KLTN/.cdc11-funnel-api-query.sql",
+      "type": "f",
+      "classification": "review_usage_before_cleanup"
+    }
+  ],
+  "images": [
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry-cdc-api-candidate:<none>",
+      "id": "d8819e71ec81",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "funnelmetry_source_ingress-source-ingress:latest",
+      "id": "484f2567fe1a",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry-cdc-api-candidate:<none>",
+      "id": "d71c38862942",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry-cdc-api-candidate:<none>",
+      "id": "40d642e8ec2a",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "medusa_reference-backend:pre-cdc12",
+      "id": "525c17c6692f",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry-cdc-workers-candidate:<none>",
+      "id": "bac8e49600ae",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "medusa_reference-backend:latest",
+      "id": "2b74f9d4d1ef",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry-cdc-web-candidate:sha-c976d9e9f81955b741a1df563ff3a8da2bf1a9a1",
+      "id": "6996de259f8f",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry-cdc-api-candidate:sha-f66a61391ac92529546663d81377d266cfabb140",
+      "id": "1764b2875b1f",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry-cdc-api-candidate:sha-3d00a9e35a86749423e8d27537fba80e7ad48247",
+      "id": "e547def2929a",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry-cdc-api-candidate:sha-d60e51a2fdc564728c2559a5dd5f06d91d04ff73",
+      "id": "ba7d8db84885",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry-cdc-api-candidate:<none>",
+      "id": "fbe8d3d39977",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "funnelmetry/cdc-workers-candidate:a5b01fc",
+      "id": "460a668f938d",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "funnelmetry/api-cdc-candidate:57dd1e4",
+      "id": "a66295dd3dea",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "funnelmetry/cdc-workers-candidate:13d6108",
+      "id": "ac52de46374e",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "funnelmetry/cdc-workers-candidate:98ce920",
+      "id": "84b81266008e",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-mapper:latest",
+      "id": "1d1057c15440",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-governed-sink:latest",
+      "id": "ecaec50cd45b",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_cdc10-reference-order-v2-chain-sink:latest",
+      "id": "9b60245540ab",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_combined_shadow_c1-inventory-price-governed-writer:latest",
+      "id": "0f86db63a8d7",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_inventory_price_shadow_stage2b-inventory-price-governed-writer:latest",
+      "id": "1e813c0529f3",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_inventory_price_shadow_stage2b-inventory-price-projector:latest",
+      "id": "afb736427cc1",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_catalog_shadow_catalog1-catalog-governed-writer:latest",
+      "id": "396ccd47bb1e",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_combined_shadow_c1-catalog-governed-writer:latest",
+      "id": "21ea7cf25e92",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_inventory_price_shadow_stage2a-inventory-price-projector:latest",
+      "id": "1ceb8c7398e5",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_cdc10-recovery-mapper:latest",
+      "id": "77ab1555f1a4",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_cdc10-recovery4-mapper:latest",
+      "id": "353740a5dfe7",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_cdc10-recovery-analytics-sink:latest",
+      "id": "cc33a6af50c1",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_catalog_shadow_catalog1-catalog-projector:latest",
+      "id": "f9b0e60c0578",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_resume1-reference-analytics-sink:latest",
+      "id": "d4a1e3bf63b5",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_recovery1-reference-mapper:latest",
+      "id": "7bd41bd9b64f",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_recovery1-reference-analytics-sink:latest",
+      "id": "ab9d6fcf8247",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_resume1-reference-mapper:latest",
+      "id": "049e0c359cab",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_cdc10-reference-analytics-sink:latest",
+      "id": "5f45ab02d09d",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow-reference-analytics-sink:latest",
+      "id": "e6a46426ce6a",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_installer1-reference-analytics-sink:latest",
+      "id": "0e68d09b16d9",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_cdc10-reference-mapper:latest",
+      "id": "1c14e4e14356",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow-reference-mapper:latest",
+      "id": "e743071f5680",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "funnelmetry_cdc_shadow_installer1-reference-mapper:latest",
+      "id": "4ff4cdc36ff7",
+      "classification": "test_or_backup_candidate"
+    },
+    {
+      "repository_tag": "quay.io/debezium/connect:3.6",
+      "id": "ef19acc1188b",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "medusa_reference-storefront:latest",
+      "id": "ceb0fc201acc",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "cloudflare/cloudflared:latest",
+      "id": "c6c7ae1d5dfd",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "postgres:15-alpine",
+      "id": "54e0dd8e8cdd",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "redis:7.4-alpine",
+      "id": "d9436322172a",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "node:22-bookworm-slim",
+      "id": "de170b39439e",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry/handoff-web:<none>",
+      "id": "4f5be28249e3",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry/handoff-workers:<none>",
+      "id": "f61aa962eae6",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry/handoff-workers:<none>",
+      "id": "a23a7597192c",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "ghcr.io/3002tad/funnelmetry/handoff-api:<none>",
+      "id": "864b9d4ff3b1",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "postgres:<none>",
+      "id": "f7d23353e1b1",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "hello-world:latest",
+      "id": "11a3eb1597e8",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "traefik:<none>",
+      "id": "18112aed2bfe",
+      "classification": "review_reference_before_cleanup"
+    },
+    {
+      "repository_tag": "apache/kafka:<none>",
+      "id": "4ceccc577f03",
+      "classification": "review_reference_before_cleanup"
+    }
+  ],
+  "secrets": [
+    {
+      "name": "funnelmetry_cdc_target_shadow_mapper_db_password_v1",
+      "classification": "verify_current_service_reference_before_cleanup"
+    },
+    {
+      "name": "funnelmetry_vps_live_admin_password_v1",
+      "classification": "verify_current_service_reference_before_cleanup"
+    },
+    {
+      "name": "funnelmetry_vps_live_dashscope_api_key_v1",
+      "classification": "verify_current_service_reference_before_cleanup"
+    },
+    {
+      "name": "funnelmetry_vps_live_db_password_v1",
+      "classification": "verify_current_service_reference_before_cleanup"
+    },
+    {
+      "name": "funnelmetry_vps_live_jwt_secret_v1",
+      "classification": "verify_current_service_reference_before_cleanup"
+    },
+    {
+      "name": "funnelmetry_vps_live_source_feed_token_v1",
+      "classification": "verify_current_service_reference_before_cleanup"
+    }
+  ]
+}

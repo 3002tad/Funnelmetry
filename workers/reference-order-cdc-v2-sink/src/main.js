@@ -8,7 +8,7 @@ const sourceId = process.env.SOURCE_INSTANCE_ID
 const topic = process.env.FACT_TOPIC
 const groupId = process.env.KAFKA_GROUP_ID
 const brokers = (process.env.KAFKA_BROKERS ?? '').split(',').filter(Boolean)
-if (process.env.REFERENCE_CDC_MODE !== 'SHADOW_ONLY' ||
+if (!['SHADOW_ONLY', 'ACTIVE_REFERENCE_V2'].includes(process.env.REFERENCE_CDC_MODE) ||
     !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(epoch ?? '') ||
     !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,199}$/.test(sourceId ?? '') ||
     !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,199}$/.test(topic ?? '') ||
@@ -137,7 +137,8 @@ try {
   await consumer.connect()
   await consumer.subscribe({ topic, fromBeginning: true })
   console.info(JSON.stringify({ service: 'reference-order-cdc-v2-sink', status: 'READY',
-    source_instance_id: sourceId, coverage_epoch_id: epoch, scope: 'SHADOW_ONLY' }))
+    source_instance_id: sourceId, coverage_epoch_id: epoch,
+    scope: process.env.REFERENCE_CDC_MODE }))
   await consumer.run({ autoCommit: false, partitionsConsumedConcurrently: 1,
     eachMessage: persist })
   await Promise.race([shutdown, crash])

@@ -1,0 +1,16 @@
+[Unit]
+Description=Funnelmetry Medusa reference CDC quality monitor
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/srv/KLTN/Funnelmetry-cdc-profile
+ExecStart=/usr/bin/python3 /srv/KLTN/Funnelmetry-cdc-profile/tools/cdc-operations/monitor-quality.py --profile-dir /etc/funnelmetry/cdc/profiles --write-lease --loop --interval-seconds 60 --lease-seconds 240
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
