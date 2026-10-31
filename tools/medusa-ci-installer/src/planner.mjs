@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
+import { generatedStoreSearch } from "./store-search.mjs"
 
 const paths = {
   rootPackage: "package.json",
@@ -485,6 +486,75 @@ function replaceOnce(content, search, replacement, file) {
   return content.replace(decodedSearch, decodedReplacement)
 }
 
+function installStoreSearchOnPinnedMain(originals) {
+  const cart = originals[paths.cartData] === null ? null : normalizedText(originals[paths.cartData])
+  const storePage = originals[paths.storePage] === null ? null : normalizedText(originals[paths.storePage])
+  const storeTemplate = originals[paths.storeTemplate] === null ? null : normalizedText(originals[paths.storeTemplate])
+  const paginatedProducts = originals[paths.paginatedProducts] === null ? null : normalizedText(originals[paths.paginatedProducts])
+  if ([cart, storePage, storeTemplate, paginatedProducts].some((value) => value === null)) {
+    throw new Error("Pinned Medusa main storefront is missing a required search-hook host file")
+  }
+  // Refuse a mixed/partially installed storefront instead of silently rewriting it.
+  for (const [file, content] of [[paths.storePage, storePage], [paths.storeTemplate, storeTemplate], [paths.paginatedProducts, paginatedProducts]]) {
+    if (content.includes("StoreSearch") || content.includes("searchInteractionId") || content.includes("enqueueSearchOutcome")) {
+      throw new Error(`Pinned Medusa storefront has a partial search installation in ${file}`)
+    }
+  }
+  const bindings = {
+    available: true,
+    cart: replaceOnce(
+      replaceOnce(cart, 'import { getLocale } from "./locale-actions"', 'import { getLocale } from "./locale-actions"\nimport { enqueueCartItemAdded } from "@funnelmetry/server-delivery"', paths.cartData),
+      '.then(async () => {\n      const cartCacheTag',
+      '.then(async ({ cart }: { cart: HttpTypes.StoreCart }) => {\n      const lineItem = cart.items?.find((item) => item.variant_id === variantId)\n      if (lineItem?.id && lineItem.variant_id && Number.isSafeInteger(lineItem.quantity)) {\n        enqueueCartItemAdded({ cartId: cart.id, lineItemId: lineItem.id, variantId: lineItem.variant_id, quantity, ...(lineItem.product_id ? { productId: lineItem.product_id } : {}) })\n      }\n      const cartCacheTag', paths.cartData,
+    ),
+    storeSearch: generatedStoreSearch(),
+    storePage: replaceOnce(
+      replaceOnce(
+        replaceOnce(storePage, '  page?: string\n  optionValueIds?', '  page?: string\n  q?: string\n  fm_search_interaction_id?: string\n  optionValueIds?', paths.storePage),
+        '  const { sortBy, page } = searchParams',
+        '  const { sortBy, page, q, fm_search_interaction_id: searchInteractionId } = searchParams', paths.storePage,
+      ),
+      '      optionValueIds={optionValueIds}',
+      '      optionValueIds={optionValueIds}\n      query={typeof q === "string" ? q : undefined}\n      searchInteractionId={typeof searchInteractionId === "string" ? searchInteractionId : undefined}', paths.storePage,
+    ),
+    storeTemplate: replaceOnce(
+      replaceOnce(
+        replaceOnce(
+          replaceOnce(storeTemplate,
+            'import { SortOptions } from "@modules/store/components/refinement-list/sort-products"',
+            'import { SortOptions } from "@modules/store/components/refinement-list/sort-products"\nimport StoreSearch from "@modules/store/components/store-search"', paths.storeTemplate),
+          '  optionValueIds,\n}: {',
+          '  optionValueIds,\n  query,\n  searchInteractionId,\n}: {', paths.storeTemplate),
+        '  optionValueIds?: OptionValueIds\n}) => {',
+        '  optionValueIds?: OptionValueIds\n  query?: string\n  searchInteractionId?: string\n}) => {', paths.storeTemplate),
+      '        </div>\n        <Suspense fallback={<SkeletonProductGrid />}>',
+      '          <div className="mt-6">\n            <StoreSearch initialQuery={query} />\n          </div>\n        </div>\n        <Suspense fallback={<SkeletonProductGrid />}>', paths.storeTemplate,
+    ),
+    paginatedProducts: replaceOnce(
+      replaceOnce(
+        replaceOnce(
+          replaceOnce(paginatedProducts,
+            'import { SortOptions } from "@modules/store/components/refinement-list/sort-products"',
+            'import { SortOptions } from "@modules/store/components/refinement-list/sort-products"\nimport { enqueueSearchOutcome } from "@funnelmetry/server-delivery"', paths.paginatedProducts),
+          '  order?: string\n}', '  order?: string\n  q?: string\n}', paths.paginatedProducts),
+        '  optionValueIds,\n}: {',
+        '  optionValueIds,\n  query,\n  searchInteractionId,\n}: {', paths.paginatedProducts),
+      '  optionValueIds?: OptionValueIds\n}) {',
+      '  optionValueIds?: OptionValueIds\n  query?: string\n  searchInteractionId?: string\n}) {', paths.paginatedProducts,
+    ),
+  }
+  bindings.storeTemplate = replaceOnce(bindings.storeTemplate,
+    '            optionValueIds={optionValueIds}\n          />',
+    '            optionValueIds={optionValueIds}\n            query={query}\n            searchInteractionId={searchInteractionId}\n          />', paths.storeTemplate)
+  bindings.paginatedProducts = replaceOnce(bindings.paginatedProducts,
+    '  const region = await getRegion(countryCode)',
+    '  if (query?.trim()) {\n    queryParams["q"] = query.trim()\n  }\n\n  const region = await getRegion(countryCode)', paths.paginatedProducts)
+  bindings.paginatedProducts = replaceOnce(bindings.paginatedProducts,
+    '  const {\n    response: { products, count },\n  } = await listProductsWithSort({\n    page,\n    queryParams,\n    sortBy,\n    countryCode,\n    optionValueIds,\n  })',
+    '  let products: Awaited<ReturnType<typeof listProductsWithSort>>["response"]["products"]\n  let count: number\n  try {\n    const response = await listProductsWithSort({ page, queryParams, sortBy, countryCode, optionValueIds })\n    products = response.response.products\n    count = response.response.count\n  } catch (error) {\n    if (query && searchInteractionId) enqueueSearchOutcome({ searchInteractionId, query, outcome: "failed" })\n    throw error\n  }\n  if (query && searchInteractionId) enqueueSearchOutcome({ searchInteractionId, query, outcome: "succeeded", resultCount: count })', paths.paginatedProducts)
+  return bindings
+}
+
 function v2SemanticBindings(originals) {
   const cart = originals[paths.cartData]
   const storeSearch = originals[paths.storeSearch]
@@ -492,6 +562,7 @@ function v2SemanticBindings(originals) {
   const storeTemplate = originals[paths.storeTemplate]
   const paginatedProducts = originals[paths.paginatedProducts]
   const available = [cart, storeSearch, storePage, storeTemplate, paginatedProducts].filter((value) => value !== null).length
+  if (available === 4 && storeSearch === null) return installStoreSearchOnPinnedMain(originals)
   if (available !== 0 && available !== 5) {
     throw new Error("Pinned Medusa storefront is missing one or more V2 semantic-hook files")
   }
@@ -1090,7 +1161,7 @@ export async function createPlan(projectRoot, manifest) {
     }
   }
 
-  const semanticSupported = [originals[paths.cartData], originals[paths.storeSearch], originals[paths.storePage], originals[paths.storeTemplate], originals[paths.paginatedProducts]].every((value) => value !== null)
+  const semanticSupported = [originals[paths.cartData], originals[paths.storePage], originals[paths.storeTemplate], originals[paths.paginatedProducts]].every((value) => value !== null)
   const existing = await existingIntegration(projectRoot, originals, manifest)
   const cdcChange = await cdcShadowChange(projectRoot, manifest)
   const orderV2Change = await cdcOrderV2Change(projectRoot, manifest)
@@ -1099,6 +1170,9 @@ export async function createPlan(projectRoot, manifest) {
   const cdcChanges = [cdcChange, orderV2Change, catalogChange, inventoryPriceChange].filter(Boolean)
   const cartItemDeclared = manifest.bindings.storefrontServer.includes("cart.item_added")
   const searchDeclared = manifest.bindings.storefrontServer.includes("behavior.search_submitted")
+  if (manifest.frontend.enabled && (cartItemDeclared || searchDeclared) && !semanticSupported) {
+    throw new Error("Pinned Medusa storefront is missing required V2 semantic-hook host files")
+  }
   if (existing === "exact") {
     return {
       schemaVersion: "funnelmetry-ci-plan.v2",
