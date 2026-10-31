@@ -14,7 +14,7 @@ export class ApiError extends Error {
 }
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY)
+  try { return localStorage.getItem(TOKEN_KEY) } catch { return null }
 }
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {

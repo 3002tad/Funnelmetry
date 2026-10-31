@@ -1,17 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { Activity, CircleAlert, Database, Layers3, RefreshCw, ShieldAlert, Timer } from 'lucide-react'
 import { apiRequest, analyticsSourceId } from '../../lib/api'
+import { parsePipelineHealth } from '../../lib/pipeline-health'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { PageHeader } from '../../components/ui/page'
 
-type Health = { source_id: string; checked_at: string; runtime_status: string;
-  metrics: { accepted: number; terminal: number; canonical: number; kpi_applications: number;
-    pending_claims: number; last_canonical_at: string | null; last_kpi_at: string | null }; unavailable: string[] }
-
 export default function PipelineHealthPage() {
   const query = useQuery({ queryKey: ['admin-pipeline', analyticsSourceId],
-    queryFn: ({ signal }) => apiRequest<Health>(`/api/v2/admin/pipeline?source_id=${encodeURIComponent(analyticsSourceId)}`, { signal }),
+    queryFn: async ({ signal }) => parsePipelineHealth(await apiRequest<unknown>(`/api/v2/admin/pipeline?source_id=${encodeURIComponent(analyticsSourceId)}`, { signal })),
     refetchInterval: 15000 })
 
   const cards = query.data ? [

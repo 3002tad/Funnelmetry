@@ -73,6 +73,19 @@ export const navigation: NavigationGroup[] = [
 
 export function visibleNavigation(permissions: readonly string[]): NavigationGroup[] {
   return navigation.map(group => ({ ...group, items: group.items.filter(item =>
-    permissions.includes(item.permission) && (item.path !== '/chat' || permissions.includes('analytics.read')),
+    permissions.includes(item.permission) && (!['/chat', '/traffic'].includes(item.path) || permissions.includes('analytics.read')),
   ) })).filter(group => group.items.length > 0)
+}
+
+export const primaryPaths = new Set([
+  '/overview', '/funnels', '/products', '/events', '/data-health', '/chat', '/settings',
+  '/admin/pipeline', '/admin/processing',
+])
+
+export function displayedNavigation(groups: NavigationGroup[], expanded: boolean, currentPath: string): NavigationGroup[] {
+  if (expanded) return groups
+  return groups.map(group => ({
+    ...group,
+    items: group.items.filter(item => primaryPaths.has(item.path) || item.path === currentPath),
+  })).filter(group => group.items.length > 0)
 }

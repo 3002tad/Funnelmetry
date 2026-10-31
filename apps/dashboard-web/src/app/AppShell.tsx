@@ -16,8 +16,9 @@ import { useAuth } from "../auth/AuthContext"
 import { analyticsSourceId, apiRequest } from "../lib/api"
 import { accountPreferencesKey, type PreferencesResponse } from "../lib/account-preferences"
 import type { ThemePreference } from "./useThemePreference"
-import { visibleNavigation } from "./navigation"
+import { displayedNavigation, visibleNavigation } from "./navigation"
 import { useThemePreference } from "./useThemePreference"
+import { PageErrorBoundary } from "./PageErrorBoundary"
 
 export type ShellContext = { range: string; workspace: string; sourceId: string }
 
@@ -39,15 +40,9 @@ const icons: Record<string, LucideIcon> = {
   "/admin/integration-settings": KeyRound, "/admin/system-settings": SlidersHorizontal,
 }
 
-// The simple menu changes presentation only; routes and backend permissions stay intact.
-const primaryPaths = new Set([
-  "/overview", "/funnels", "/products", "/events", "/data-health", "/chat", "/settings",
-  "/admin/pipeline", "/admin/processing",
-])
-
 export function AppShell() {
   const [menu, setMenu] = useState(false)
-  const [showAllNavigation, setShowAllNavigation] = useState(false)
+  const [showAllNavigation, setShowAllNavigation] = useState(true)
   const [range, setRange] = useState("Last 30 days")
   const [theme, setTheme] = useThemePreference()
   const [themeSaving, setThemeSaving] = useState(false)
@@ -63,10 +58,7 @@ export function AppShell() {
   })
   const groups = visibleNavigation(user?.permissions || [])
   const location = useLocation()
-  const navigationExpanded = showAllNavigation || !primaryPaths.has(location.pathname)
-  const shownGroups = navigationExpanded ? groups : groups.map(group => ({
-    ...group, items: group.items.filter(item => primaryPaths.has(item.path)),
-  })).filter(group => group.items.length > 0)
+  const shownGroups = displayedNavigation(groups, showAllNavigation, location.pathname)
   const sidebarRef = useRef<HTMLElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
@@ -87,7 +79,6 @@ export function AppShell() {
   }, [preferences.data, setTheme, user?.id])
 
   async function changeTheme(next: ThemePreference) {
-    const previous = theme
     setTheme(next)
     setThemeError("")
     setThemeSaving(true)
@@ -97,8 +88,7 @@ export function AppShell() {
       })
       queryClient.setQueryData(accountPreferencesKey(user?.id), saved)
     } catch {
-      setTheme(previous)
-      setThemeError("Không lưu được giao diện vào tài khoản. Thử lại sau.")
+      setThemeError("Đã đổi giao diện trên trình duyệt này, nhưng chưa lưu được vào tài khoản. Thử lại khi Dashboard API sẵn sàng.")
     } finally { setThemeSaving(false) }
   }
 
@@ -149,28 +139,30 @@ export function AppShell() {
     <aside ref={sidebarRef} id="app-navigation" role={menu ? "dialog" : undefined} aria-modal={menu ? true : undefined} aria-label="Điều hướng chính" className={cn("app-sidebar", menu && "app-sidebar-open")}>
       <div className="app-brand">
         <div className="brand-mark"><Filter size={20} strokeWidth={2.3} aria-hidden="true" /></div>
-        <div className="min-w-0"><strong className="block text-[15px] tracking-tight">Funnelmetry</strong><span className="block text-[10px] tracking-[.1em] text-slate-400">INTELLIGENCE WORKSPACE</span></div>
-        <button ref={closeButtonRef} type="button" className="ml-auto grid h-9 w-9 place-items-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white lg:hidden" onClick={closeMenu} aria-label="Đóng menu"><X size={19} /></button>
+        <div className="min-w-0"><strong className="block text-[15px] tracking-tight">Funnelmetry</strong><span className="sidebar-muted block text-[10px] tracking-[.1em]">INTELLIGENCE WORKSPACE</span></div>
+        <button ref={closeButtonRef} type="button" className="sidebar-control ml-auto grid h-9 w-9 place-items-center rounded-xl lg:hidden" onClick={closeMenu} aria-label="Đóng menu"><X size={19} /></button>
       </div>
-      <div className="px-4 pb-3 pt-5"><div className="workspace-card"><div className="workspace-monogram">{workspace.charAt(0).toUpperCase()}</div><div className="min-w-0"><span className="block text-[10px] font-medium uppercase tracking-[.14em] text-slate-400">Workspace</span><strong className="block truncate text-xs text-white">{workspace}</strong></div></div></div>
+      <div className="px-4 pb-3 pt-5"><div className="workspace-card"><div className="workspace-monogram">{workspace.charAt(0).toUpperCase()}</div><div className="min-w-0"><span className="sidebar-muted block text-[10px] font-medium uppercase tracking-[.14em]">Workspace</span><strong className="block truncate text-xs">{workspace}</strong></div></div></div>
       <nav aria-label="Workspace navigation" className="scrollbar-thin app-nav flex-1 overflow-y-auto px-3 pb-5">
-        {primaryPaths.has(location.pathname) ? <button type="button" className="mb-5 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left text-xs font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300" onClick={() => setShowAllNavigation(value => !value)} aria-expanded={navigationExpanded}>
-          {navigationExpanded ? "Thu gọn menu" : "Xem tất cả chức năng"}
-        </button> : <NavLink to={user?.permissions?.includes("pipeline.monitor") ? "/admin/pipeline" : "/overview"} onClick={() => setShowAllNavigation(false)} className="mb-5 block rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300">← Về trang chính</NavLink>}
+        <button type="button" className="sidebar-toggle mb-5 w-full rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition" onClick={() => setShowAllNavigation(value => !value)} aria-expanded={showAllNavigation} aria-controls="app-navigation-groups">
+          {showAllNavigation ? "Thu gọn menu" : "Xem tất cả chức năng"}
+        </button>
+        <div id="app-navigation-groups">
         {shownGroups.map(group => <section key={group.label} className="mb-5" aria-label={group.label}>
           <h2 className="nav-group-title">{group.label}</h2>
           <div className="space-y-0.5">{group.items.map(item => {
             const Icon = icons[item.path] || Package
             return <NavLink key={item.path} to={item.path} title={item.unavailable || undefined} className={({ isActive }) => cn("nav-item", isActive && "nav-item-active")}>
               <Icon size={17} strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1"><span className="block truncate">{item.label}</span>{item.unavailable && <span className="block text-[10px] font-normal text-slate-400">Chưa khả dụng</span>}</span>
+              <span className="min-w-0 flex-1"><span className="block truncate">{item.label}</span>{item.unavailable && <span className="sidebar-muted block text-[10px] font-normal">Chưa khả dụng</span>}</span>
               {item.unavailable && <span className="nav-item-pending" aria-label="Chưa khả dụng" title="Chưa khả dụng" />}
             </NavLink>
           })}</div>
         </section>)}
+        </div>
         <section aria-label="Tài khoản"><h2 className="nav-group-title">TÀI KHOẢN</h2><NavLink to="/settings" className={({ isActive }) => cn("nav-item", isActive && "nav-item-active")}><Settings2 size={17} strokeWidth={1.8} aria-hidden="true" /><span>Thiết lập cá nhân</span></NavLink></section>
       </nav>
-      <div className="sidebar-account"><div className="account-avatar">{(user?.display_name || user?.email || "U").slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><strong className="block truncate text-xs text-white">{user?.display_name || user?.email || "User"}</strong><span className="block truncate text-[11px] text-slate-400">{roleLabel}</span></div><Button variant="ghost" size="icon" className="text-slate-400 hover:bg-white/10 hover:text-white" onClick={logout} aria-label="Đăng xuất" title="Đăng xuất"><LogOut size={17} /></Button></div>
+      <div className="sidebar-account"><div className="account-avatar">{(user?.display_name || user?.email || "U").slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><strong className="block truncate text-xs">{user?.display_name || user?.email || "User"}</strong><span className="sidebar-muted block truncate text-[11px]">{roleLabel}</span></div><Button variant="ghost" size="icon" className="sidebar-control" onClick={logout} aria-label="Đăng xuất" title="Đăng xuất"><LogOut size={17} /></Button></div>
     </aside>
 
     <div ref={contentRef} className="app-content">
@@ -179,11 +171,11 @@ export function AppShell() {
         <div className="min-w-0 flex-1"><div className="topbar-breadcrumb"><span>{currentGroup?.label || "KHÔNG GIAN LÀM VIỆC"}</span><ChevronRight size={12} aria-hidden="true" /><strong className="truncate">{current?.label || (location.pathname === "/settings" ? "Thiết lập cá nhân" : "Funnelmetry")}</strong></div><p className="topbar-subtitle hidden sm:block">{workspace} <span aria-hidden="true">·</span> {roleLabel}</p></div>
         <div className="topbar-actions">
           {user?.permissions?.includes("analytics.read") && <div className="range-select-wrap"><label className="sr-only" htmlFor="workspace-range">Khoảng thời gian phân tích</label><select id="workspace-range" value={range} onChange={event => setRange(event.target.value)}><option value="Last 7 days">7 ngày qua</option><option value="Last 30 days">30 ngày qua</option><option value="Last 90 days">90 ngày qua</option></select></div>}
-          <ThemeSelect value={theme} onChange={value => void changeTheme(value)} disabled={themeSaving} />
+          <ThemeSelect value={theme} onChange={value => void changeTheme(value)} disabled={themeSaving || preferences.isPending} />
         </div>
         {themeError && <p role="alert" className="absolute right-4 top-full mt-2 max-w-xs rounded-xl border border-destructive/30 bg-card p-3 text-xs text-destructive shadow-lg">{themeError}</p>}
       </header>
-      <main ref={mainRef} id="main-content" tabIndex={-1} className="app-main"><div key={location.pathname} className="page-enter mx-auto max-w-[1540px]"><Outlet context={{ range, workspace, sourceId: analyticsSourceId } satisfies ShellContext} /></div></main>
+      <main ref={mainRef} id="main-content" tabIndex={-1} className="app-main"><div className="page-enter mx-auto max-w-[1540px]"><PageErrorBoundary key={location.pathname}><Outlet context={{ range, workspace, sourceId: analyticsSourceId } satisfies ShellContext} /></PageErrorBoundary></div></main>
     </div>
   </div>
 }

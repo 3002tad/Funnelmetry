@@ -21,7 +21,9 @@ function storedUser(): User | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY))
+  const [token, setToken] = useState(() => {
+    try { return localStorage.getItem(TOKEN_KEY) } catch { return null }
+  })
   const [user, setUser] = useState<User | null>(storedUser)
 
   const logout = () => {
@@ -31,8 +33,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (key?.startsWith('funnelmetry:chat:')) sessionStorage.removeItem(key)
       }
     } catch { /* Storage can be blocked by browser policy. */ }
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
+    try {
+      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem(USER_KEY)
+    } catch { /* Storage can be blocked by browser policy. */ }
     setToken(null)
     setUser(null)
   }
@@ -49,7 +53,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(response.user)
         localStorage.setItem(USER_KEY, JSON.stringify(response.user))
       })
-      .catch(() => logout())
+      // A transient API/network failure must not invalidate an otherwise valid session.
+      // apiRequest already dispatches an unauthorized event for a confirmed 401.
+      .catch(() => {})
   }, [token])
 
   const value = useMemo<AuthValue>(() => ({

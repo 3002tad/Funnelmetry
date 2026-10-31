@@ -1,20 +1,16 @@
 import { useQuery } from "@tanstack/react-query"
 import { ArrowRight, CircleOff, Database, Layers3, RefreshCw, ShieldAlert } from "lucide-react"
 import { apiRequest, analyticsSourceId } from "../../lib/api"
+import { parsePipelineHealth } from "../../lib/pipeline-health"
 import { Button } from "../../components/ui/button"
 import { EmptyState, PageHeader } from "../../components/ui/page"
 import { ProgressiveDetails } from "../../components/ui/progressive-details"
 import PipelineHealthPage from "./PipelineHealthPage"
 
-type PipelineSnapshot = {
-  checked_at: string
-  metrics: { accepted: number; canonical: number; pending_claims: number }
-}
-
 export default function FriendlyPipelineHealthPage() {
   const query = useQuery({
     queryKey: ["admin-pipeline", analyticsSourceId],
-    queryFn: ({ signal }) => apiRequest<PipelineSnapshot>(`/api/v2/admin/pipeline?source_id=${encodeURIComponent(analyticsSourceId)}`, { signal }),
+    queryFn: async ({ signal }) => parsePipelineHealth(await apiRequest<unknown>(`/api/v2/admin/pipeline?source_id=${encodeURIComponent(analyticsSourceId)}`, { signal })),
     refetchInterval: 15000,
   })
   return <>

@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { navigation, visibleNavigation } from '../src/app/navigation.ts'
+import { displayedNavigation, navigation, visibleNavigation } from '../src/app/navigation.ts'
 
 const paths = permissions => visibleNavigation(permissions).flatMap(group => group.items.map(item => item.path))
 test('anonymous and chat-only permissions cannot see analytics navigation', () => {
@@ -37,6 +37,19 @@ test('explicitly combined capabilities retain both navigation bundles', () => {
   const result = paths(['analytics.read', 'pipeline.monitor'])
   assert.ok(result.includes('/overview'))
   assert.ok(result.includes('/admin/pipeline'))
+})
+test('full navigation exposes every authorized module and compact view retains the current page', () => {
+  const groups = visibleNavigation(['analytics.read', 'analytics.workspace.use', 'chat.use'])
+  const full = displayedNavigation(groups, true, '/workspace').flatMap(group => group.items.map(item => item.path))
+  const compact = displayedNavigation(groups, false, '/workspace').flatMap(group => group.items.map(item => item.path))
+  assert.deepEqual(full, groups.flatMap(group => group.items.map(item => item.path)))
+  assert.ok(full.includes('/traffic'))
+  assert.ok(compact.includes('/workspace'))
+  assert.ok(compact.includes('/overview'))
+  assert.ok(!compact.includes('/traffic'))
+})
+test('navigation only exposes traffic when both route permissions are present', () => {
+  assert.ok(!paths(['analytics.workspace.use']).includes('/traffic'))
 })
 test('routes are unique and mock-backed surfaces are unavailable', () => {
   const items = navigation.flatMap(group => group.items)
