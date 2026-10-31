@@ -9,9 +9,9 @@ Các package README dưới đây là **ngoại lệ vị trí**: chúng nằm c
 - [Browser SDK](../../packages/browser-sdk/README.md)
 - [Reconciliation Contract](../../packages/reconciliation-contract/README.md)
 
-Backend Integration Kit đã retired theo DEC-144. Artifact GitHub Packages cũ được giữ immutable
-để tái lập lịch sử; không còn source package, release workflow, dependency hoặc tài liệu sử dụng active.
-GitHub Packages không cung cấp REST endpoint cập nhật trạng thái deprecation và registry đã từ chối
-`npm deprecate`, vì vậy retirement được enforcement bằng CI/source governance thay vì xóa artifact.
+Backend Integration Kit đã retired theo DEC-144; không còn source package, release workflow,
+dependency hoặc tài liệu sử dụng active. Source owner đã xóa GitHub Package cũ; kiểm tra
+GitHub Package API và GitHub npm registry ngày 2026-10-31 đều trả 404. CI/source governance
+chặn tái sử dụng package này trong luồng hiện hành.
 
 Quyết định và semantics chuẩn vẫn theo [Backbone Master](https://github.com/3002tad/System_Backbone/blob/main/MASTER_SPECIFICATION.md). Các README mô tả implementation của package tại version code hiện hành.
