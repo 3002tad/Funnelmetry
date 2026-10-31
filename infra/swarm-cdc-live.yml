@@ -92,6 +92,22 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/pipeline_db_password
     secrets: [pipeline_db_password]
 
+  cart-line-item-mapper:
+    <<: *cdc-worker
+    command: [node, /workspace/workers/cart-line-item-cdc-mapper/src/main.js]
+    environment:
+      CART_CDC_SOURCE_ID: ${CDC_SOURCE_ID:?Match Medusa source ID}
+      CART_CDC_COVERAGE_EPOCH: ${CDC_CART_EPOCH:?Set cart CDC epoch}
+      CART_CDC_TOPIC_PREFIX: ${CDC_CART_TOPIC_PREFIX:?Match cart CDC profile}
+      CART_CDC_GROUP_ID: ${CDC_CART_GROUP_ID:?Set distinct cart mapper group}
+      KAFKA_TOPIC_CANONICAL: ${CDC_CANONICAL_TOPIC:?Match Pipeline canonical topic}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: funnelmetry_handoff
+      POSTGRES_USER: funnelmetry
+      POSTGRES_PASSWORD_FILE: /run/secrets/pipeline_db_password
+    secrets: [pipeline_db_password]
+
   order-mapper:
     <<: *cdc-worker
     command: [node, /workspace/workers/reference-order-cdc-v2-mapper/src/main.js]

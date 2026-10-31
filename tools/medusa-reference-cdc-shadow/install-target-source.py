@@ -46,32 +46,40 @@ SPECS = {
                          "public.price_list_rule:id,price_list_id,attribute,value,deleted_at",
                          "public.region:id,currency_code,deleted_at",
                          "public.currency:code,decimal_digits,deleted_at")),
+    "cart": ("cdc-cart-line-item.json", "funnelmetry-medusa-cdc-cart-line-item.v1",
+             "cdc_cart_line_item_v1", "funnelmetry_cdc_cart_line_item_v1",
+             ("public.cart_line_item:id,cart_id,product_id,variant_id,quantity,created_at,updated_at,deleted_at",)),
 }
+
+LEGACY_PROFILES = ("order", "catalog", "inventory_price")
 
 
 def digest(document):
     return hashlib.sha256(json.dumps(document, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def load_profiles(root):
+def load_profiles(root, names=LEGACY_PROFILES):
     profiles = {}
-    for name, (filename, version, role, publication, columns) in SPECS.items():
+    for name in names:
+        filename, version, role, publication, columns = SPECS[name]
         document = json.loads((root / filename).read_text(encoding="utf-8"))
         if (document.get("schema_version") != version or
                 document.get("generated_by") != "funnelmetry-medusa-ci" or
-                document.get("status") != "SHADOW_ONLY" or
+                document.get("status") != ("ACTIVE_REFERENCE" if name == "cart" else "SHADOW_ONLY") or
                 document.get("snapshot_mode") != "initial" or
                 document.get("publication") != publication or
                 document.get("slot") != publication or
                 document.get("table_columns") != list(columns) or
                 document.get("source_id") != "medusa-reference" or
                 document.get("runtime_activation") != "OPERATOR_CONTROLLED_SEPARATE_FROM_INSTALLER" or
-                not re.fullmatch(r"cdc11_[a-z_]+_epoch[0-9]+", document.get("coverage_epoch_id", ""))):
+                not re.fullmatch(r"cdc_cart_epoch[0-9]+" if name == "cart"
+                                 else r"cdc11_[a-z_]+_epoch[0-9]+",
+                                 document.get("coverage_epoch_id", ""))):
             raise ValueError(f"{name} profile differs from approved CDC-11 source scope")
         profiles[name] = document
     epochs = {p["coverage_epoch_id"] for p in profiles.values()}
     prefixes = {p["topic_prefix"] for p in profiles.values()}
-    if len(epochs) != 3 or len(prefixes) != 3:
+    if len(epochs) != len(names) or len(prefixes) != len(names):
         raise ValueError("CDC source epochs/topic prefixes collide")
     return profiles
 
@@ -233,10 +241,12 @@ def main():
     parser.add_argument("--profile-dir", type=Path, required=True)
     parser.add_argument("--state-dir", type=Path, required=True)
     parser.add_argument("--postgres-container", required=True)
+    parser.add_argument("--profile", choices=tuple(SPECS))
     args = parser.parse_args()
     if not re.fullmatch(r"medusa_reference-postgres-[0-9]+", args.postgres_container):
         raise ValueError("explicit Medusa reference PostgreSQL container name required")
-    profiles = load_profiles(args.profile_dir)
+    names = (args.profile,) if args.profile else LEGACY_PROFILES
+    profiles = load_profiles(args.profile_dir, names)
     source_preflight(args.postgres_container, profiles)
     if args.command == "plan":
         result = {"status": "SOURCE_PLAN_ONLY", "profiles": [
@@ -248,16 +258,16 @@ def main():
         private_directory(args.state_dir)
         if args.command == "apply":
             # Do not partially install because of pre-existing resources.
-            for name in SPECS:
+            for name in names:
                 role, publication = SPECS[name][2:4]
                 if any(resources(args.postgres_container, role, publication).values()) or \
                         (args.state_dir / f"{name}.json").exists():
                     raise ValueError(f"{name}: refusing partial/pre-existing source installation")
             result = {"status": "SOURCE_APPLIED", "profiles": [
-                apply_one(args.postgres_container, args.state_dir, name, profiles[name]) for name in SPECS]}
+                apply_one(args.postgres_container, args.state_dir, name, profiles[name]) for name in names]}
         else:
             result = {"status": "SOURCE_VERIFIED", "profiles": [
-                verify_one(args.postgres_container, args.state_dir, name, profiles[name]) for name in SPECS]}
+                verify_one(args.postgres_container, args.state_dir, name, profiles[name]) for name in names]}
     print(json.dumps(result, sort_keys=True))
 
 

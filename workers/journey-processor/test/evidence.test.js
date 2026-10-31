@@ -21,3 +21,25 @@ test("does not reuse anonymous identity without subject/time policy", () => {
   const evidence = extractJourneyEvidence(canonicalEvent({ identity: { anonymous_id: "anon_1" } }))
   assert.deepEqual(evidence, [])
 })
+
+test("search and later product intent share session evidence without claiming direct causality", () => {
+  const search = canonicalEvent({ event_type: "behavior.search_query_submitted",
+    identity: { anonymous_id: "anon_1", session_id: "session_1" },
+    data: { search_interaction_id: "search:1", query_normalized: "shoes",
+      page_instance_id: "page:store-1" } })
+  const product = canonicalEvent({ event_type: "behavior.product_viewed",
+    identity: { anonymous_id: "anon_1", session_id: "session_1" },
+    data: { product_id: "prod_1", page_instance_id: "page:product-1" } })
+  assert.deepEqual(extractJourneyEvidence(search), extractJourneyEvidence(product))
+  assert.equal(extractJourneyEvidence(search)[0].entity_type, "SESSION")
+})
+
+test("cart context links the browser session to the CDC cart key", () => {
+  const context = canonicalEvent({ event_type: "context.cart_linked",
+    identity: { session_id: "session_1" },
+    relations: { cart_id: "cart_1" } })
+  const evidence = extractJourneyEvidence(context)
+  assert.deepEqual(evidence.map(item => item.entity_type), ["CART", "SESSION"])
+  assert.equal(evidence[0].entity_key, "cart_1")
+  assert.equal(evidence[1].entity_key, "session_1")
+})

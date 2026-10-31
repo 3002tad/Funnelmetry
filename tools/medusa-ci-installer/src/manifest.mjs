@@ -9,6 +9,8 @@ const browserBindings = new Set([
   "behavior.filter_applied",
   "behavior.product_viewed",
   "checkout.started",
+  "behavior.search_query_submitted",
+  "context.cart_linked",
 ])
 const storefrontServerBindings = new Set([
   "behavior.search_submitted",
@@ -19,6 +21,35 @@ const cdcShadowTables = [
   "public.order_cart:id,order_id,cart_id",
   "public.cart:id,completed_at",
 ]
+const cdcCartLineItemTables = [
+  "public.cart_line_item:id,cart_id,product_id,variant_id,quantity,created_at,updated_at,deleted_at",
+]
+
+function cdcCartLineItemProfile(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("cdc_cart_line_item must be a mapping")
+  }
+  const supported = new Set(["profile", "source_db_url_ref", "source_owner", "pipeline_owner",
+    "snapshot_mode", "coverage_epoch_id", "publication", "slot", "topic_prefix", "table_columns"])
+  const unknown = Object.keys(value).filter(key => !supported.has(key))
+  if (unknown.length) throw new Error(`Unsupported cdc_cart_line_item field(s): ${unknown.join(", ")}`)
+  if (value.profile !== "reference.medusa.cart_line_item_added.v1" || value.snapshot_mode !== "initial" ||
+      JSON.stringify(value.table_columns) !== JSON.stringify(cdcCartLineItemTables)) {
+    throw new Error("cdc_cart_line_item requires approved v1 profile, initial snapshot and exact column allowlist")
+  }
+  return {
+    profile: value.profile,
+    sourceDbUrlRef: secretReference(value.source_db_url_ref, "cdc_cart_line_item.source_db_url_ref"),
+    sourceOwner: requiredString(value.source_owner, "cdc_cart_line_item.source_owner"),
+    pipelineOwner: requiredString(value.pipeline_owner, "cdc_cart_line_item.pipeline_owner"),
+    snapshotMode: value.snapshot_mode,
+    coverageEpochId: cdcCoverageEpoch(value.coverage_epoch_id, "cdc_cart_line_item.coverage_epoch_id"),
+    publication: cdcIdentifier(value.publication, "cdc_cart_line_item.publication"),
+    slot: cdcIdentifier(value.slot, "cdc_cart_line_item.slot"),
+    topicPrefix: cdcIdentifier(value.topic_prefix, "cdc_cart_line_item.topic_prefix"),
+    tableColumns: cdcCartLineItemTables,
+  }
+}
 const cdcCatalogTables = [
   "public.product:id,title,handle,status,collection_id,updated_at,deleted_at",
   "public.product_variant:id,product_id,title,sku,manage_inventory,allow_backorder,updated_at,deleted_at",
@@ -244,7 +275,8 @@ function ingressUrl(value, name) {
 
 export function validateManifest(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Manifest root must be a mapping")
-  if (raw.apiVersion !== "funnelmetry.io/v2") throw new Error("apiVersion must be funnelmetry.io/v2")
+  if (!["funnelmetry.io/v2", "funnelmetry.io/v3"].includes(raw.apiVersion)) throw new Error("apiVersion must be funnelmetry.io/v2 or v3")
+  const twoPath = raw.apiVersion === "funnelmetry.io/v3"
   if (raw.kind !== "InputIntegration") throw new Error("kind must be InputIntegration")
 
   const host = raw.host ?? {}
@@ -262,7 +294,16 @@ export function validateManifest(raw) {
   const sourceKeyId = requiredString(auth.source_key_id, "auth.source_key_id")
   const bindings = raw.bindings ?? {}
   const browser = bindingList(bindings.browser, "bindings.browser", browserBindings)
-  const storefrontServer = bindingList(bindings.storefront_server, "bindings.storefront_server", storefrontServerBindings)
+  const storefrontServer = twoPath ? (() => {
+    if (!Array.isArray(bindings.storefront_server) || bindings.storefront_server.length !== 0) {
+      throw new Error("bindings.storefront_server must be [] in two-path acquisition")
+    }
+    return []
+  })() : bindingList(bindings.storefront_server, "bindings.storefront_server", storefrontServerBindings)
+  if (twoPath && (!["behavior.search_query_submitted", "context.cart_linked"]
+    .every(event => browser.includes(event)))) {
+    throw new Error("bindings.browser must include browser search and cart context linkage")
+  }
   if (raw.cdc_shadow !== undefined) throw new Error("cdc_shadow v1 is retired; use order v2 CDC")
   const cdcOrderV2Shadow = cdcOrderV2Profile(raw.cdc_order_v2_shadow)
   const backendCutover = cdcBackendCutover(raw.cdc_backend_cutover, cdcOrderV2Shadow)
@@ -276,7 +317,8 @@ export function validateManifest(raw) {
     throw new Error("CDC primary reference requires catalog and inventory/price profiles")
   }
   const medusaBackend = []
-  requireCompleteProfile(storefrontServer, storefrontServerBindings, "bindings.storefront_server")
+  if (!twoPath) requireCompleteProfile(storefrontServer, storefrontServerBindings, "bindings.storefront_server")
+  const cdcCartLineItem = twoPath ? cdcCartLineItemProfile(raw.cdc_cart_line_item) : null
   const reliability = raw.reliability ?? {}
   const retry = reliability.retry ?? {}
   const circuitBreaker = reliability.circuit_breaker ?? {}
@@ -288,12 +330,12 @@ export function validateManifest(raw) {
     source: { id: sourceId },
     ingest: {
       browserUrl: ingressUrl(raw.ingest?.browser_url, "ingest.browser_url"),
-      backendUrl: ingressUrl(raw.ingest?.backend_url, "ingest.backend_url"),
+      backendUrl: twoPath ? null : ingressUrl(raw.ingest?.backend_url, "ingest.backend_url"),
     },
     auth: {
       sourceKeyId,
       browserWriteKeyRef: secretReference(auth.browser_write_key_ref, "auth.browser_write_key_ref"),
-      backendSigningKeyRef: secretReference(auth.backend_signing_key_ref, "auth.backend_signing_key_ref"),
+      backendSigningKeyRef: twoPath ? null : secretReference(auth.backend_signing_key_ref, "auth.backend_signing_key_ref"),
     },
     bindings: { browser, storefrontServer, medusaBackend },
     cdcShadow: null,
@@ -301,6 +343,7 @@ export function validateManifest(raw) {
     cdcBackendCutover: backendCutover,
     cdcCatalogShadow,
     cdcInventoryPriceShadow,
+    cdcCartLineItem,
     // Internal compatibility for the current generator. The public manifest
     // source of truth is the explicit bindings block above.
     frontend: { enabled: true, events: browser },
@@ -331,7 +374,7 @@ export function validateManifest(raw) {
   }
 
   const profiles = [normalized.cdcShadow, normalized.cdcOrderV2Shadow,
-    normalized.cdcCatalogShadow, normalized.cdcInventoryPriceShadow].filter(Boolean)
+    normalized.cdcCatalogShadow, normalized.cdcInventoryPriceShadow, normalized.cdcCartLineItem].filter(Boolean)
   for (const field of ["publication", "slot", "topicPrefix", "factTopic"]) {
     const values = profiles.map(profile => profile[field]).filter(Boolean)
     if (new Set(values).size !== values.length) {

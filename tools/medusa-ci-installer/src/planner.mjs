@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
-import { generatedStoreSearch } from "./store-search.mjs"
+import { generatedStoreSearch, generatedBrowserStoreSearch } from "./store-search.mjs"
 
 const paths = {
   rootPackage: "package.json",
@@ -31,12 +31,14 @@ const generatedPaths = {
   cdcOrderV2ShadowProfile: "funnelmetry/cdc-order-v2-shadow.json",
   cdcCatalogShadowProfile: "funnelmetry/cdc-catalog-shadow.json",
   cdcInventoryPriceShadowProfile: "funnelmetry/cdc-inventory-price-shadow.json",
+  cdcCartLineItemProfile: "funnelmetry/cdc-cart-line-item.json",
 }
 
 const packageVersions = {
   browserSdk: "0.2.3",
   backendIntegrationKit: "0.2.3",
 }
+const twoPathBrowserSdkVersion = "0.3.0"
 
 function legacyGeneratedClient(manifest) {
   const sourceId = JSON.stringify(manifest.source.id)
@@ -842,6 +844,150 @@ function cdcOrderV2OperatorPlan(manifest) {
   }
 }
 
+function cdcCartLineItemArtifact(manifest) {
+  const profile = manifest.cdcCartLineItem
+  return `${JSON.stringify({
+    schema_version: "funnelmetry-medusa-cdc-cart-line-item.v1",
+    generated_by: "funnelmetry-medusa-ci",
+    status: "ACTIVE_REFERENCE",
+    source_id: manifest.source.id,
+    medusa_version: manifest.host.medusaVersion,
+    cdc_contract: profile.profile,
+    snapshot_mode: profile.snapshotMode,
+    baseline_policy: "SNAPSHOT_NEVER_EMITS_CART_ITEM_ADDED",
+    quantity_policy: "INSERT_OR_POSITIVE_DELTA_ONLY",
+    coverage_epoch_id: profile.coverageEpochId,
+    source_db_url_ref: profile.sourceDbUrlRef,
+    source_owner: profile.sourceOwner,
+    pipeline_owner: profile.pipelineOwner,
+    publication: profile.publication,
+    slot: profile.slot,
+    topic_prefix: profile.topicPrefix,
+    table_columns: profile.tableColumns,
+    runtime_activation: "OPERATOR_CONTROLLED_SEPARATE_FROM_INSTALLER",
+  }, null, 2)}\n`
+}
+
+async function createTwoPathPlan(projectRoot, manifest, host, originals) {
+  const existingClient = await readOptionalProjectFile(projectRoot, generatedPaths.browserClient)
+  const existingDelivery = await readOptionalProjectFile(projectRoot, generatedPaths.storefrontDelivery)
+  const existingCartProfile = await readOptionalProjectFile(projectRoot, generatedPaths.cdcCartLineItemProfile)
+  const expectedCartProfile = cdcCartLineItemArtifact(manifest)
+  const storefrontPackage = JSON.parse(originals[paths.storefrontPackage])
+  const noBackendKit = !Object.hasOwn(storefrontPackage.dependencies ?? {},
+    "@3002tad/funnelmetry-backend-integration-kit")
+  if (existingClient !== null) {
+    if (!existingClient.includes('export function trackSearchQuery(') ||
+        !existingClient.includes('export function trackCartContext(') ||
+        existingDelivery !== null || !noBackendKit ||
+        normalizedText(existingCartProfile) !== normalizedText(expectedCartProfile) ||
+        !originals[paths.storeSearch]?.includes('void trackSearchQuery(query, createSearchInteractionId())') ||
+        !originals[paths.productActions]?.includes('void trackCartContext(cartId)') ||
+        !normalizedText(originals[paths.cartData]).includes('return cart.id\n}\n\nexport async function updateLineItem') ||
+        originals[paths.cartData]?.includes('enqueueCartItemAdded') ||
+        originals[paths.paginatedProducts]?.includes('enqueueSearchOutcome')) {
+      throw new Error("Two-path installer requires a clean Medusa main branch or an exact v3 installation")
+    }
+    return {
+      schemaVersion: "funnelmetry-ci-plan.v3", mode: "plan-only", sourceMutation: false,
+      integrationState: "exact", host, manifest, sourceFingerprint: sourceFingerprint(originals),
+      capabilities: { behavior: "ENABLED", orderPlaced: "DISABLED", cartItemPersisted: "CDC_CONFIGURED",
+        searchSubmitted: "BROWSER_SDK", cdcCartState: "CDC_CONFIGURED",
+        cdcOrderV2State: "CDC_PRIMARY_REFERENCE", cdcCatalogState: "CDC_PRIMARY_REFERENCE",
+        cdcInventoryPriceState: "CDC_PRIMARY_REFERENCE" },
+      changes: [], patch: "",
+    }
+  }
+  if (existingDelivery !== null || !noBackendKit || existingCartProfile !== null) {
+    throw new Error("Two-path installer refuses a partial or previous server-hook installation; start from clean Medusa main")
+  }
+
+  const legacyManifest = {
+    ...manifest, apiVersion: "funnelmetry.io/v2",
+    ingest: { ...manifest.ingest, backendUrl: "http://source-ingress:32000/v1/ingress/events" },
+    auth: { ...manifest.auth, backendSigningKeyRef: "FUNNELMETRY_BACKEND_SIGNING_KEY" },
+    bindings: { ...manifest.bindings, storefrontServer: ["behavior.search_submitted", "cart.item_added"] },
+  }
+  const baseline = await createPlan(projectRoot, legacyManifest)
+  const sections = baseline.patch.split(/(?=diff --git )/).filter(Boolean)
+  const changes = []
+  for (const section of sections) {
+    const match = section.match(/^diff --git a\/(.+) b\/\1/m)
+    if (!match) throw new Error("Two-path baseline patch is malformed")
+    const file = match[1]
+    if ([generatedPaths.storefrontDelivery, paths.cartData,
+      generatedPaths.managedDeliveryDispatcher, generatedPaths.orderPlacedSubscriber,
+      generatedPaths.occurredAt].includes(file)) continue
+    const after = section.includes("\ndeleted file mode 100644\n") ? null
+      : `${section.split("\n").filter(line => line.startsWith("+") && !line.startsWith("+++"))
+        .map(line => line.slice(1)).join("\n")}\n`
+    const before = await readOptionalProjectFile(projectRoot, file)
+    changes.push({ path: file, before, after })
+  }
+  const changeFor = file => {
+    const change = changes.find(item => item.path === file)
+    if (!change) throw new Error(`Two-path baseline omitted ${file}`)
+    return change
+  }
+  changeFor(paths.storefrontPackage).after = addDependency(
+    originals[paths.storefrontPackage], "@3002tad/funnelmetry-browser-sdk",
+    twoPathBrowserSdkVersion, paths.storefrontPackage)
+  changeFor(generatedPaths.browserClient).after = `${configureGeneratedClient(generatedClient(manifest), manifest)
+    .trimEnd()}\n\nexport function trackSearchQuery(query: string, searchInteractionId: string) {\n  try {\n    if (!enabled("behavior.search_query_submitted")) return Promise.resolve({ status: "disabled_by_manifest" })\n    const page = activePageContext()\n    return page ? getSdk()?.trackSearchQuery(query, searchInteractionId, page.page_instance_id) ?? Promise.resolve({ status: "inactive" })\n      : Promise.resolve({ status: "inactive" })\n  } catch {\n    return Promise.resolve({ status: "inactive" })\n  }\n}\n\nexport function trackCartContext(cartId: string) {\n  try {\n    if (!enabled("context.cart_linked")) return Promise.resolve({ status: "disabled_by_manifest" })\n    const page = activePageContext()\n    return page ? getSdk()?.trackCartContext(cartId, page.page_instance_id) ?? Promise.resolve({ status: "inactive" })\n      : Promise.resolve({ status: "inactive" })\n  } catch {\n    return Promise.resolve({ status: "inactive" })\n  }\n}\n`
+  changeFor(paths.storeSearch).after = generatedBrowserStoreSearch()
+  const storePage = changeFor(paths.storePage)
+  storePage.after = storePage.after
+    .replace('  fm_search_interaction_id?: string\n', '')
+    .replace('q, fm_search_interaction_id: searchInteractionId', 'q')
+    .replace('      searchInteractionId={typeof searchInteractionId === "string" ? searchInteractionId : undefined}\n', '')
+  const storeTemplate = changeFor(paths.storeTemplate)
+  storeTemplate.after = storeTemplate.after
+    .replace('  searchInteractionId,\n', '')
+    .replace('  searchInteractionId?: string\n', '')
+    .replace('            searchInteractionId={searchInteractionId}\n', '')
+  const products = changeFor(paths.paginatedProducts)
+  products.after = replaceOnce(normalizedText(originals[paths.paginatedProducts]),
+    '  order?: string\n}', '  order?: string\n  q?: string\n}', paths.paginatedProducts)
+  products.after = replaceOnce(products.after,
+    '  optionValueIds,\n}: {', '  optionValueIds,\n  query,\n}: {', paths.paginatedProducts)
+  products.after = replaceOnce(products.after,
+    '  optionValueIds?: OptionValueIds\n}) {',
+    '  optionValueIds?: OptionValueIds\n  query?: string\n}) {', paths.paginatedProducts)
+  products.after = replaceOnce(products.after,
+    '  const region = await getRegion(countryCode)',
+    '  if (query?.trim()) queryParams["q"] = query.trim()\n\n  const region = await getRegion(countryCode)',
+    paths.paginatedProducts)
+  changes.push({ path: paths.cartData, before: originals[paths.cartData],
+    after: replaceOnce(normalizedText(originals[paths.cartData]),
+      '    .catch(medusaError)\n}\n\nexport async function updateLineItem',
+      '    .catch(medusaError)\n  return cart.id\n}\n\nexport async function updateLineItem',
+      paths.cartData) })
+  let productActions = replaceOnce(normalizedText(originals[paths.productActions]),
+    'import { addToCart } from "@lib/data/cart"',
+    'import { addToCart } from "@lib/data/cart"\nimport { trackCartContext } from "@funnelmetry/client"',
+    paths.productActions)
+  productActions = replaceOnce(productActions,
+    '    await addToCart({\n      variantId: selectedVariant.id,\n      quantity: 1,\n      countryCode,\n    })',
+    '    const cartId = await addToCart({\n      variantId: selectedVariant.id,\n      quantity: 1,\n      countryCode,\n    })\n    if (cartId) void trackCartContext(cartId)',
+    paths.productActions)
+  changes.push({ path: paths.productActions, before: originals[paths.productActions],
+    after: productActions })
+  changes.push({ path: generatedPaths.cdcCartLineItemProfile, before: null, after: expectedCartProfile })
+  const effective = changes.filter(change => change.before === null ||
+    normalizedText(change.before) !== normalizedText(change.after))
+  return {
+    schemaVersion: "funnelmetry-ci-plan.v3", mode: "plan-only", sourceMutation: false,
+    integrationState: "absent", host, manifest, sourceFingerprint: sourceFingerprint(originals),
+    capabilities: { behavior: "ENABLED", orderPlaced: "DISABLED", cartItemPersisted: "CDC_CONFIGURED",
+      searchSubmitted: "BROWSER_SDK", cdcCartState: "CDC_CONFIGURED",
+      cdcOrderV2State: "CDC_PRIMARY_REFERENCE", cdcCatalogState: "CDC_PRIMARY_REFERENCE",
+      cdcInventoryPriceState: "CDC_PRIMARY_REFERENCE" },
+    changes: effective.map(({ path: file }) => ({ path: file, ownership: "funnelmetry-installer" })),
+    patch: effective.map(({ path: file, before, after }) => after === null
+      ? deletedFilePatch(file, before) : wholeFilePatch(file, before, after)).join(""),
+  }
+}
+
 async function readProjectFile(projectRoot, relativePath) {
   return readFile(path.join(projectRoot, relativePath), "utf8")
 }
@@ -1090,6 +1236,10 @@ export async function createPlan(projectRoot, manifest) {
   originals[generatedPaths.cdcOrderV2ShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcOrderV2ShadowProfile)
   originals[generatedPaths.cdcCatalogShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcCatalogShadowProfile)
   originals[generatedPaths.cdcInventoryPriceShadowProfile] = await readOptionalProjectFile(projectRoot, generatedPaths.cdcInventoryPriceShadowProfile)
+
+  if (manifest.apiVersion === "funnelmetry.io/v3") {
+    return createTwoPathPlan(projectRoot, manifest, host, originals)
+  }
 
   // An existing Browser SDK installation may still carry the retired backend
   // subscriber. A fresh checkout falls through to the storefront installer.

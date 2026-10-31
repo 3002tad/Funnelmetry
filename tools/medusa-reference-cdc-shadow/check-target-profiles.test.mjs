@@ -63,3 +63,21 @@ test('legacy, incomplete and promoted profiles fail closed', () => {
   profiles.order.status = 'LIVE'
   assert.throws(() => checkTargetProfiles(profiles, env), /profile_contract_invalid/)
 })
+
+test('cart profile is required when the fourth CDC stream is configured', () => {
+  const cartEnv = { ...env, CDC_CART_EPOCH: 'cdc_cart_epoch1',
+    CDC_CART_TOPIC_PREFIX: 'cdc_medusa_cart_line_item_v1' }
+  const profiles = fixture()
+  assert.throws(() => checkTargetProfiles(profiles, cartEnv), /cart_profile_missing/)
+  profiles.cart = { ...profile('funnelmetry-medusa-cdc-cart-line-item.v1',
+    'cdc_contract', 'reference.medusa.cart_line_item_added.v1',
+    cartEnv.CDC_CART_EPOCH, cartEnv.CDC_CART_TOPIC_PREFIX,
+    'funnelmetry_cdc_cart_line_item_v1'),
+    status: 'ACTIVE_REFERENCE',
+    baseline_policy: 'SNAPSHOT_NEVER_EMITS_CART_ITEM_ADDED',
+    quantity_policy: 'INSERT_OR_POSITIVE_DELTA_ONLY',
+    table_columns: ['public.cart_line_item:id,cart_id,product_id,variant_id,quantity,created_at,updated_at,deleted_at'] }
+  assert.equal(checkTargetProfiles(profiles, cartEnv).profiles.cart, 'cdc_cart_epoch1')
+  profiles.cart.quantity_policy = 'ALL_UPDATES'
+  assert.throws(() => checkTargetProfiles(profiles, cartEnv), /cart_contract_invalid/)
+})

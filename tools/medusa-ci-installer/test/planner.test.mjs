@@ -10,6 +10,7 @@ import { parseManifestYaml } from '../src/yaml.mjs'
 
 const fixture = fileURLToPath(new URL('./fixtures/medusa-dtc/', import.meta.url))
 const example = fileURLToPath(new URL('../examples/funnelmetry.integration.yaml', import.meta.url))
+const twoPathExample = fileURLToPath(new URL('../examples/funnelmetry.integration.v3.yaml', import.meta.url))
 
 async function applyPatch(projectRoot, patch) {
   for (const section of patch.split(/(?=diff --git )/)) {
@@ -121,5 +122,35 @@ test('installer removes only known retired profiles and migrates order v2 author
     await writeFile(v1Path, JSON.stringify({ generated_by: 'other',
       schema_version: 'funnelmetry-medusa-cdc-reference-shadow.v1', source_id: manifest.source.id }))
     await assert.rejects(() => createPlan(root, manifest), /not installer-owned/)
+  })
+})
+
+test('v3 installer emits browser search and CDC cart without any backend delivery package', async () => {
+  const manifest = await loadManifest(twoPathExample)
+  await withFixture(async root => {
+    const plan = await createPlan(root, manifest)
+    assert.equal(plan.schemaVersion, 'funnelmetry-ci-plan.v3')
+    assert.equal(plan.capabilities.cartItemPersisted, 'CDC_CONFIGURED')
+    assert.equal(plan.capabilities.searchSubmitted, 'BROWSER_SDK')
+    assert.ok(plan.changes.some(change => change.path === 'apps/storefront/src/lib/data/cart.ts'))
+    assert.ok(plan.changes.some(change => change.path === 'apps/storefront/src/modules/products/components/product-actions/index.tsx'))
+    assert.doesNotMatch(plan.patch, /server-delivery\.ts|backend-integration-kit|enqueueCartItemAdded|enqueueSearchOutcome/)
+    await applyPatch(root, plan.patch)
+    const pkg = JSON.parse(await readFile(path.join(root, 'apps/storefront/package.json'), 'utf8'))
+    assert.equal(pkg.dependencies['@3002tad/funnelmetry-browser-sdk'], '0.3.0')
+    assert.equal(pkg.dependencies['@3002tad/funnelmetry-backend-integration-kit'], undefined)
+    const search = await readFile(path.join(root,
+      'apps/storefront/src/modules/store/components/store-search/index.tsx'), 'utf8')
+    assert.match(search, /trackSearchQuery\(query, createSearchInteractionId\(\)\)/)
+    assert.match(search, /params.delete\("fm_search_interaction_id"\)/)
+    assert.doesNotMatch(search, /params.set\("fm_search_interaction_id"/)
+    const actions = await readFile(path.join(root,
+      'apps/storefront/src/modules/products/components/product-actions/index.tsx'), 'utf8')
+    assert.match(actions, /void trackCartContext\(cartId\)/)
+    const client = await readFile(path.join(root, 'apps/storefront/src/funnelmetry/client.tsx'), 'utf8')
+    assert.match(client, /export function trackCartContext\(/)
+    assert.doesNotMatch(client, /trackCartAddClicked|trackSearchSubmitted|queryLengthBucket/)
+    assert.equal((await verifyIntegration(root, manifest)).status, 'pass')
+    assert.equal((await createPlan(root, manifest)).patch, '')
   })
 })

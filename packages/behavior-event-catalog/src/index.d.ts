@@ -1,4 +1,4 @@
-export const BEHAVIOR_EVENT_CATALOG_VERSION: "behavior-event-catalog.v2"
+export const BEHAVIOR_EVENT_CATALOG_VERSION: "behavior-event-catalog.v3"
 export const BEHAVIOR_SOURCE_SCHEMA_VERSION: "2.0"
 export const BEHAVIOR_EVENT_TYPES: readonly BehaviorEventType[]
 export const SCROLL_DEPTH_MILESTONES: readonly [25, 50, 75, 100]
@@ -9,6 +9,8 @@ export type BehaviorEventType =
   | "promotion.banner_impression"
   | "promotion.banner_clicked"
   | "behavior.search_submitted"
+  | "behavior.search_query_submitted"
+  | "context.cart_linked"
   | "behavior.filter_applied"
   | "behavior.product_viewed"
   | "checkout.started"
@@ -23,7 +25,7 @@ export interface BehaviorEventDefinition {
 export const BEHAVIOR_EVENT_DEFINITIONS: Readonly<Record<BehaviorEventType, Readonly<BehaviorEventDefinition>>>
 
 export interface ValidatedBehaviorEvent {
-  catalog_version: "behavior-event-catalog.v2"
+  catalog_version: "behavior-event-catalog.v3"
   event_type: BehaviorEventType
   event_class: BehaviorEventClass
   data: Readonly<Record<string, unknown>>
@@ -33,3 +35,4 @@ export function isBehaviorEventType(eventType: unknown): eventType is BehaviorEv
 export function getBehaviorEventDefinition(eventType: BehaviorEventType): Readonly<BehaviorEventDefinition>
 export function validateBehaviorPayload(eventType: BehaviorEventType, payload: unknown): Readonly<Record<string, unknown>>
 export function validateBehaviorEvent(eventType: BehaviorEventType, payload: unknown): Readonly<ValidatedBehaviorEvent>
+export function normalizeSearchQueryInput(value: unknown): string | null

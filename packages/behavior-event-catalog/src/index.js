@@ -1,4 +1,4 @@
-export const BEHAVIOR_EVENT_CATALOG_VERSION = "behavior-event-catalog.v2"
+export const BEHAVIOR_EVENT_CATALOG_VERSION = "behavior-event-catalog.v3"
 export const BEHAVIOR_SOURCE_SCHEMA_VERSION = "2.0"
 
 export const BEHAVIOR_EVENT_DEFINITIONS = Object.freeze({
@@ -7,6 +7,8 @@ export const BEHAVIOR_EVENT_DEFINITIONS = Object.freeze({
   "promotion.banner_impression": Object.freeze({ event_class: "CLIENT_OBSERVATION", producer: "browser" }),
   "promotion.banner_clicked": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
   "behavior.search_submitted": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "source_server" }),
+  "behavior.search_query_submitted": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
+  "context.cart_linked": Object.freeze({ event_class: "CLIENT_OBSERVATION", producer: "browser" }),
   "behavior.filter_applied": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
   "behavior.product_viewed": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
   "checkout.started": Object.freeze({ event_class: "BEHAVIOR_INTENT", producer: "browser" }),
@@ -201,6 +203,32 @@ function searchSubmitted(payload) {
   return Object.freeze(result)
 }
 
+function searchQuerySubmitted(payload) {
+  assertKnownFields(payload, new Set(["search_interaction_id", "query_normalized", "page_instance_id"]), "behavior.search_query_submitted")
+  return Object.freeze({
+    search_interaction_id: id(payload.search_interaction_id, "search_interaction_id"),
+    query_normalized: normalizedSearchQuery(payload.query_normalized),
+    page_instance_id: pageInstanceId(payload.page_instance_id),
+  })
+}
+
+function cartContextLinked(payload) {
+  assertKnownFields(payload, new Set(["cart_id", "page_instance_id"]), "context.cart_linked")
+  return Object.freeze({
+    cart_id: id(payload.cart_id, "cart_id"),
+    page_instance_id: pageInstanceId(payload.page_instance_id),
+  })
+}
+
+export function normalizeSearchQueryInput(value) {
+  if (typeof value !== "string") return null
+  try {
+    return normalizedSearchQuery(value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase())
+  } catch {
+    return null
+  }
+}
+
 function filterApplied(payload) {
   assertKnownFields(payload, new Set(["page_instance_id", "filter_keys", "active_filter_count"]), "behavior.filter_applied")
   const filterKeys = normalizeFilterKeys(payload.filter_keys)
@@ -243,6 +271,8 @@ const payloadValidators = Object.freeze({
   "promotion.banner_impression": bannerImpression,
   "promotion.banner_clicked": bannerClicked,
   "behavior.search_submitted": searchSubmitted,
+  "behavior.search_query_submitted": searchQuerySubmitted,
+  "context.cart_linked": cartContextLinked,
   "behavior.filter_applied": filterApplied,
   "behavior.product_viewed": productViewed,
   "checkout.started": checkoutStarted,

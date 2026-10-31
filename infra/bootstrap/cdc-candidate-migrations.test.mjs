@@ -103,16 +103,19 @@ test('target six-file journal adds the independent reference profile schema and 
     '028_reference_cdc_v2_profile_candidate.sql',
     '029_reference_cdc_v2_profile_audit.sql',
     '030_reference_current_offer_metadata.sql',
+    '031_cart_line_item_cdc.sql',
   ])
   const result = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
   assert.deepEqual(result.appliedFiles, [
     '028_reference_cdc_v2_profile_candidate.sql',
     '029_reference_cdc_v2_profile_audit.sql',
     '030_reference_current_offer_metadata.sql',
+    '031_cart_line_item_cdc.sql',
   ])
   assert.equal(client.statements.filter(({sql}) => sql === files[6]).length, 1)
   assert.equal(client.statements.filter(({sql}) => sql === files[7]).length, 1)
   assert.equal(client.statements.filter(({sql}) => sql === files[8]).length, 1)
+  assert.equal(client.statements.filter(({sql}) => sql === files[9]).length, 1)
   assert.equal(client.statements.filter(({sql}) => files.slice(0, 6).includes(sql)).length, 0)
 })
 
@@ -125,10 +128,10 @@ test('target seven-file journal extends only the append-only profile audit', asy
   const client = clientWith(objects, journal)
   const plan = await runCandidateMigrations(client, files, 'plan')
   assert.deepEqual(plan.pendingFiles, ['029_reference_cdc_v2_profile_audit.sql',
-    '030_reference_current_offer_metadata.sql'])
+    '030_reference_current_offer_metadata.sql', '031_cart_line_item_cdc.sql'])
   const result = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
   assert.deepEqual(result.appliedFiles, ['029_reference_cdc_v2_profile_audit.sql',
-    '030_reference_current_offer_metadata.sql'])
+    '030_reference_current_offer_metadata.sql', '031_cart_line_item_cdc.sql'])
   assert.equal(client.statements.filter(({sql}) => sql === files[7]).length, 1)
   assert.equal(client.statements.filter(({sql}) => sql === files[8]).length, 1)
   assert.equal(client.statements.filter(({sql}) => files.slice(0, 7).includes(sql)).length, 0)
@@ -142,9 +145,9 @@ test('target eight-file journal adds only the current-offer metadata release', a
     content_sha256: createHash('sha256').update(files[index]).digest('hex') }))
   const client = clientWith(objects, journal)
   const plan = await runCandidateMigrations(client, files, 'plan')
-  assert.deepEqual(plan.pendingFiles, ['030_reference_current_offer_metadata.sql'])
+  assert.deepEqual(plan.pendingFiles, ['030_reference_current_offer_metadata.sql', '031_cart_line_item_cdc.sql'])
   const result = await runCandidateMigrations(client, files, 'apply', migrationDigest(files))
-  assert.deepEqual(result.appliedFiles, ['030_reference_current_offer_metadata.sql'])
+  assert.deepEqual(result.appliedFiles, ['030_reference_current_offer_metadata.sql', '031_cart_line_item_cdc.sql'])
   assert.equal(client.statements.filter(({sql}) => sql === files[8]).length, 1)
   assert.equal(client.statements.filter(({sql}) => files.slice(0, 8).includes(sql)).length, 0)
 })

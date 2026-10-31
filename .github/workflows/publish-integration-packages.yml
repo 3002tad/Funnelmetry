@@ -1,9 +1,9 @@
-name: Publish integration packages
+name: Publish browser acquisition packages
 
 on:
   push:
     tags:
-      - "integration-kit-v*"
+      - "browser-acquisition-v*"
 
 permissions:
   contents: read
@@ -26,15 +26,15 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: "@3002tad"
 
-      - name: Verify tag matches every integration package version
+      - name: Verify tag matches browser acquisition package versions
         working-directory: packages
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           node - <<'NODE'
           const fs = require("node:fs")
-          const expected = process.env.RELEASE_TAG.replace(/^integration-kit-v/, "")
-          const directories = ["input-contract", "behavior-event-catalog", "browser-sdk", "backend-integration-kit"]
+          const expected = process.env.RELEASE_TAG.replace(/^browser-acquisition-v/, "")
+          const directories = ["behavior-event-catalog", "browser-sdk"]
           for (const directory of directories) {
             const pkg = JSON.parse(fs.readFileSync(`${directory}/package.json`, "utf8"))
             if (pkg.version !== expected) {
@@ -49,12 +49,6 @@ jobs:
           npm ci
           npm test
 
-      - name: Publish input contract
-        working-directory: packages
-        run: npm publish --workspace input-contract
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Publish Behavior Event Catalog
         working-directory: packages
         run: npm publish --workspace behavior-event-catalog
@@ -64,11 +58,5 @@ jobs:
       - name: Publish Browser SDK
         working-directory: packages
         run: npm publish --workspace browser-sdk
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish Backend Integration Kit
-        working-directory: packages
-        run: npm publish --workspace backend-integration-kit
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -108,6 +108,8 @@ test("maps every behavior catalog event to its approved authority class", () => 
     "promotion.banner_impression": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: "page:session-1:home-1", visible_percent: 50, visible_ms: 1000 },
     "promotion.banner_clicked": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: "page:session-1:home-1" },
     "behavior.search_submitted": { search_interaction_id: "search:interaction-1", query_normalized: "running shoes", outcome: "succeeded", result_count: 5 },
+    "behavior.search_query_submitted": { search_interaction_id: "search:interaction-1", query_normalized: "running shoes", page_instance_id: "page:session-1:home-1" },
+    "context.cart_linked": { cart_id: "cart_1", page_instance_id: "page:session-1:home-1" },
     "behavior.filter_applied": { page_instance_id: "page:session-1:home-1", filter_keys: ["category"], active_filter_count: 1 },
     "behavior.product_viewed": { product_id: "prod_1", page_instance_id: "page:session-1:product-1" },
     "checkout.started": { cart_id: "cart_1", step: "address", page_instance_id: "page:session-1:checkout-1" },
@@ -153,6 +155,38 @@ test('V2 search requires server producer, new payload and distinct mapping ident
   assert.equal(normalizer.normalize(rawInput({ ...event, producer: 'browser_sdk' })).status, 'quarantined')
   assert.equal(normalizer.normalize(rawInput({ ...event, source_payload: { page_instance_id: 'page:1', query_length_bucket: '3-5' } })).status, 'quarantined')
   assert.equal(normalizer.normalize(rawInput({ ...event, source_payload: { ...event.source_payload, query_normalized: 'user@example.com' } })).status, 'quarantined')
+})
+
+test('browser search keeps funnel identity, time and page context in canonical event', () => {
+  const result = createNormalizer().normalize(rawInput(ingressEvent({
+    source_event_type: 'behavior.search_query_submitted',
+    correlation_id: 'session-1',
+    source_payload: { search_interaction_id: 'search:submit-1',
+      query_normalized: 'running shoes', page_instance_id: 'page:session-1:home-1' },
+  })))
+  assert.equal(result.status, 'normalized')
+  assert.equal(result.canonicalEvent.mapping_version, 'canonical-search-query-v3')
+  assert.deepEqual(result.canonicalEvent.identity, {
+    anonymous_id: 'anon-1', session_id: 'session-1',
+  })
+  assert.equal(result.canonicalEvent.relations.correlation_id, 'session-1')
+  assert.equal(result.canonicalEvent.occurred_at, '2026-08-29T02:59:00.000Z')
+  assert.deepEqual(result.canonicalEvent.data, {
+    search_interaction_id: 'search:submit-1', query_normalized: 'running shoes',
+    page_instance_id: 'page:session-1:home-1',
+  })
+})
+
+test('browser cart context bridges session evidence to CDC cart without a second add fact', () => {
+  const result = createNormalizer().normalize(rawInput(ingressEvent({
+    source_event_type: 'context.cart_linked',
+    source_payload: { cart_id: 'cart_1', page_instance_id: 'page:session-1:product-1' },
+  })))
+  assert.equal(result.status, 'normalized')
+  assert.equal(result.canonicalEvent.event_class, 'CLIENT_OBSERVATION')
+  assert.equal(result.canonicalEvent.relations.cart_id, 'cart_1')
+  assert.equal(result.canonicalEvent.identity.session_id, 'session-1')
+  assert.equal(result.canonicalEvent.mapping_version, 'canonical-cart-context-v1')
 })
 
 test('deployed Medusa schema 1 browser uses v2 validation without restoring v1 catalog', () => {

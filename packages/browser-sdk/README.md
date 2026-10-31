@@ -17,16 +17,25 @@ không ghi đè attribution đã có trong cùng session. `utm_medium`, `utm_cam
 hoặc việc thêm metadata thất bại, SDK bỏ qua attribution theo fail-open và vẫn giữ delivery event.
 
 `track(sourceEventType, sourcePayload)` và alias có chủ đích `trackBehavior` đều validate
-payload theo Behavior Event Catalog v2 trước khi enqueue; không có public path bỏ qua privacy rule.
+payload theo Behavior Event Catalog trước khi enqueue; không có public path bỏ qua privacy rule.
 SDK cũng cung cấp `createPageContext`/`trackPageView`, `attachScrollDepthObserver` và
 `attachBannerImpressionObserver`; caller vẫn phải cấp route template, page instance và stable
 banner/placement ID. SDK không tự đọc form value, URL query/fragment khác ngoài `utm_source`,
 DOM text hoặc IP.
 
 Scroll chỉ phát milestone `25/50/75/100` một lần theo `page_instance_id`. Banner impression
-chỉ phát sau khi phần tử hiển thị tối thiểu 50% liên tục trong 1 giây. Search là server-only
-semantic hook theo DEC-115 và Browser SDK sẽ từ chối đưa `behavior.search_submitted` vào queue;
-filter và banner click vẫn là semantic hook explicit của host.
+chỉ phát sau khi phần tử hiển thị tối thiểu 50% liên tục trong 1 giây. `trackSearchQuery`
+phát `behavior.search_query_submitted` khi người dùng submit form tìm kiếm sau consent.
+Payload gồm `query_normalized`, `search_interaction_id`, `page_instance_id`; envelope tự gắn
+`occurred_at`, `anonymous_id`, `session_id`, `correlation_id=session_id` và raw first-touch
+`utm_source` khi có. `page_instance_id` nối với page view; session và thời gian cho phép đặt
+search vào hành trình trước product view, cart và checkout. Event không có outcome/result count,
+không khẳng định người dùng xem hay mua sản phẩm cụ thể do lần search đó dẫn tới. SDK vẫn từ chối
+legacy `behavior.search_submitted` do server phát. Tracking search fail-open, không chặn navigation.
+Sau khi add-to-cart thành công, host gọi `trackCartContext(cart_id, page_instance_id)` đúng
+một lần cho mỗi cart/session. Event `context.cart_linked` chỉ nối session browser với
+`cart_id` của CDC; nó không được tính là một lần thêm giỏ hoặc thay `cart.item_added`.
+Filter và banner click vẫn là semantic hook explicit của host.
 
 `trackPageView` deduplicate theo `page_instance_id`. Host phải tạo một page context cho mỗi page
 load/route transition và giữ lại context đó qua các lần component render; SDK không deduplicate

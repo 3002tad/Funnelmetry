@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { targetTopicSpecs } from './install-target-topics.mjs'
+import { cartTopicSpecs, targetTopicSpecs } from './install-target-topics.mjs'
 
 const profile = (prefix, tables) => ({ status: 'SHADOW_ONLY', snapshot_mode: 'initial',
   topic_prefix: prefix, table_columns: tables.map(table => `public.${table}:id`) })
@@ -35,4 +35,20 @@ test('duplicate prefix or broadened table set fails before broker mutation', () 
   const broad = fixture()
   broad.inventoryPrice.table_columns.push('public.customer:id')
   assert.throws(() => targetTopicSpecs(broad), /table_count_invalid/)
+})
+
+test('cart CDC creates only the pinned single-partition line-item feed', () => {
+  const cart = { schema_version: 'funnelmetry-medusa-cdc-cart-line-item.v1',
+    status: 'ACTIVE_REFERENCE', snapshot_mode: 'initial',
+    topic_prefix: 'cdc_medusa_cart_line_item_v1',
+    table_columns: ['public.cart_line_item:id,cart_id,product_id,variant_id,quantity,created_at,updated_at,deleted_at'] }
+  const specs = cartTopicSpecs(cart)
+  assert.deepEqual(specs.map(spec => spec.topic), [
+    'cdc_medusa_cart_line_item_v1.public.cart_line_item',
+    'cdc_medusa_cart_line_item_v1.transaction',
+    '__debezium-heartbeat.cdc_medusa_cart_line_item_v1',
+  ])
+  assert.ok(specs.every(spec => spec.numPartitions === 1))
+  assert.throws(() => cartTopicSpecs({ ...cart,
+    table_columns: [...cart.table_columns, 'public.customer:id'] }), /profile_invalid/)
 })

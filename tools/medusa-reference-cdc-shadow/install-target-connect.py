@@ -24,6 +24,7 @@ CONNECTORS = {
     "order": "medusa-cdc-order-v2-shadow-e1",
     "catalog": "medusa-cdc-catalog-shadow-e1",
     "inventory_price": "medusa-cdc-inventory-price-shadow-e1",
+    "cart": "medusa-cdc-cart-line-item-v1",
 }
 API = "http://127.0.0.1:8083/connectors"
 
@@ -120,7 +121,7 @@ def main():
             not re.fullmatch(r"[a-f0-9]{12,64}", args.connect_container):
         raise ValueError("explicit source/Connect container identifiers required")
     source.private_directory(args.state_dir)
-    profiles = source.load_profiles(args.profile_dir)
+    profiles = source.load_profiles(args.profile_dir, (args.profile,))
     document = profiles[args.profile]
     name = args.profile
     if args.command == "plan":

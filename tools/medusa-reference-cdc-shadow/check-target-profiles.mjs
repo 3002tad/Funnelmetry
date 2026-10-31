@@ -28,6 +28,15 @@ const specs = Object.freeze({
     contract: 'reference.medusa.inventory_price_context.v2',
     contractField: 'cdc_inventory_price_contract',
   },
+  cart: {
+    file: 'cdc-cart-line-item.json',
+    version: 'funnelmetry-medusa-cdc-cart-line-item.v1',
+    epoch: 'CDC_CART_EPOCH',
+    prefix: 'CDC_CART_TOPIC_PREFIX',
+    contract: 'reference.medusa.cart_line_item_added.v1',
+    contractField: 'cdc_contract',
+    status: 'ACTIVE_REFERENCE',
+  },
 })
 
 function nonempty(value) {
@@ -36,15 +45,17 @@ function nonempty(value) {
 
 export function checkTargetProfiles(profiles, env) {
   if (!nonempty(env.CDC_SOURCE_ID)) throw Error('cdc_target_source_id_missing')
+  const activeSpecs = env.CDC_CART_EPOCH ? specs : Object.fromEntries(
+    Object.entries(specs).filter(([name]) => name !== 'cart'))
   const epochs = new Set(), slots = new Set(), publications = new Set(), prefixes = new Set()
   let medusaVersion
-  for (const [name, spec] of Object.entries(specs)) {
+  for (const [name, spec] of Object.entries(activeSpecs)) {
     const profile = profiles[name]
     if (!profile || typeof profile !== 'object' || Array.isArray(profile)) {
       throw Error(`cdc_target_${name}_profile_missing`)
     }
     if (profile.schema_version !== spec.version || profile.generated_by !== 'funnelmetry-medusa-ci' ||
-        profile.status !== 'SHADOW_ONLY' || profile.snapshot_mode !== 'initial' ||
+        profile.status !== (spec.status ?? 'SHADOW_ONLY') || profile.snapshot_mode !== 'initial' ||
         profile[spec.contractField] !== spec.contract) {
       throw Error(`cdc_target_${name}_profile_contract_invalid`)
     }
@@ -75,8 +86,15 @@ export function checkTargetProfiles(profiles, env) {
     publications.add(profile.publication)
     prefixes.add(profile.topic_prefix)
   }
-  if ([epochs, slots, publications, prefixes].some(values => values.size !== 3)) {
+  if ([epochs, slots, publications, prefixes].some(values => values.size !== Object.keys(activeSpecs).length)) {
     throw Error('cdc_target_profile_resource_collision')
+  }
+  if (env.CDC_CART_EPOCH && (profiles.cart.baseline_policy !== 'SNAPSHOT_NEVER_EMITS_CART_ITEM_ADDED' ||
+      profiles.cart.quantity_policy !== 'INSERT_OR_POSITIVE_DELTA_ONLY' ||
+      profiles.cart.table_columns.length !== 1 ||
+      profiles.cart.table_columns[0] !==
+        'public.cart_line_item:id,cart_id,product_id,variant_id,quantity,created_at,updated_at,deleted_at')) {
+    throw Error('cdc_target_cart_contract_invalid')
   }
   const order = profiles.order
   if (order.fact_topic !== env.CDC_ORDER_FACT_TOPIC ||
@@ -89,7 +107,7 @@ export function checkTargetProfiles(profiles, env) {
   }
   return { status: 'PROFILE_TOPOLOGY_MATCH', source_id: env.CDC_SOURCE_ID,
     medusa_version: medusaVersion, profiles: Object.fromEntries(
-      Object.entries(specs).map(([name]) => [name, profiles[name].coverage_epoch_id])) }
+      Object.entries(activeSpecs).map(([name]) => [name, profiles[name].coverage_epoch_id])) }
 }
 
 async function main() {
@@ -97,7 +115,9 @@ async function main() {
     throw Error('usage: check-target-profiles.mjs --medusa-root <checkout>')
   }
   const profileRoot = path.join(path.resolve(process.argv[3]), 'funnelmetry')
-  const profiles = Object.fromEntries(await Promise.all(Object.entries(specs).map(async ([name, spec]) =>
+  const activeSpecs = process.env.CDC_CART_EPOCH ? specs : Object.fromEntries(
+    Object.entries(specs).filter(([name]) => name !== 'cart'))
+  const profiles = Object.fromEntries(await Promise.all(Object.entries(activeSpecs).map(async ([name, spec]) =>
     [name, JSON.parse(await readFile(path.join(profileRoot, spec.file), 'utf8'))])))
   process.stdout.write(`${JSON.stringify(checkTargetProfiles(profiles, process.env))}\n`)
 }

@@ -15,13 +15,15 @@ const validPayloads = Object.freeze({
   "promotion.banner_impression": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: pageInstanceId, visible_percent: 50, visible_ms: 1000 },
   "promotion.banner_clicked": { banner_id: "hero_1", placement_id: "homepage_hero", page_instance_id: pageInstanceId, campaign_id: "spring_2026" },
   "behavior.search_submitted": { search_interaction_id: "search:interaction-1", query_normalized: "running shoes", outcome: "succeeded", result_count: 12 },
+  "behavior.search_query_submitted": { search_interaction_id: "search:interaction-1", query_normalized: "running shoes", page_instance_id: pageInstanceId },
+  "context.cart_linked": { cart_id: "cart_1", page_instance_id: pageInstanceId },
   "behavior.filter_applied": { page_instance_id: pageInstanceId, filter_keys: ["category", "size"], active_filter_count: 2 },
   "behavior.product_viewed": { product_id: "prod_1", page_instance_id: pageInstanceId, variant_id: "variant_1" },
   "checkout.started": { cart_id: "cart_1", step: "address", page_instance_id: pageInstanceId },
 })
 
 test("catalog validates every approved behavior event with its authority class", () => {
-  assert.equal(BEHAVIOR_EVENT_TYPES.length, 8)
+  assert.equal(BEHAVIOR_EVENT_TYPES.length, 10)
   for (const eventType of BEHAVIOR_EVENT_TYPES) {
     const result = validateBehaviorEvent(eventType, validPayloads[eventType])
     assert.equal(result.catalog_version, BEHAVIOR_EVENT_CATALOG_VERSION)
@@ -72,6 +74,15 @@ test("search requires a normalized, sanitized query and authoritative outcome", 
   }).data, {
     search_interaction_id: "search:interaction-2", query_normalized: "running shoes", outcome: "failed",
   })
+})
+
+test("browser search query has no outcome or result count", () => {
+  assert.deepEqual(validateBehaviorEvent("behavior.search_query_submitted", {
+    search_interaction_id: "search:interaction-3", query_normalized: "blue shoes", page_instance_id: pageInstanceId,
+  }).data, { search_interaction_id: "search:interaction-3", query_normalized: "blue shoes", page_instance_id: pageInstanceId })
+  assert.throws(() => validateBehaviorEvent("behavior.search_query_submitted", {
+    search_interaction_id: "search:interaction-3", query_normalized: "blue shoes", page_instance_id: pageInstanceId, outcome: "succeeded",
+  }), /unsupported field/)
 })
 
 test("filter state keeps keys allowlisted and internally consistent", () => {

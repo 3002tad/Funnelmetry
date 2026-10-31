@@ -8,6 +8,7 @@ import {
   isBehaviorEventType,
   BEHAVIOR_SOURCE_SCHEMA_VERSION,
   getBehaviorEventDefinition,
+  normalizeSearchQueryInput,
   SCROLL_DEPTH_MILESTONES,
   validateBehaviorPayload,
 } from "@3002tad/funnelmetry-behavior-event-catalog"
@@ -442,6 +443,37 @@ export function createBrowserSdk(options) {
     }
   }
 
+  function trackSearchQuery(rawQuery, searchInteractionId, pageInstanceId) {
+    const query = normalizeSearchQueryInput(rawQuery)
+    if (!query || typeof searchInteractionId !== "string" || !searchInteractionId.trim() ||
+        typeof pageInstanceId !== "string" || !pageInstanceId.trim()) {
+      return Promise.resolve({ status: "skipped_invalid_search_query" })
+    }
+    try {
+      return trackBehaviorOnce(`search:${searchInteractionId}`, "behavior.search_query_submitted", {
+        search_interaction_id: searchInteractionId,
+        query_normalized: query,
+        page_instance_id: pageInstanceId,
+      }).catch(() => ({ status: "skipped_search_tracking_error" }))
+    } catch {
+      return Promise.resolve({ status: "skipped_search_tracking_error" })
+    }
+  }
+
+  function trackCartContext(cartId, pageInstanceId) {
+    if (typeof cartId !== "string" || !cartId.trim() ||
+        typeof pageInstanceId !== "string" || !pageInstanceId.trim()) {
+      return Promise.resolve({ status: "skipped_invalid_cart_context" })
+    }
+    try {
+      return trackBehaviorOnce(`cart-context:${cartId}`, "context.cart_linked", {
+        cart_id: cartId, page_instance_id: pageInstanceId,
+      }).catch(() => ({ status: "skipped_cart_context_tracking_error" }))
+    } catch {
+      return Promise.resolve({ status: "skipped_cart_context_tracking_error" })
+    }
+  }
+
   function createPageContext(page) {
     const value = requiredPlainObject(page, "page")
     return validateBehaviorPayload("behavior.page_viewed", {
@@ -610,6 +642,8 @@ export function createBrowserSdk(options) {
     track,
     trackBehavior,
     trackBehaviorOnce,
+    trackSearchQuery,
+    trackCartContext,
     createPageContext,
     trackPageView,
     trackScrollDepth,

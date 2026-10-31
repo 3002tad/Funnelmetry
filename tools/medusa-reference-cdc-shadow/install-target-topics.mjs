@@ -39,15 +39,36 @@ export function targetTopicSpecs(profiles) {
     configEntries: [{ name: 'cleanup.policy', value: 'delete' }] }))
 }
 
-async function main() {
-  if (process.argv.length !== 5 || process.argv[2] !== '--profile-dir' ||
-      !['plan', 'apply', 'verify'].includes(process.argv[4])) {
-    throw Error('usage: install-target-topics.mjs --profile-dir <dir> plan|apply|verify')
+export function cartTopicSpecs(profile) {
+  if (profile.schema_version !== 'funnelmetry-medusa-cdc-cart-line-item.v1' ||
+      profile.status !== 'ACTIVE_REFERENCE' || profile.snapshot_mode !== 'initial' ||
+      profile.topic_prefix !== 'cdc_medusa_cart_line_item_v1' ||
+      JSON.stringify(profile.table_columns) !== JSON.stringify([
+        'public.cart_line_item:id,cart_id,product_id,variant_id,quantity,created_at,updated_at,deleted_at'])) {
+    throw Error('cdc_cart_topic_profile_invalid')
   }
-  const root = path.resolve(process.argv[3])
-  const profiles = Object.fromEntries(await Promise.all(Object.entries(filenames).map(async ([kind, filename]) =>
-    [kind, JSON.parse(await readFile(path.join(root, filename), 'utf8'))])))
-  const specs = targetTopicSpecs(profiles)
+  return [
+    `${profile.topic_prefix}.public.cart_line_item`,
+    `${profile.topic_prefix}.transaction`,
+    `__debezium-heartbeat.${profile.topic_prefix}`,
+  ].map(topic => ({ topic, numPartitions: 1, replicationFactor: 1,
+    configEntries: [{ name: 'cleanup.policy', value: 'delete' }] }))
+}
+
+async function main() {
+  if (process.argv.length !== 5 || !['--profile-dir', '--cart-profile'].includes(process.argv[2]) ||
+      !['plan', 'apply', 'verify'].includes(process.argv[4])) {
+    throw Error('usage: install-target-topics.mjs --profile-dir <dir>|--cart-profile <file> plan|apply|verify')
+  }
+  let specs
+  if (process.argv[2] === '--cart-profile') {
+    specs = cartTopicSpecs(JSON.parse(await readFile(path.resolve(process.argv[3]), 'utf8')))
+  } else {
+    const root = path.resolve(process.argv[3])
+    const profiles = Object.fromEntries(await Promise.all(Object.entries(filenames).map(async ([kind, filename]) =>
+      [kind, JSON.parse(await readFile(path.join(root, filename), 'utf8'))])))
+    specs = targetTopicSpecs(profiles)
+  }
   const action = process.argv[4]
   if (action === 'plan') {
     console.log(JSON.stringify({ status: 'CDC_TOPICS_PLAN_ONLY', count: specs.length,

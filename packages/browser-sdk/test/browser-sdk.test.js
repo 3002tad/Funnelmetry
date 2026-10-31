@@ -80,6 +80,42 @@ test("does not enqueue browser data without explicit consent", async () => {
   assert.equal(attributionWrites, 0)
 })
 
+test("browser search stores only a sanitized query and reuses one submission identity", async () => {
+  const sent = []
+  const sdk = createBrowserSdk({
+    sourceId: "medusa-reference", sourceKeyId: "browser", endpoint: "https://ingest.example.test",
+    writeKey: "public-write-key", allowedEventTypes: ["behavior.search_query_submitted", "context.cart_linked"],
+    locationSearch: "?utm_source=Newsletter%2FPartner",
+    hasConsent: () => true,
+    fetch: async (_url, request) => {
+      const event = JSON.parse(request.body)
+      sent.push(event)
+      return { status: 202, text: async () => receipt("accepted", event.event_id, { ingestion_id: "ing_search" }) }
+    },
+  })
+  assert.deepEqual(await sdk.trackSearchQuery("  BLUE   Shoes  ", "search:one", "page:store-1"), { status: "drained" })
+  assert.equal(sent.length, 1)
+  assert.deepEqual(sent[0].source_payload, {
+    search_interaction_id: "search:one", query_normalized: "blue shoes", page_instance_id: "page:store-1",
+  })
+  assert.equal(sent[0].producer, "browser_sdk")
+  assert.equal(sent[0].source_event_type, "behavior.search_query_submitted")
+  assert.match(sent[0].occurred_at, /^\d{4}-\d{2}-\d{2}T/)
+  assert.ok(sent[0].anonymous_id)
+  assert.ok(sent[0].session_id)
+  assert.equal(sent[0].source_metadata.utm_source, "Newsletter/Partner")
+  assert.equal(sent[0].correlation_id, sent[0].session_id)
+  assert.equal((await sdk.trackSearchQuery("blue shoes", "search:one", "page:store-1")).status, "skipped_duplicate_once")
+  assert.equal((await sdk.trackSearchQuery("test@example.com", "search:private", "page:store-1")).status,
+    "skipped_invalid_search_query")
+  assert.deepEqual(await sdk.trackCartContext("cart_1", "page:product-1"), { status: "drained" })
+  assert.equal(sent[1].source_event_type, "context.cart_linked")
+  assert.deepEqual(sent[1].source_payload, { cart_id: "cart_1", page_instance_id: "page:product-1" })
+  assert.equal(sent[1].session_id, sent[0].session_id)
+  assert.equal((await sdk.trackCartContext("cart_1", "page:product-1")).status, "skipped_duplicate_once")
+  assert.equal(sent.length, 2)
+})
+
 test("persists consented browser identity and uses session correlation by default", async () => {
   const localValues = new Map()
   const sessionValues = new Map()

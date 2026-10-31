@@ -21,6 +21,7 @@ jobs:
         run: |
           node --check workers/reference-order-cdc-v2-mapper/src/main.js
           node --check workers/reference-order-cdc-v2-sink/src/main.js
+          node --check workers/cart-line-item-cdc-mapper/src/main.js
           node --check runtime/cdc-live.mjs
       - name: Build primary Workers image
         run: |
@@ -31,6 +32,8 @@ jobs:
             funnelmetry-cdc-workers node --check /workspace/workers/reference-order-cdc-v2-mapper/src/main.js
           docker run --rm --network none --read-only --cap-drop ALL \
             funnelmetry-cdc-workers node --check /workspace/workers/reference-order-cdc-v2-sink/src/main.js
+          docker run --rm --network none --read-only --cap-drop ALL \
+            funnelmetry-cdc-workers node --check /workspace/workers/cart-line-item-cdc-mapper/src/main.js
       - name: Publish immutable SHA tag
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

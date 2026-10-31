@@ -26,7 +26,11 @@ export function createPassthroughMappings(mappingVersion = "canonical-passthroug
     source_schema_version: Object.hasOwn(BEHAVIOR_EVENT_DEFINITIONS, eventType) ? BEHAVIOR_SOURCE_SCHEMA_VERSION : "*",
     event_type: eventType,
     event_class: eventClass,
-    mapping_version: Object.hasOwn(BEHAVIOR_EVENT_DEFINITIONS, eventType) ? 'canonical-behavior-v2' : mappingVersion,
+    mapping_version: eventType === 'behavior.search_query_submitted' ? 'canonical-search-query-v3'
+      : eventType === 'context.cart_linked' ? 'canonical-cart-context-v1'
+      : Object.hasOwn(BEHAVIOR_EVENT_DEFINITIONS, eventType) ? 'canonical-behavior-v2' : mappingVersion,
+    ...(eventType === 'context.cart_linked'
+      ? { map_relations: event => ({ cart_id: event.source_payload.cart_id }) } : {}),
     map_data: (event) => {
       if (eventType === 'order.placed' && event.producer !== 'source_bridge') throw new Error('Order placement requires source authority')
       const definition = BEHAVIOR_EVENT_DEFINITIONS[eventType]

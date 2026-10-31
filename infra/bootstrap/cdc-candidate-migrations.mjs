@@ -45,6 +45,9 @@ export const migrations = Object.freeze([
     'reference_current_offer_metadata_bindings',
     'reference_current_offer_metadata_binding_audit',
   ] },
+  { file: '031_cart_line_item_cdc.sql', objects: [
+    'cart_cdc_input_offsets', 'cart_cdc_line_state', 'cart_cdc_canonical_outbox',
+  ] },
 ])
 
 export function migrationDigest(files) {
