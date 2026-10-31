@@ -1,6 +1,6 @@
 # Demo và handoff — hồ sơ triển khai cũ
 
-> Các launcher, Compose overlay, image digest và private ingress bên dưới là lịch sử theo từng lần bàn giao. Đường chạy hiện hành là docs/SWARM_MIGRATION.md; launcher Compose cũ đã bị gỡ.
+> Các launcher, Compose overlay, image digest và private ingress bên dưới là lịch sử theo từng lần bàn giao. Đường chạy hiện hành là docs/current/DEPLOYMENT.md; launcher Compose cũ đã bị gỡ.
 
 Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Đường dẫn code/lệnh trong nội dung gốc tính từ root `Streaming_Pipeline` trừ khi ghi khác.
 
@@ -142,9 +142,9 @@ References: [Tailscale Docker parameters](https://tailscale.com/docs/features/co
 
 # Khởi động lại demo private trên Laptop 2
 
-> **Lưu trữ lịch sử:** private launcher đã bỏ; không dùng các lệnh trong tài liệu này để khởi chạy bộ mới. Xem [vận hành Swarm](../SWARM_MIGRATION.md).
+> **Lưu trữ lịch sử:** private launcher đã bỏ; không dùng các lệnh trong tài liệu này để khởi chạy bộ mới. Xem [vận hành Swarm](checkpoints/SWARM_MIGRATION.md).
 
-> Hướng dẫn **resume trên máy đã cấu hình**, không phải chuyển server. Xem [vận hành hiện hành](../SWARM_MIGRATION.md) để chọn đúng cấu hình/capability.
+> Hướng dẫn **resume trên máy đã cấu hình**, không phải chuyển server. Xem [vận hành hiện hành](checkpoints/SWARM_MIGRATION.md) để chọn đúng cấu hình/capability.
 
 Từ root `Streaming_Pipeline`, chạy `powershell -NoProfile -ExecutionPolicy Bypass -File runtime/start-private-demo.ps1`.
 Script bật Docker Desktop nếu cần, PostgreSQL/Kafka,
@@ -187,7 +187,7 @@ không dùng `down -v` để dừng demo.
 
 # Bàn giao phát triển bằng Docker images
 
-> **Lưu trữ lịch sử:** các Compose handoff nhiều overlay bên dưới đã loại bỏ. Triển khai mới dùng [Docker Swarm](../SWARM_MIGRATION.md); Compose runtime cũ chỉ còn trong Git history.
+> **Lưu trữ lịch sử:** các Compose handoff nhiều overlay bên dưới đã loại bỏ. Triển khai mới dùng [Docker Swarm](checkpoints/SWARM_MIGRATION.md); Compose runtime cũ chỉ còn trong Git history.
 
 **Cập nhật 04/10/2026:** ba image đã chuyển vào GHCR `3002tad/funnelmetry`.
 Xem [CODEX_HANDOFF](DEMO_HANDOFF_HISTORY.md#codex-handoff) để lấy digest, cấu hình live/AI và checklist
@@ -376,7 +376,7 @@ trong workspace; đây không phải authoritative migration/cutover.
 
 # Bàn giao worker pipeline — 04/10/2026
 
-> **Lưu trữ lịch sử:** không chạy lệnh handoff overlay bên dưới. Đường Compose rollback đã bị gỡ; triển khai mới theo [Docker Swarm](../SWARM_MIGRATION.md).
+> **Lưu trữ lịch sử:** không chạy lệnh handoff overlay bên dưới. Đường Compose rollback đã bị gỡ; triển khai mới theo [Docker Swarm](checkpoints/SWARM_MIGRATION.md).
 
 **Release update:** ba image commit `a725fad` đã publish và xác minh digest dưới
 GHCR `3002tad/funnelmetry`; xem [CODEX_HANDOFF](DEMO_HANDOFF_HISTORY.md#codex-handoff) cho digest
@@ -563,7 +563,7 @@ images; chưa được coi là release hoàn chỉnh. Không tự đổi package
 
 # Codex handoff — Pipeline development, 04/10/2026
 
-> **Lưu trữ lịch sử:** quy trình handoff nhiều overlay trong tài liệu này không còn là cấu hình triển khai hiện hành. Dùng [vận hành Swarm](../SWARM_MIGRATION.md); không chạy các lệnh `compose.handoff*.yml` bên dưới.
+> **Lưu trữ lịch sử:** quy trình handoff nhiều overlay trong tài liệu này không còn là cấu hình triển khai hiện hành. Dùng [vận hành Swarm](checkpoints/SWARM_MIGRATION.md); không chạy các lệnh `compose.handoff*.yml` bên dưới.
 
 > **Cập nhật release 10/10/2026:** image mới từ `2fb6b91` đã publish lên GHCR.
 > Dùng [runbook monitoring mới](MONITORING_HISTORY.md#teammate-monitoring-test) để lấy
@@ -585,7 +585,7 @@ Không coi việc publish images là đã nghiệm thu live trên máy nhận.
 2. `../System_Backbone/docs/governance/DINH_HUONG_DE_TAI.md` (DEC-125),
    `../System_Backbone/MASTER_SPECIFICATION.md` (§24.2.1).
 3. `../System_Backbone/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md`.
-4. [Current Swarm operations](../SWARM_MIGRATION.md), [base handoff](DEMO_HANDOFF_HISTORY.md#docker-handoff),
+4. [Current Swarm operations](checkpoints/SWARM_MIGRATION.md), [base handoff](DEMO_HANDOFF_HISTORY.md#docker-handoff),
    [pipeline handoff](DEMO_HANDOFF_HISTORY.md#worker-handoff).
 5. [Source Connector](../workers/source-connector/README.md),
    [catalog sync](../workers/catalog-sync/README.md),
@@ -787,7 +787,7 @@ Không gửi PAT/API keys trong Git; không merge DB hai máy hoặc chuyển Ka
 
 # Demo mới — 08/10/2026
 
-> **Lưu trữ lịch sử:** launcher và overlay demo trong tài liệu này đã được bỏ. Demo mới theo [Docker Swarm](../SWARM_MIGRATION.md); Compose runtime cũ chỉ còn trong Git history.
+> **Lưu trữ lịch sử:** launcher và overlay demo trong tài liệu này đã được bỏ. Demo mới theo [Docker Swarm](checkpoints/SWARM_MIGRATION.md); Compose runtime cũ chỉ còn trong Git history.
 
 ## Demo tự phục hồi worker — 11/10/2026
 
@@ -935,7 +935,7 @@ Không dùng thông tin đăng nhập thành công/healthy làm bằng chứng l
 ### Follow-up dashboard monitoring artifacts — 09/10/2026
 
 - Thêm dashboard Grafana import thủ công và mẫu cấu hình Prometheus tại
-  `infra/observability/`; hướng dẫn trong [Observability](../MONITORING.md#observability-artifacts).
+  `infra/observability/`; hướng dẫn trong [Observability](checkpoints/MONITORING.md#observability-artifacts).
 - Artifact tests: 3 PASS; promtool syntax và 3 truy vấn regression PASS.
   Phân biệt known zero, chưa có observation và scrape thất bại.
 - Chưa deploy Prometheus/Grafana, chưa kiểm chứng import bằng trình duyệt;
@@ -954,7 +954,7 @@ Không dùng thông tin đăng nhập thành công/healthy làm bằng chứng l
   digest hoặc bảng event/cursor. Khóa demo hết hạn sau 7 ngày, phải rotate chủ động.
 - Runtime kiểm chứng dashboard 8 panel, scrape UP=1, 6 worker observations;
   khóa bị thu hồi/hết hạn bị từ chối. Đây không phải chứng nhận dữ liệu end-to-end.
-- Runbook: [monitoring và khóa metrics](../MONITORING.md#machine-credentials).
+- Runbook: [monitoring và khóa metrics](checkpoints/MONITORING.md#machine-credentials).
 
 ### Monitoring key rotation helper
 
@@ -990,7 +990,7 @@ Không dùng thông tin đăng nhập thành công/healthy làm bằng chứng l
 
 # Cấu hình theo luồng demo hiện tại
 
-> **Lưu trữ lịch sử:** bộ `demo-new.env`/handoff overlay không còn là đường chạy hiện hành. Dùng [`deploy.env.example`](../../runtime/deploy.env.example) và [vận hành Swarm](../SWARM_MIGRATION.md).
+> **Lưu trữ lịch sử:** bộ `demo-new.env`/handoff overlay không còn là đường chạy hiện hành. Dùng [`deploy.env.example`](../../runtime/deploy.env.example) và [vận hành Swarm](checkpoints/SWARM_MIGRATION.md).
 
 ## Máy đang phát triển — funnelmetry-demo-new
 
@@ -1036,7 +1036,7 @@ Compose có thể recreate container; `restart` đơn thuần không nạp env/l
 ## Recovery / giới hạn tài nguyên
 
 - CPU/RAM/PID từng worker: `HANDOFF_*_CPUS`, `*_MEMORY`, `*_PIDS` trong demo-new.env;
-  mặc định và bảng biến ở [vận hành Swarm](../SWARM_MIGRATION.md).
+  mặc định và bảng biến ở [vận hành Swarm](checkpoints/SWARM_MIGRATION.md).
 - Watchdog: `powershell -NoProfile -ExecutionPolicy Bypass -File runtime/start-recovery-demo.ps1`, policy
   `tools/resilience-watchdog/demo.config.json`, state/audit `runtime/watchdog/`.
 - Autoscaler chưa có actuator demo; đổi resource limit không bật autoscale.
@@ -1072,7 +1072,7 @@ Không xóa file cấu hình cũ hoặc chuyển secret giữa hai môi trườn
 
 # Demo mới trên máy bạn — 11/10/2026
 
-> **Lưu trữ lịch sử:** bundle/launcher demo cũ đã bỏ. Người nhận triển khai theo [vận hành hiện hành](../SWARM_MIGRATION.md), với stack/env riêng và không dùng image digest cũ khi chưa kiểm chứng.
+> **Lưu trữ lịch sử:** bundle/launcher demo cũ đã bỏ. Người nhận triển khai theo [vận hành hiện hành](checkpoints/SWARM_MIGRATION.md), với stack/env riêng và không dùng image digest cũ khi chưa kiểm chứng.
 
 Phạm vi: OFFLINE_DEMO, database/Kafka mới, không chuyển dữ liệu từ máy khác.
 Theo DEC-125; không xóa hoặc ghi đè demo cũ. Project riêng được tạo ngẫu nhiên

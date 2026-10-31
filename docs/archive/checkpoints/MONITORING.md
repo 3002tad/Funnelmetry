@@ -1,8 +1,8 @@
 # Monitoring Pipeline
 
-> **LỊCH SỬ COMPOSE (12/10), không phải runbook Swarm.** Lần chạy cũ dùng profile `monitoring,live,catalog`; sau khi provision credential, kiểm tra Grafana 8 panel, Prometheus `UP=1` và 7 worker ready. Đường triển khai/launcher Compose cũ đã bị gỡ ngày 2026-10-15; các lệnh bên dưới chỉ là provenance, **không chạy được trên phiên bản hiện tại**. Xem [trạng thái Swarm](../../SWARM_MIGRATION.md). Credential metrics hết hạn theo TTL; bằng chứng cũ không chứng minh end-to-end hay host-level HA.
+> **LỊCH SỬ COMPOSE (12/10), không phải runbook Swarm.** Lần chạy cũ dùng profile `monitoring,live,catalog`; sau khi provision credential, kiểm tra Grafana 8 panel, Prometheus `UP=1` và 7 worker ready. Đường triển khai/launcher Compose cũ đã bị gỡ ngày 2026-10-15; các lệnh bên dưới chỉ là provenance, **không chạy được trên phiên bản hiện tại**. Xem [trạng thái Swarm](SWARM_MIGRATION.md). Credential metrics hết hạn theo TTL; bằng chứng cũ không chứng minh end-to-end hay host-level HA.
 
-> Hợp nhất contract khóa metrics và tài liệu Prometheus/Grafana. Phần lịch sử không còn là runbook; thao tác Swarm dùng [SWARM_MIGRATION.md](../../SWARM_MIGRATION.md).
+> Hợp nhất contract khóa metrics và tài liệu Prometheus/Grafana. Phần lịch sử không còn là runbook; thao tác Swarm dùng [SWARM_MIGRATION.md](SWARM_MIGRATION.md).
 
 Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Artifact Prometheus/Grafana vẫn nằm ở `infra/observability/` trong source repo.
 
@@ -182,7 +182,7 @@ and [Docker secret-file configuration](https://grafana.com/docs/grafana/latest/s
 
 Implements the visualization preparation for Master §24.3.4 / DEC-103.
 The retired Compose monitoring profile defined Prometheus and Grafana with a
-metrics-only machine credential. See [Swarm operations](../../SWARM_MIGRATION.md) and [historical key-lifecycle evidence](../../MONITORING.md#machine-credentials).
+metrics-only machine credential. See [Swarm operations](SWARM_MIGRATION.md) and [historical key-lifecycle evidence](MONITORING.md#machine-credentials).
 No recovery/autoscaling is enabled.
 
 ## Files

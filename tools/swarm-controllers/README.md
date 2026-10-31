@@ -67,7 +67,7 @@ API, Agent, browser and worker containers receive no Docker socket.
   authorization is all-or-nothing; a Docker-group membership, socket mount,
   client certificate, or code-level allowlist alone is not a restricted actuator.
   The current local engine reported no authorization plugin in the
-  [sustained in-flight fixture](../../docs/SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
+  [sustained in-flight fixture](../../docs/archive/checkpoints/SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
   Exact thresholds are
   EXPERIMENTAL and belong in a reviewed config, not an architectural SLA.
 
@@ -103,7 +103,7 @@ mode and continues to require its own authorization review. The broker's
 socket mount is still manager-equivalent privilege if the broker is compromised;
 an internal network and token do not change that fact.
 The local-live risk boundary and negative container smoke are recorded in
-[the broker risk review](../../docs/SWARM_SCALE_BROKER_RISK_2026-10-15.md).
+[the broker risk review](../../docs/archive/checkpoints/SWARM_SCALE_BROKER_RISK_2026-10-15.md).
 
 Build the two images from their Dockerfiles, publish immutable digests to the
 approved registry, and set `SWARM_SCALE_BROKER_IMAGE` and
@@ -182,7 +182,7 @@ state with `attest-release.mjs`. It rejects changed policy, active runner,
 pending action, nonzero consumable lag, unready identity or wrong image, and
 preserves audit/cooldown while resetting prior observations. The 2026-10-15
 local demo used `live-replay-20261015` and `live-drain-20261015` from
-[the validation record](../../docs/SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
+[the validation record](../../docs/archive/checkpoints/SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
 
 ```powershell
 node tools/swarm-controllers/attest-release.mjs runtime/swarm-controllers/config.json runtime/swarm-controllers/state.json
@@ -268,10 +268,10 @@ an HA controller. `metrics` is Prometheus text, not yet wired into Prometheus.
 An isolated adapter fixture exercises 1-to-2-to-1 controller decisions, including
 holding while tasks/group have not converged and while backlog is nonzero. This
 is a deterministic code test, **not** a Docker/Kafka acceptance result.
-The separate [2026-10-14 disposable Swarm fixture validation](../../docs/SWARM_AUTOSCALE_FIXTURE_VALIDATION_2026-10-14.md)
+The separate [2026-10-14 disposable Swarm fixture validation](../../docs/archive/checkpoints/SWARM_AUTOSCALE_FIXTURE_VALIDATION_2026-10-14.md)
 records an actual single-node synthetic Raw→canonical 1-to-2-to-1 run. Its
 release evidence and thresholds apply only to that isolated stack/image.
-The [current-image rerun](../../docs/SWARM_AUTOSCALE_CURRENT_IMAGE_VALIDATION_2026-10-14.md)
+The [current-image rerun](../../docs/archive/checkpoints/SWARM_AUTOSCALE_CURRENT_IMAGE_VALIDATION_2026-10-14.md)
 confirms manual 1-to-2-to-1 with the newer Worker digest, but it is not a
 live `--apply` or in-flight drain acceptance. A separate read-only Fetch probe
 confirmed the then-current live Raw group's two-offset tail was two control
@@ -291,4 +291,4 @@ An independent SIGKILL also caused task replacement. This verifies Swarm Level 1
 authorization was blocked separately from the approved fault injection. Neither
 live scale 1→N→1 nor live Level-2 recovery is accepted yet. The later local
 two-partition live stack and isolated current-image tests are documented in
-[the 2026-10-14 follow-up](../../docs/SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
+[the 2026-10-14 follow-up](../../docs/archive/checkpoints/SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).

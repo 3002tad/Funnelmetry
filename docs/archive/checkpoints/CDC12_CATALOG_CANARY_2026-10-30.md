@@ -1,7 +1,7 @@
 # CDC-12 catalog canary — Medusa reference, 2026-10-30
 
 Status: **CANARY_ACTIVE; catalog Admin API sync stopped 0/0**. This is one stream's release record under
-DEC-119/135 and the [CDC-11 cutover runbook](../../CDC11_THREE_STREAM_CUTOVER_RUNBOOK.md).
+DEC-119/135 and the [CDC-11 cutover runbook](CDC11_THREE_STREAM_CUTOVER_RUNBOOK.md).
 The user's 2026-10-30 instruction authorizes moving from the measured reference
 load budget to cutover; this record limits that action to the catalog read path.
 Order v2 and inventory/price analytical authority remain shadow.

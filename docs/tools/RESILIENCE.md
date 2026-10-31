@@ -18,7 +18,7 @@
 
 # Single-host autoscaler — decision policy (2026-10-11)
 
-> The `compose.handoff-pipeline.yml` findings below describe an older sandbox and are not deployment instructions. Swarm is the deployment baseline; see [Swarm migration](../SWARM_MIGRATION.md) and [feature status](../FEATURE_STATUS.md). The actuator is not automatically enabled.
+> The `compose.handoff-pipeline.yml` findings below describe an older sandbox and are not deployment instructions. Swarm is the deployment baseline; see [Swarm migration](../archive/checkpoints/SWARM_MIGRATION.md) and [feature status](../archive/checkpoints/FEATURE_STATUS.md). The actuator is not automatically enabled.
 
 Authority: Master §24.3.5 / DEC-122; Cookbook pipeline-recovery-observability.
 **Decision policy + read-only observer + opt-in replica sandbox, not an enabled autoscaler.**
@@ -60,7 +60,7 @@ and must not be cleared blindly in production.
 The transactional-ID finding below describes the older per-instance runtime.
 The current Swarm Normalizer candidate uses a stable ID derived from consumer
 group and Raw partition and bounded Kafka transactions; see
-[the 2026-10-14 validation](../SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
+[the 2026-10-14 validation](../archive/checkpoints/SWARM_AUTOSCALE_AND_HEALTH_VALIDATION_2026-10-14.md).
 The legacy Compose guidance is not the Swarm rollout path.
 
 1. The retired Compose deployment assigned a fixed

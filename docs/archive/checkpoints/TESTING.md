@@ -6,7 +6,7 @@
 
 | Mục tiêu | Lệnh / vị trí | Kết luận tối đa |
 |---|---|---|
-| Cú pháp stack Swarm data/app nội bộ | `node runtime/swarm.mjs check` và `node runtime/swarm.mjs check-internal` | Chỉ chứng minh render hợp lệ; runtime evidence của candidate ở [báo cáo Swarm](../../SWARM_CANDIDATE_VALIDATION_2026-10-13.md). |
+| Cú pháp stack Swarm data/app nội bộ | `node runtime/swarm.mjs check` và `node runtime/swarm.mjs check-internal` | Chỉ chứng minh render hợp lệ; runtime evidence của candidate ở [báo cáo Swarm](SWARM_CANDIDATE_VALIDATION_2026-10-13.md). |
 | Quy tắc monitoring runtime | `node --test runtime/monitoring-rotation.test.mjs` | Test hành vi fixture, không bật dịch vụ |
 | Dashboard API | `npm test --prefix apps/dashboard-api` | Unit/route tests; các bài PostgreSQL tùy cấu hình có thể skip |
 | Chat semantic tool IDs | `node --test apps/dashboard-api/test/event-count-tool.test.js apps/dashboard-api/test/chat-v2.test.js` | Mock planner → HTTP route → registered runner/evidence cho ba tool; không gọi Qwen hoặc PostgreSQL thật |
@@ -23,7 +23,7 @@ Với deployment mới hoặc sau khi build image chứa worker Traffic, kiểm 
 
 ## Tra cứu event trên Compose rollback (legacy, chỉ đọc)
 
-CLI `trace-event.mjs` bên dưới vẫn dùng `docker compose exec`; **không** chạy nó để kết luận về Swarm candidate. Với Swarm, xem [bằng chứng nội bộ đã kiểm thử](../../SWARM_CANDIDATE_VALIDATION_2026-10-13.md) hoặc dùng API Event Trace sau khi có đường truy cập/phiên đăng nhập phù hợp. Chưa có CLI Event Trace riêng cho Swarm.
+CLI `trace-event.mjs` bên dưới vẫn dùng `docker compose exec`; **không** chạy nó để kết luận về Swarm candidate. Với Swarm, xem [bằng chứng nội bộ đã kiểm thử](SWARM_CANDIDATE_VALIDATION_2026-10-13.md) hoặc dùng API Event Trace sau khi có đường truy cập/phiên đăng nhập phù hợp. Chưa có CLI Event Trace riêng cho Swarm.
 
 Khi đã có `source_id` và `event_id` từ một event được gửi hợp lệ, chạy:
 

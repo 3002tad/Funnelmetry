@@ -2,7 +2,7 @@
 
 CDC-14 promotes the six CDC runtime services to stack `funnelmetry_cdc`.
 Evidence and preserved physical names are in
-[`docs/CDC14_RUNTIME_EXECUTION_2026-10-31.md`](../../docs/CDC14_RUNTIME_EXECUTION_2026-10-31.md).
+[`docs/archive/checkpoints/CDC14_RUNTIME_EXECUTION_2026-10-31.md`](../../docs/archive/checkpoints/CDC14_RUNTIME_EXECUTION_2026-10-31.md).
 
 On the VPS checkout `/srv/KLTN/Funnelmetry-cdc-profile`:
 

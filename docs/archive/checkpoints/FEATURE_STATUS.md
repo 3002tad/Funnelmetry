@@ -1,10 +1,10 @@
 # Chức năng Pipeline: có gì, còn thiếu gì
 
-> **Bảng phạm vi code lập 2026-10-15; cập nhật riêng Medusa CDC 2026-10-31.** “Có code” ≠ “test đạt” ≠ “đã bật trên máy này” ≠ “đã hoàn thành Master”. DEC-126–130 đã chuyển deployment baseline sang Swarm; runtime Compose bên dưới chỉ là evidence lịch sử của demo đã bỏ. Đọc [Medusa CDC hiện hành](../../MEDUSA_REFERENCE_CDC_CURRENT.md) trước các dòng Source/Catalog cũ trong bảng này. Kiểm tra image/commit, mode, data và [bằng chứng kiểm thử](../../TESTING.md) của deployment thực tế trước khi demo. Quyết định kiến trúc thuộc [Decision Record](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/DINH_HUONG_DE_TAI.md) và [Master](https://github.com/3002tad/System_Backbone/blob/main/MASTER_SPECIFICATION.md), không thuộc bảng này.
+> **Bảng phạm vi code lập 2026-10-15; cập nhật riêng Medusa CDC 2026-10-31.** “Có code” ≠ “test đạt” ≠ “đã bật trên máy này” ≠ “đã hoàn thành Master”. DEC-126–130 đã chuyển deployment baseline sang Swarm; runtime Compose bên dưới chỉ là evidence lịch sử của demo đã bỏ. Đọc [Medusa CDC hiện hành](../../current/MEDUSA_REFERENCE_CDC_CURRENT.md) trước các dòng Source/Catalog cũ trong bảng này. Kiểm tra image/commit, mode, data và [bằng chứng kiểm thử](TESTING.md) của deployment thực tế trước khi demo. Quyết định kiến trúc thuộc [Decision Record](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/DINH_HUONG_DE_TAI.md) và [Master](https://github.com/3002tad/System_Backbone/blob/main/MASTER_SPECIFICATION.md), không thuộc bảng này.
 
 | Mảng | Đã có trong Pipeline | Chưa hoàn tất / giới hạn |
 |---|---|---|
-| Source→Pipeline | `source-connector` tiếp tục đọc HTTPS Event Feed cho Browser SDK và storefront behavioral events. Business/master data Medusa reference dùng ba luồng CDC riêng, xem [CDC current](../../MEDUSA_REFERENCE_CDC_CURRENT.md). | Không suy ra Source history đầy đủ từ `/readyz`; cần kiểm tra coverage, retention, cursor và processing-safe checkpoint. Gateway HTTP chưa cutover. |
+| Source→Pipeline | `source-connector` tiếp tục đọc HTTPS Event Feed cho Browser SDK và storefront behavioral events. Business/master data Medusa reference dùng ba luồng CDC riêng, xem [CDC current](../../current/MEDUSA_REFERENCE_CDC_CURRENT.md). | Không suy ra Source history đầy đủ từ `/readyz`; cần kiểm tra coverage, retention, cursor và processing-safe checkpoint. Gateway HTTP chưa cutover. |
 | Canonical + downstream | Normalizer, ledger, telemetry, journey, funnel, KPI, reconciliation worker và schema V2 hiện diện; demo đã có canonical outcome. | Một event qua Gateway/Feed chưa chứng minh mọi projection, replay và reconciliation hoàn chỉnh; cần đối chiếu theo event ID và quality gate. |
 | Traffic input lineage | `traffic-source-writer` chiếu trạng thái `utm_source` từ Raw Kafka; DA có `/traffic` để xem trạng thái đầu vào, gán nhiều raw UTM vào nhãn nguồn qua registry có quyền/phiên bản/audit, và xem số event theo nhãn hiện tại. Bảng registry chỉ lưu hash, không trả raw/hash qua API. | Chưa kiểm chứng trên deployment thật; không bao phủ Raw Kafka đã hết retention. Nhãn hiện tại áp vào event lúc đọc, không sửa event lịch sử và **không** phải attribution đơn hàng/doanh thu hay metric chiến dịch. Hash trong DB có thể bị đoán với giá trị phổ biến, không được coi là ẩn danh. |
 | Catalog sản phẩm | Medusa reference dùng catalog CDC projection/quality lease; `catalog-sync` Admin API pull đã gỡ ở CDC-13. CDC-14 đối chiếu 104 sản phẩm. | Catalog là current reference, không phải giá đơn lịch sử; quality lease và coverage vẫn quyết định khả năng đọc. |
@@ -47,10 +47,10 @@ Các endpoint từ ghi nhận 08–10/10 có test auth, bounds và redaction, nh
 
 ## Chỗ cần làm tiếp
 
-1. Dùng [ma trận test](../../TESTING.md) để chứng minh một event Source→Kafka→canonical→projection/quality theo ID, không chỉ HTTP 200.
+1. Dùng [ma trận test](TESTING.md) để chứng minh một event Source→Kafka→canonical→projection/quality theo ID, không chỉ HTTP 200.
 2. Provision/kiểm chứng monitoring trên project mới, rồi xác nhận alert, quyền máy và trạng thái UNKNOWN thực tế.
 3. Mở rộng metadata/assets/tool coverage có kiểm soát, tách human notes khỏi official findings/reports.
 4. Đánh giá autoscaler actuator, graceful drain, identity/recovery và host capacity trước khi bật tự động.
 5. Chỉ nhận migration/cutover khi thỏa [DEC-125](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/PIPELINE_PARALLEL_DEMO_AND_MIGRATION_RULES_V1.md), không suy từ demo tươi.
 
-Nguồn chi tiết theo component: [Analytics](../../analytics/README.md), [UI rollout](../../archive/UI_HISTORY.md), [workers](../../workers/README.md), [autoscaler](../../tools/RESILIENCE.md#autoscaler), [monitoring](../../MONITORING.md). Các ghi nhận theo ngày là evidence ở thời điểm đó, không tự nâng trạng thái của code hiện tại.
+Nguồn chi tiết theo component: [Analytics](../../analytics/README.md), [UI rollout](../../archive/UI_HISTORY.md), [workers](../../workers/README.md), [autoscaler](../../tools/RESILIENCE.md#autoscaler), [monitoring](MONITORING.md). Các ghi nhận theo ngày là evidence ở thời điểm đó, không tự nâng trạng thái của code hiện tại.

@@ -1,6 +1,6 @@
 # Ingestion và recovery — hồ sơ theo mốc
 
-> Bằng chứng của các deployment cũ. Không dùng lệnh replay/reset trong đây cho deployment hiện tại; xem docs/SWARM_MIGRATION.md và Backbone DEC-125.
+> Bằng chứng của các deployment cũ. Không dùng lệnh replay/reset trong đây cho deployment hiện tại; xem docs/current/DEPLOYMENT.md và Backbone DEC-125.
 
 Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Đường dẫn code/lệnh trong nội dung gốc tính từ root `Streaming_Pipeline` trừ khi ghi khác.
 

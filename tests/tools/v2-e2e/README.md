@@ -1,6 +1,6 @@
 # V2 end-to-end smoke test
 
-> **HISTORICAL RUNNER:** các lệnh bên dưới dùng `infra/compose.v2.yml`/profile `smoke` đã bỏ khỏi bộ triển khai hiện hành. Không chạy nguyên lệnh trên project hiện tại; xem [kiểm thử hiện hành](../../../docs/TESTING.md). Các scenario dưới đây mô tả phạm vi harness cũ, không chứng nhận Compose thống nhất đã có E2E tương đương.
+> **HISTORICAL RUNNER:** các lệnh bên dưới dùng `infra/compose.v2.yml`/profile `smoke` đã bỏ khỏi bộ triển khai hiện hành. Không chạy nguyên lệnh trên project hiện tại; xem [kiểm thử hiện hành](../../../docs/archive/checkpoints/TESTING.md). Các scenario dưới đây mô tả phạm vi harness cũ, không chứng nhận Compose thống nhất đã có E2E tương đương.
 
 This runner verifies independent paths through the public Input Gateway:
 
@@ -58,7 +58,7 @@ between PostgreSQL commit and Kafka offset commit, or establish exactly-once beh
 Kafka offset lag can include transaction control records; it is not the count of business events.
 Keep the UI demo and its database on their separate project/network throughout this drill.
 
-The standalone V2 Compose stack required by this historical runner is no longer present. Do not run it unchanged against the unified deployment; see [current test guidance](../../../docs/TESTING.md).
+The standalone V2 Compose stack required by this historical runner is no longer present. Do not run it unchanged against the unified deployment; see [current test guidance](../../../docs/archive/checkpoints/TESTING.md).
 The credentials and generated commerce identifiers are local test values only; the runner does not
 execute Medusa itself or mutate `Medusa_Reference`.
 

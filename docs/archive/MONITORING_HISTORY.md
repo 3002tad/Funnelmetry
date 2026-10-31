@@ -1,6 +1,6 @@
 # Admin monitoring — hồ sơ test và bàn giao 08–10/10/2026
 
-> Bằng chứng theo mốc cũ, không chứng nhận monitoring của deployment hiện tại. Launcher Compose trong tài liệu này đã bị gỡ; xem docs/MONITORING.md và docs/SWARM_MIGRATION.md.
+> Bằng chứng theo mốc cũ, không chứng nhận monitoring của deployment hiện tại. Launcher Compose trong tài liệu này đã bị gỡ; xem docs/current/OPERATIONS.md và docs/current/DEPLOYMENT.md.
 
 Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Đường dẫn code/lệnh trong nội dung gốc tính từ root `Streaming_Pipeline` trừ khi ghi khác.
 
@@ -17,7 +17,7 @@
 
 # Admin/monitoring implementation evidence — 08–10/10/2026
 
-> **HISTORICAL / NON-NORMATIVE.** Hồ sơ này gộp bảy bản ghi `ADMIN_*_2026-10-08/09/10.md` của Pipeline. Số test, image tag và trạng thái container dưới đây thuộc các mốc đó, **không** phải kết quả chạy trên deployment hiện tại. Xem [trạng thái chức năng](../FEATURE_STATUS.md), [kiểm thử](../TESTING.md) và [vận hành Swarm](../SWARM_MIGRATION.md) trước khi demo. Bản gốc vẫn truy vết được qua Git history theo tên file cũ.
+> **HISTORICAL / NON-NORMATIVE.** Hồ sơ này gộp bảy bản ghi `ADMIN_*_2026-10-08/09/10.md` của Pipeline. Số test, image tag và trạng thái container dưới đây thuộc các mốc đó, **không** phải kết quả chạy trên deployment hiện tại. Xem [trạng thái chức năng](checkpoints/FEATURE_STATUS.md), [kiểm thử](checkpoints/TESTING.md) và [vận hành Swarm](checkpoints/SWARM_MIGRATION.md) trước khi demo. Bản gốc vẫn truy vết được qua Git history theo tên file cũ.
 
 ## Tóm tắt theo mốc
 
@@ -57,7 +57,7 @@ Nguồn gốc trong Git history: `docs/ADMIN_EVENT_FEED_2026-10-08.md`, `ADMIN_P
 
 # Bàn giao test Admin monitoring — 10/10/2026
 
-> **Lưu trữ lịch sử:** overlay monitoring handoff và đường triển khai Compose cũ đã bỏ. Xem [vận hành Swarm](../SWARM_MIGRATION.md).
+> **Lưu trữ lịch sử:** overlay monitoring handoff và đường triển khai Compose cũ đã bỏ. Xem [vận hành Swarm](checkpoints/SWARM_MIGRATION.md).
 
 > Điểm bắt đầu chung cho team: [bản bàn giao trong System_Backbone](https://github.com/3002tad/System_Backbone/blob/main/docs/implementation/PIPELINE_MONITORING_HANDOFF_2026-10-10.md).
 > File này giữ lệnh vận hành theo version code Pipeline; Backbone tổng hợp tiến độ,
@@ -67,7 +67,7 @@ Nguồn gốc trong Git history: `docs/ADMIN_EVENT_FEED_2026-10-08.md`, `ADMIN_P
 
 Sau bản bàn giao 05/10: thêm Admin Event Feed/Processing, Kafka lag/membership,
 readiness 6 worker, Prometheus/Grafana, khóa metrics riêng + rotation, cảnh báo
-trên Admin. Xem [new demo 08/10](DEMO_HANDOFF_HISTORY.md#new-demo) và [hồ sơ Admin/monitoring](#admin-monitoring-evidence); bộ hiện hành dùng [vận hành Swarm](../SWARM_MIGRATION.md).
+trên Admin. Xem [new demo 08/10](DEMO_HANDOFF_HISTORY.md#new-demo) và [hồ sơ Admin/monitoring](#admin-monitoring-evidence); bộ hiện hành dùng [vận hành Swarm](checkpoints/SWARM_MIGRATION.md).
 
 **Git pull không cập nhật container.** Ba image mới đã publish và xác minh digest
 trên GHCR ngày 10/10/2026, từ source `2fb6b91f73f7abe9036d527cbb78217062e96d1e`,

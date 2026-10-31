@@ -8,7 +8,7 @@ Hiện có:
 
 - [source-connector/](source-connector/README.md): chủ động pull HTTPS Event Feed,
   bàn giao Kafka và lưu cursor. Cursor không phải processing-safe checkpoint.
-- [catalog-sync/](catalog-sync/README.md): tài liệu component đã nghỉ sau CDC-13; không còn là đường đồng bộ catalog hiện hành. Xem [Medusa CDC](../MEDUSA_REFERENCE_CDC_CURRENT.md).
+- [catalog-sync/](catalog-sync/README.md): tài liệu component đã nghỉ sau CDC-13; không còn là đường đồng bộ catalog hiện hành. Xem [Medusa CDC](../current/MEDUSA_REFERENCE_CDC_CURRENT.md).
 
 - [canonical-normalizer](INGESTION.md#canonical-normalizer): consume raw Kafka, tạo `CanonicalEvent v1` hoặc quarantine,
   ghi terminal outcome và raw consumer offset trong cùng Kafka transaction.

@@ -140,7 +140,7 @@ belonged to the private demo; those instructions are archived in the
 [demo/handoff history](../../archive/DEMO_HANDOFF_HISTORY.md#private-demo).
 The current Pipeline deployment uses the Swarm Source Connector in
 [`infra/swarm-live.yml`](../../../infra/swarm-live.yml); follow
-[Swarm operations](../../SWARM_MIGRATION.md) and its feed preflight. The deleted
+[Swarm operations](../../archive/checkpoints/SWARM_MIGRATION.md) and its feed preflight. The deleted
 Compose launcher belongs only to Git history. No connector port is published to the host.
 
 Next: real-service integration tests through the

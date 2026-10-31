@@ -9,5 +9,5 @@ The package deliberately has no default timeout values. A profile with `null` ho
 while `MATURED` is a cohort/finality dimension and is not a replacement for `outcome_status` or
 `quality_status`.
 
-See [`../../docs/TIME_SEMANTICS_CONTRACT_V1.md`](../../docs/TIME_SEMANTICS_CONTRACT_V1.md) for clock,
+See [`../../docs/current/TIME_SEMANTICS_CONTRACT_V1.md`](../../docs/current/TIME_SEMANTICS_CONTRACT_V1.md) for clock,
 boundary and compatibility rules.

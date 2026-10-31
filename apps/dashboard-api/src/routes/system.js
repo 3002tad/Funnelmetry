@@ -257,6 +257,6 @@ systemRouter.get("/api/system/setup", async (_req, res) => {
       planned: ["apps/input-gateway", "workers"],
       archived: "legacy",
     },
-    docs: ["README.md", "docs/REPOSITORY_LAYOUT.md", "docs/README.md"],
+    docs: ["README.md", "docs/current/SYSTEM.md", "docs/README.md"],
   });
 });

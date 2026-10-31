@@ -3,9 +3,9 @@
 Trạng thái: **COMPLETE / PRIMARY CDC RUNTIME ACTIVE**
 (2026-10-31, VPS `kltn`). Phần kiểm kê bên dưới là baseline trước cutover;
 kết quả thực thi nằm tại
-[CDC14_RUNTIME_EXECUTION_2026-10-31.md](../../CDC14_RUNTIME_EXECUTION_2026-10-31.md).
+[CDC14_RUNTIME_EXECUTION_2026-10-31.md](CDC14_RUNTIME_EXECUTION_2026-10-31.md).
 Bản chụp tên từng tài nguyên trước cutover:
-[CDC14_VPS_RESOURCE_INVENTORY_2026-10-31.json](../../CDC14_VPS_RESOURCE_INVENTORY_2026-10-31.json).
+[CDC14_VPS_RESOURCE_INVENTORY_2026-10-31.json](CDC14_VPS_RESOURCE_INVENTORY_2026-10-31.json).
 JSON chỉ chứa tên, trạng thái, image ID và đường dẫn; không chứa giá trị secret.
 
 ## Mục tiêu và ranh giới

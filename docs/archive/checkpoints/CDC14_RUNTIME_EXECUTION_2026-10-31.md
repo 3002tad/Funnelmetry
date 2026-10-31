@@ -3,7 +3,7 @@
 Ngày: 2026-10-31. Môi trường: VPS `kltn`, Pipeline branch
 `feature/cdc-medusa-v1`. Trạng thái: **COMPLETE / PRIMARY CDC RUNTIME ACTIVE**.
 Tài liệu kiểm kê trước chuyển:
-[CDC14_RUNTIME_CONSOLIDATION_PLAN_2026-10-31.md](../../CDC14_RUNTIME_CONSOLIDATION_PLAN_2026-10-31.md).
+[CDC14_RUNTIME_CONSOLIDATION_PLAN_2026-10-31.md](CDC14_RUNTIME_CONSOLIDATION_PLAN_2026-10-31.md).
 
 ## Chuẩn bị và cutover
 

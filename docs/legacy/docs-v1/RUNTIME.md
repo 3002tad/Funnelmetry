@@ -1,6 +1,6 @@
 # Runtime — cách chạy project (k3s)
 
-> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các lệnh bên dưới không còn là runtime hiện hành; xem [`REPOSITORY_LAYOUT.md`](../../REPOSITORY_LAYOUT.md).
+> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các lệnh bên dưới không còn là runtime hiện hành; xem [`REPOSITORY_LAYOUT.md`](../../current/SYSTEM.md).
 
 Nguồn chân lý deploy. Spec kỹ thuật: [SPEC.md](SPEC.md) · Map repo: [REPO_MAP.md](REPO_MAP.md).
 

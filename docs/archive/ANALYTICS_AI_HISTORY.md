@@ -1,6 +1,6 @@
 # Analytics và AI — hồ sơ triển khai theo mốc
 
-> Lưu trữ lịch sử, không phải trạng thái kích hoạt hiện tại. Xem docs/analytics/README.md và docs/SWARM_MIGRATION.md trước khi chạy hệ thống.
+> Lưu trữ lịch sử, không phải trạng thái kích hoạt hiện tại. Xem docs/analytics/README.md và docs/current/DEPLOYMENT.md trước khi chạy hệ thống.
 
 Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Đường dẫn code/lệnh trong nội dung gốc tính từ root `Streaming_Pipeline` trừ khi ghi khác.
 
@@ -21,7 +21,7 @@
 
 # Integration and AI activation — 2026-09-12
 
-> Historical stages: private ingress has been superseded by authenticated HTTPS Event Feed pull. Do not use these bootstrap steps as the current deployment baseline. See [Swarm operations](../SWARM_MIGRATION.md) and [analytics map](../analytics/README.md) for later capability records. Keep this file for provenance.
+> Historical stages: private ingress has been superseded by authenticated HTTPS Event Feed pull. Do not use these bootstrap steps as the current deployment baseline. See [Swarm operations](checkpoints/SWARM_MIGRATION.md) and [analytics map](../analytics/README.md) for later capability records. Keep this file for provenance.
 
 User-approved scope: proceed with Medusa connectivity and AI. Provider choice:
 Alibaba Cloud Model Studio/DashScope directly, Singapore, Qwen Flash. No OpenRouter.

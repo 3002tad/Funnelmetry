@@ -16,11 +16,11 @@ Khi mất slot/WAL, khoảng không thể quan sát giữ `historical_gap_status
 
 ## Runtime và quyền sở hữu
 
-- Stack `funnelmetry_cdc` có sáu service: Connect, order mapper DB, catalog writer, inventory/price writer, order mapper, order sink. Manifest: [`infra/swarm-cdc-live.yml`](../infra/swarm-cdc-live.yml); launcher: [`runtime/cdc-live.mjs`](../runtime/cdc-live.mjs). Runtime env cục bộ và secret không vào Git.
-- Quality monitor dùng [`tools/cdc-operations/monitor-quality.py`](../tools/cdc-operations/monitor-quality.py) và profile/lease. Lệnh, phạm vi quyền và phục hồi ở [CDC operations](../tools/cdc-operations/README.md).
-- Medusa source owner cấp logical replication, publication/slot và allowlist. Pipeline operator quản lý Connect, Kafka, writer/sink, quality và backup. [CDC installer](../tools/medusa-ci-installer/CDC_DEVELOPMENT.md) sinh cấu hình tích hợp qua CI, không tự vận hành DB/Connect.
+- Stack `funnelmetry_cdc` có sáu service: Connect, order mapper DB, catalog writer, inventory/price writer, order mapper, order sink. Manifest: [`infra/swarm-cdc-live.yml`](../../infra/swarm-cdc-live.yml); launcher: [`runtime/cdc-live.mjs`](../../runtime/cdc-live.mjs). Runtime env cục bộ và secret không vào Git.
+- Quality monitor dùng [`tools/cdc-operations/monitor-quality.py`](../../tools/cdc-operations/monitor-quality.py) và profile/lease. Lệnh, phạm vi quyền và phục hồi ở [CDC operations](../../tools/cdc-operations/README.md).
+- Medusa source owner cấp logical replication, publication/slot và allowlist. Pipeline operator quản lý Connect, Kafka, writer/sink, quality và backup. [CDC installer](../../tools/medusa-ci-installer/CDC_DEVELOPMENT.md) sinh cấu hình tích hợp qua CI, không tự vận hành DB/Connect.
 - Tên volume/topic/slot có chữ `shadow` được giữ để bảo toàn state và offset; worker runtime là `ACTIVE_REFERENCE_V2`. Không đổi tên vật lý nếu chưa có migration epoch/snapshot riêng.
 
 Browser SDK/storefront behavioral hooks vẫn dùng Source Ingress → HTTPS Event Feed → Source Connector → Kafka. CDC không đi qua Event Feed. Admin/Store API vẫn phục vụ cửa hàng; Admin API `catalog-sync` không còn là đường phân tích. Native backend `order.placed` sender đã bỏ; các funnel lịch sử dựa trên event đó không được tự động chuyển thành CDC conversion. Gateway HTTP phía Pipeline chưa cutover.
 
-Đường kiểm chứng hiện hành ở [vận hành](current/OPERATIONS.md). Các hồ sơ canary, cutover và dọn runtime đã chuyển vào [archive](archive/README.md); không dùng giá trị đếm/offset của chúng làm trạng thái mới nhất.
+Đường kiểm chứng hiện hành ở [vận hành](OPERATIONS.md). Các hồ sơ canary, cutover và dọn runtime đã chuyển vào [archive](../archive/README.md); không dùng giá trị đếm/offset của chúng làm trạng thái mới nhất.

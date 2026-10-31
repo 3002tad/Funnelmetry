@@ -1,6 +1,6 @@
 # Tech stack & luồng chạy
 
-> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các đường dẫn cũ chỉ dùng tham khảo; xem [`REPOSITORY_LAYOUT.md`](../../REPOSITORY_LAYOUT.md) cho cấu trúc hiện hành.
+> **LEGACY V1:** Tài liệu này mô tả pipeline/k3s cũ đã ngừng duy trì ngày 2026-08-24. Các đường dẫn cũ chỉ dùng tham khảo; xem [`REPOSITORY_LAYOUT.md`](../../current/SYSTEM.md) cho cấu trúc hiện hành.
 
 Tổng hợp **công nghệ**, **vai trò**, và **luồng runtime** của toàn project (pipeline + repository `../Simulate_Demo`).
 

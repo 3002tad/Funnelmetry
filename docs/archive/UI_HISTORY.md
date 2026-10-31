@@ -1,6 +1,6 @@
 # UI Pipeline — lịch sử rollout
 
-> Các trạng thái và chức năng trong phần dưới thuộc mốc ghi nhận, không phải bảng chức năng hiện tại; xem docs/FEATURE_STATUS.md.
+> Các trạng thái và chức năng trong phần dưới thuộc mốc ghi nhận, không phải bảng chức năng hiện tại; xem docs/current/CAPABILITIES.md.
 
 Đường dẫn `Nguồn gốc` bên dưới là vị trí trước khi gộp; các file riêng đã được loại bỏ. Đường dẫn code/lệnh trong nội dung gốc tính từ root `Streaming_Pipeline` trừ khi ghi khác.
 

@@ -21,6 +21,7 @@ __pycache__/
 checkpoints/
 !docs/archive/checkpoints/
 !docs/archive/checkpoints/*.md
+!docs/archive/checkpoints/*.json
 *.log
 
 .DS_Store
