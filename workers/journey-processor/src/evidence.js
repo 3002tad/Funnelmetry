@@ -58,7 +58,11 @@ export function extractJourneyEvidence(event) {
     priority: 20,
   })
 
-  const sessionId = nonEmpty(event.identity?.session_id)
+  // This observation carries a cart/session bridge for later analytical joins.
+  // The resolver cannot merge two existing journeys when CDC cart wins the race;
+  // attach the observation to the cart journey without claiming that merge here.
+  const sessionId = event.event_type === "context.cart_linked"
+    ? undefined : nonEmpty(event.identity?.session_id)
   if (sessionId) add(evidence, seen, {
     entity_type: "SESSION",
     entity_key: sessionId,

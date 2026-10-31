@@ -33,8 +33,10 @@ search vào hành trình trước product view, cart và checkout. Event không 
 không khẳng định người dùng xem hay mua sản phẩm cụ thể do lần search đó dẫn tới. SDK vẫn từ chối
 legacy `behavior.search_submitted` do server phát. Tracking search fail-open, không chặn navigation.
 Sau khi add-to-cart thành công, host gọi `trackCartContext(cart_id, page_instance_id)` đúng
-một lần cho mỗi cart/session. Event `context.cart_linked` chỉ nối session browser với
-`cart_id` của CDC; nó không được tính là một lần thêm giỏ hoặc thay `cart.item_added`.
+một lần cho mỗi cart/session. Event `context.cart_linked` ghi quan hệ session browser
+với `cart_id` của CDC; nó không được tính là một lần thêm giỏ hoặc thay
+`cart.item_added`. Journey resolver hiện chưa tự gộp hai journey đã tồn tại; metric
+search→cart cần projection phân tích riêng trước khi công bố.
 Filter và banner click vẫn là semantic hook explicit của host.
 
 `trackPageView` deduplicate theo `page_instance_id`. Host phải tạo một page context cho mỗi page

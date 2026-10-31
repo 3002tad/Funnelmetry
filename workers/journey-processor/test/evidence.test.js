@@ -34,12 +34,11 @@ test("search and later product intent share session evidence without claiming di
   assert.equal(extractJourneyEvidence(search)[0].entity_type, "SESSION")
 })
 
-test("cart context links the browser session to the CDC cart key", () => {
+test("cart context keeps session in canonical data but does not force an unsafe journey merge", () => {
   const context = canonicalEvent({ event_type: "context.cart_linked",
     identity: { session_id: "session_1" },
     relations: { cart_id: "cart_1" } })
   const evidence = extractJourneyEvidence(context)
-  assert.deepEqual(evidence.map(item => item.entity_type), ["CART", "SESSION"])
+  assert.deepEqual(evidence.map(item => item.entity_type), ["CART"])
   assert.equal(evidence[0].entity_key, "cart_1")
-  assert.equal(evidence[1].entity_key, "session_1")
 })
