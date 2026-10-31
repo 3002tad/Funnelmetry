@@ -1,13 +1,13 @@
 # @funnelmetry/input-gateway
 
-> Đây là tài liệu component Gateway. Gateway HTTP phía Pipeline chưa cutover làm ingress behavioral hiện hành; xem [kiến trúc](../../current/SYSTEM.md) và [dữ liệu](../../current/DATA.md) trước khi dùng lệnh triển khai trong tài liệu này.
+> Đây là tài liệu component Gateway. Gateway HTTP phía Pipeline chưa cutover làm ingress behavioral hiện hành; xem [kiến trúc](../../current/SYSTEM.md) và [dữ liệu](../../current/DATA.md) trước khi dùng lệnh triển khai trong tài liệu này. Thiết kế đích Kafka-first, không có buffer bền vững độc lập trước Kafka, đã được [DEC-145](https://github.com/3002tad/System_Backbone/blob/main/docs/governance/GATEWAY_KAFKA_FIRST_INGRESS_V1.md) duyệt; code/runtime còn cần conformance trước cutover.
 
 HTTP/security boundary cho `IngressEvent v1`.
 
 Phần hiện có:
 
 - xác thực Browser SDK bằng source key ID + write key;
-- xác thực source bridge bằng HMAC SHA-256 trên raw request body;
+- chỉ xác thực Browser SDK bằng source key ID + write key; đường source bridge HMAC đã retired;
 - kiểm tra clock skew, source ownership và contract trước durable handoff;
 - ghi raw record và durable receipt trong cùng Kafka transaction;
 - khóa đồng thời theo `(source_id,event_id)` và chỉ cập nhật receipt index sau commit;

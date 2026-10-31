@@ -56,3 +56,12 @@ landing `utm_source`, or DOM text.
 
 `accepted`/`duplicate` mới loại event khỏi queue. `retryable_failure` giữ event
 cho lần flush sau; queue overflow phải được quan sát qua `onDrop`.
+
+**DEC-145 — thiết kế đích, chưa implement:** SDK sẽ tự flush queue còn tồn bằng
+exponential backoff có jitter khi trang vẫn mở, khi browser phát `online` và ngay
+khi SDK khởi tạo lại trên trang được mở lại. Queue hiện lưu vào `localStorage`
+khi khả dụng, giới hạn mặc định 200 event, và hiện chỉ retry tức thời tối đa ba
+lần cho một lượt gửi; không có timer retry nền. Giá trị thời gian retry, tuổi
+queue và ngân sách mất telemetry cần chốt bằng kiểm thử trước Gateway cutover.
+Event ID phải giữ nguyên qua retry; cơ chế mới không chặn render/checkout và
+không hứa bảo đảm thu đủ 100% event.
