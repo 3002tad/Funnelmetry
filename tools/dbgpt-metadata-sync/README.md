@@ -72,6 +72,11 @@ on its document, but repeatedly searched and did not produce a final answer
 before the test was stopped. Final-answer quality/citations and automatic KB
 selection remain unverified. The earlier space remains available; selecting the
 new space is required until a version-selection mechanism exists.
+Later the same day, a separate `qwen3.5-27b` ReAct test explicitly selected
+the new space, retrieved its document and answered that recorded order state
+does not prove paid revenue, with a structured citation to document 2. This
+single successful question does not establish automatic space selection or
+reliability for other questions/models; the earlier `qwen3.6-flash` run looped.
 
 For the KLTN VPS proof of concept, the SQL views were applied and the sync
 script was copied to `/etc/funnelmetry/ai-agent/sync-metadata.py`. After explicit
