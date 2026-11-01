@@ -29,8 +29,25 @@ zero. Check funnelmetry_ai.catalog_quality for the current quality status.
 Source is Medusa reference CDC, not the retired Admin API snapshot.
 funnelmetry_ai.current_products contains current product names and has grain
 source_id x product_id; it is a quality-gated CDC view, not a historical catalog.
+current_variants has source_id x variant_id grain and links by source_id and
+product_id. current_categories has source_id x category_id grain;
+current_product_categories links source_id, product_id and category_id.
+These are current catalog records only; joining variants or categories can
+multiply product rows. Check quality and avoid counting joined rows as products.
+Exploration schema funnelmetry_explore contains catalog_products,
+catalog_variants, catalog_categories, catalog_product_categories, cart_lines,
+order_recorded_state, behavior_events, funnel_instances, funnel_steps and
+inventory_price_context. These are source projections marked UNVERIFIED;
+use them to explore or diagnose, and explain quality and historical coverage.
+Join catalog tables on source_id, coverage_epoch_id and the corresponding ID;
+cart and catalog coverage epochs are independent and must not be equated.
+Catalog relationships and funnel steps can multiply rows. order_recorded_state
+is reference current state, not placed, paid, completed, conversion or revenue.
+inventory_price_context is unresolved raw context, not sellable inventory or
+customer-facing price. Search text may contain sensitive information.
 Source: Pipeline infra/postgres/v2/021_catalog_cdc_candidate.sql and
-tools/dbgpt-metadata-sync/analytical-views.sql. This explanatory guide is a
+tools/dbgpt-metadata-sync/analytical-views.sql and exploration-views.sql.
+This explanatory guide is a
 derived integration note, not a published metric, tool or quality certificate.
 Never calculate paid revenue, conversion or historical order value from it.
 """

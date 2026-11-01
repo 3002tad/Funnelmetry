@@ -11,6 +11,9 @@ exploring current product counts. The guide is not a published metric or tool.
 restricted role named `funnelmetry_ai_agent`. It exposes only:
 
 - `funnelmetry_ai.current_products`: names from the quality-gated CDC view;
+- `funnelmetry_ai.current_variants`, `current_categories`, and
+  `current_product_categories`: reference catalog dimensions and relationships
+  from the same active coverage epoch; each checks the catalog quality lease;
 - `funnelmetry_ai.catalog_quality` and `current_product_summary`: runtime
   quality status and a count that raises `BLOCKED_BY_QUALITY` when blocked,
   including when the SQL selects only the count or uses `COALESCE`;
@@ -22,6 +25,25 @@ operator should also set a read-only default and a statement timeout. A SQL
 client must check the status and validity on every query: an empty view is not
 proof that there are no products. These views do not authorize price, revenue,
 conversion or historical-order claims.
+
+The catalog functions run with their owner's read permissions and a fixed
+search path, while the caller only has access to the listed outputs. They raise
+`BLOCKED_BY_QUALITY` when a normal catalog scan starts without a valid lease,
+including `COUNT(*)` over `current_products`. The PostgreSQL optimizer can
+skip a function when a query is provably empty (for example `WHERE false`), so
+this is not a general quality or authorization gate for arbitrary SQL.
+Funnel, cart, order, inventory and price still require separately verified
+views, quality contracts and permissions before exposure.
+
+`exploration-views.sql` adds a separate `funnelmetry_explore` schema for the
+same restricted role. It exposes selected CDC catalog, cart and order fields,
+canonical event identifiers/types and normalized search text, funnel facts,
+and selected inventory/price context. Every row is explicitly marked
+`UNVERIFIED`; these are investigative views, not official metrics or a claim
+that coverage is complete. Search terms and pseudonymous identifiers can be
+sensitive and must not be forwarded to an external model without an appropriate
+policy. SQL comments document grain and known limitations. This is a shared
+database role, not per-user authorization or an SSO integration.
 
 ## Publish a snapshot
 
@@ -40,6 +62,16 @@ metadata creates a new versioned space; old spaces are not automatically
 removed or switched off, so consumers must select the intended version and
 operators must retire stale versions before making one the default. This script
 does not schedule refreshes or implement a production cutover.
+
+On 2026-11-01, the updated exploratory guide and ACTIVE offer definition were
+indexed on the VPS in `funnelmetry-offer-1-0-0-19a5e6d937fb` (document 2,
+SHA-256 `19a5e6d937fbb3f3e1d4531a1e13948a4d9f6d7032e6d37669d33a780ef239f0`).
+Retrieval returned the order-state, inventory and coverage-epoch limitations.
+A ReAct test selected this space and successfully called `kb_grep` and `kb_cat`
+on its document, but repeatedly searched and did not produce a final answer
+before the test was stopped. Final-answer quality/citations and automatic KB
+selection remain unverified. The earlier space remains available; selecting the
+new space is required until a version-selection mechanism exists.
 
 For the KLTN VPS proof of concept, the SQL views were applied and the sync
 script was copied to `/etc/funnelmetry/ai-agent/sync-metadata.py`. After explicit
@@ -108,6 +140,11 @@ The synthetic datasource and database container were removed after the test.
 ## Verification
 
 `python tools/dbgpt-metadata-sync/test_sync.py` runs isolated sync unit tests.
+For the exploration schema, run `test-exploration-fixture.sql`,
+`exploration-views.sql`, and `test-exploration-assertions.sql`, in that order,
+on a separate disposable PostgreSQL database. The fixture checks exploratory
+access while source quality is blocked and ensures the role cannot read the
+underlying source table or access the omitted identity column.
 For SQL, run `test-fixture.sql`, `analytical-views.sql`, and
 `test-assertions.sql`, in that order, on a disposable PostgreSQL database.
 The fixture tests a fresh lease, an expired lease, an inactive metadata binding,
