@@ -24,8 +24,9 @@ Use funnelmetry_ai.current_product_summary for the current product count.
 Its grain is source_id; product_count counts current source/product rows, not
 variants, orders, customers, sales or revenue. Check status on every query:
 REFERENCE_CURRENT_ONLY permits a current reference answer with verified_at and
-valid_until; BLOCKED_BY_QUALITY or NULL product_count means do not report a
-count. Source is Medusa reference CDC, not the retired Admin API snapshot.
+valid_until; a BLOCKED_BY_QUALITY error means do not report a count or infer
+zero. Check funnelmetry_ai.catalog_quality for the current quality status.
+Source is Medusa reference CDC, not the retired Admin API snapshot.
 funnelmetry_ai.current_products contains current product names and has grain
 source_id x product_id; it is a quality-gated CDC view, not a historical catalog.
 Source: Pipeline infra/postgres/v2/021_catalog_cdc_candidate.sql and

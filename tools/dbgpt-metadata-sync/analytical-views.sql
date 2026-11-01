@@ -24,11 +24,21 @@ LEFT JOIN public.catalog_cdc_binding b ON b.source_id = s.source_id
 LEFT JOIN public.catalog_cdc_quality_lease q
   ON q.source_id = b.source_id AND q.coverage_epoch_id = b.coverage_epoch_id;
 
+-- Fail closed even when a client selects only product_count (or COALESCEs it).
+-- Kept in the same statement as the quality check and count.
+CREATE OR REPLACE FUNCTION funnelmetry_ai.product_count_quality_blocked()
+RETURNS bigint LANGUAGE plpgsql VOLATILE AS $$
+BEGIN
+  RAISE EXCEPTION 'BLOCKED_BY_QUALITY: product count is unavailable; do not infer zero or a change'
+    USING ERRCODE = 'P0001';
+END;
+$$;
+
 CREATE OR REPLACE VIEW funnelmetry_ai.current_product_summary AS
 SELECT q.source_id, q.status, q.coverage_epoch_id, q.verified_at, q.valid_until,
   CASE WHEN q.status = 'REFERENCE_CURRENT_ONLY' THEN
     (SELECT count(*) FROM funnelmetry_ai.current_products p WHERE p.source_id=q.source_id)
-  ELSE NULL END AS product_count
+  ELSE funnelmetry_ai.product_count_quality_blocked() END AS product_count
 FROM funnelmetry_ai.catalog_quality q;
 
 -- Expose only the explicitly active, published release; no physical tables or secrets.

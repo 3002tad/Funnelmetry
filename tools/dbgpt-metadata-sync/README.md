@@ -12,7 +12,8 @@ restricted role named `funnelmetry_ai_agent`. It exposes only:
 
 - `funnelmetry_ai.current_products`: names from the quality-gated CDC view;
 - `funnelmetry_ai.catalog_quality` and `current_product_summary`: runtime
-  quality status and a count that is NULL when quality is blocked;
+  quality status and a count that raises `BLOCKED_BY_QUALITY` when blocked,
+  including when the SQL selects only the count or uses `COALESCE`;
 - `funnelmetry_ai.reference_offer_metadata`: the active, explicitly allowlisted
   metadata release and binding.
 
