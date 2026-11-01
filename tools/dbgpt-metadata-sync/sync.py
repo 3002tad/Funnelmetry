@@ -39,6 +39,12 @@ catalog_variants, catalog_categories, catalog_product_categories, cart_lines,
 order_recorded_state, behavior_events, funnel_instances, funnel_steps and
 inventory_price_context. These are source projections marked UNVERIFIED;
 use them to explore or diagnose, and explain quality and historical coverage.
+For cart_lines, order_recorded_state, behavior_events and inventory_price_context,
+the exploration label is the column quality_status, not status. For funnel
+instances and steps, exploration_status is UNVERIFIED and quality_status is
+the separate funnel projection status. order_recorded_state additionally has
+source_quality_status and historical_gap_status. funnelmetry_ai.catalog_quality
+describes catalog quality only; do not attribute it to cart, order or funnels.
 Join catalog tables on source_id, coverage_epoch_id and the corresponding ID;
 cart and catalog coverage epochs are independent and must not be equated.
 Catalog relationships and funnel steps can multiply rows. order_recorded_state

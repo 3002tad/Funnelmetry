@@ -50,6 +50,11 @@ def release(state="ACTIVE"):
 
 
 class SyncTests(unittest.TestCase):
+    def test_exploration_guide_distinguishes_quality_columns_and_domains(self):
+        self.assertIn("the column quality_status, not status", sync.GUIDE)
+        self.assertIn("catalog_quality\ndescribes catalog quality only", sync.GUIDE)
+        self.assertIn("source_quality_status and historical_gap_status", sync.GUIDE)
+
     def test_unverified_or_ambiguous_release_never_calls_db_gpt(self):
         for rows in ([], [release("SHADOW")], [release(), release()]):
             with self.subTest(rows=len(rows)), patch.object(sync.psycopg2, "connect", return_value=FakeDB(rows)), patch.object(sync, "api") as api:
