@@ -1,8 +1,9 @@
 # DB-GPT component authorization inventory
 
 Scope: integration under Pipeline's `super_admin` and `analyst` roles.
-The optional identity boundary remains disabled in the live deployment. This
-inventory describes source inspection, not an end-to-end security claim.
+The identity boundary was enabled on the KLTN VPS on 2026-11-03 for testing.
+This inventory describes source inspection and the limited API checks below,
+not an end-to-end security claim.
 
 Backbone DEC-148 (2026-11-03) limits KLTN acceptance to trusted development/demo
 users and the used application workflows. Prompts guide behavior; backend and
@@ -13,7 +14,7 @@ entire thesis and are not deployment blockers or mandatory later tasks.
 
 | Component | Current evidence and remaining work |
 | --- | --- |
-| Session and HTTP boundary | Pipeline validates the bearer against current account and session version. Source includes cookie handoff and frontend identity bootstrap; Cloudflare Access and real-browser logout/revocation are not yet verified end-to-end. |
+| Session and HTTP boundary | Pipeline validates the bearer against current account and session version. Direct VPS checks passed session handoff and role identity for Admin/Analyst; Cloudflare Access and real-browser logout/revocation are not yet verified end-to-end. |
 | Dashboard | Both roles can list, read, create, edit, validate, preview, refresh, copy, archive, restore and export dashboards, and manage personal folders. The existing service checks actor access and the configured datasource. Publication, shares, covers, schedules and collaboration remain closed. |
 | Model/provider | Admin model/provider routes are admitted; the common boundary records actor, action group and response status without bodies, query strings or secrets. Analyst can list usable model names. |
 | Skills | Analyst list/detail are admitted in the common workspace; unsafe external symlink traversal is rejected. Upload, import and execution need further review. |

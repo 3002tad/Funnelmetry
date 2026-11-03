@@ -19,10 +19,9 @@ the verified actor to DB-GPT. The in-progress policy grants reviewed shared
 Dashboard, SQL editor, conversation, the existing ReAct/Knowledge Agent routes,
 skill and reviewed Knowledge Base endpoints to both roles, with model,
 datasource and connector administration reserved for Admin. Other unreviewed
-operations remain denied. Do not
-enable this experimental boundary in the existing deployment until the full
-workflow and session handoff are verified. The current runtime continues using
-its prior configuration.
+operations remain denied. The boundary was enabled on the KLTN VPS on
+2026-11-03 for integration testing; browser and Agent workflow acceptance
+remain open.
 
 The route policy admits the existing ReAct and Knowledge Agent routes for both
 roles. Backbone DEC-148 (2026-11-03) defines the KLTN scope: trusted development,
@@ -39,9 +38,21 @@ Keep native DB-GPT tools, skills and workflows. The current skill runner copies
 the application environment and the code interpreter defaults to local
 execution: arbitrary-code containment, protection against all file/secret
 access and isolation between users are not certified. Do not add Docker control
-or system administration privileges to the Agent. The optional identity mode
-is still disabled in the existing standalone deployment; this scope decision
-does not certify session handoff or end-to-end integration.
+or system administration privileges to the Agent. The scope decision does not
+certify browser session handoff or end-to-end Agent integration.
+
+VPS deployment evidence, 2026-11-03: Pipeline API/Web images from commit
+`f445ef03030cf1c22c3e6efeedb32089e5ab3ab6` passed candidate CI and were
+deployed by digest. DB-GPT image `funnelmetry-db-gpt:b6a0fc19-identity` uses
+the Pipeline identity boundary; `/etc/funnelmetry/ai-agent/compose.yml` holds
+the non-secret endpoint/source settings. The `ai-agent-auth_identity-proxy`
+Swarm service links the existing DB-GPT and Pipeline overlays without a host
+port. Direct internal API tests returned session handoff 204 and identity 200
+for both roles, model-provider 200 for Admin and 403 for Analyst, and datasource
+list 200 for both. Requests without a session returned 401. DB-GPT's model
+workers registered through loopback after a startup fix; forwarded/external
+requests do not receive that loopback exception. These tests do not cover the
+Cloudflare Access browser handoff, UI behavior or a full Agent analysis.
 
 In integration mode `/images` is denied because that static mount has no
 actor/owner check. An authenticated image route remains to be implemented.
