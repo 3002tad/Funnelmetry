@@ -69,6 +69,21 @@ export function SettingsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [revokingSessions, setRevokingSessions] = useState(false)
+  const [revocationError, setRevocationError] = useState("")
+
+  async function revokeAllSessions() {
+    setRevocationError("")
+    setRevokingSessions(true)
+    try {
+      await apiRequest<{ ok: boolean; scope: string }>("/api/auth/logout-all", { method: "POST" })
+      logout()
+    } catch {
+      setRevocationError("Không thu hồi được phiên trên máy chủ. Hãy kiểm tra kết nối và thử lại.")
+    } finally {
+      setRevokingSessions(false)
+    }
+  }
 
   async function changePassword(event: FormEvent) {
     event.preventDefault()
@@ -106,6 +121,15 @@ export function SettingsPage() {
       <section className="panel p-5"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary"><UserRound size={18} /></div><div><h2 className="text-sm font-semibold">Account</h2><p className="mt-1 text-xs text-muted-foreground">Loaded from Dashboard API authentication.</p></div></div><dl className="mt-6 grid grid-cols-[120px_minmax(0,1fr)] gap-x-3 gap-y-4 text-xs"><dt className="text-muted-foreground">Display name</dt><dd>{user?.display_name || "Not set"}</dd><dt className="text-muted-foreground">Email</dt><dd>{user?.email || "—"}</dd><dt className="text-muted-foreground">Role</dt><dd><Badge>{user?.role || "—"}</Badge></dd><dt className="text-muted-foreground">User ID</dt><dd className="break-all font-mono">{user?.id || "—"}</dd></dl></section>
       <section className="panel p-5"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary"><ShieldCheck size={18} /></div><div><h2 className="text-sm font-semibold">Analytics scope</h2><p className="mt-1 text-xs text-muted-foreground">Read-only values configured at build/runtime.</p></div></div><dl className="mt-6 grid grid-cols-[120px_minmax(0,1fr)] gap-x-3 gap-y-4 text-xs"><dt className="text-muted-foreground">Workspace</dt><dd>{workspace}</dd><dt className="text-muted-foreground">Source ID</dt><dd className="font-mono">{sourceId}</dd><dt className="text-muted-foreground">Access</dt><dd><Badge tone="success">Authenticated API</Badge></dd></dl><p className="mt-5 rounded-lg border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">Workspace and source switching are not persisted by the current backend, so this page does not present a fake save action.</p></section>
     </div>
+
+    <section className="panel mt-4 p-5">
+      <h2 className="text-sm font-semibold">Phiên đăng nhập</h2>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">Thu hồi tất cả phiên Pipeline và AI của tài khoản này trên mọi thiết bị, bao gồm phiên hiện tại.</p>
+      <Button type="button" variant="outline" className="mt-4" disabled={revokingSessions} onClick={() => void revokeAllSessions()}>
+        {revokingSessions ? "Đang thu hồi…" : "Đăng xuất trên mọi thiết bị"}
+      </Button>
+      {revocationError && <p role="alert" className="mt-3 text-sm text-destructive">{revocationError}</p>}
+    </section>
 
     <section className="panel mt-4 p-5">
       <h2 className="text-sm font-semibold">Tùy chọn cá nhân</h2>

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { apiRequest, dashboardApiUrl, TOKEN_KEY, USER_KEY } from "../lib/api"
+import { clearAiSession } from "../lib/ai-handoff"
 
 type User = { id: string; email: string; display_name: string; role: string; permissions?: string[] }
 type AuthValue = {
@@ -27,6 +28,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(storedUser)
 
   const logout = () => {
+    const aiUrl = import.meta.env.VITE_DB_GPT_URL
+    if (aiUrl) void clearAiSession(aiUrl).catch(() => {})
     try {
       for (let i = sessionStorage.length - 1; i >= 0; i--) {
         const key = sessionStorage.key(i)

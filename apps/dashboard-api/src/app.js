@@ -25,6 +25,7 @@ import { createTrafficSourceRegistryRouter } from './routes/traffic-source-regis
 import { requireLivePermission } from "./middleware/live-permission.js";
 import { requireAnalyticsCapability } from './middleware/analytics-capability.js';
 import { requireLiveSession } from './middleware/live-session.js';
+import { createAiIdentityRouter } from './routes/ai-identity.js';
 
 const legacyRouters = config.features.legacy ? await Promise.all([
   import('./routes/overview.js').then(m => m.overviewRouter),
@@ -58,6 +59,7 @@ export function createApp() {
     return requireAuth(req, res, () => requireLiveSession()(req, res, next));
   });
   app.use(authRouter);
+  app.use(createAiIdentityRouter());
   app.use(accountRouter);
   app.use(createMonitoringCredentialRouter());
   app.use(createMonitoringAlertsRouter());

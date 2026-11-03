@@ -14,6 +14,7 @@ import { ThemeSelect } from "../components/ui/theme-select"
 import { cn } from "../lib/utils"
 import { useAuth } from "../auth/AuthContext"
 import { analyticsSourceId, apiRequest } from "../lib/api"
+import { establishAiSession } from "../lib/ai-handoff"
 import { accountPreferencesKey, type PreferencesResponse } from "../lib/account-preferences"
 import type { ThemePreference } from "./useThemePreference"
 import { displayedNavigation, visibleNavigation } from "./navigation"
@@ -48,7 +49,9 @@ export function AppShell() {
   const [themeSaving, setThemeSaving] = useState(false)
   const [themeError, setThemeError] = useState("")
   const workspace = import.meta.env.VITE_ANALYTICS_WORKSPACE_NAME || "Funnelmetry Workspace"
-  const { user, logout } = useAuth()
+  const { user, token, logout } = useAuth()
+  const [aiError, setAiError] = useState("")
+  const aiUrl = import.meta.env.VITE_DB_GPT_URL
   const roleLabel = user?.role === "super_admin" ? "Quản trị hệ thống" : user?.role === "analyst" ? "Nhà phân tích" : user?.role || "Tài khoản"
   const queryClient = useQueryClient()
   const preferences = useQuery({
@@ -90,6 +93,20 @@ export function AppShell() {
     } catch {
       setThemeError("Đã đổi giao diện trên trình duyệt này, nhưng chưa lưu được vào tài khoản. Thử lại khi Dashboard API sẵn sàng.")
     } finally { setThemeSaving(false) }
+  }
+
+  async function openAiAgent() {
+    if (!aiUrl || !token) return
+    const popup = window.open("about:blank", "_blank")
+    if (!popup) { setAiError("Trình duyệt đã chặn cửa sổ AI."); return }
+    popup.opener = null
+    try {
+      setAiError("")
+      popup.location.replace(await establishAiSession(aiUrl, token))
+    } catch {
+      popup.close()
+      setAiError("Không thể mở phiên AI. Nếu Cloudflare Access yêu cầu đăng nhập, hãy đăng nhập tại địa chỉ AI trước, rồi quay lại thử lại; đồng thời kiểm tra kết nối và quyền truy cập.")
+    }
   }
 
   function closeMenu() {
@@ -160,6 +177,10 @@ export function AppShell() {
           })}</div>
         </section>)}
         </div>
+        {aiUrl && (user?.role === "super_admin" || user?.role === "analyst") && <section aria-label="Trợ lý AI">
+          <button type="button" className="nav-item w-full" onClick={() => void openAiAgent()}><Bot size={17} aria-hidden="true" /><span>Trợ lý AI</span></button>
+          {aiError && <p role="alert" className="px-3 text-xs text-destructive">{aiError}</p>}
+        </section>}
         <section aria-label="Tài khoản"><h2 className="nav-group-title">TÀI KHOẢN</h2><NavLink to="/settings" className={({ isActive }) => cn("nav-item", isActive && "nav-item-active")}><Settings2 size={17} strokeWidth={1.8} aria-hidden="true" /><span>Thiết lập cá nhân</span></NavLink></section>
       </nav>
       <div className="sidebar-account"><div className="account-avatar">{(user?.display_name || user?.email || "U").slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><strong className="block truncate text-xs">{user?.display_name || user?.email || "User"}</strong><span className="sidebar-muted block truncate text-[11px]">{roleLabel}</span></div><Button variant="ghost" size="icon" className="sidebar-control" onClick={logout} aria-label="Đăng xuất" title="Đăng xuất"><LogOut size={17} /></Button></div>
