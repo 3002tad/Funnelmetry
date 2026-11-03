@@ -52,7 +52,14 @@ for both roles, model-provider 200 for Admin and 403 for Analyst, and datasource
 list 200 for both. Requests without a session returned 401. DB-GPT's model
 workers registered through loopback after a startup fix; forwarded/external
 requests do not receive that loopback exception. These tests do not cover the
-Cloudflare Access browser handoff, UI behavior or a full Agent analysis.
+full Agent analysis.
+
+The original cross-origin fetch handoff was blocked at Cloudflare's preflight.
+After replacing it with a form navigation and embedding DB-GPT at Pipeline
+`/ai`, an Edge session authenticated through Cloudflare Access and Pipeline as
+Analyst displayed the DB-GPT UI inside the Pipeline frame. The VPS logged the
+handoff POST as 303 followed by identity GET 200. Admin browser behavior,
+expired Access session recovery, logout and full Agent analysis remain untested.
 
 In integration mode `/images` is denied because that static mount has no
 actor/owner check. An authenticated image route remains to be implemented.
@@ -77,7 +84,7 @@ the current Pipeline session for each API request, checks the configured
 origin on cookie-authenticated mutations, and strips client identity headers.
 Set `DBGPT_PIPELINE_UI_ORIGIN` and `DBGPT_PIPELINE_AI_ORIGIN` to the exact
 HTTPS origins if enabling the boundary. Browser handoff through Cloudflare
-Access, logout/session revocation and failure paths remain unverified.
+Access expiry, logout/session revocation and failure paths remain unverified.
 When Cloudflare Access requires an initial login or its session has expired,
 the user can open the AI domain to sign in, then retry from the AI workspace;
 the first-login and reauthentication flow must be tested with the deployed policy.
