@@ -1,0 +1,23 @@
+version: '3.8'
+
+# Internal bridge for the Pipeline identity API. The API validates every bearer.
+# Deploy with stack name ai-agent-auth; no host port is published.
+services:
+  identity-proxy:
+    image: alpine/socat:1.8.0.1
+    command: ["TCP-LISTEN:32001,fork,reuseaddr", "TCP:funnelmetry_vps_live_dashboard-api:32000"]
+    networks: [ai_data, pipeline_data]
+    read_only: true
+    deploy:
+      replicas: 1
+      restart_policy: {condition: any, delay: 5s}
+      resources:
+        limits: {cpus: '0.25', memory: 64M}
+
+networks:
+  ai_data:
+    external: true
+    name: ai_agent_data
+  pipeline_data:
+    external: true
+    name: funnelmetry_vps_live_data

@@ -19,8 +19,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build versioned Dashboard Web image
+        env:
+          VITE_DB_GPT_URL: ${{ vars.VITE_DB_GPT_URL || 'https://ai.entidi.io.vn' }}
         run: |
           docker build --file infra/docker/dashboard-web.Dockerfile \
+            --build-arg VITE_DB_GPT_URL="$VITE_DB_GPT_URL" \
             --label org.opencontainers.image.source=https://github.com/3002tad/Funnelmetry \
             --tag funnelmetry-cdc-web-candidate .
           docker run --rm --network none --read-only --cap-drop ALL \
