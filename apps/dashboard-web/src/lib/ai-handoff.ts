@@ -6,16 +6,13 @@ function aiTarget(baseUrl: string): URL {
   return target
 }
 
-/** Submit a top-level navigation so Cloudflare Access can process its cookie. */
-export function establishAiSession(baseUrl: string, token: string): void {
+/** Submit a browser navigation without putting the Pipeline token in a URL. */
+export function establishAiSession(baseUrl: string, token: string, frameName: string): void {
   const target = aiTarget(baseUrl)
-  const name = `funnelmetry-ai-${crypto.randomUUID()}`
-  const popup = window.open("about:blank", name)
-  if (!popup) throw new Error("popup_blocked")
   const form = document.createElement("form")
   form.method = "POST"
   form.action = new URL("/api/auth/funnelmetry/session", target).href
-  form.target = name
+  form.target = frameName
   form.style.display = "none"
   const input = document.createElement("input")
   input.type = "hidden"
@@ -25,10 +22,6 @@ export function establishAiSession(baseUrl: string, token: string): void {
   document.body.appendChild(form)
   try {
     form.submit()
-    popup.opener = null
-  } catch (error) {
-    popup.close()
-    throw error
   } finally {
     form.remove()
   }

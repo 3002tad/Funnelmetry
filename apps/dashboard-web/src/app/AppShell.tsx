@@ -14,7 +14,6 @@ import { ThemeSelect } from "../components/ui/theme-select"
 import { cn } from "../lib/utils"
 import { useAuth } from "../auth/AuthContext"
 import { analyticsSourceId, apiRequest } from "../lib/api"
-import { establishAiSession } from "../lib/ai-handoff"
 import { accountPreferencesKey, type PreferencesResponse } from "../lib/account-preferences"
 import type { ThemePreference } from "./useThemePreference"
 import { displayedNavigation, visibleNavigation } from "./navigation"
@@ -49,8 +48,7 @@ export function AppShell() {
   const [themeSaving, setThemeSaving] = useState(false)
   const [themeError, setThemeError] = useState("")
   const workspace = import.meta.env.VITE_ANALYTICS_WORKSPACE_NAME || "Funnelmetry Workspace"
-  const { user, token, logout } = useAuth()
-  const [aiError, setAiError] = useState("")
+  const { user, logout } = useAuth()
   const aiUrl = import.meta.env.VITE_DB_GPT_URL
   const roleLabel = user?.role === "super_admin" ? "Quản trị hệ thống" : user?.role === "analyst" ? "Nhà phân tích" : user?.role || "Tài khoản"
   const queryClient = useQueryClient()
@@ -93,16 +91,6 @@ export function AppShell() {
     } catch {
       setThemeError("Đã đổi giao diện trên trình duyệt này, nhưng chưa lưu được vào tài khoản. Thử lại khi Dashboard API sẵn sàng.")
     } finally { setThemeSaving(false) }
-  }
-
-  function openAiAgent() {
-    if (!aiUrl || !token) return
-    try {
-      setAiError("")
-      establishAiSession(aiUrl, token)
-    } catch {
-      setAiError("Không thể mở cửa sổ AI. Hãy kiểm tra cấu hình hoặc quyền mở cửa sổ của trình duyệt.")
-    }
   }
 
   function closeMenu() {
@@ -174,8 +162,7 @@ export function AppShell() {
         </section>)}
         </div>
         {aiUrl && (user?.role === "super_admin" || user?.role === "analyst") && <section aria-label="Trợ lý AI">
-          <button type="button" className="nav-item w-full" onClick={() => void openAiAgent()}><Bot size={17} aria-hidden="true" /><span>Trợ lý AI</span></button>
-          {aiError && <p role="alert" className="px-3 text-xs text-destructive">{aiError}</p>}
+          <NavLink to="/ai" className={({ isActive }) => cn("nav-item", isActive && "nav-item-active")}><Bot size={17} aria-hidden="true" /><span>Trợ lý AI</span></NavLink>
         </section>}
         <section aria-label="Tài khoản"><h2 className="nav-group-title">TÀI KHOẢN</h2><NavLink to="/settings" className={({ isActive }) => cn("nav-item", isActive && "nav-item-active")}><Settings2 size={17} strokeWidth={1.8} aria-hidden="true" /><span>Thiết lập cá nhân</span></NavLink></section>
       </nav>
@@ -185,7 +172,7 @@ export function AppShell() {
     <div ref={contentRef} className="app-content">
       <header className="app-topbar">
         <button ref={menuButtonRef} type="button" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden" onClick={() => setMenu(true)} aria-label="Mở menu" aria-controls="app-navigation" aria-expanded={menu}><Menu size={21} /></button>
-        <div className="min-w-0 flex-1"><div className="topbar-breadcrumb"><span>{currentGroup?.label || "KHÔNG GIAN LÀM VIỆC"}</span><ChevronRight size={12} aria-hidden="true" /><strong className="truncate">{current?.label || (location.pathname === "/settings" ? "Thiết lập cá nhân" : "Funnelmetry")}</strong></div><p className="topbar-subtitle hidden sm:block">{workspace} <span aria-hidden="true">·</span> {roleLabel}</p></div>
+        <div className="min-w-0 flex-1"><div className="topbar-breadcrumb"><span>{currentGroup?.label || "KHÔNG GIAN LÀM VIỆC"}</span><ChevronRight size={12} aria-hidden="true" /><strong className="truncate">{current?.label || (location.pathname === "/settings" ? "Thiết lập cá nhân" : location.pathname === "/ai" ? "Trợ lý AI" : "Funnelmetry")}</strong></div><p className="topbar-subtitle hidden sm:block">{workspace} <span aria-hidden="true">·</span> {roleLabel}</p></div>
         <div className="topbar-actions">
           {user?.permissions?.includes("analytics.read") && <div className="range-select-wrap"><label className="sr-only" htmlFor="workspace-range">Khoảng thời gian phân tích</label><select id="workspace-range" value={range} onChange={event => setRange(event.target.value)}><option value="Last 7 days">7 ngày qua</option><option value="Last 30 days">30 ngày qua</option><option value="Last 90 days">90 ngày qua</option></select></div>}
           <ThemeSelect value={theme} onChange={value => void changeTheme(value)} disabled={themeSaving || preferences.isPending} />

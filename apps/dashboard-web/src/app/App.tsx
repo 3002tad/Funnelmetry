@@ -5,6 +5,7 @@ import { LoginPage } from "../features/auth/LoginPage"
 import { useAuth } from "../auth/AuthContext"
 import { navigation } from './navigation'
 import { UnavailablePage } from './UnavailablePage'
+import { AiWorkspacePage } from '../features/ai/AiWorkspacePage'
 
 const OverviewPage = lazy(() => import("../features/overview/FriendlyOverviewPage").then((module) => ({ default: module.FriendlyOverviewPage })))
 const FunnelsPage = lazy(() => import("../features/funnels/FriendlyFunnelsPage").then((module) => ({ default: module.FriendlyFunnelsPage })))
@@ -67,6 +68,7 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedShell />}>
           <Route index element={<Landing />} />
+          <Route path="/ai" element={<AiWorkspacePage />} />
           <Route element={<PermissionGate permission="analytics.read" />}>
           <Route path="/overview" element={<OverviewPage />} />
           <Route path="/funnels" element={<FunnelsPage />} />

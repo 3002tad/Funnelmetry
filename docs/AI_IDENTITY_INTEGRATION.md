@@ -68,10 +68,10 @@ grants; the PostgreSQL role must separately be provisioned and verified as
 read-only, and unreviewed SQL paths are not yet enabled.
 
 The source now has an experimental browser session handoff: an optional
-`VITE_DB_GPT_URL` entry opens a browser form POST to the DB-GPT session
-endpoint, with the Pipeline bearer in the form body rather than in a URL.
-This top-level navigation avoids the cross-origin Authorization preflight that
-Cloudflare Access can reject. DB-GPT validates the token and issues a
+`VITE_DB_GPT_URL` entry displays DB-GPT inside the `/ai` workspace and submits
+a browser form POST to the DB-GPT session endpoint, with the Pipeline bearer
+in the form body rather than in a URL. This navigation avoids the cross-origin
+Authorization preflight that Cloudflare Access can reject. DB-GPT validates the token and issues a
 host-only Secure/HttpOnly/SameSite=Strict cookie. The request boundary checks
 the current Pipeline session for each API request, checks the configured
 origin on cookie-authenticated mutations, and strips client identity headers.
@@ -79,8 +79,8 @@ Set `DBGPT_PIPELINE_UI_ORIGIN` and `DBGPT_PIPELINE_AI_ORIGIN` to the exact
 HTTPS origins if enabling the boundary. Browser handoff through Cloudflare
 Access, logout/session revocation and failure paths remain unverified.
 When Cloudflare Access requires an initial login or its session has expired,
-the user may need to sign in to the AI domain and retry the handoff; the
-first-login and reauthentication flow must be tested with the deployed policy.
+the user can open the AI domain to sign in, then retry from the AI workspace;
+the first-login and reauthentication flow must be tested with the deployed policy.
 Normal Pipeline logout clears the AI cookie on a best-effort basis; it does not
 revoke an already copied bearer token. The separate Pipeline `logout-all`
 operation revokes sessions through the account session version, and is exposed
