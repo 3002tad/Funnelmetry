@@ -95,17 +95,13 @@ export function AppShell() {
     } finally { setThemeSaving(false) }
   }
 
-  async function openAiAgent() {
+  function openAiAgent() {
     if (!aiUrl || !token) return
-    const popup = window.open("about:blank", "_blank")
-    if (!popup) { setAiError("Trình duyệt đã chặn cửa sổ AI."); return }
-    popup.opener = null
     try {
       setAiError("")
-      popup.location.replace(await establishAiSession(aiUrl, token))
+      establishAiSession(aiUrl, token)
     } catch {
-      popup.close()
-      setAiError("Không thể mở phiên AI. Nếu Cloudflare Access yêu cầu đăng nhập, hãy đăng nhập tại địa chỉ AI trước, rồi quay lại thử lại; đồng thời kiểm tra kết nối và quyền truy cập.")
+      setAiError("Không thể mở cửa sổ AI. Hãy kiểm tra cấu hình hoặc quyền mở cửa sổ của trình duyệt.")
     }
   }
 
