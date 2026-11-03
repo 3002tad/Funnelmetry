@@ -21,7 +21,7 @@ COPY infra/bootstrap/bootstrap-swarm.mjs /workspace/infra/bootstrap/bootstrap-sw
 COPY infra/bootstrap/cdc-candidate-migrations.mjs /workspace/infra/bootstrap/cdc-candidate-migrations.mjs
 COPY infra/docker/swarm-entrypoint.mjs /workspace/infra/docker/swarm-entrypoint.mjs
 COPY infra/docker/swarm-readiness.mjs /workspace/infra/docker/swarm-readiness.mjs
-COPY tools/v2-e2e/test/analytics-image-smoke.mjs /workspace/tools/analytics-image-smoke.mjs
+COPY tools/analytics-image-smoke.mjs /workspace/tools/analytics-image-smoke.mjs
 ENV NODE_ENV=production PORT=32000 DASHBOARD_ENABLE_LEGACY=false DASHBOARD_ENABLE_AI=false DASHBOARD_ENABLE_POLARS=false DASHBOARD_ENABLE_ORDER_SUMMARY_STAGING=false DASHBOARD_ENABLE_ORDER_CHAT_STAGING=false
 USER node
 EXPOSE 32000
