@@ -4,7 +4,9 @@ COPY apps/dashboard-web/package.json apps/dashboard-web/package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY apps/dashboard-web/ ./
 # Public configuration only. API traffic stays on the browser's own origin.
+ARG VITE_DB_GPT_URL=""
 ENV VITE_DASHBOARD_API_URL=/
+ENV VITE_DB_GPT_URL=${VITE_DB_GPT_URL}
 RUN npm run build
 
 FROM nginx:stable-alpine
