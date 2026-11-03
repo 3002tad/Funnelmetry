@@ -24,17 +24,24 @@ enable this experimental boundary in the existing deployment until the full
 workflow and session handoff are verified. The current runtime continues using
 its prior configuration.
 
-The route policy no longer blocks the whole Agent. DB-GPT's skill script runner currently
-starts a subprocess with a copy of the application environment, and its code
-interpreter defaults to local execution. The existing Docker runtime requires
-Docker daemon access; granting that access to the Agent would violate the
-Funnelmetry tool boundary. The user chose to defer a separate constrained
-execution environment for now. The Agent tool pack has not been changed by
-this policy edit, so admitting the routes does not establish a safe execution
-boundary for those tools. The optional identity mode remains disabled in the
-existing standalone deployment. Do not represent this route change as a
-completed end-to-end Agent integration or enable it with the current local
-script runtime.
+The route policy admits the existing ReAct and Knowledge Agent routes for both
+roles. Backbone DEC-148 (2026-11-03) defines the KLTN scope: trusted development,
+testing and demo users; prompts guide behavior; backend/API/tool permissions
+and source credentials determine actual authority. Backend identity/two-role
+checks, secret/configuration protection and read-only analytical PostgreSQL
+remain baseline. Additional per-tool gates are optional if time permits, not
+a requirement to review every tool before completing the KLTN integration.
+
+Dedicated execution runtimes, sandbox/container runners, separate workers or
+Unix sockets and per-job containers are OUT_OF_SCOPE for the entire thesis.
+Their absence is not an Agent deployment blocker or mandatory later backlog.
+Keep native DB-GPT tools, skills and workflows. The current skill runner copies
+the application environment and the code interpreter defaults to local
+execution: arbitrary-code containment, protection against all file/secret
+access and isolation between users are not certified. Do not add Docker control
+or system administration privileges to the Agent. The optional identity mode
+is still disabled in the existing standalone deployment; this scope decision
+does not certify session handoff or end-to-end integration.
 
 In integration mode `/images` is denied because that static mount has no
 actor/owner check. An authenticated image route remains to be implemented.
@@ -68,9 +75,9 @@ operation revokes sessions through the account session version, and is exposed
 as an explicit all-devices action in account settings. Do not describe normal
 logout as server-side token revocation. Real-browser verification remains open.
 
-Integration still requires end-to-end validation of the session bridge,
-trusted identity propagation with direct access and spoofed headers blocked, enforcement for
-admin and analyst at every execution path, object ownership/sharing, scoped
-read-only datasource access, scheduled-job authority, audit and revocation
-tests. Preserve DB-GPT's analytical tools and user workflows. Do not enable
-or advertise integrated authorization until these paths have been tested.
+KLTN integration acceptance verifies the session bridge, trusted identity,
+Admin/Analyst restrictions on the used APIs, the read-only datasource and the
+selected analytical workflow. Existing unimplemented features retain their
+documented status; a full tool-by-tool execution-gate review and a dedicated
+runtime are not prerequisites under DEC-148. Preserve DB-GPT's analytical tools
+and user workflows, and report the actual tested coverage and limitations.
