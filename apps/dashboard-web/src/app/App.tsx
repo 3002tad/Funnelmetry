@@ -22,7 +22,6 @@ const ModelProviderPage = lazy(() => import('../features/admin/ModelProviderPage
 const AgentObservabilityPage = lazy(() => import('../features/admin/AgentObservabilityPage'))
 const PipelineHealthPage = lazy(() => import('../features/admin/FriendlyPipelineHealthPage'))
 const SourcesPage = lazy(() => import('../features/admin/SourcesPage'))
-const ChatPage = lazy(() => import('../features/chat/ChatPage').then(module => ({ default: module.ChatPage })))
 const CatalogPage = lazy(() => import('../features/catalog/CatalogPage'))
 const EvidencePage = lazy(() => import('../features/evidence/EvidencePage'))
 const FindingsPage = lazy(() => import('../features/evidence/FindingsPage'))
@@ -88,9 +87,7 @@ export function App() {
           <Route path="/findings" element={<FindingsPage />} />
           <Route path="/data-health" element={<DataHealthPage />} />
           <Route path="/insights" element={<Navigate to="/findings" replace />} />
-          <Route element={<PermissionGate permission="chat.use" />}>
-            <Route path="/chat" element={<ChatPage />} />
-          </Route>
+          <Route path="/chat" element={<Navigate to="/ai" replace />} />
           </Route>
           <Route element={<PermissionGate permission="pipeline.monitor" />}>
           <Route path="/admin/pipeline" element={<PipelineHealthPage />} />

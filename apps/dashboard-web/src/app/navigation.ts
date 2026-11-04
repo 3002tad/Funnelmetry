@@ -36,7 +36,6 @@ export const navigation: NavigationGroup[] = [
   ] },
   { label: 'CÔNG CỤ', items: [
     analytics('/events', 'Sự kiện'), analytics('/data-health', 'Chất lượng dữ liệu'),
-    { path: '/chat', label: 'AI Chat · hiện tại', permission: 'chat.use' },
   ] },
   { label: 'HỆ THỐNG', items: [
     admin('pipeline', 'Tình trạng Pipeline'),
@@ -73,12 +72,12 @@ export const navigation: NavigationGroup[] = [
 
 export function visibleNavigation(permissions: readonly string[]): NavigationGroup[] {
   return navigation.map(group => ({ ...group, items: group.items.filter(item =>
-    permissions.includes(item.permission) && (!['/chat', '/traffic'].includes(item.path) || permissions.includes('analytics.read')),
+    permissions.includes(item.permission) && (item.path !== '/traffic' || permissions.includes('analytics.read')),
   ) })).filter(group => group.items.length > 0)
 }
 
 export const primaryPaths = new Set([
-  '/overview', '/funnels', '/products', '/events', '/data-health', '/chat', '/settings',
+  '/overview', '/funnels', '/products', '/events', '/data-health', '/settings',
   '/admin/pipeline', '/admin/processing',
 ])
 

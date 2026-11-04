@@ -20,7 +20,7 @@ import { displayedNavigation, visibleNavigation } from "./navigation"
 import { useThemePreference } from "./useThemePreference"
 import { PageErrorBoundary } from "./PageErrorBoundary"
 
-export type ShellContext = { range: string; workspace: string; sourceId: string }
+export type ShellContext = { range: string; workspace: string; sourceId: string; theme: ThemePreference }
 
 const icons: Record<string, LucideIcon> = {
   "/overview": ChartNoAxesCombined, "/workspace": Blocks, "/analysis-runs": FileClock,
@@ -28,7 +28,7 @@ const icons: Record<string, LucideIcon> = {
   "/products": ShoppingBag, "/traffic": Radar, "/campaigns": Tags,
   "/metrics": BarChart3, "/assets": Database, "/findings": Sparkles,
   "/reports": FileChartColumn, "/events": Activity, "/data-health": HeartPulse,
-  "/chat": Bot, "/admin/pipeline": HeartPulse, "/admin/recovery": LifeBuoy,
+  "/admin/pipeline": HeartPulse, "/admin/recovery": LifeBuoy,
   "/admin/resources": Boxes, "/admin/audit": ClipboardList, "/admin/sources": GitBranch,
   "/admin/event-feed": ListFilter, "/admin/event-trace": Fingerprint,
   "/admin/connector": GitBranch, "/admin/processing": Blocks,
@@ -179,7 +179,7 @@ export function AppShell() {
         </div>
         {themeError && <p role="alert" className="absolute right-4 top-full mt-2 max-w-xs rounded-xl border border-destructive/30 bg-card p-3 text-xs text-destructive shadow-lg">{themeError}</p>}
       </header>
-      <main ref={mainRef} id="main-content" tabIndex={-1} className="app-main"><div className="page-enter mx-auto max-w-[1540px]"><PageErrorBoundary key={location.pathname}><Outlet context={{ range, workspace, sourceId: analyticsSourceId } satisfies ShellContext} /></PageErrorBoundary></div></main>
+      <main ref={mainRef} id="main-content" tabIndex={-1} className="app-main"><div className={cn("page-enter mx-auto", location.pathname === "/ai" ? "max-w-none" : "max-w-[1540px]")}><PageErrorBoundary key={location.pathname}><Outlet context={{ range, workspace, sourceId: analyticsSourceId, theme } satisfies ShellContext} /></PageErrorBoundary></div></main>
     </div>
   </div>
 }
