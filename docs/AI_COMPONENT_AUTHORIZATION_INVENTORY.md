@@ -28,6 +28,25 @@ entire thesis and are not deployment blockers or mandatory later tasks.
 | Dashboard sharing and public routes | Define explicit public-link semantics and prevent private data, datasource access or editing via a share token. The experimental boundary currently denies these routes. |
 | Other serves and endpoints | Unknown routes remain denied until reviewed. Check WebSocket and SSE paths, not just HTTP calls. |
 
+## Deferred functional validation and current priority
+
+The Analyst UI now exposes Applications, AWEL and Scheduled Tasks with distinct
+icons. On the deployed `8a5f7939` build, Applications opened its creation form,
+AWEL opened the flow editor and Scheduled Tasks loaded its list; the observed
+list and editor APIs returned HTTP 200. The return-to-Pipeline control also
+worked. These checks did not save or run an application, flow or scheduled task.
+
+Defer the following tests until after the Agent analysis evaluation: create,
+reopen and delete a disposable application; save and reopen a simple AWEL flow;
+create a scheduled task from a conversation and verify an execution and its
+history. Check Analyst access and clean up disposable objects after testing.
+
+The immediate priority is one complex e-commerce analysis using `qwen3.5-flash`.
+Assess numerical evidence, definitions and quality limits alongside reported
+input/output tokens, model/tool calls and elapsed time. The user reported a
+remaining allowance of 483,038 tokens; this is an allowance, not measured usage
+or an instruction to consume it. Mark missing provider usage as unknown.
+
 Before claiming KLTN integration complete, verify browser session handoff,
 the Admin/Analyst API restrictions and the read-only source in the selected
 analytical workflow. Report actual coverage; do not turn every remaining

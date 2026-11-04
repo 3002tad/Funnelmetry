@@ -5,7 +5,7 @@
 | Nhóm | Vị trí |
 | --- | --- |
 | Hiện hành | [Kiến trúc](current/SYSTEM.md), [dữ liệu](current/DATA.md), [triển khai](current/DEPLOYMENT.md), [vận hành](current/OPERATIONS.md), [năng lực](current/CAPABILITIES.md) |
-| Contract | [Time semantics v1](current/TIME_SEMANTICS_CONTRACT_V1.md), [Medusa CDC hiện hành](current/MEDUSA_REFERENCE_CDC_CURRENT.md), [OpenAPI V2](../tools/api-docs/public/openapi-v2.yaml) |
+| Contract | [Time semantics v1](current/TIME_SEMANTICS_CONTRACT_V1.md), [Medusa CDC hiện hành](current/MEDUSA_REFERENCE_CDC_CURRENT.md), [DB-GPT metadata và vector](current/DB_GPT_METADATA_AND_VECTOR.md), [OpenAPI V2](../tools/api-docs/public/openapi-v2.yaml) |
 | Chi tiết component | [Apps](apps/), [workers](workers/), [analytics](analytics/), [infra](infra/), [tools](tools/), [packages](packages/), [integrations](integrations/) |
 | Lịch sử | [Archive/checkpoints](archive/README.md), [V1 legacy](legacy/README.md) |
 
