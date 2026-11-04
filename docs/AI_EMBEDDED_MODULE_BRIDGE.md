@@ -4,7 +4,8 @@ The Pipeline shell owns the AI entry, theme and login. DB-GPT keeps its
 existing Next.js screens, sidebar navigation, browser state, Agent APIs, tools
 and MySQL data. Because these are separate frontend applications, the narrow
 bridge still uses an iframe as its transport. On `/ai`, Pipeline hides its own
-sidebar and offers a return link; DB-GPT's sidebar navigates all AI modules.
+sidebar and top bar; DB-GPT's sidebar navigates all AI modules and offers a
+return link to Pipeline.
 DB-GPT hides only its duplicate home header and hero branding when embedded.
 This is a visual and navigation integration, not a claim that the two frontend
 bundles have become one React application.
@@ -12,7 +13,10 @@ bundles have become one React application.
 The existing Pipeline session handoff creates a host-only DB-GPT cookie. The
 embedded page sends a `funnelmetry:ai-ready` message to the Pipeline origin.
 Pipeline validates the sender window and AI origin before sharing its theme.
-Theme messages are accepted only from the configured Pipeline origin.
+The DB-GPT theme switch reports user changes back to Pipeline, which saves the
+preference for the rest of the workspace. DB-GPT accepts theme messages only
+from the configured Pipeline origin; Pipeline accepts DB-GPT messages only from
+the configured AI origin and its iframe window.
 Messages contain no token or provider key. DB-GPT continues to verify the
 Pipeline session and Admin/Analyst role on API requests.
 

@@ -20,7 +20,7 @@ import { displayedNavigation, visibleNavigation } from "./navigation"
 import { useThemePreference } from "./useThemePreference"
 import { PageErrorBoundary } from "./PageErrorBoundary"
 
-export type ShellContext = { range: string; workspace: string; sourceId: string; theme: ThemePreference }
+export type ShellContext = { range: string; workspace: string; sourceId: string; theme: ThemePreference; setThemePreference: (next: ThemePreference) => Promise<void> }
 
 const icons: Record<string, LucideIcon> = {
   "/overview": ChartNoAxesCombined, "/workspace": Blocks, "/analysis-runs": FileClock,
@@ -171,7 +171,7 @@ export function AppShell() {
     </aside>}
 
     <div ref={contentRef} className="app-content">
-      <header className="app-topbar">
+      {!inAi && <header className="app-topbar">
         {!inAi && <button ref={menuButtonRef} type="button" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden" onClick={() => setMenu(true)} aria-label="Mở menu" aria-controls="app-navigation" aria-expanded={menu}><Menu size={21} /></button>}
         {inAi && <NavLink to="/" className="rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-muted">← Funnelmetry</NavLink>}
         <div className="min-w-0 flex-1"><div className="topbar-breadcrumb"><span>{currentGroup?.label || "KHÔNG GIAN LÀM VIỆC"}</span><ChevronRight size={12} aria-hidden="true" /><strong className="truncate">{current?.label || (location.pathname === "/settings" ? "Thiết lập cá nhân" : location.pathname === "/ai" ? "Trợ lý AI" : "Funnelmetry")}</strong></div><p className="topbar-subtitle hidden sm:block">{workspace} <span aria-hidden="true">·</span> {roleLabel}</p></div>
@@ -180,8 +180,8 @@ export function AppShell() {
           <ThemeSelect value={theme} onChange={value => void changeTheme(value)} disabled={themeSaving || preferences.isPending} />
         </div>
         {themeError && <p role="alert" className="absolute right-4 top-full mt-2 max-w-xs rounded-xl border border-destructive/30 bg-card p-3 text-xs text-destructive shadow-lg">{themeError}</p>}
-      </header>
-      <main ref={mainRef} id="main-content" tabIndex={-1} className={cn("app-main", inAi && "app-main-ai")}><div className={cn("page-enter mx-auto", inAi ? "max-w-none" : "max-w-[1540px]")}><PageErrorBoundary key={location.pathname}><Outlet context={{ range, workspace, sourceId: analyticsSourceId, theme } satisfies ShellContext} /></PageErrorBoundary></div></main>
+      </header>}
+      <main ref={mainRef} id="main-content" tabIndex={-1} className={cn("app-main", inAi && "app-main-ai")}><div className={cn("page-enter mx-auto", inAi ? "max-w-none" : "max-w-[1540px]")}><PageErrorBoundary key={location.pathname}><Outlet context={{ range, workspace, sourceId: analyticsSourceId, theme, setThemePreference: changeTheme } satisfies ShellContext} /></PageErrorBoundary></div></main>
     </div>
   </div>
 }
