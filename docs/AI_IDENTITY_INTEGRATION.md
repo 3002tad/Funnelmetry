@@ -1,5 +1,15 @@
 # DB-GPT identity integration
 
+2026-11-04: The AI hostname continues to use Cloudflare Tunnel, but its
+Cloudflare Access login has been removed for the unified Pipeline session flow.
+The DB-GPT API still verifies the Pipeline session and role. An unauthenticated
+request to `/api/auth/funnelmetry/me` returned 401 through the public hostname.
+The Pipeline workspace no longer directs users to an Access login. Playwright
+with an Analyst account displayed DB-GPT inside the Pipeline iframe; Knowledge
+Base statistics for three spaces returned HTTP 200, and direct navigation to
+model configuration displayed the Admin-only notice. Admin browser acceptance
+and the complete DB-GPT workflow remain open.
+
 The Pipeline API exposes `GET /api/auth/ai-identity` as a building block for
 the DB-GPT integration. It accepts an existing Pipeline bearer session, checks
 the current account status, role and session version against PostgreSQL, and
