@@ -53,6 +53,20 @@ restricted PostgreSQL role and DB-GPT's internal HTTP API. Configure standard
 `DBGPT_URL` (defaults to `http://127.0.0.1:5670`). Supply credentials through a
 secret mechanism, never through Git or printed commands.
 
+When the DB-GPT Pipeline identity boundary is enabled, also provide a valid,
+short-lived Funnelmetry session as `DBGPT_PIPELINE_BEARER_TOKEN` through the
+operator's secret mechanism. The sync sends it as an Authorization header on
+each request; it does not create a separate DB-GPT account. The actor needs
+access to the Knowledge Base operations used by the sync. Without this token,
+the existing unauthenticated mode remains available only where DB-GPT itself
+is configured to allow it.
+
+Run `python sync.py --check` with the same connection settings to compute the
+current release digest and report its matching document status without creating
+spaces, indexing documents or calling the embedding provider. `MISSING` means
+the matching snapshot has not been published; it does not select or remove any
+older spaces.
+
 The operator must authorize sending the release definition and guide to the
 configured embedding provider. The sync reads exactly one ACTIVE release,
 verifies its identity, hashes its canonical definition and guide, and creates a
@@ -60,8 +74,10 @@ KB space/document named with that digest. It waits for indexing to finish.
 Re-running the same snapshot reuses the existing finished document. Changed
 metadata creates a new versioned space; old spaces are not automatically
 removed or switched off, so consumers must select the intended version and
-operators must retire stale versions before making one the default. This script
-does not schedule refreshes or implement a production cutover.
+operators must retire stale versions before making one the default. The sync
+uses the Knowledge Base v1 space and TEXT document endpoints admitted by the
+Pipeline identity policy. This script does not schedule refreshes or implement
+a production cutover.
 
 On 2026-11-01, the updated exploratory guide and ACTIVE offer definition were
 indexed on the VPS in `funnelmetry-offer-1-0-0-19a5e6d937fb` (document 2,

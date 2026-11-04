@@ -7,6 +7,7 @@ operator-invoked sync, not a scheduler or an authorization boundary.
 """
 
 import hashlib
+import argparse
 import json
 import os
 import time
@@ -61,6 +62,13 @@ Never calculate paid revenue, conversion or historical order value from it.
 
 def api(path, data=None, form=False):
     headers = {}
+    # Integration mode verifies the existing Funnelmetry session on every API
+    # request. Keep the optional short-lived token outside command arguments.
+    token = os.environ.get("DBGPT_PIPELINE_BEARER_TOKEN", "").strip()
+    if token:
+        if "\r" in token or "\n" in token:
+            raise ValueError("Invalid DB-GPT bearer token")
+        headers["Authorization"] = "Bearer " + token
     if data is not None:
         if form:
             data = urlencode(data).encode()
@@ -75,16 +83,13 @@ def api(path, data=None, form=False):
     return result.get("data")
 
 
-def find_page(path, predicate):
-    page = 1
-    while True:
-        result = api(path + "?" + urlencode({"page": page, "page_size": 100}))
-        for item in result.get("items", []):
-            if predicate(item):
-                return item
-        if page >= result.get("total_pages", 0):
-            return None
-        page += 1
+def find_space(name):
+    # These v1 endpoints are available under the Pipeline identity policy.
+    spaces = api("/api/v1/knowledge/space/list", {"name": name})
+    matches = [space for space in spaces if space.get("name") == name]
+    if len(matches) > 1:
+        raise RuntimeError("Duplicate DB-GPT knowledge space name")
+    return matches[0] if matches else None
 
 
 def find_document(space_name, predicate):
@@ -103,7 +108,7 @@ def find_document(space_name, predicate):
         page += 1
 
 
-def main():
+def main(check_only=False):
     with psycopg2.connect(connect_timeout=10, options="-c statement_timeout=10000") as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("SELECT * FROM funnelmetry_ai.reference_offer_metadata")
@@ -128,17 +133,21 @@ def main():
         + "Published asset definition:\n" + json.dumps(definition, ensure_ascii=False, indent=2)
         + "\n\n" + GUIDE
     )
-    space = find_page("/api/v2/serve/knowledge/spaces", lambda x: x.get("name") == space_name)
+    space = find_space(space_name)
+    if check_only:
+        doc = find_document(space_name, lambda x: x.get("doc_name") == name) if space else None
+        result = {"space": space_name, "sha256": digest, "asset": EXPECTED[0],
+                  "version": EXPECTED[1], "status": doc.get("status") if doc else "MISSING"}
+        print(json.dumps(result))
+        return
     if not space:
         api("/api/v1/knowledge/space/add", {"name": space_name, "vector_type": "VectorStore", "domain_type": "Normal", "owner": "funnelmetry", "desc": "Versioned reference metadata snapshot " + digest, "index_methods": ["VectorStore"]})
-        space = find_page("/api/v2/serve/knowledge/spaces", lambda x: x.get("name") == space_name)
+        space = find_space(space_name)
     if not space:
         raise RuntimeError("Created KB space was not visible")
     doc = find_document(space_name, lambda x: x.get("doc_name") == name)
     if not doc:
-        # The current DB-GPT request model rejects None for doc_file even for
-        # TEXT documents; a string placeholder is ignored by its TEXT path.
-        doc_id = api("/api/v2/serve/knowledge/documents", {"doc_name": name, "doc_type": "TEXT", "space_id": str(space["id"]), "content": content, "doc_file": "text"}, form=True)
+        doc_id = api("/api/v1/knowledge/" + space_name + "/document/add", {"doc_name": name, "doc_type": "TEXT", "content": content})
         doc = {"id": int(doc_id), "status": "TODO"}
     if doc.get("status") not in ("RUNNING", "FINISHED"):
         api("/api/v1/knowledge/" + space_name + "/document/sync", {"doc_ids": [doc["id"]], "model_name": "text-embedding-v3"})
@@ -154,4 +163,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="Read current release and KB status without publishing or indexing")
+    main(check_only=parser.parse_args().check)

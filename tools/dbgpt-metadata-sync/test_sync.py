@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 import sys
 import types
 import unittest
@@ -50,6 +51,31 @@ def release(state="ACTIVE"):
 
 
 class SyncTests(unittest.TestCase):
+    def test_space_lookup_uses_identity_enabled_endpoint(self):
+        with patch.object(sync, "api", return_value=[{"id": 7, "name": "expected"}]) as api:
+            self.assertEqual(sync.find_space("expected")["id"], 7)
+        api.assert_called_once_with("/api/v1/knowledge/space/list", {"name": "expected"})
+
+    def test_check_reports_missing_without_writes(self):
+        with patch.object(sync.psycopg2, "connect", return_value=FakeDB([release()])), \
+             patch.object(sync, "find_space", return_value=None), \
+             patch.object(sync, "api") as api, redirect_stdout(StringIO()) as output:
+            sync.main(check_only=True)
+        self.assertEqual(json.loads(output.getvalue())["status"], "MISSING")
+        api.assert_not_called()
+
+    def test_api_sends_pipeline_session_when_configured(self):
+        class Response:
+            def __enter__(self):
+                return StringIO('{"success": true, "data": []}')
+            def __exit__(self, *args):
+                return False
+
+        with patch.dict(os.environ, {"DBGPT_PIPELINE_BEARER_TOKEN": "test-session"}), \
+             patch.object(sync, "urlopen", return_value=Response()) as opened:
+            self.assertEqual(sync.api("/api/v1/knowledge/space/list"), [])
+        self.assertEqual(opened.call_args.args[0].get_header("Authorization"), "Bearer test-session")
+
     def test_exploration_guide_distinguishes_quality_columns_and_domains(self):
         self.assertIn("the column quality_status, not status", sync.GUIDE)
         self.assertIn("catalog_quality\ndescribes catalog quality only", sync.GUIDE)
@@ -65,8 +91,8 @@ class SyncTests(unittest.TestCase):
     def test_repeated_sync_reuses_same_finished_document(self):
         state = {"spaces": [], "docs": [], "posts": []}
 
-        def find(path, predicate):
-            return next((entry for entry in state["spaces"] if predicate(entry)), None)
+        def find(name):
+            return next((entry for entry in state["spaces"] if entry["name"] == name), None)
 
         def find_document(space, predicate):
             return next((entry for entry in state["docs"] if predicate(entry)), None)
@@ -75,7 +101,7 @@ class SyncTests(unittest.TestCase):
             state["posts"].append(path)
             if path.endswith("/space/add"):
                 state["spaces"].append({"id": 1, "name": data["name"]})
-            elif path.endswith("/documents"):
+            elif path.endswith("/document/add"):
                 state["docs"].append({"id": 2, "space": state["spaces"][0]["name"],
                                       "doc_name": data["doc_name"], "status": "TODO"})
                 return "2"
@@ -85,7 +111,7 @@ class SyncTests(unittest.TestCase):
                 raise AssertionError(path)
             return []
 
-        with patch.object(sync.psycopg2, "connect", return_value=FakeDB([release()])), patch.object(sync, "find_page", side_effect=find), patch.object(sync, "find_document", side_effect=find_document), patch.object(sync, "api", side_effect=api), redirect_stdout(StringIO()) as output:
+        with patch.object(sync.psycopg2, "connect", return_value=FakeDB([release()])), patch.object(sync, "find_space", side_effect=find), patch.object(sync, "find_document", side_effect=find_document), patch.object(sync, "api", side_effect=api), redirect_stdout(StringIO()) as output:
             sync.main()
             sync.main()
         lines = [json.loads(line) for line in output.getvalue().splitlines()]
