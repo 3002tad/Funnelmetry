@@ -25,9 +25,8 @@ export function AiWorkspacePage() {
   if (!aiUrl) return <p role="alert">Trợ lý AI chưa được cấu hình.</p>
   return <section aria-label="Trợ lý AI" className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-      <p>Nếu khung AI không hiển thị, hãy đăng nhập Cloudflare Access rồi tải lại.</p>
+      <p>Trợ lý AI sử dụng phiên đăng nhập Funnelmetry của bạn.</p>
       <div className="flex items-center gap-3">
-        <a href={aiUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">Đăng nhập Cloudflare Access</a>
         <button type="button" onClick={connect} className="text-primary underline">Tải lại AI</button>
       </div>
     </div>
