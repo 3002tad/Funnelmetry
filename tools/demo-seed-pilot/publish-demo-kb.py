@@ -15,8 +15,8 @@ import subprocess
 import time
 from urllib.request import Request, urlopen
 
-RELEASE = "demo-commerce-analysis@1.0.0"
-DEFINITION_SHA = "37649d69560cc9c7a3442ab20ba502a995bc274998e1b6901661bc7adb643e3e"
+RELEASE = "demo-commerce-analysis@1.1.0"
+DEFINITION_SHA = "f06625d65311170c0af26b9d1d1304fec6800b55c8a2d426743dce11d53c6f3a"
 API = "http://127.0.0.1:5670"
 PIPELINE = "http://127.0.0.1:31080"
 PIPELINE_HOST = os.environ.get("SWARM_PUBLIC_DOMAIN", "analyst.entidi.io.vn")
@@ -106,6 +106,7 @@ def guide(definition):
         "Use the 15 versioned benchmark questions in tools/demo-seed-pilot/demo-golden-v1.sql for SQL examples.",
         "Assets:",
     ]
+    lines[-1:-1] = ["Analysis guidance:"] + ["- " + item for item in definition["analysis_guidance"]]
     for asset in definition["assets"]:
         lines.append(f"- {asset['id']}: {asset['view']}; grain {', '.join(asset['grain'])}; fields {', '.join(asset['fields'])}.")
         if asset.get("limitation"):
@@ -161,8 +162,8 @@ def main():
     definition = read_release()
     content = guide(definition)
     digest = hashlib.sha256(content.encode()).hexdigest()
-    space_name = "funnelmetry-demo-1-0-0-" + digest[:12]
-    doc_name = "demo-commerce-analysis-1.0.0-" + digest[:12]
+    space_name = "funnelmetry-demo-1-1-0-" + digest[:12]
+    doc_name = "demo-commerce-analysis-1.1.0-" + digest[:12]
     token = acquire_token(args.password_file, args.email)
     space = find_space(space_name, token)
     document = find_document(space_name, doc_name, token) if space else None
