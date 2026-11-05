@@ -50,13 +50,13 @@ def request(url, data, token=None):
     with urlopen(Request(url, data=encoded, headers=headers), timeout=60) as response:
         return json.load(response)
 
-def acquire_token(path):
+def acquire_token(path, email):
     with open(path, encoding="utf-8") as stream:
         password = stream.read().strip()
-    result = request(PIPELINE + "/api/auth/login", {"email":"admin@example.local","password":password})
+    result = request(PIPELINE + "/api/auth/login", {"email":email,"password":password})
     token = result.get("token")
     if not isinstance(token,str) or not token:
-        raise RuntimeError("Pipeline Admin login failed")
+        raise RuntimeError("Pipeline login failed")
     return token
 
 def api(path, payload, token):
@@ -118,14 +118,16 @@ def guide(definition):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["check","publish","verify"])
-    parser.add_argument("--admin-password-file", required=True)
+    parser.add_argument("--password-file", required=True)
+    parser.add_argument("--email", choices=["admin@example.local","analyst@example.local"],
+                        default="admin@example.local")
     args = parser.parse_args()
     definition = read_release()
     content = guide(definition)
     digest = hashlib.sha256(content.encode()).hexdigest()
     space_name = "funnelmetry-demo-1-0-0-" + digest[:12]
     doc_name = "demo-commerce-analysis-1.0.0-" + digest[:12]
-    token = acquire_token(args.admin_password_file)
+    token = acquire_token(args.password_file, args.email)
     space = find_space(space_name, token)
     document = find_document(space_name, doc_name, token) if space else None
     if args.command == "check":
