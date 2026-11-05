@@ -22,6 +22,8 @@ try {
  sql(seed);sql(seed)
  const binding=await readFile(resolve(here,'pipeline-gap-binding-v1.sql'),'utf8')
  sql(binding);sql(binding)
+ sql(await readFile(resolve(here,'pipeline-analytical-views-v1.sql'),'utf8'))
+ if(sql("SELECT count(*) FROM funnelmetry_demo.sessions WHERE dataset_id='demo-gap-20261101-20261105-v1';").stdout.trim()!=='1750')throw Error('base_migration_lost_gap')
  if(sql('SET ROLE funnelmetry_ai_agent; SELECT demo_status FROM funnelmetry_demo.gap_dataset_coverage;').stdout.trim()!=='READY_FOR_DEMO')throw Error('gap_not_ready')
  const got=JSON.parse(sql(`SET ROLE funnelmetry_ai_agent; SELECT json_build_object('sessions',(SELECT count(*) FROM funnelmetry_demo.sessions),'events',(SELECT count(*) FROM funnelmetry_demo.browser_events),'overlap',(SELECT observed_overlap_count FROM funnelmetry_demo.gap_overlap_status),'orphans',(SELECT count(*) FROM funnelmetry_demo.browser_events e LEFT JOIN funnelmetry_demo.sessions s ON s.dataset_id=e.dataset_id AND s.session_id=e.session_id WHERE e.dataset_id='demo-gap-20261101-20261105-v1' AND s.session_id IS NULL))::text;`).stdout.trim())
  if(got.sessions!==1750 || got.events!==4985 || got.overlap!==0 || got.orphans!==0)throw Error(`fixture_integrity:${JSON.stringify(got)}`)

@@ -37,15 +37,15 @@ BEGIN
     'product_categories','category_history','crosswalk','coverage','offer_prices',
     'stock_positions','sessions','browser_events','cart_changes','cart_links','orders',
     'order_transitions','order_lines','payments','fulfillments','customer_evidence'] LOOP
-    EXECUTE format('CREATE OR REPLACE VIEW funnelmetry_demo.%I AS SELECT t.*, ''synthetic_history''::text AS analytical_source_id, ''UNVERIFIED''::text AS analytical_quality FROM demo_history.%I t WHERE dataset_id = ''demo-historical-100000-v2''', name, name);
+    EXECUTE format('CREATE OR REPLACE VIEW funnelmetry_demo.%I AS SELECT t.*, ''synthetic_history''::text AS analytical_source_id, ''UNVERIFIED''::text AS analytical_quality FROM demo_history.%I t WHERE dataset_id IN (''demo-historical-100000-v2'',''demo-gap-20261101-20261105-v1'')', name, name);
     EXECUTE format('COMMENT ON VIEW funnelmetry_demo.%I IS %L', name,
       'Synthetic demo fixture only. Historical values are generated, not Medusa historical facts; preserve dataset_id, origin, analytical_quality and domain grain.');
     EXECUTE format('GRANT SELECT ON funnelmetry_demo.%I TO funnelmetry_ai_agent', name);
   END LOOP;
 END $views$;
 
--- Synthetic events end at the exclusive range boundary from their approved
--- manifest. Observed rows after that boundary remain individually UNVERIFIED;
+-- Synthetic events end at the exclusive range boundary of the latest pinned
+-- fixture present. Observed rows after it remain individually UNVERIFIED;
 -- the time filter is NOT a claim of uninterrupted observed coverage.
 CREATE OR REPLACE VIEW funnelmetry_demo.behavior_events_all AS
 SELECT e.dataset_id, e.origin, 'synthetic_history'::text AS source_id,
@@ -54,19 +54,21 @@ SELECT e.dataset_id, e.origin, 'synthetic_history'::text AS source_id,
        'UNVERIFIED'::text AS quality_status,
        'synthetic fixture; no observed coverage claim'::text AS coverage_note
 FROM demo_history.browser_events e
-WHERE e.dataset_id='demo-historical-100000-v2'
+WHERE e.dataset_id IN ('demo-historical-100000-v2','demo-gap-20261101-20261105-v1')
 UNION ALL
 SELECT 'demo-historical-100000-v2'::text, 'OBSERVED_SOURCE'::text, e.source_id,
        e.canonical_event_id, e.event_type, e.occurred_at, e.ingested_at,
        e.query_normalized, e.quality_status,
        'observed event; source coverage may be incomplete'::text
 FROM funnelmetry_explore.behavior_events e
-WHERE e.occurred_at >= '2026-11-01T00:00:00Z'::timestamptz
+WHERE e.occurred_at >= CASE WHEN EXISTS (SELECT 1 FROM demo_history.seed_manifest WHERE dataset_id='demo-gap-20261101-20261105-v1'
+    AND fixture_sha256='6089a21874defb09b7641166481b8261e4313604f700686fbe3a23d9f4a41bd8')
+  THEN '2026-11-05T00:00:00Z'::timestamptz ELSE '2026-11-01T00:00:00Z'::timestamptz END
   AND e.event_type IN ('behavior.page_viewed','behavior.product_viewed',
     'behavior.scroll_depth_reached','behavior.search_query_submitted',
     'checkout.started','context.cart_linked');
 COMMENT ON VIEW funnelmetry_demo.behavior_events_all IS
-  'Event grain, UTC occurred_at. Synthetic before 2026-11-01; observed rows from boundary onward. Observed coverage and gap are not certified; NULL/missing days are not zero. No session/cart identity join or search-to-cart attribution is implied.';
+  'Event grain, UTC occurred_at. Synthetic ends at the pinned fixture boundary: 2026-11-05 when the gap fixture is loaded, otherwise 2026-11-01. Observed coverage is not certified; missing days are not zero. No session/cart identity join or search-to-cart attribution is implied.';
 GRANT USAGE ON SCHEMA funnelmetry_demo TO funnelmetry_ai_agent;
 GRANT SELECT ON funnelmetry_demo.behavior_events_all TO funnelmetry_ai_agent;
 COMMIT;
