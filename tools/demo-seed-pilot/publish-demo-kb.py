@@ -98,6 +98,8 @@ def guide(definition):
         "Synthetic order/payment/fulfillment/price/stock/customer rows are scenario data, not observed Medusa history.",
         "Always join synthetic assets with dataset_id plus entity key. Repeated catalog snapshots otherwise multiply rows.",
         "For PostgreSQL distinct entity counts across datasets use COUNT(DISTINCT (dataset_id, session_id)) or COUNT(DISTINCT (dataset_id, order_id)); do not drop dataset_id when IDs happen to be unique in one fixture.",
+        "For synthetic session analysis use sessions(dataset_id, session_id, started_at), browser_events(dataset_id, session_id, event_type, occurred_at) and cart_links(dataset_id, session_id, cart_id, occurred_at). Count all sessions from sessions, not event rows. behavior_events_all combines synthetic and observed events but has no session_id.",
+        "Historical dataset_coverage has period_start, period_end, demo_status and scope_note. gap_dataset_coverage has dataset_id, demo_status, mismatched_domains and invalid_sessions; it does not have period_start, period_end or scope_note. Inspect the real schema before selecting other columns.",
         "Use event occurred_at, session started_at, order created_at, payment action_at and fulfillment occurred_at separately.",
         "Search text is an independent demand signal. Observed search-to-cart has insufficient correlation.",
         "Synthetic payment CAPTURED and REFUNDED actions are supported; observed paid revenue has insufficient binding.",
