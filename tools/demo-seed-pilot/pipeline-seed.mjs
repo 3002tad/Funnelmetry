@@ -1,4 +1,4 @@
-// Emits a psql transaction for the one approved DEC-150 synthetic fixture.
+// Emits a psql transaction for a pinned DEC-150 synthetic fixture.
 // stdout is SQL: pipe it directly to psql; do not print or commit the fixture.
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
@@ -6,12 +6,19 @@ import { once } from 'node:events'
 import { resolve } from 'node:path'
 import { schemas } from './expanded-schema.mjs'
 
-const PIN = Object.freeze({
+const PINS = [Object.freeze({
   dataset: 'demo-historical-100000-v2',
   manifest: 'b4316f664d333ae05b2a804ff63bd513c776462e4effe08a4b9a74b869058d0f',
   fixture: '5858034aa55353d166fb9c2eaeb21f84f0d966d96e79a69b78e6bc2041544e0b',
   logical: '074d25c357a598767e58175bd0b0b2932118b4f6461fdb85d99a50cdcd2b3230',
-})
+  version: 'demo-scale-manifest.v1',
+}), Object.freeze({
+  dataset: 'demo-gap-20261101-20261105-v1',
+  manifest: '09a559d8fe7cdf051c3260e6a29370eab849cd910c265478f5ed3129f897ca30',
+  fixture: '6089a21874defb09b7641166481b8261e4313604f700686fbe3a23d9f4a41bd8',
+  logical: '785ecd32bcd98d973a9485dc1cbb0d18b7035c893f6d7f0bb6b3c0281f9fa587',
+  version: 'demo-gap-manifest.v1',
+})]
 const sha = value => createHash('sha256').update(value).digest('hex')
 const stable = x => Array.isArray(x) ? x.map(stable) : x && typeof x === 'object'
   ? Object.fromEntries(Object.keys(x).sort().map(k => [k, stable(x[k])])) : x
@@ -22,11 +29,12 @@ if (!['check', 'emit-sql'].includes(command) || !manifestPath || !fixturePath ||
 }
 
 const [manifestRaw, fixtureRaw] = await Promise.all([readFile(resolve(manifestPath)), readFile(resolve(fixturePath))])
-if (sha(manifestRaw) !== PIN.manifest) throw Error('manifest_sha256_not_approved')
+const PIN = PINS.find(pin => pin.manifest === sha(manifestRaw))
+if (!PIN) throw Error('manifest_sha256_not_approved')
 if (sha(fixtureRaw) !== PIN.fixture) throw Error('fixture_sha256_not_approved')
 const manifest = JSON.parse(manifestRaw.toString('utf8'))
 const fixture = JSON.parse(fixtureRaw.toString('utf8'))
-if (manifest.manifest_version !== 'demo-scale-manifest.v1' || manifest.dataset_id !== PIN.dataset ||
+if (manifest.manifest_version !== PIN.version || manifest.dataset_id !== PIN.dataset ||
     manifest.fixture_sha256 !== PIN.fixture || manifest.logical_sha256 !== PIN.logical ||
     manifest.origin !== 'SYNTHETIC_BACKFILL' || fixture.origin !== manifest.origin ||
     fixture.config?.dataset_id !== PIN.dataset || sha(JSON.stringify(fixture)) !== PIN.logical) {
@@ -60,6 +68,9 @@ async function emit(s) {
 await emit(`\\set ON_ERROR_STOP on\nBEGIN;\nSET LOCAL TIME ZONE 'UTC';\nSET LOCAL standard_conforming_strings = on;\nSELECT pg_advisory_xact_lock(hashtextextended('funnelmetry-demo-history-v1', 0));\n`)
 await emit(`DO $target$ BEGIN IF current_database() <> 'funnelmetry_handoff' THEN RAISE EXCEPTION 'wrong database: expected funnelmetry_handoff'; END IF; END $target$;\n`)
 await emit(`CREATE TEMP TABLE demo_seed_run_state ON COMMIT DROP AS SELECT NOT EXISTS (SELECT 1 FROM demo_history.seed_manifest WHERE dataset_id=${literal(PIN.dataset)}) AS is_new;\n`)
+if (PIN.version === 'demo-gap-manifest.v1') {
+  await emit(`DO $gap$ BEGIN IF (SELECT is_new FROM demo_seed_run_state) AND EXISTS (SELECT 1 FROM funnelmetry_explore.behavior_events WHERE occurred_at >= '2026-11-01T00:00:00Z' AND occurred_at < '2026-11-05T00:00:00Z') THEN RAISE EXCEPTION 'observed events overlap planned synthetic gap'; END IF; END $gap$;\n`)
+}
 await emit(`DO $guard$ BEGIN IF EXISTS (SELECT 1 FROM demo_history.seed_manifest WHERE dataset_id=${literal(PIN.dataset)} AND (manifest_sha256<>${literal(PIN.manifest)} OR fixture_sha256<>${literal(PIN.fixture)} OR logical_sha256<>${literal(PIN.logical)} OR manifest<>${literal(manifestRaw.toString('utf8'))}::jsonb)) THEN RAISE EXCEPTION 'existing dataset manifest differs'; END IF; END $guard$;\n`)
 await emit(`INSERT INTO demo_history.seed_manifest(dataset_id,manifest_sha256,fixture_sha256,logical_sha256,manifest) VALUES (${literal(PIN.dataset)},${literal(PIN.manifest)},${literal(PIN.fixture)},${literal(PIN.logical)},${literal(manifestRaw.toString('utf8'))}::jsonb) ON CONFLICT (dataset_id) DO NOTHING;\n`)
 for (const domain of domains) {

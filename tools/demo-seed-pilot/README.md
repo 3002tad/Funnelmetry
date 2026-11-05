@@ -114,3 +114,15 @@ node tools/demo-seed-pilot/pipeline-analytical-views-check.mjs
 The test uses a temporary network-disabled PostgreSQL container and checks the boundary, missing data, unwanted event types, idempotent view migration, and read-only role access. Do not use these views to infer observed payment, revenue, search-to-cart or complete historical CDC coverage.
 
 `pipeline-demo-coverage-v1.sql` adds `funnelmetry_demo.dataset_coverage`, a demo-specific status for the pinned synthetic dataset. `READY_FOR_DEMO` means the current domain counts and session time range match the stored pinned manifest; the seed transaction previously checked each row. `DEMO_DATA_MISMATCH` signals a count or session range mismatch. This status applies only to the specified synthetic period and is not a continuous coverage or observed CDC certification. The view checks counts, not a new per-row checksum; the recorded loader evidence covers the initial load. The same isolated test checks replay, read-only access and detection of a changed domain count.
+
+## Synthetic continuation through 2026-11-05 UTC
+
+`gap-seed.mjs` builds the pinned synthetic continuation `demo-gap-20261101-20261105-v1` using the same reconciled catalog anchor. The chosen 1,750 sessions approximate four days of the preceding November scenario; all event and business identifiers are namespaced separately from the original fixture. Reproduction requires the local anchor and labels whose hashes are recorded in the manifest. Generated fixture and manifest are operational data and stay outside Git. The 19 domain tables include synthetic price, stock, cart, order, payment and fulfillment; no lost WAL records are reconstructed.
+
+`pipeline-seed.mjs` accepts this pinned manifest, verifies the bytes, all domain checksums and rows, and rejects a first load if observed browser events overlap the period. The replay compares existing rows. After loading, `pipeline-gap-binding-v1.sql` exposes both datasets through the existing demo views. Join domain entities on **dataset_id and entity key** to avoid multiplying repeated catalog snapshots. The combined browser view includes synthetic history before 2026-11-05 and observed events after it; late observed events in the synthetic period remain in `funnelmetry_explore.behavior_events` and are reported by `funnelmetry_demo.gap_overlap_status`. `gap_dataset_coverage` checks the manifest counts and session time bounds. Neither view certifies observed coverage.
+
+```sh
+node tools/demo-seed-pilot/gap-seed.mjs <anchor.json> <labels.json> <new-directory>
+node tools/demo-seed-pilot/pipeline-seed.mjs check <manifest.json> <fixture.json>
+node tools/demo-seed-pilot/pipeline-gap-check.mjs <manifest.json> <fixture.json>
+```
