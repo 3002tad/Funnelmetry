@@ -102,3 +102,13 @@ node tools/demo-seed-pilot/pipeline-seed.mjs emit-sql /path/to/manifest.json /pa
 ```
 
 The check and commands do not provide a processing-safe Kafka/Event Feed backup, CDC coverage certification, analytical metadata, DB-GPT access, or live joining. Those remain separate work. Do not reset the current Pipeline database or apply the offline pilot's destructive commands to it.
+
+## Exploratory analytical views
+
+`pipeline-analytical-views-v1.sql` exposes the pinned synthetic seed through read-only `funnelmetry_demo` views. `behavior_events_all` combines synthetic browser events and compatible observed browser events from the fixed exclusive seed boundary, `2026-11-01T00:00:00Z`. Every row carries its origin, source and quality; the presence or absence of observed rows does not establish continuous coverage. Other demo domain views remain synthetic-only. Observed catalog/cart/order current-state remains separately available in `funnelmetry_explore`, because snapshots are not historical transactions. Crosswalk can relate matched catalog IDs, but does not link customer, cart or session identities across sources. Views are exploratory: publication of semantic metadata/KB and DB-GPT retrieval acceptance remain separate.
+
+```sh
+node tools/demo-seed-pilot/pipeline-analytical-views-check.mjs
+```
+
+The test uses a temporary network-disabled PostgreSQL container and checks the boundary, missing data, unwanted event types, idempotent view migration, and read-only role access. Do not use these views to infer observed payment, revenue, search-to-cart or complete historical CDC coverage.
