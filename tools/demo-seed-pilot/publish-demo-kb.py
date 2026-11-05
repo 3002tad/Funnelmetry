@@ -5,6 +5,7 @@ Runs on the VPS operator host with Docker CLI and localhost Pipeline/DB-GPT APIs
 The admin password is read from a pre-existing root-owned file and never printed.
 """
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -133,7 +134,14 @@ def verify_golden_sql(token):
         values = result.get("values") if isinstance(result, dict) else None
         if result.get("result_info") or not values or len(values) != 1 or len(values[0]) != 1:
             raise RuntimeError("DB-GPT SQL execution failed for " + question_id)
-        actual = json.loads(values[0][0])
+        raw_value = values[0][0]
+        try:
+            actual = json.loads(raw_value)
+        except json.JSONDecodeError:
+            # The DB-GPT SQL editor stringifies psycopg's decoded jsonb dict.
+            actual = ast.literal_eval(raw_value)
+        if not isinstance(actual, dict):
+            raise RuntimeError("unexpected DB-GPT SQL answer type for " + question_id)
         baseline = dict(expected[question_id])
         if question_id == "Q15":
             # Observed rows can arrive after the answer snapshot was recorded.
