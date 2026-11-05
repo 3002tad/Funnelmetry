@@ -30,3 +30,6 @@
 *.ico binary
 *.woff binary
 *.woff2 binary
+
+# The approved demo manifest pins the original CRLF bytes of this SQL file.
+tools/demo-seed-pilot/persistent-golden.sql text eol=crlf

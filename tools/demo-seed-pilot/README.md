@@ -75,6 +75,8 @@ node tools/demo-seed-pilot/persistent-demo.mjs verify <anchor.json> <fixture-dir
 
 `expanded-pilot-v2-snapshot.mjs` preserves the earlier pilot generator for hash-verified replay. The newer generator covers the full configured time range, omitting future payment/fulfillment actions at the end of the synthetic interval. Previously generated fixture manifests remain pinned to their original generator checksum.
 
+The approved full manifest also pins the original CRLF bytes of `persistent-golden.sql`. `.gitattributes` keeps that file in CRLF on checkout so its SHA-256 remains `7a05a56b9256bacb8ec39a6343169233d73c641f5eeb01e08d966a5c4538493e` on each platform; do not normalize it when reproducing the existing manifest.
+
 ## DEC-150: prepare the Pipeline database seed
 
 `pipeline-demo-v1.sql` creates `demo_history` and 19 typed domain tables in the existing `funnelmetry_handoff` database. It refuses another database or an existing `demo_history` schema without its migration marker. No grants to DB-GPT and no combined observed/synthetic views are created by this migration. Tables keep synthetic origin, dataset identity, fixture ordinal and actual load time; natural keys reject duplicate entities or revisions.
