@@ -40,10 +40,26 @@ same restricted role. It exposes selected CDC catalog, cart and order fields,
 canonical event identifiers/types and normalized search text, funnel facts,
 and selected inventory/price context. Every row is explicitly marked
 `UNVERIFIED`; these are investigative views, not official metrics or a claim
-that coverage is complete. Search terms and pseudonymous identifiers can be
+that coverage is complete. Catalog and inventory/price context additionally
+expose `source_quality_status`, `source_quality_verified_at`, and
+`source_quality_valid_until` for their own source and epoch. A fresh PASS lease
+is shown as `REFERENCE_CURRENT_ONLY`, an expired/blocked lease as
+`BLOCKED_BY_QUALITY`, and a missing/mismatched lease as `UNVERIFIED`. This is
+current source reconciliation, not certification of the exploratory query,
+historical coverage, customer price, or sellable quantity. Unverified rows can
+support provisional descriptive analysis with explicit source and coverage
+limitations; they cannot replace a blocked official metric. Search terms and pseudonymous identifiers can be
 sensitive and must not be forwarded to an external model without an appropriate
 policy. SQL comments document grain and known limitations. This is a shared
 database role, not per-user authorization or an SSO integration.
+
+`funnelmetry_explore.order_reference_coverage` exposes source/epoch current
+readiness, historical gap, baseline counts, profile activation and inbox
+ingestion timestamps. Gap boundaries are `UNKNOWN` when not established;
+ingestion timestamps do not prove a continuous interval or business event time.
+Current active orders and profile terminal journeys are different grains;
+the latter requires checkout and post-activation ON evidence. A current-state
+lease does not repair a historical gap.
 
 ## Publish a snapshot
 

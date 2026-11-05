@@ -4,25 +4,37 @@ BEGIN;
 CREATE SCHEMA IF NOT EXISTS funnelmetry_explore;
 
 CREATE OR REPLACE VIEW funnelmetry_explore.catalog_products AS
-SELECT source_id, coverage_epoch_id, product_id, title, handle, status,
-       collection_id, source_updated_raw, soft_deleted, 'UNVERIFIED'::text AS quality_status
-FROM public.catalog_cdc_products_current;
+SELECT source_id, coverage_epoch_id, product_id, title, handle, p.status,
+       collection_id, source_updated_raw, soft_deleted, 'UNVERIFIED'::text AS quality_status,
+       CASE WHEN q.source_id IS NULL THEN 'UNVERIFIED' WHEN q.status='PASS' AND q.verified_at<=now() AND q.valid_until>now() THEN 'REFERENCE_CURRENT_ONLY' ELSE 'BLOCKED_BY_QUALITY' END AS source_quality_status,
+       q.verified_at AS source_quality_verified_at, q.valid_until AS source_quality_valid_until
+FROM public.catalog_cdc_products_current p
+LEFT JOIN public.catalog_cdc_quality_lease q USING (source_id, coverage_epoch_id);
 
 CREATE OR REPLACE VIEW funnelmetry_explore.catalog_variants AS
 SELECT source_id, coverage_epoch_id, variant_id, product_id, title, sku,
        manage_inventory, allow_backorder, source_updated_raw, soft_deleted,
-       'UNVERIFIED'::text AS quality_status
-FROM public.catalog_cdc_variants_current;
+       'UNVERIFIED'::text AS quality_status,
+       CASE WHEN q.source_id IS NULL THEN 'UNVERIFIED' WHEN q.status='PASS' AND q.verified_at<=now() AND q.valid_until>now() THEN 'REFERENCE_CURRENT_ONLY' ELSE 'BLOCKED_BY_QUALITY' END AS source_quality_status,
+       q.verified_at AS source_quality_verified_at, q.valid_until AS source_quality_valid_until
+FROM public.catalog_cdc_variants_current p
+LEFT JOIN public.catalog_cdc_quality_lease q USING (source_id, coverage_epoch_id);
 
 CREATE OR REPLACE VIEW funnelmetry_explore.catalog_categories AS
 SELECT source_id, coverage_epoch_id, category_id, name, parent_category_id,
-       is_active, is_internal, soft_deleted, 'UNVERIFIED'::text AS quality_status
-FROM public.catalog_cdc_categories_current;
+       is_active, is_internal, soft_deleted, 'UNVERIFIED'::text AS quality_status,
+       CASE WHEN q.source_id IS NULL THEN 'UNVERIFIED' WHEN q.status='PASS' AND q.verified_at<=now() AND q.valid_until>now() THEN 'REFERENCE_CURRENT_ONLY' ELSE 'BLOCKED_BY_QUALITY' END AS source_quality_status,
+       q.verified_at AS source_quality_verified_at, q.valid_until AS source_quality_valid_until
+FROM public.catalog_cdc_categories_current p
+LEFT JOIN public.catalog_cdc_quality_lease q USING (source_id, coverage_epoch_id);
 
 CREATE OR REPLACE VIEW funnelmetry_explore.catalog_product_categories AS
 SELECT source_id, coverage_epoch_id, product_id, category_id,
-       'UNVERIFIED'::text AS quality_status
-FROM public.catalog_cdc_product_categories_current;
+       'UNVERIFIED'::text AS quality_status,
+       CASE WHEN q.source_id IS NULL THEN 'UNVERIFIED' WHEN q.status='PASS' AND q.verified_at<=now() AND q.valid_until>now() THEN 'REFERENCE_CURRENT_ONLY' ELSE 'BLOCKED_BY_QUALITY' END AS source_quality_status,
+       q.verified_at AS source_quality_verified_at, q.valid_until AS source_quality_valid_until
+FROM public.catalog_cdc_product_categories_current p
+LEFT JOIN public.catalog_cdc_quality_lease q USING (source_id, coverage_epoch_id);
 
 CREATE OR REPLACE VIEW funnelmetry_explore.cart_lines AS
 SELECT source_id, coverage_epoch_id, line_item_id, cart_id, product_id,
@@ -38,6 +50,33 @@ SELECT s.source_instance_id, s.coverage_epoch_id, s.order_id, s.cart_id,
 FROM public.reference_cdc_v2_order_current_state s
 LEFT JOIN public.reference_cdc_v2_quality_state q
   ON q.source_instance_id=s.source_instance_id AND q.coverage_epoch_id=s.coverage_epoch_id;
+
+-- The historical gap describes source coverage, not every order. Ingestion
+-- timestamps below are observations, not authoritative business event time.
+CREATE OR REPLACE VIEW funnelmetry_explore.order_reference_coverage AS
+SELECT q.source_instance_id, q.coverage_epoch_id, q.historical_gap_status,
+       CASE WHEN q.status='CURRENT_STATE_READY' AND q.baseline_complete
+                 AND q.verified_at<=now() AND q.valid_until>now()
+            THEN 'CURRENT_STATE_READY' ELSE 'BLOCKED_BY_QUALITY' END AS current_state_status,
+       q.baseline_complete, q.baseline_orders, q.baseline_active_orders,
+       q.verified_at, q.valid_until, b.profile_id, b.profile_version,
+       b.state AS profile_state, b.activation_at AS profile_activation_at,
+       r.baseline_received_at, r.baseline_complete_received_at,
+       r.first_transition_received_at, r.last_transition_received_at,
+       'UNKNOWN'::text AS gap_start, 'UNKNOWN'::text AS gap_end,
+       'INCOMPLETE'::text AS historical_coverage_status
+FROM public.reference_cdc_v2_quality_state q
+LEFT JOIN public.reference_cdc_v2_profile_bindings b
+  ON b.source_instance_id=q.source_instance_id AND b.coverage_epoch_id=q.coverage_epoch_id
+  AND b.profile_id='reference-commerce-current-state' AND b.state='ACTIVE'
+LEFT JOIN LATERAL (
+  SELECT min(ingested_at) FILTER (WHERE record_type='BASELINE') AS baseline_received_at,
+         max(ingested_at) FILTER (WHERE record_type='BASELINE_COMPLETE') AS baseline_complete_received_at,
+         min(ingested_at) FILTER (WHERE record_type='TRANSITION') AS first_transition_received_at,
+         max(ingested_at) FILTER (WHERE record_type='TRANSITION') AS last_transition_received_at
+  FROM public.reference_cdc_v2_record_inbox i
+  WHERE i.source_instance_id=q.source_instance_id AND i.coverage_epoch_id=q.coverage_epoch_id
+) r ON true;
 
 CREATE OR REPLACE VIEW funnelmetry_explore.behavior_events AS
 SELECT canonical_event_id, source_id, event_type, event_class, occurred_at,
@@ -76,8 +115,11 @@ SELECT source_id, coverage_epoch_id, table_name, row_key, soft_deleted,
        payload->>'price_set_id' AS price_set_id,
        payload->>'currency_code' AS currency_code,
        payload->>'amount' AS amount_raw,
-       'UNVERIFIED'::text AS quality_status
-FROM public.inventory_price_cdc_context_current
+       'UNVERIFIED'::text AS quality_status,
+       CASE WHEN q.source_id IS NULL THEN 'UNVERIFIED' WHEN q.status='PASS' AND q.verified_at<=now() AND q.valid_until>now() THEN 'REFERENCE_CURRENT_ONLY' ELSE 'BLOCKED_BY_QUALITY' END AS source_quality_status,
+       q.verified_at AS source_quality_verified_at, q.valid_until AS source_quality_valid_until
+FROM public.inventory_price_cdc_context_current p
+LEFT JOIN public.inventory_price_cdc_quality_lease q USING (source_id, coverage_epoch_id)
 WHERE table_name IN ('inventory_level','product_variant_price_set','price');
 
 COMMENT ON SCHEMA funnelmetry_explore IS 'Exploratory projections only; UNVERIFIED is not an official quality or metric certificate.';
@@ -86,7 +128,8 @@ COMMENT ON VIEW funnelmetry_explore.catalog_variants IS 'Source x coverage epoch
 COMMENT ON VIEW funnelmetry_explore.catalog_categories IS 'Source x coverage epoch x category; includes soft-deleted records.';
 COMMENT ON VIEW funnelmetry_explore.catalog_product_categories IS 'Source x epoch x product x category; many-to-many relationships can multiply rows.';
 COMMENT ON VIEW funnelmetry_explore.cart_lines IS 'Source x epoch x line item current state, including deleted records; this is not a history of additions.';
-COMMENT ON VIEW funnelmetry_explore.order_recorded_state IS 'Source x epoch x order current state. Active is reference recorded state, not paid, completed, conversion or revenue. Historical coverage can be incomplete.';
+COMMENT ON VIEW funnelmetry_explore.order_recorded_state IS 'Source x epoch x order current state. ON is a terminal condition in reference-commerce-current-state@2.0.0 with checkout and quality requirements; OFF retracts. A Medusa pending order may qualify. Baseline is not historical ON; this is not proof of payment, delivery, revenue or historical order.placed conversion. Coverage can be incomplete.';
+COMMENT ON VIEW funnelmetry_explore.order_reference_coverage IS 'Source x epoch coverage and profile activation evidence. Historical gap boundaries are UNKNOWN; received timestamps are ingestion times, not proof of uninterrupted coverage or order event time. Current state readiness requires a fresh quality lease.';
 COMMENT ON VIEW funnelmetry_explore.behavior_events IS 'Canonical event rows with selected fields; no raw identity or full payload. Search text may be sensitive. Events are not sessions or journeys.';
 COMMENT ON VIEW funnelmetry_explore.funnel_instances IS 'One row per funnel instance and version; quality_status is the projection status, exploration_status remains UNVERIFIED.';
 COMMENT ON VIEW funnelmetry_explore.funnel_steps IS 'One row per reached step per funnel instance; joining to instances creates fanout. Missing rows do not prove the step was not taken.';
@@ -96,7 +139,7 @@ GRANT USAGE ON SCHEMA funnelmetry_explore TO funnelmetry_ai_agent;
 GRANT SELECT ON funnelmetry_explore.cart_lines,
   funnelmetry_explore.catalog_products, funnelmetry_explore.catalog_variants,
   funnelmetry_explore.catalog_categories, funnelmetry_explore.catalog_product_categories,
-  funnelmetry_explore.order_recorded_state, funnelmetry_explore.behavior_events,
+  funnelmetry_explore.order_recorded_state, funnelmetry_explore.order_reference_coverage, funnelmetry_explore.behavior_events,
   funnelmetry_explore.funnel_instances, funnelmetry_explore.funnel_steps,
   funnelmetry_explore.inventory_price_context TO funnelmetry_ai_agent;
 COMMIT;

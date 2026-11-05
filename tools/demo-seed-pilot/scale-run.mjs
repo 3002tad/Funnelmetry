@@ -1,0 +1,52 @@
+// Offline-only benchmark and full seed. Each size has its own database; never targets external hosts.
+import { spawn,spawnSync } from 'node:child_process'
+import { once } from 'node:events'
+import { createHash } from 'node:crypto'
+import { readFile,mkdir,writeFile } from 'node:fs/promises'
+import { resolve,dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { performance } from 'node:perf_hooks'
+import { DEFAULTS,generateExpanded,addCatalogLabels,hash,summarizeExpanded } from './expanded.mjs'
+import { schemas } from './expanded-schema.mjs'
+
+const [sizeArg,anchorPath,labelsPath,outPath]=process.argv.slice(2),size=Number(sizeArg)
+if(![10000,100000].includes(size)||!anchorPath||!labelsPath||!outPath)throw Error('Usage: scale-run.mjs 10000|100000 <anchor> <labels> <new-output-directory>')
+const config={...DEFAULTS,dataset_id:`demo-historical-${size}-v2`,sessions:size},db=`funnelmetry_demo_${size}_v2`,container='funnelmetry-offline-demo-pilot-postgres',volume='funnelmetry-offline-demo-pilot-data'
+const sha=x=>createHash('sha256').update(x).digest('hex'),q=x=>`'${String(x).replaceAll("'","''")}'`,here=dirname(fileURLToPath(import.meta.url))
+const [anchorRaw,labelsRaw,generatorRaw,goldenSql]=await Promise.all([readFile(resolve(anchorPath)),readFile(resolve(labelsPath)),readFile(resolve(here,'expanded.mjs')),readFile(resolve(here,'persistent-golden.sql'),'utf8')])
+const anchor=addCatalogLabels(JSON.parse(anchorRaw),JSON.parse(labelsRaw.toString('utf8').replace(/^\uFEFF/,'')))
+const t0=performance.now(),data=generateExpanded(anchor,config),generateMs=performance.now()-t0
+const raw=JSON.stringify(data)+'\n',fixtureHash=sha(raw),logicalHash=hash(data)
+const stable=x=>Array.isArray(x)?x.map(stable):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,stable(x[k])])):x
+const domainDigest=rows=>{const h=createHash('sha256');for(const row of rows)h.update(JSON.stringify(stable(row))+'\n');return h.digest('hex')}
+const checksums=Object.fromEntries(Object.entries(data.rows).map(([key,rows])=>[key,domainDigest(rows)]))
+const manifest={manifest_version:'demo-scale-manifest.v1',dataset_id:config.dataset_id,seed_version:'demo-historical.v2',environment:'OFFLINE_DEMO',created_at:new Date().toISOString(),config,generator_sha256:sha(generatorRaw),anchor_sha256:sha(anchorRaw),labels_sha256:sha(labelsRaw),fixture_sha256:fixtureHash,logical_sha256:logicalHash,domain_canonical_sha256:checksums,counts:summarizeExpanded(data),origin:'SYNTHETIC_BACKFILL',cutover_status:'PROVISIONAL_OFFLINE_ONLY',source_history_status:'INCOMPLETE',golden_sql_sha256:sha(goldenSql)}
+const dir=resolve(outPath);await mkdir(dir,{recursive:false});await writeFile(resolve(dir,'fixture.json'),raw,{flag:'wx'});await writeFile(resolve(dir,'manifest.json'),JSON.stringify(manifest,null,2)+'\n',{flag:'wx'})
+function docker(args,input,allow=false){const r=spawnSync('docker',args,{input,encoding:'utf8',maxBuffer:96*1024*1024});if(r.error||(!allow&&r.status!==0))throw Error(`docker ${args[0]} failed: ${r.error?.message??r.stderr}`);return r}
+const c=JSON.parse(docker(['inspect',container]).stdout)[0],v=JSON.parse(docker(['volume','inspect',volume]).stdout)[0]
+if(c.Config.Labels?.['funnelmetry.purpose']!=='offline-demo-pilot-v1'||v.Labels?.['funnelmetry.purpose']!=='offline-demo-pilot-v1'||c.HostConfig.NetworkMode!=='none'||Object.keys(c.HostConfig.PortBindings??{}).length||c.Mounts.length!==1||c.Mounts[0].Name!==volume||!c.State.Running)throw Error('target_not_isolated_demo')
+const sql=(statement,database=db)=>docker(['exec','-i',container,'psql','-X','-q','-v','ON_ERROR_STOP=1','-U','demo_owner','-d',database,'-At'],statement).stdout.trim()
+if(sql(`SELECT count(*) FROM pg_database WHERE datname=${q(db)};`,'postgres')!=='0')throw Error('benchmark_database_already_exists')
+sql(`CREATE DATABASE ${db};`,'postgres')
+const views=Object.entries(schemas).map(([name,columns])=>`CREATE VIEW demo.${name} AS SELECT r.dataset_id,r.origin,r.loaded_at,t.* FROM demo.records r CROSS JOIN LATERAL jsonb_to_record(r.payload) AS t(${columns}) WHERE r.domain=${q(name)};`).join('\n')
+sql(`BEGIN; REVOKE CREATE ON SCHEMA public FROM PUBLIC; CREATE SCHEMA demo; CREATE TABLE demo.manifest(dataset_id text PRIMARY KEY,logical_sha256 text NOT NULL,manifest jsonb NOT NULL,loaded_at timestamptz NOT NULL DEFAULT clock_timestamp()); CREATE TABLE demo.records(dataset_id text NOT NULL REFERENCES demo.manifest(dataset_id),domain text NOT NULL,ordinal int NOT NULL,origin text NOT NULL CHECK(origin='SYNTHETIC_BACKFILL'),payload jsonb NOT NULL,loaded_at timestamptz NOT NULL DEFAULT clock_timestamp(),PRIMARY KEY(dataset_id,domain,ordinal)); ${views} GRANT USAGE ON SCHEMA demo TO demo_reader; GRANT SELECT ON ALL TABLES IN SCHEMA demo TO demo_reader; COMMIT;`)
+const beforeBytes=Number(sql(`SELECT pg_database_size(${q(db)});`)),loadStart=performance.now()
+const child=spawn('docker',['exec','-i',container,'psql','-X','-q','-v','ON_ERROR_STOP=1','-U','demo_owner','-d',db,'-At'],{stdio:['pipe','ignore','pipe']});let stderr='';child.stderr.setEncoding('utf8');child.stderr.on('data',x=>stderr+=x)
+const done=new Promise((resolveDone,reject)=>{child.on('error',reject);child.on('close',code=>code===0?resolveDone():reject(Error(`database_load_failed:${stderr}`)))})
+async function send(s){if(!child.stdin.write(s))await once(child.stdin,'drain')}
+await send(`BEGIN; INSERT INTO demo.manifest(dataset_id,logical_sha256,manifest) VALUES(${q(config.dataset_id)},${q(logicalHash)},${q(JSON.stringify(manifest))}::jsonb);\n`)
+for(const [domain,rows] of Object.entries(data.rows))for(let offset=0;offset<rows.length;offset+=1500){const batch=rows.slice(offset,offset+1500);await send(`INSERT INTO demo.records(dataset_id,domain,ordinal,origin,payload) SELECT ${q(config.dataset_id)},${q(domain)},x.ordinality+${offset},'SYNTHETIC_BACKFILL',x.value FROM jsonb_array_elements(${q(JSON.stringify(batch))}::jsonb) WITH ORDINALITY x(value,ordinality);\n`)}
+await send('COMMIT;\n');child.stdin.end();await done
+const loadMs=performance.now()-loadStart,afterBytes=Number(sql(`SELECT pg_database_size(${q(db)});`))
+const verifyStart=performance.now(),actualDigests={}
+for(const [domain,rows] of Object.entries(data.rows)){const h=createHash('sha256');for(let offset=0;offset<rows.length;offset+=5000){const block=sql(`SELECT payload::text FROM demo.records WHERE dataset_id=${q(config.dataset_id)} AND domain=${q(domain)} AND ordinal>${offset} AND ordinal<=${offset+5000} ORDER BY ordinal;`);const lines=block?block.split('\n'):[];if(lines.length!==Math.min(5000,rows.length-offset))throw Error(`row_count_mismatch_${domain}`);for(const line of lines)h.update(JSON.stringify(stable(JSON.parse(line)))+'\n')}actualDigests[domain]=h.digest('hex');if(actualDigests[domain]!==checksums[domain])throw Error(`domain_checksum_mismatch_${domain}`)}
+const verifyMs=performance.now()-verifyStart
+const goldenStart=performance.now(),got=JSON.parse(sql(goldenSql)),goldenMs=performance.now()-goldenStart
+const r=data.rows,sum=(arr,pred,amount)=>arr.filter(pred).reduce((n,x)=>n+amount(x),0),categoryByProduct=new Map();for(const x of r.category_history){const list=categoryByProduct.get(x.product_id)??[];list.push(x);categoryByProduct.set(x.product_id,list)}
+const expected={sessions:r.sessions.length,events:r.browser_events.length,product_views:r.browser_events.filter(x=>x.event_type==='behavior.product_viewed').length,searches:r.browser_events.filter(x=>x.event_type==='behavior.search_query_submitted').length,carts:new Set(r.cart_changes.map(x=>x.cart_id)).size,orders:r.orders.length,order_lines:r.order_lines.length,line_total_eur_minor:sum(r.order_lines,x=>x.currency==='EUR',x=>x.line_total_minor),captured_eur_minor:sum(r.payments,x=>x.currency==='EUR'&&x.action==='CAPTURED',x=>x.amount_minor),refunded_eur_minor:sum(r.payments,x=>x.currency==='EUR'&&x.action==='REFUNDED',x=>x.amount_minor),deleted_cart_lines:r.cart_changes.filter(x=>x.change_type==='DELETE').length,on_orders:r.orders.filter(x=>x.reference_state==='ON').length,category_product_views:sum(r.browser_events,x=>x.event_type==='behavior.product_viewed',e=>(categoryByProduct.get(e.data.product_id)??[]).filter(h=>h.valid_from<=e.occurred_at&&e.occurred_at<h.valid_to).length),invalid_order_price:0,can_read:true,can_insert:false}
+if(JSON.stringify(got)!==JSON.stringify(expected))throw Error(`golden_mismatch:${JSON.stringify({got,expected})}`)
+const integrity=JSON.parse(sql(`SET ROLE demo_reader; SELECT json_build_object('event_session_orphans',(SELECT count(*) FROM demo.browser_events e LEFT JOIN demo.sessions s USING(session_id) WHERE s.session_id IS NULL),'cart_variant_orphans',(SELECT count(*) FROM demo.cart_changes c LEFT JOIN demo.catalog_variants v ON v.variant_id=c.variant_key AND v.product_id=c.product_key WHERE v.variant_id IS NULL),'line_order_orphans',(SELECT count(*) FROM demo.order_lines l LEFT JOIN demo.orders o USING(order_id) WHERE o.order_id IS NULL),'bad_event_time',(SELECT count(*) FROM demo.browser_events e JOIN demo.sessions s USING(session_id) WHERE e.occurred_at<s.started_at OR e.occurred_at>s.ended_at OR e.loaded_at<=e.occurred_at),'invalid_source',(SELECT count(*) FROM demo.records WHERE origin<>'SYNTHETIC_BACKFILL' OR dataset_id<>${q(config.dataset_id)}),'gap',(SELECT count(*) FROM demo.coverage WHERE status<>'UNVERIFIED'));`))
+if(Object.values(integrity).some(n=>n!==0))throw Error(`integrity_failed:${JSON.stringify(integrity)}`)
+const stored=JSON.parse(sql('SELECT manifest::text FROM demo.manifest;'));if(sha(JSON.stringify(stable(stored)))!==sha(JSON.stringify(stable(manifest))))throw Error('manifest_database_mismatch')
+const report={status:'PASS',environment:'OFFLINE_DEMO',database:db,container,volume,image_id:c.Image,dataset_id:config.dataset_id,sessions:size,fixture_bytes:Buffer.byteLength(raw),postgres_bytes_before:beforeBytes,postgres_bytes_after:afterBytes,postgres_growth_bytes:afterBytes-beforeBytes,generate_ms:Math.round(generateMs),load_ms:Math.round(loadMs),domain_verify_ms:Math.round(verifyMs),golden_sql_ms:Math.round(goldenMs),logical_sha256:logicalHash,fixture_sha256:fixtureHash,domain_checksums_match:true,manifest_matches:true,integrity,golden_questions:got,resource_note:'timings measured on local Docker Desktop; not VPS capacity or production benchmark',source_cdc_history:'INCOMPLETE',live_cutover:'UNVERIFIED'}
+await writeFile(resolve(dir,'report.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify(report,null,2))

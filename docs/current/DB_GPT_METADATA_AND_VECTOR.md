@@ -17,6 +17,23 @@ calling an embedding model. A valid Pipeline session token is required when
 the DB-GPT identity boundary is enabled. The operator selects the matching KB
 space; automatic selection, invalidation and refresh are not implemented.
 
+On 2026-11-05, the Pipeline exploration views were updated to include current
+source lease status and validity for catalog and inventory/price context while
+retaining the separate exploratory `UNVERIFIED` label. Using the DB-GPT role,
+104 catalog rows and 386 inventory/price context rows showed source status
+`REFERENCE_CURRENT_ONLY`; 187 order-state rows showed `CURRENT_STATE_READY`
+with `INCOMPLETE` historical coverage. These are time-scoped observations, not
+historical certification. Agent prompt/skill guidance for provisional
+descriptive analysis and the updated KB guide are source changes pending AI
+deployment and KB publication; no paid model retest has been performed.
+
+The order exploration schema also exposes `order_reference_coverage` for the
+Agent: current readiness and historical gap are separate, with source/epoch,
+profile activation and baseline/transition ingestion timestamps. On the VPS
+the `cdc11_order_epoch1` profile was ACTIVE, baseline was complete and current
+state ready; exact gap boundaries remain UNKNOWN. These fields do not prove
+uninterrupted history or turn active order count into terminal journey count.
+
 On 2026-11-04, the VPS release `asset.reference_medusa_current_offer@1.0.0`
 was ACTIVE. Its digest was
 `110b3588e9fa733c3fc4c98dd86b4140b08507d47cf5587d674436cadab2fa7e`;

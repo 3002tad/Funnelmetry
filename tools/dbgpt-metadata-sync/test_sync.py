@@ -80,6 +80,13 @@ class SyncTests(unittest.TestCase):
         self.assertIn("the column quality_status, not status", sync.GUIDE)
         self.assertIn("catalog_quality\ndescribes catalog quality only", sync.GUIDE)
         self.assertIn("source_quality_status and historical_gap_status", sync.GUIDE)
+        self.assertIn("not a blanket ban on descriptive analysis", sync.GUIDE)
+        self.assertIn("not verified historical completeness", sync.GUIDE)
+        self.assertIn("terminal condition of the active reference-commerce-current-state@2.0.0", sync.GUIDE)
+        self.assertIn("pending alone does not determine ON", sync.GUIDE)
+        self.assertIn("order_reference_coverage", sync.GUIDE)
+        self.assertIn("not that every order is bad", sync.GUIDE)
+        self.assertIn("not the same as a count of all active order rows", sync.GUIDE)
 
     def test_unverified_or_ambiguous_release_never_calls_db_gpt(self):
         for rows in ([], [release("SHADOW")], [release(), release()]):

@@ -40,16 +40,41 @@ catalog_variants, catalog_categories, catalog_product_categories, cart_lines,
 order_recorded_state, behavior_events, funnel_instances, funnel_steps and
 inventory_price_context. These are source projections marked UNVERIFIED;
 use them to explore or diagnose, and explain quality and historical coverage.
+UNVERIFIED on an exploratory view is not a blanket ban on descriptive analysis:
+report observed counts and distributions as provisional, identify the source,
+grain, period and coverage limitations, and do not claim official completeness.
+If a requested metric has a blocking quality gate, do not present raw rows as
+the same confirmed metric; independent exploratory observations may still be
+reported separately with their own limitations.
+Catalog and inventory_price_context also expose source_quality_status,
+source_quality_verified_at and source_quality_valid_until, scoped to their own
+source and coverage epoch. REFERENCE_CURRENT_ONLY means a fresh reconciled
+source lease for the current reference, not verified historical completeness,
+and does not resolve inventory availability or customer price.
 For cart_lines, order_recorded_state, behavior_events and inventory_price_context,
 the exploration label is the column quality_status, not status. For funnel
 instances and steps, exploration_status is UNVERIFIED and quality_status is
 the separate funnel projection status. order_recorded_state additionally has
 source_quality_status and historical_gap_status. funnelmetry_ai.catalog_quality
 describes catalog quality only; do not attribute it to cart, order or funnels.
+For order analysis query funnelmetry_explore.order_reference_coverage: it
+separately reports current_state_status and historical_gap_status, profile
+activation and ingestion times for baseline/transition evidence. INCOMPLETE
+means a historical source gap, not that every order is bad or that a fresh
+CURRENT_STATE_READY current count is unusable. Gap endpoints UNKNOWN and
+ingestion timestamps do not prove a complete historical interval. A profile
+terminal is not the same as a count of all active order rows; require checkout,
+post-activation transition and journey evidence. Baseline is not a new event.
 Join catalog tables on source_id, coverage_epoch_id and the corresponding ID;
 cart and catalog coverage epochs are independent and must not be equated.
-Catalog relationships and funnel steps can multiply rows. order_recorded_state
-is reference current state, not placed, paid, completed, conversion or revenue.
+Catalog relationships and funnel steps can multiply rows. CDC order state ON
+is the terminal condition of the active reference-commerce-current-state@2.0.0
+funnel: count journeys with checkout and terminal ON after activation in a
+verified coverage epoch; OFF can retract it and baseline does not create ON.
+The order may still be pending in Medusa; pending alone does not determine ON.
+Report this reference funnel terminal using its own profile and quality. It
+does not prove payment, delivery or revenue and is not the historical
+commerce-conversion metric based on order.placed.
 inventory_price_context is unresolved raw context, not sellable inventory or
 customer-facing price. Search text may contain sensitive information.
 Source: Pipeline infra/postgres/v2/021_catalog_cdc_candidate.sql and
