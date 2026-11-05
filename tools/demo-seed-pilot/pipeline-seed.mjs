@@ -18,6 +18,18 @@ const PINS = [Object.freeze({
   fixture: '6089a21874defb09b7641166481b8261e4313604f700686fbe3a23d9f4a41bd8',
   logical: '785ecd32bcd98d973a9485dc1cbb0d18b7035c893f6d7f0bb6b3c0281f9fa587',
   version: 'demo-gap-manifest.v1',
+}), Object.freeze({
+  dataset: 'demo-historical-100000-v3-utm',
+  manifest: '395b7f6abcd4c405397dcc7db9b8ffac340c8b780d19303f06075ee1e47268e9',
+  fixture: 'efa33fde6f86d3c1651ea54e0b1873374d79436def7b3f753f39e31c17a250de',
+  logical: '5ce19fb7aff298c4779570ea09e5f5efc4da6c871d9f994e710b25f869a2e4a4',
+  version: 'demo-utm-derived-manifest.v1',
+}), Object.freeze({
+  dataset: 'demo-gap-20261101-20261105-v2-utm',
+  manifest: '8262898adfb0c73ff3b108c98264dc87d93129e1fef7e2148b095c6b2ae46881',
+  fixture: '8df0119c34c5d13e71f506dcfbb9708e31b7f52fa50cadfc300fa91f18bfbdea',
+  logical: 'ccf2011527e24068ad2037078f0f45378f6dcfdcc03f48d3934dfd49cde071ac',
+  version: 'demo-utm-derived-manifest.v1',
 })]
 const sha = value => createHash('sha256').update(value).digest('hex')
 const stable = x => Array.isArray(x) ? x.map(stable) : x && typeof x === 'object'
@@ -68,7 +80,7 @@ async function emit(s) {
 await emit(`\\set ON_ERROR_STOP on\nBEGIN;\nSET LOCAL TIME ZONE 'UTC';\nSET LOCAL standard_conforming_strings = on;\nSELECT pg_advisory_xact_lock(hashtextextended('funnelmetry-demo-history-v1', 0));\n`)
 await emit(`DO $target$ BEGIN IF current_database() <> 'funnelmetry_handoff' THEN RAISE EXCEPTION 'wrong database: expected funnelmetry_handoff'; END IF; END $target$;\n`)
 await emit(`CREATE TEMP TABLE demo_seed_run_state ON COMMIT DROP AS SELECT NOT EXISTS (SELECT 1 FROM demo_history.seed_manifest WHERE dataset_id=${literal(PIN.dataset)}) AS is_new;\n`)
-if (PIN.version === 'demo-gap-manifest.v1') {
+if (PIN.dataset.startsWith('demo-gap-')) {
   await emit(`DO $gap$ BEGIN IF (SELECT is_new FROM demo_seed_run_state) AND EXISTS (SELECT 1 FROM funnelmetry_explore.behavior_events WHERE occurred_at >= '2026-11-01T00:00:00Z' AND occurred_at < '2026-11-05T00:00:00Z') THEN RAISE EXCEPTION 'observed events overlap planned synthetic gap'; END IF; END $gap$;\n`)
 }
 await emit(`DO $guard$ BEGIN IF EXISTS (SELECT 1 FROM demo_history.seed_manifest WHERE dataset_id=${literal(PIN.dataset)} AND (manifest_sha256<>${literal(PIN.manifest)} OR fixture_sha256<>${literal(PIN.fixture)} OR logical_sha256<>${literal(PIN.logical)} OR manifest<>${literal(manifestRaw.toString('utf8'))}::jsonb)) THEN RAISE EXCEPTION 'existing dataset manifest differs'; END IF; END $guard$;\n`)

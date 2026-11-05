@@ -125,6 +125,26 @@ Release `demo-commerce-analysis@1.1.0` retains the v1.0.0 assets and adds guidan
 
 `pipeline-seed.mjs` accepts this pinned manifest, verifies the bytes, all domain checksums and rows, and rejects a first load if observed browser events overlap the period. The replay compares existing rows. After loading, `pipeline-gap-binding-v1.sql` exposes both datasets through the existing demo views. Join domain entities on **dataset_id and entity key** to avoid multiplying repeated catalog snapshots. The combined browser view includes synthetic history before 2026-11-05 and observed events after it; late observed events in the synthetic period remain in `funnelmetry_explore.behavior_events` and are reported by `funnelmetry_demo.gap_overlap_status`. `gap_dataset_coverage` checks the manifest counts and session time bounds. Neither view certifies observed coverage.
 
+## UTM source fixture v2
+
+`utm-seed-v2.mjs` derives two immutable fixtures from the original pinned seeds.
+It replaces only synthetic session and event `utm_source` with weighted scenario
+values `facebook`, `tiktok`, `google`, `zalo`, `instagram`, `newsletter`,
+missing and `unmapped-example`. These weights are assumptions, not measured
+traffic. The same value is assigned to every event in a session; all other
+domain hashes remain identical. New dataset IDs, manifests and fixture hashes
+keep the old seed version identifiable.
+
+Use `pipeline-seed.mjs check|emit-sql` for both new pinned manifests, then
+`utm-cutover-v2.mjs` to emit a single transaction switching demo views, coverage
+and semantic release `demo-commerce-analysis@1.2.0`. The transaction validates
+counts and session/event UTM consistency. Run the migration as the database
+owner only after backup and a restore rehearsal; never write observed rows.
+`verify-demo-golden.py` compares fixtures independently; `verify-demo-golden-postgres.py`
+checks all 15 SQL answers against a named PostgreSQL container. The versioned
+SQL, answers and descriptions are in `demo-golden-v2.sql`,
+`demo-golden-v2-answers.json` and `DEMO_GOLDEN_QUESTIONS_V2.md`.
+
 ```sh
 node tools/demo-seed-pilot/gap-seed.mjs <anchor.json> <labels.json> <new-directory>
 node tools/demo-seed-pilot/pipeline-seed.mjs check <manifest.json> <fixture.json>

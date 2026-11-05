@@ -15,8 +15,8 @@ import subprocess
 import time
 from urllib.request import Request, urlopen
 
-RELEASE = "demo-commerce-analysis@1.1.0"
-DEFINITION_SHA = "f06625d65311170c0af26b9d1d1304fec6800b55c8a2d426743dce11d53c6f3a"
+RELEASE = "demo-commerce-analysis@1.2.0"
+DEFINITION_SHA = "2bb4829a13acb231d5b5ce4f7ba77a3ee7259ea68de745048e4435befb691c9f"
 API = "http://127.0.0.1:5670"
 PIPELINE = "http://127.0.0.1:31080"
 PIPELINE_HOST = os.environ.get("SWARM_PUBLIC_DOMAIN", "analyst.entidi.io.vn")
@@ -106,7 +106,7 @@ def guide(definition):
         "Stocked minus reserved is a physical scenario position, not a sellable Medusa stock measure.",
         "Order reference_state=ON is synthetic state, not proof of paid revenue or live conversion.",
         "Monthly November 2026 is only four synthetic days, so compare periods of equal duration when describing trends.",
-        "Use the 15 versioned benchmark questions in tools/demo-seed-pilot/demo-golden-v1.sql for SQL examples.",
+        "Use the 15 versioned benchmark questions in tools/demo-seed-pilot/demo-golden-v2.sql for SQL examples.",
         "Assets:",
     ]
     lines[-1:-1] = ["Analysis guidance:"] + ["- " + item for item in definition["analysis_guidance"]]
@@ -124,8 +124,8 @@ def guide(definition):
 
 def verify_golden_sql(token):
     base = Path(__file__).resolve().parent
-    sql = (base / "demo-golden-v1.sql").read_text(encoding="utf-8")
-    answers = json.loads((base / "demo-golden-v1-answers.json").read_text(encoding="utf-8"))
+    sql = (base / "demo-golden-v2.sql").read_text(encoding="utf-8")
+    answers = json.loads((base / "demo-golden-v2-answers.json").read_text(encoding="utf-8"))
     expected = {answer["id"]: answer for answer in answers["answers"]}
     blocks = re.findall(r"(?ms)^-- (Q\d{2})\b[^\n]*\n(.*?)(?=^-- Q\d{2}\b|\Z)", sql)
     if len(blocks) != 15 or len(expected) != 15:
@@ -165,8 +165,8 @@ def main():
     definition = read_release()
     content = guide(definition)
     digest = hashlib.sha256(content.encode()).hexdigest()
-    space_name = "funnelmetry-demo-1-1-0-" + digest[:12]
-    doc_name = "demo-commerce-analysis-1.1.0-" + digest[:12]
+    space_name = "funnelmetry-demo-1-2-0-" + digest[:12]
+    doc_name = "demo-commerce-analysis-1.2.0-" + digest[:12]
     token = acquire_token(args.password_file, args.email)
     space = find_space(space_name, token)
     document = find_document(space_name, doc_name, token) if space else None

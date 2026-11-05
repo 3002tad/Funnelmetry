@@ -148,7 +148,7 @@ assert {k: answers["Q13"][k] for k in (
 
 inventory = defaultdict(lambda: [0, 0, 0, 0, 0])
 for d, r in datasets:
-    if d != "demo-gap-20261101-20261105-v1":
+    if d != datasets[1][0]:
         continue
     for row in r["stock_positions"]:
         if row["effective_at"] <= "2026-11-04T12:00:00Z" < row["valid_to"]:

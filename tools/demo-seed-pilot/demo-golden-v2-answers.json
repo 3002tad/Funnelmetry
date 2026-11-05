@@ -1,0 +1,549 @@
+{
+  "release_id": "demo-commerce-analysis@1.2.0",
+  "dataset_ids": [
+    "demo-historical-100000-v3-utm",
+    "demo-gap-20261101-20261105-v2-utm"
+  ],
+  "generated_from": "funnelmetry_demo views",
+  "time_basis": "UTC",
+  "answers": [
+    {
+      "id": "Q01",
+      "rows": [
+        {
+          "month": "2025-11",
+          "events": 35720,
+          "sessions": 13122
+        },
+        {
+          "month": "2025-12",
+          "events": 43562,
+          "sessions": 16097
+        },
+        {
+          "month": "2026-01",
+          "events": 13090,
+          "sessions": 4876
+        },
+        {
+          "month": "2026-02",
+          "events": 13271,
+          "sessions": 4900
+        },
+        {
+          "month": "2026-03",
+          "events": 16120,
+          "sessions": 5954
+        },
+        {
+          "month": "2026-04",
+          "events": 16606,
+          "sessions": 6279
+        },
+        {
+          "month": "2026-05",
+          "events": 18691,
+          "sessions": 6973
+        },
+        {
+          "month": "2026-06",
+          "events": 26101,
+          "sessions": 9830
+        },
+        {
+          "month": "2026-07",
+          "events": 22206,
+          "sessions": 8252
+        },
+        {
+          "month": "2026-08",
+          "events": 20018,
+          "sessions": 7393
+        },
+        {
+          "month": "2026-09",
+          "events": 18669,
+          "sessions": 6853
+        },
+        {
+          "month": "2026-10",
+          "events": 25376,
+          "sessions": 9471
+        },
+        {
+          "month": "2026-11",
+          "events": 4984,
+          "sessions": 1750
+        }
+      ]
+    },
+    {
+      "id": "Q02",
+      "rows": [
+        {
+          "device": "mobile",
+          "sessions": 34207
+        },
+        {
+          "device": "desktop",
+          "sessions": 33796
+        },
+        {
+          "device": "tablet",
+          "sessions": 33747
+        }
+      ]
+    },
+    {
+      "id": "Q03",
+      "rows": [
+        {
+          "raw_utm_source": "facebook",
+          "sessions": 24404,
+          "sessions_with_cart_link": 1327
+        },
+        {
+          "raw_utm_source": "tiktok",
+          "sessions": 20328,
+          "sessions_with_cart_link": 1194
+        },
+        {
+          "raw_utm_source": "google",
+          "sessions": 20326,
+          "sessions_with_cart_link": 1120
+        },
+        {
+          "raw_utm_source": "zalo",
+          "sessions": 12184,
+          "sessions_with_cart_link": 665
+        },
+        {
+          "raw_utm_source": "[absent]",
+          "sessions": 10103,
+          "sessions_with_cart_link": 532
+        },
+        {
+          "raw_utm_source": "instagram",
+          "sessions": 8122,
+          "sessions_with_cart_link": 486
+        },
+        {
+          "raw_utm_source": "newsletter",
+          "sessions": 4191,
+          "sessions_with_cart_link": 231
+        },
+        {
+          "raw_utm_source": "unmapped-example",
+          "sessions": 2092,
+          "sessions_with_cart_link": 106
+        }
+      ]
+    },
+    {
+      "id": "Q04",
+      "rows": [
+        {
+          "title": "Wooden Bathroom Sink With Mirror",
+          "views": 20014,
+          "product_id": "demo:product:20a6574f8b76b513a07cdc58012821b4"
+        },
+        {
+          "title": "Medusa Sweatshirt",
+          "views": 7637,
+          "product_id": "demo:product:8c32a4b04c47599b5784a64b3e754beb"
+        },
+        {
+          "title": "Rolex Cellini Date Black Dial",
+          "views": 4397,
+          "product_id": "demo:product:4a8ca8838487f25c97c497d475ac9680"
+        },
+        {
+          "title": "Medusa T-Shirt",
+          "views": 4337,
+          "product_id": "demo:product:16aeaf69172bcc45244f2318fef61aa8"
+        },
+        {
+          "title": "Lenovo Yoga 920",
+          "views": 3537,
+          "product_id": "demo:product:5e46bc1ca95bc7d621019c019d0e5ba3"
+        },
+        {
+          "title": "Black Whisk",
+          "views": 2983,
+          "product_id": "demo:product:31a53b2ddef896f076425e4cbf5404bb"
+        },
+        {
+          "title": "Medusa Shorts",
+          "views": 2965,
+          "product_id": "demo:product:6ec99452e56c2e57e637d8b03aeb8a93"
+        },
+        {
+          "title": "Medusa Sweatpants",
+          "views": 2690,
+          "product_id": "demo:product:db35d348faa075279da6afe3f8aa4ba9"
+        },
+        {
+          "title": "Man Plaid Shirt",
+          "views": 2604,
+          "product_id": "demo:product:e92b3831640625075aea06bdf08dfdd5"
+        },
+        {
+          "title": "Knife",
+          "views": 2448,
+          "product_id": "demo:product:c54ec2b42f8d6c2180183e3d7efbdbe9"
+        }
+      ]
+    },
+    {
+      "id": "Q05",
+      "rows": [
+        {
+          "category": "Kitchen Accessories",
+          "product_view_events": 25403
+        },
+        {
+          "category": "Groceries",
+          "product_view_events": 16089
+        },
+        {
+          "category": "Pants",
+          "product_view_events": 13897
+        },
+        {
+          "category": "Furniture",
+          "product_view_events": 11171
+        },
+        {
+          "category": "Sweatshirts",
+          "product_view_events": 8809
+        },
+        {
+          "category": "Mens Watches",
+          "product_view_events": 8662
+        },
+        {
+          "category": "Mens Shirts",
+          "product_view_events": 6602
+        },
+        {
+          "category": "Mens Shoes",
+          "product_view_events": 6355
+        },
+        {
+          "category": "Laptops",
+          "product_view_events": 6173
+        },
+        {
+          "category": "Fragrances",
+          "product_view_events": 4892
+        },
+        {
+          "category": "Shirts",
+          "product_view_events": 4337
+        },
+        {
+          "category": "Home Decoration",
+          "product_view_events": 4120
+        },
+        {
+          "category": "Beauty",
+          "product_view_events": 3705
+        },
+        {
+          "category": "Merch",
+          "product_view_events": 2965
+        },
+        {
+          "category": "Mobile Accessories",
+          "product_view_events": 2063
+        }
+      ]
+    },
+    {
+      "id": "Q06",
+      "rows": [
+        {
+          "searches": 2955,
+          "query_normalized": "water bottle"
+        },
+        {
+          "searches": 2949,
+          "query_normalized": "running shoes"
+        },
+        {
+          "searches": 2933,
+          "query_normalized": "kitchen tool"
+        },
+        {
+          "searches": 2900,
+          "query_normalized": "travel bag"
+        }
+      ]
+    },
+    {
+      "id": "Q07",
+      "rows": [
+        {
+          "carts": 6144,
+          "mutations": 8720,
+          "change_type": "ADD"
+        },
+        {
+          "carts": 572,
+          "mutations": 572,
+          "change_type": "DECREASE"
+        },
+        {
+          "carts": 477,
+          "mutations": 477,
+          "change_type": "DELETE"
+        }
+      ]
+    },
+    {
+      "id": "Q08",
+      "sessions": 101750,
+      "orders_recorded": 2539,
+      "active_order_rows": 2428,
+      "sessions_with_cart_link": 5661,
+      "sessions_with_product_view": 57475,
+      "sessions_with_checkout_started": 3709
+    },
+    {
+      "id": "Q09",
+      "rows": [
+        {
+          "order_rows": 15,
+          "month_label": "2025-11",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 345,
+          "month_label": "2025-11",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 16,
+          "month_label": "2025-12",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 397,
+          "month_label": "2025-12",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 7,
+          "month_label": "2026-01",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 96,
+          "month_label": "2026-01",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 4,
+          "month_label": "2026-02",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 126,
+          "month_label": "2026-02",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 3,
+          "month_label": "2026-03",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 130,
+          "month_label": "2026-03",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 11,
+          "month_label": "2026-04",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 145,
+          "month_label": "2026-04",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 6,
+          "month_label": "2026-05",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 191,
+          "month_label": "2026-05",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 9,
+          "month_label": "2026-06",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 222,
+          "month_label": "2026-06",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 14,
+          "month_label": "2026-07",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 186,
+          "month_label": "2026-07",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 7,
+          "month_label": "2026-08",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 146,
+          "month_label": "2026-08",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 9,
+          "month_label": "2026-09",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 149,
+          "month_label": "2026-09",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 8,
+          "month_label": "2026-10",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 253,
+          "month_label": "2026-10",
+          "reference_state": "ON"
+        },
+        {
+          "order_rows": 2,
+          "month_label": "2026-11",
+          "reference_state": "OFF"
+        },
+        {
+          "order_rows": 42,
+          "month_label": "2026-11",
+          "reference_state": "ON"
+        }
+      ]
+    },
+    {
+      "id": "Q10",
+      "rows": [
+        {
+          "units": 2717,
+          "currency": "EUR",
+          "price_rule": "base",
+          "order_lines": 2434,
+          "ordered_line_value_minor": 14545482
+        },
+        {
+          "units": 169,
+          "currency": "EUR",
+          "price_rule": "summer-sale",
+          "order_lines": 148,
+          "ordered_line_value_minor": 838766
+        },
+        {
+          "units": 315,
+          "currency": "EUR",
+          "price_rule": "winter-sale",
+          "order_lines": 282,
+          "ordered_line_value_minor": 1425135
+        }
+      ]
+    },
+    {
+      "id": "Q11",
+      "rows": [
+        {
+          "action": "AUTHORIZED",
+          "actions": 2539,
+          "currency": "EUR",
+          "amount_minor": 16809383
+        },
+        {
+          "action": "CAPTURED",
+          "actions": 2519,
+          "currency": "EUR",
+          "amount_minor": 13331722
+        },
+        {
+          "action": "REFUNDED",
+          "actions": 267,
+          "currency": "EUR",
+          "amount_minor": 437777
+        }
+      ]
+    },
+    {
+      "id": "Q12",
+      "rows": [
+        {
+          "state": "DELIVERED",
+          "orders": 1611,
+          "transitions": 1790
+        },
+        {
+          "state": "SHIPPED",
+          "orders": 1931,
+          "transitions": 2174
+        }
+      ]
+    },
+    {
+      "id": "Q13",
+      "customers_with_evidence": 1091,
+      "max_orders_for_one_customer": 3,
+      "customers_with_multiple_orders": 52
+    },
+    {
+      "id": "Q14",
+      "rows": [
+        {
+          "stocked": 17465,
+          "location": "warehouse-eu",
+          "reserved": 1050,
+          "variant_positions": 120,
+          "physical_unreserved": 16415,
+          "positions_meeting_required_quantity": 120
+        },
+        {
+          "stocked": 16187,
+          "location": "warehouse-west",
+          "reserved": 1124,
+          "variant_positions": 120,
+          "physical_unreserved": 15063,
+          "positions_meeting_required_quantity": 120
+        }
+      ]
+    },
+    {
+      "id": "Q15",
+      "reason": "Payment facts and cart/search identity in funnelmetry_demo are synthetic; observed CDC current state and browser search do not prove these combined business claims",
+      "gap_seed_status": "READY_FOR_DEMO",
+      "observed_overlap": 0,
+      "historic_seed_status": "READY_FOR_DEMO",
+      "observed_paid_revenue_answer": "INSUFFICIENT_CONTRACT",
+      "observed_search_to_cart_answer": "INSUFFICIENT_CORRELATION",
+      "observed_browser_events_after_boundary": 0
+    }
+  ]
+}
