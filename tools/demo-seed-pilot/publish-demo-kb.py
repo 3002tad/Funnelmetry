@@ -8,6 +8,8 @@ import argparse
 import hashlib
 import json
 import os
+from pathlib import Path
+import re
 import subprocess
 import time
 from urllib.request import Request, urlopen
@@ -115,6 +117,32 @@ def guide(definition):
         lines.append(f"- {measure['id']}: {measure['expression']} on {measure['asset']}; {measure['unit']}.")
     return "\n".join(lines) + "\n"
 
+def verify_golden_sql(token):
+    base = Path(__file__).resolve().parent
+    sql = (base / "demo-golden-v1.sql").read_text(encoding="utf-8")
+    answers = json.loads((base / "demo-golden-v1-answers.json").read_text(encoding="utf-8"))
+    expected = {answer["id"]: answer for answer in answers["answers"]}
+    blocks = re.findall(r"(?ms)^-- (Q\d{2})\b[^\n]*\n(.*?)(?=^-- Q\d{2}\b|\Z)", sql)
+    if len(blocks) != 15 or len(expected) != 15:
+        raise RuntimeError("golden benchmark must contain exactly 15 questions")
+    for question_id, block in blocks:
+        statement = "\n".join(line for line in block.splitlines() if not line.lstrip().startswith("--")).strip()
+        if not statement.endswith(";"):
+            raise RuntimeError("missing SQL terminator in " + question_id)
+        result = api("/api/v1/editor/sql/run", {"db_name":"funnelmetry_handoff","sql":statement[:-1]}, token)
+        values = result.get("values") if isinstance(result, dict) else None
+        if result.get("result_info") or not values or len(values) != 1 or len(values[0]) != 1:
+            raise RuntimeError("DB-GPT SQL execution failed for " + question_id)
+        actual = json.loads(values[0][0])
+        baseline = dict(expected[question_id])
+        if question_id == "Q15":
+            # Observed rows can arrive after the answer snapshot was recorded.
+            actual.pop("observed_browser_events_after_boundary", None)
+            baseline.pop("observed_browser_events_after_boundary", None)
+        if actual != baseline:
+            raise RuntimeError("DB-GPT SQL answer differs from fixture baseline for " + question_id)
+    return len(blocks)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["check","publish","verify"])
@@ -167,17 +195,11 @@ def main():
         content_found = RELEASE in json.dumps(result,ensure_ascii=False)
         if not content_found:
             raise RuntimeError("knowledge retrieval did not return expected release marker")
-        for statement, expected in [
-            ("SELECT release_id,sha256 FROM funnelmetry_demo.semantic_release", RELEASE),
-            ("SELECT count(*) FROM funnelmetry_demo.sessions", "101750"),
-        ]:
-            data = api("/api/v1/editor/sql/run",{"db_name":"funnelmetry_handoff","sql":statement},token)
-            if data.get("result_info") or expected not in json.dumps(data.get("values")):
-                raise RuntimeError("DB-GPT SQL editor did not return expected answer")
+        sql_count = verify_golden_sql(token)
     print(json.dumps({"release_id":RELEASE,"kb_space":space_name,
                       "document_id":document["id"],"status":document["status"],
                       "retrieval":"PASS" if args.command=="verify" else "NOT_RUN",
-                      "db_gpt_sql":"PASS" if args.command=="verify" else "NOT_RUN"}))
+                      "db_gpt_sql":f"{sql_count}/15 PASS" if args.command=="verify" else "NOT_RUN"}))
 
 if __name__ == "__main__":
     main()
