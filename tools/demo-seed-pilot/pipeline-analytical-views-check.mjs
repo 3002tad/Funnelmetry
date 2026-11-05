@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { schemas } from './expanded-schema.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const name = `funnelmetry-demo-binding-test-${randomBytes(5).toString('hex')}`
@@ -29,6 +30,7 @@ try {
   if (!ready) throw Error('postgres_not_ready')
   const migration = await readFile(resolve(here,'pipeline-demo-v1.sql'),'utf8')
   const binding = await readFile(resolve(here,'pipeline-analytical-views-v1.sql'),'utf8')
+  const coverage = await readFile(resolve(here,'pipeline-demo-coverage-v1.sql'),'utf8')
   sql(migration)
   sql(`CREATE ROLE funnelmetry_ai_agent; CREATE SCHEMA funnelmetry_explore;
     CREATE TABLE funnelmetry_explore.behavior_events(canonical_event_id text, source_id text, event_type text, occurred_at timestamptz, ingested_at timestamptz, query_normalized text, quality_status text);
@@ -43,7 +45,14 @@ try {
   if (actual.synthetic !== 1 || actual.observed !== 1 || actual.before !== 0 || actual.unrelated !== 0 || actual.quality !== 2 || actual.direct_source !== false) throw Error(`boundary_or_privilege_failure:${result}`)
   const denial = sql('SET ROLE funnelmetry_ai_agent; DELETE FROM funnelmetry_demo.sessions;', false)
   if (denial.status === 0 || !denial.stderr.includes('permission denied')) throw Error('write_was_not_denied')
-  console.log(JSON.stringify({status:'PASS', boundary:actual, replay:'PASS', write:'DENIED'}))
+  const manifest = JSON.stringify({config:{start:'2025-11-01T00:00:00Z',end:'2026-11-01T00:00:00Z'},counts:Object.fromEntries(Object.keys(schemas).map(k=>[k,k==='browser_events'?1:0]))})
+  sql(`UPDATE demo_history.seed_manifest SET manifest_sha256='b4316f664d333ae05b2a804ff63bd513c776462e4effe08a4b9a74b869058d0f',manifest='${manifest}'::jsonb;`)
+  sql(coverage)
+  sql(coverage)
+  if (sql('SET ROLE funnelmetry_ai_agent; SELECT demo_status FROM funnelmetry_demo.dataset_coverage;').stdout.trim() !== 'READY_FOR_DEMO') throw Error('demo_coverage_not_ready')
+  sql("UPDATE demo_history.seed_manifest SET manifest=jsonb_set(manifest,'{counts,browser_events}','2');")
+  if (sql('SET ROLE funnelmetry_ai_agent; SELECT demo_status FROM funnelmetry_demo.dataset_coverage;').stdout.trim() !== 'DEMO_DATA_MISMATCH') throw Error('coverage_does_not_detect_count_mismatch')
+  console.log(JSON.stringify({status:'PASS', boundary:actual, replay:'PASS', write:'DENIED',demo_coverage:'PASS',mismatched_count:'DETECTED'}))
 } finally {
   if (created) run(['rm','-f',name],undefined,false)
 }

@@ -43,6 +43,13 @@ use them to explore or diagnose, and explain quality and historical coverage.
 UNVERIFIED on an exploratory view is not a blanket ban on descriptive analysis:
 report observed counts and distributions as provisional, identify the source,
 grain, period and coverage limitations, and do not claim official completeness.
+For the seeded KLTN demo, query funnelmetry_demo.dataset_coverage. Its
+READY_FOR_DEMO status applies to the synthetic dataset and period only, and
+means fixture domain counts and session dates match the pinned manifest.
+Use funnelmetry_demo synthetic views for descriptive analysis within that
+period, identifying their synthetic origin. Source CDC history has separate
+coverage and its historical gap does not prohibit analysis of the demo seed.
+This readiness check does not prove observed coverage or fresh row checksums.
 If a requested metric has a blocking quality gate, do not present raw rows as
 the same confirmed metric; independent exploratory observations may still be
 reported separately with their own limitations.

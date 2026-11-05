@@ -112,3 +112,5 @@ node tools/demo-seed-pilot/pipeline-analytical-views-check.mjs
 ```
 
 The test uses a temporary network-disabled PostgreSQL container and checks the boundary, missing data, unwanted event types, idempotent view migration, and read-only role access. Do not use these views to infer observed payment, revenue, search-to-cart or complete historical CDC coverage.
+
+`pipeline-demo-coverage-v1.sql` adds `funnelmetry_demo.dataset_coverage`, a demo-specific status for the pinned synthetic dataset. `READY_FOR_DEMO` means the current domain counts and session time range match the stored pinned manifest; the seed transaction previously checked each row. `DEMO_DATA_MISMATCH` signals a count or session range mismatch. This status applies only to the specified synthetic period and is not a continuous coverage or observed CDC certification. The view checks counts, not a new per-row checksum; the recorded loader evidence covers the initial load. The same isolated test checks replay, read-only access and detection of a changed domain count.
