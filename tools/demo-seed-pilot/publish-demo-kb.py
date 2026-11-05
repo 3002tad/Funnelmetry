@@ -7,6 +7,7 @@ The admin password is read from a pre-existing root-owned file and never printed
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import time
 from urllib.request import Request, urlopen
@@ -14,7 +15,8 @@ from urllib.request import Request, urlopen
 RELEASE = "demo-commerce-analysis@1.0.0"
 DEFINITION_SHA = "37649d69560cc9c7a3442ab20ba502a995bc274998e1b6901661bc7adb643e3e"
 API = "http://127.0.0.1:5670"
-PIPELINE = "http://127.0.0.1:9000"
+PIPELINE = "http://127.0.0.1:31080"
+PIPELINE_HOST = os.environ.get("SWARM_PUBLIC_DOMAIN", "analyst.entidi.io.vn")
 
 def read_release():
     containers = subprocess.check_output([
@@ -39,6 +41,9 @@ def read_release():
 
 def request(url, data, token=None):
     headers = {"Content-Type": "application/json"}
+    if url.startswith(PIPELINE + "/"):
+        # Traefik selects the Pipeline router by its public hostname.
+        headers["Host"] = PIPELINE_HOST
     if token:
         headers["Authorization"] = "Bearer " + token
     encoded = json.dumps(data).encode()
