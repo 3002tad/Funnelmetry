@@ -1,0 +1,13 @@
+/* Presentation pass: keep data-quality meaning while removing preview scaffolding. */
+.demo-strip,main>footer,.database-banner>div,.price-caption,.compare-help,.compare-foot,.event-read-status,.price-panel>.insight,.health-chart-panel>.insight,.funnel-chart-layout .insight{display:none!important}
+.database-banner{background:transparent;border:0;padding:0;margin:0 0 20px;justify-content:flex-end}.database-banner label{min-width:240px;font-size:10px}.database-banner label select{background:var(--card)}
+#page-content>.insight,#page-content>p.small.muted,.activity-scope-bar small,.module-tabs>span,.compare-result-heading>.small,.card-head>div>p,.card>.insight{display:none!important}
+.page-head{margin-bottom:25px}.page-head>.row:empty{display:none}.filters{margin-bottom:22px}.filters .scope{display:none}
+.card-head{padding-top:22px;padding-bottom:18px}.stat-foot,.stat>.small.muted{font-size:10px}.section-heading .subtitle{display:none}
+.health-notice p{display:none}.health-notice{padding:18px 21px}.health-notice h2{font-size:16px}.health-chart-panel .card-head p{display:none}
+.price-validity-note{background:transparent;border-style:dashed}.price-validity-note>span{display:none}.price-validity-note p{font-size:11px}
+.compare-options>span{display:none}.compare-controls{padding-top:0;padding-bottom:20px}.compare-panel .card-head .tag{display:none}
+.sidebar-footer .account small{font-size:0}.sidebar-footer .account small:after{content:'Data Analyst';font-size:10px}
+.chart-legend{padding-bottom:20px}.price-history{margin-top:14px}.technical-details{background:var(--bg);border:0;border-radius:8px;padding:15px}
+.price-panel .card-head .tag,.funnel-chart-layout .card-head .tag{font-size:9px}
+@media(max-width:760px){.database-banner{justify-content:stretch}.database-banner label{min-width:0;width:100%}}

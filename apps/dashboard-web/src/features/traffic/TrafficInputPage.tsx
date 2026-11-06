@@ -1,3 +1,4 @@
+import { dateWindow } from "../../lib/date-range"
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useOutletContext } from 'react-router-dom'
@@ -38,9 +39,7 @@ export default function TrafficInputPage() {
   const [afterLabel, setAfterLabel] = useState<string | null>(null)
   const canMap = Boolean(user?.permissions?.includes('traffic.mapping.write'))
   const window = useMemo(() => {
-    const to = new Date()
-    const days = range === 'Last 7 days' ? 7 : range === 'Last 90 days' ? 90 : 30
-    return { from: new Date(to.getTime() - days * 86400000).toISOString(), to: to.toISOString() }
+    return dateWindow(range)
   }, [range, sourceId, refresh])
   const result = useQuery({
     queryKey: ['traffic-input', user?.id, sourceId, window],

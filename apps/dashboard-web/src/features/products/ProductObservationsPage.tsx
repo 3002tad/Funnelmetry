@@ -1,3 +1,4 @@
+import { dateWindow } from "../../lib/date-range"
 import { useMemo,useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useOutletContext } from 'react-router-dom'
@@ -15,7 +16,7 @@ export default function ProductObservationsPage(){
 function ProductObservations({sourceId,range}:{sourceId:string;range:string}){
   const {user}=useAuth()
   const [sort,setSort]=useState('views'),[filter,setFilter]=useState(''),[draft,setDraft]=useState(''),[offset,setOffset]=useState(0),[refresh,setRefresh]=useState(0)
-  const window=useMemo(()=>{const to=new Date();const days=range==='Last 7 days'?7:range==='Last 90 days'?90:30;return {from:new Date(to.getTime()-days*86400000).toISOString(),to:to.toISOString()}},[range,sourceId,refresh])
+  const window=useMemo(()=>{return dateWindow(range)},[range,sourceId,refresh])
   const query=useQuery({queryKey:['products-observed',user?.id,sourceId,window,sort,filter,offset],queryFn:({signal})=>{
     const params=new URLSearchParams({source_id:sourceId,...window,sort,offset:String(offset)});if(filter)params.set('product_id',filter)
     return apiRequest<Result>(`/api/v2/products?${params}`,{signal})

@@ -3,6 +3,10 @@ import type { CanonicalEventItem } from "./analytics-api"
 const eventNames: Record<string, string> = {
   "behavior.page_viewed": "Xem trang",
   "behavior.product_viewed": "Xem sản phẩm",
+  "behavior.search_query_submitted": "Tìm kiếm",
+  "behavior.scroll_depth_reached": "Cuộn trang",
+  "context.cart_linked": "Liên kết giỏ hàng",
+  "promotion.banner_impression": "Hiển thị banner",
   "behavior.search_performed": "Tìm kiếm",
   "cart.item_added": "Thêm vào giỏ hàng",
   "checkout.started": "Bắt đầu thanh toán",

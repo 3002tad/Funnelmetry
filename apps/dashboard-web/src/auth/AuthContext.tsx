@@ -61,6 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
   }, [token])
 
+  useEffect(() => {
+    const refresh = () => {
+      if (!token) return
+      void apiRequest<{user:User}>("/api/auth/me").then(({user:next})=>{setUser(next);localStorage.setItem(USER_KEY,JSON.stringify(next))}).catch(()=>{})
+    }
+    window.addEventListener('funnelmetry:profile-updated',refresh)
+    return ()=>window.removeEventListener('funnelmetry:profile-updated',refresh)
+  },[token])
   const value = useMemo<AuthValue>(() => ({
     token,
     user,

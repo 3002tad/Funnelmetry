@@ -22,5 +22,5 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof butto
 
 export function Button({ className, variant, size, asChild, ...props }: Props) {
   const Comp = asChild ? Slot : "button"
-  return <Comp className={cn(buttonVariants({ variant, size }), className)} {...props} />
+  return <Comp className={cn(buttonVariants({ variant, size }), (variant??'default')==='default'?'tpl-primary':variant==='ghost'?'tpl-ghost':'',size==='icon'?'tpl-btn-icon':size==='sm'?'tpl-btn-sm':'',className)} {...props} />
 }

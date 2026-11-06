@@ -439,6 +439,41 @@ components:
           items: { type: string }
 
 paths:
+  /api/v2/analytics/datasets:
+    get:
+      summary: Discover retained approved exploration datasets
+      description: Requires a live analytics.read session. Synthetic datasets are separate from observed source history.
+      parameters:
+        - { $ref: "#/components/parameters/SourceId" }
+      responses:
+        "200":
+          description: Observed option and retained approved synthetic datasets with first/last event timestamps
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "503": { description: Dataset catalog unavailable }
+  /api/v2/analytics/explorer:
+    get:
+      summary: Read-only daily activity, products, keywords and variant prices
+      description: Non-official UNVERIFIED exploration; medusa-reference only. Counts are events, not unique customers. Missing buckets do not prove zero activity. Prices preserve variant/currency/channel/region/rule context.
+      parameters:
+        - { $ref: "#/components/parameters/SourceId" }
+        - { $ref: "#/components/parameters/From" }
+        - { $ref: "#/components/parameters/To" }
+        - name: dataset
+          in: query
+          schema: { type: string, default: observed }
+          description: observed or an approved retained dataset ID from the datasets endpoint
+        - name: variant_id
+          in: query
+          schema: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: Source/dataset scope, exclusive UTC window, origin, quality, limitations, daily counts, event_types by UTC date, UTM event counts, synthetic session counts by started_at and orders by created_at (window scoped, independent of variant filter), catalog product count (dataset scoped), top 20 products/keywords, catalog variants, price intervals and coverage
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "503": { description: Exploration query or required views unavailable }
   /api/v2/analytics/overview:
     get:
       tags: [Analytics V2]

@@ -1,3 +1,4 @@
+import { dateWindow } from "./date-range"
 import { analyticsSourceId, apiRequest, ApiError } from "./api"
 
 export type QualityStatus = "PROVISIONAL" | "RECONCILING" | "RECONCILED" | "DEGRADED"
@@ -284,7 +285,7 @@ function cohortFromRange(range: string) {
 
 function scopeParams(range?: string) {
   const params = new URLSearchParams({ source_id: analyticsSourceId })
-  if (range) params.set("from", cohortFromRange(range))
+  if (range) { const window = dateWindow(range); params.set("from", window.from); params.set("to", window.to) }
   return params
 }
 

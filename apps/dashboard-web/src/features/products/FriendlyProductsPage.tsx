@@ -1,3 +1,4 @@
+import { dateWindow } from "../../lib/date-range"
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { CircleOff, Eye, RefreshCw, ShoppingBag } from "lucide-react"
@@ -17,9 +18,7 @@ export default function FriendlyProductsPage() {
   const { range, sourceId } = useOutletContext<ShellContext>()
   const { user } = useAuth()
   const window = useMemo(() => {
-    const to = new Date()
-    const days = range === "Last 7 days" ? 7 : range === "Last 90 days" ? 90 : 30
-    return { from: new Date(to.getTime() - days * 86400000).toISOString(), to: to.toISOString() }
+    return dateWindow(range)
   }, [range])
   const products = useQuery({ queryKey: ["products-friendly", user?.id, sourceId, window], queryFn: ({ signal }) => {
     const params = new URLSearchParams({ source_id: sourceId, ...window, sort: "views", offset: "0" })

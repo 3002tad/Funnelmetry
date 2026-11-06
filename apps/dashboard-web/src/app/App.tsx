@@ -7,12 +7,12 @@ import { navigation } from './navigation'
 import { UnavailablePage } from './UnavailablePage'
 import { AiWorkspacePage } from '../features/ai/AiWorkspacePage'
 
-const OverviewPage = lazy(() => import("../features/overview/FriendlyOverviewPage").then((module) => ({ default: module.FriendlyOverviewPage })))
-const FunnelsPage = lazy(() => import("../features/funnels/FriendlyFunnelsPage").then((module) => ({ default: module.FriendlyFunnelsPage })))
+const OverviewPage = lazy(() => import("../features/overview/AnalyticsOverviewPage").then((module) => ({ default: module.AnalyticsOverviewPage })))
+const FunnelsPage = lazy(() => import("../features/funnels/FunnelWorkspacePage"))
 const JourneysPage = lazy(() => import("../features/journeys/JourneysPage").then((module) => ({ default: module.JourneysPage })))
 const SessionPage = lazy(() => import("../features/sessions/SessionPage").then((module) => ({ default: module.SessionPage })))
 const EventsPage = lazy(() => import("../features/events/FriendlyEventsPage").then((module) => ({ default: module.FriendlyEventsPage })))
-const DataHealthPage = lazy(() => import("../features/data-health/FriendlyDataHealthPage").then((module) => ({ default: module.FriendlyDataHealthPage })))
+const DataHealthPage = lazy(() => import("../features/data-health/QualityWorkspacePage"))
 const SettingsPage = lazy(() => import("../features/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })))
 const AdminUsersPage = lazy(() => import('../features/admin/AdminUsersPage'))
 const RegistryPage = lazy(() => import('../features/admin/RegistryPage'))
@@ -23,8 +23,6 @@ const AgentObservabilityPage = lazy(() => import('../features/admin/AgentObserva
 const PipelineHealthPage = lazy(() => import('../features/admin/FriendlyPipelineHealthPage'))
 const SourcesPage = lazy(() => import('../features/admin/SourcesPage'))
 const CatalogPage = lazy(() => import('../features/catalog/CatalogPage'))
-const EvidencePage = lazy(() => import('../features/evidence/EvidencePage'))
-const FindingsPage = lazy(() => import('../features/evidence/FindingsPage'))
 const AuditPage = lazy(() => import('../features/admin/AuditPage'))
 const ConnectorsPage = lazy(() => import('../features/admin/ConnectorsPage'))
 const EventFeedPage = lazy(() => import('../features/admin/EventFeedPage'))
@@ -32,7 +30,7 @@ const EventTracePage = lazy(() => import('../features/admin/EventTracePage'))
 const ProcessingPage = lazy(() => import('../features/admin/FriendlyProcessingPage'))
 const QuarantinePage = lazy(() => import('../features/admin/QuarantinePage'))
 const WorkspacePage = lazy(() => import('../features/workspace/WorkspacePage'))
-const ProductObservationsPage = lazy(() => import('../features/products/FriendlyProductsPage'))
+const ProductObservationsPage = lazy(() => import('../features/products/ProductsWorkspacePage'))
 const TrafficInputPage = lazy(() => import('../features/traffic/TrafficInputPage'))
 
 function Landing() {
@@ -71,27 +69,23 @@ export function App() {
           <Route element={<PermissionGate permission="analytics.read" />}>
           <Route path="/overview" element={<OverviewPage />} />
           <Route path="/funnels" element={<FunnelsPage />} />
-          <Route path="/journeys" element={<JourneysPage />} />
+          <Route path="/journeys" element={<Navigate to="/funnels" replace />} />
           <Route path="/sessions/:sessionId" element={<SessionPage />} />
           <Route path="/events" element={<EventsPage />} />
-          <Route path="/metrics" element={<CatalogPage kind="metrics" />} />
-          <Route path="/assets" element={<CatalogPage kind="assets" />} />
-          <Route path="/analysis-runs" element={<EvidencePage runs />} />
-          <Route path="/workspace" element={<WorkspacePage />} />
+          <Route path="/metrics" element={<Navigate to="/overview" replace />} />
+          <Route path="/assets" element={<Navigate to="/overview" replace />} />
+          <Route path="/workspace" element={<Navigate to="/overview" replace />} />
           <Route path="/products" element={<ProductObservationsPage />} />
           <Route element={<PermissionGate permission="analytics.workspace.use" />}>
             <Route path="/traffic" element={<TrafficInputPage />} />
           </Route>
-          <Route path="/evidence" element={<EvidencePage />} />
-          <Route path="/reports" element={<EvidencePage reports />} />
-          <Route path="/findings" element={<FindingsPage />} />
           <Route path="/data-health" element={<DataHealthPage />} />
-          <Route path="/insights" element={<Navigate to="/findings" replace />} />
+          <Route path="/insights" element={<Navigate to="/overview" replace />} />
           <Route path="/chat" element={<Navigate to="/ai" replace />} />
           </Route>
           <Route element={<PermissionGate permission="pipeline.monitor" />}>
           <Route path="/admin/pipeline" element={<PipelineHealthPage />} />
-          <Route path="/admin/connector" element={<ConnectorsPage />} />
+<Route path="/admin/connector" element={<ConnectorsPage />} />
           <Route path="/admin/event-feed" element={<EventFeedPage />} />
           <Route path="/admin/event-trace" element={<EventTracePage />} />
           <Route path="/admin/processing" element={<ProcessingPage />} />

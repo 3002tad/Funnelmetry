@@ -1,0 +1,79 @@
+/* React bindings, accessibility and states absent from the static prototypes.
+   Template geometry/colors live exclusively in source/ and generated/template.css. */
+.template-root { min-height:100vh; }
+.template-root.template-portal { min-height:0; background:transparent; }
+.template-root button { height:auto; }
+.template-root .tpl-btn-icon { width:36px; height:36px; padding:0; }
+.template-root .tpl-btn-sm { padding:6px 10px; font-size:10px; }
+.template-root .tpl-icon { display:inline-block; vertical-align:middle; flex-shrink:0; }
+.template-root .tpl-workspace-switch,.template-root .tpl-ai-launch { display:flex; align-items:center; }
+.template-root .tpl-ai-launch { gap:7px; }
+.template-root .tpl-ai-launch>span { flex:1; text-align:center; }
+.template-root .tpl-sidebar { overflow-y:auto; }
+.template-root .tpl-sidebar .tpl-nav { min-height:0; }
+.template-root[data-ui] .tpl-logout-btn { display:inline-flex; flex-shrink:0; align-items:center; justify-content:center; width:30px; height:30px; padding:5px; border:0; background:transparent; color:var(--tpl-sidebar-muted); }
+.template-root[data-ui] .tpl-logout-btn:hover { background:var(--tpl-soft); color:var(--tpl-accent); }
+.template-root .tpl-close-menu { position:absolute; top:25px; right:4px; padding:5px; }
+.template-root main:focus { outline:none; }
+.template-root .template-sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); }
+.template-root .tpl-page { min-width:0; }
+.template-root .tpl-card { overflow-wrap:anywhere; }
+.template-root .tpl-card-head h2 { margin:0; }
+.template-root .tpl-stat-value { display:block; }
+.template-root .tpl-stat-value-long { font-size:17px; line-height:1.5; overflow-wrap:anywhere; }
+.template-root .tpl-heading-badge { display:inline-flex; margin-left:10px; vertical-align:middle; }
+.template-root .tpl-tag { display:inline-flex; align-items:center; gap:6px; }
+.template-root .tpl-filters .tpl-row { flex-wrap:wrap; }
+.template-root .tpl-custom-page-range { display:flex; align-items:flex-end; flex-wrap:wrap; gap:8px; }
+.template-root .tpl-custom-page-range label { display:flex; flex-direction:column; gap:5px; font-size:9px; color:var(--tpl-muted); }
+.template-root .tpl-custom-page-range input { font-size:11px; padding:7px; }
+.template-root .tpl-custom-page-range button { font-size:10px; padding:7px 10px; }
+.template-root .tpl-dataset-toolbar>.tpl-data-origin { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.template-root .tpl-database-banner label select { margin:0; }
+.template-root .tpl-section-icon { display:grid; place-items:center; width:34px; height:34px; border:1px solid var(--tpl-line); border-radius:11px; color:var(--tpl-accent); background:var(--tpl-soft); }
+.template-root .tpl-compare-panel>.tpl-card-head { justify-content:flex-start; }
+.template-root .tpl-compare-options { justify-content:flex-start; align-items:center; padding-bottom:0; min-height:19px; }
+.template-root .tpl-comparison-total small { overflow-wrap:anywhere; }
+.template-root .tpl-chart-caption { padding:0 21px 20px; margin:0; font-size:10px; color:var(--tpl-muted); }
+.template-root .tpl-semantic-footnote { font-size:10px; color:var(--tpl-muted); line-height:1.8; }
+.template-root .tpl-stat-foot { margin:0; }
+.template-root .tpl-stack { display:flex; flex-direction:column; gap:20px; min-width:0; }
+.template-root .tpl-page>.tpl-card+.tpl-card,.template-root .tpl-settings-content>.tpl-card+.tpl-card { margin-top:20px; }
+.template-root .tpl-page>.tpl-tabs { margin-bottom:20px; }
+.template-root .tpl-grid>.tpl-card { overflow:hidden; }
+.template-root .tpl-table-scroll { max-width:100%; overflow-x:auto; }
+.template-root .tpl-event-breakdown .tpl-table-scroll { max-height:285px; overflow:auto; }
+.template-root .tpl-table-secondary { display:block; font-size:9px; color:var(--tpl-muted); margin-top:4px; }
+.template-root .tpl-card-body .tpl-field input { width:100%; min-width:0; }
+.template-root .tpl-show-password { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--tpl-muted); margin-bottom:18px; }
+.template-root .tpl-full-width { width:100%; display:block; margin:10px 0; }
+.template-root .tpl-form-message,.template-root .tpl-inline-message { font-size:11px; color:var(--tpl-muted); }
+.template-root .tpl-page>.tpl-grid { margin-top:20px; }
+.template-root .tpl-admin-form input { min-width:0; }
+.template-root .tpl-form-foot { flex-wrap:wrap; }
+.template-root .tpl-pagination>div { display:flex; gap:8px; }
+.template-root .tpl-source-name { font-size:14px; }
+.template-root .tpl-source-search-details>summary { cursor:pointer; font-size:10px; color:var(--tpl-muted); padding:8px 20px; }
+.template-root .tpl-block-label { display:flex; flex-direction:column; gap:8px; font-size:11px; color:var(--tpl-muted); }
+.template-root .tpl-inline-field { display:flex; align-items:center; gap:10px; font-size:11px; }
+.template-root .tpl-toolbar .tpl-search-wrap input { padding-left:30px; width:250px; background:var(--tpl-bg); }
+.template-root .tpl-audit-details { font-size:10px; color:var(--tpl-muted); }
+.template-root .tpl-audit-details dd { margin:5px 0 10px; overflow-wrap:anywhere; }
+.template-root .tpl-trace-result-scope { display:flex; align-items:center; gap:10px; margin:20px 0; font-size:10px; }
+.template-root .tpl-chart-empty { min-height:240px; display:grid; place-items:center; }
+.template-root .tpl-command-input { width:100%; }
+.template-root .tpl-command-results button { width:100%; justify-content:space-between; border:0; background:transparent; }
+.template-root .tpl-command-results button:hover { background:var(--tpl-soft); }
+.template-root .tpl-theme-error { position:absolute; top:100%; right:20px; max-width:300px; border:1px solid var(--tpl-line); background:var(--tpl-card); padding:12px; border-radius:10px; }
+.template-root [role="alert"] { color:var(--tpl-danger); border-left:3px solid var(--tpl-danger); padding:12px; font-size:12px; }
+.template-root .tpl-unavailable-badges { display:flex; flex-wrap:wrap; gap:8px; margin-top:20px; }
+.template-root .tpl-ai-launch:focus-visible { outline:2px solid var(--tpl-accent); outline-offset:3px; }
+.template-root.tpl-ai .tpl-shell { margin-left:0; }
+.template-root.tpl-ai main { padding:0; max-width:none; }
+.template-root .embedded-admin-module :is(.tpl-page-head,.tpl-admin-scope),.template-root .embedded-funnel :is(.tpl-page-head,.tpl-filters) { display:none; }
+/* Detailed inspectors continue using existing utility-based content behind disclosures. */
+.template-root .panel { background:var(--tpl-card); border:1px solid var(--tpl-line); border-radius:16px; }
+.template-root .tpl-event-card-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.template-root .tpl-drawer { color:var(--tpl-text); }
+@media(min-width:761px){.template-root .tpl-close-menu { display:none; }}
+@media(max-width:760px){.template-root .tpl-desktop-toggle { display:none; }.template-root .tpl-event-card-grid { grid-template-columns:1fr; }.template-root .tpl-admin-form { grid-template-columns:1fr; }.template-root .tpl-toolbar .tpl-search-wrap input { max-width:100%; }.template-root .tpl-card-head { flex-wrap:wrap; }}

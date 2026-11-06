@@ -5,6 +5,7 @@ import { requireLiveSession } from '../middleware/live-session.js'
 import { DEFAULT_PREFERENCES, parsePreferencesPatch } from '../lib/account-preferences.js'
 import { listAccountAudit, parseAuditQuery } from '../lib/account-audit.js'
 import { accountError } from '../lib/account-mutation.js'
+import { parseDisplayName, updateOwnProfile } from '../lib/account-profile.js'
 
 export const accountRouter = Router()
 accountRouter.use('/api/account', requireAuth, requireLiveSession(), (_req, res, next) => {
@@ -12,6 +13,15 @@ accountRouter.use('/api/account', requireAuth, requireLiveSession(), (_req, res,
   next()
 })
 
+accountRouter.patch('/api/account/profile', async (req,res) => {
+  let displayName
+  try { displayName = parseDisplayName(req.body, req.query) }
+  catch { return res.status(400).json({error:'invalid_display_name'}) }
+  try {
+    const user = await updateOwnProfile(transaction, req.user, displayName)
+    return res.json({user})
+  } catch(error){return res.status(error.status===401?401:503).json({error:error.status===401?'session_expired':'profile_unavailable'})}
+})
 accountRouter.get('/api/account/preferences', async (req, res) => {
   if (Object.keys(req.query).length) return res.status(400).json({ error: 'unknown_filter' })
   try {
