@@ -4,7 +4,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { BrowserRouter } from "react-router-dom"
 import { App } from "./app/App"
 import { AuthProvider } from "./auth/AuthContext"
-import "./styles.css"
+import "./foundation.css"
+import "./ui-template/generated/template.css"
+import "./ui-template/integration.css"
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },

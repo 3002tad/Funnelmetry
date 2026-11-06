@@ -41,7 +41,7 @@ export default function WorkspacePage() {
         {!valid && <p role="alert" className="text-sm">Chọn khoảng lớn hơn 0 và tối đa 90 ngày.</p>}
         {!allowed && <p role="alert" className="text-sm">Bản runtime hiện yêu cầu analytics.read và chat.use để chạy công cụ. Trang này không tự cấp quyền.</p>}
         <Button type="submit" disabled={!valid || !allowed || busy}>{busy ? 'Đang phân tích…' : 'Chạy phân tích đơn hàng'}</Button>
-        <p className="text-xs text-muted-foreground">Chỉ ghi kết quả phân tích, không sửa đơn hàng. F5 không tự chạy lại; kết quả đã lưu xem trong Analysis Runs.</p>
+        <p className="text-xs text-muted-foreground">Chỉ ghi kết quả phân tích, không sửa đơn hàng. F5 không tự chạy lại. Kết quả của lượt chạy hiện tại hiển thị bên dưới.</p>
       </form>
       <section className="panel space-y-3 p-5"><h2 className="font-semibold">2. Công cụ và cách tính</h2><p className="text-sm">tool.metric_summary · catalog order-analytics-staging-1.0.0</p><ul className="list-disc space-y-2 pl-5 text-sm"><li>Tổng giá trị đơn hàng đã đặt.</li><li>Số đơn duy nhất theo nguồn và order_id.</li><li>AOV = giá trị đơn / số đơn.</li><li>Nhóm theo tiền tệ, không quy đổi hay cộng chéo.</li></ul><p className="text-sm">Đây là thao tác thủ công một bước, chưa phải Agent Plan. Chưa hỗ trợ cao nhất, so sánh kỳ hay phân tích sản phẩm.</p><p className="text-sm">Không phải doanh thu đã thanh toán. Định nghĩa thử nghiệm và dữ liệu chưa đối soát phải được xem cùng cảnh báo.</p><div className="flex gap-4 text-sm text-primary"><Link to="/metrics">Xem Metrics</Link><Link to="/assets">Xem Asset</Link></div></section>
     </div>
@@ -50,7 +50,7 @@ export default function WorkspacePage() {
       {error && <p role="alert">{error}</p>}
       {!busy && !error && !result && <p className="text-sm text-muted-foreground">Chọn phạm vi rồi bấm chạy để có kết quả.</p>}
       {result && <><p className="text-sm">Trạng thái: {result.status}</p>{result.status==='INSUFFICIENT_DATA' && <p>Chưa đủ dữ liệu; không đồng nghĩa tổng bằng 0.</p>}{result.status==='BLOCKED_BY_QUALITY' && <p role="alert">Không công bố số liệu do dữ liệu lỗi hoặc mâu thuẫn.</p>}{result.status==='PROVISIONAL' && <p>Dữ liệu tạm thời, chưa phải kết quả xác minh đầy đủ.</p>}
-        {result.evidence.map(item=><div className="space-y-3" key={item.evidence_id}><OrderEvidenceDetails item={item}/><div className="flex gap-4 text-sm text-primary"><Link to={`/analysis-runs?id=${item.evidence_id}`}>Xem Analysis Run</Link><Link to={`/evidence?id=${item.evidence_id}`}>Xem bằng chứng đã lưu</Link></div></div>)}
+        {result.evidence.map(item=><div className="space-y-3" key={item.evidence_id}><OrderEvidenceDetails item={item}/></div>)}
       </>}
     </section>
   </div>

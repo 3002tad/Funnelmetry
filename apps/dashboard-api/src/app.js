@@ -1,3 +1,4 @@
+import { createDashboardExplorerRouter } from './routes/dashboard-explorer.js';
 import cors from "cors";
 import express from "express";
 import { isAdminApiPath, isChatApiPath, isShopApiPath, skipUnlessZone } from "./lib/api-zones.js";
@@ -85,6 +86,7 @@ export function createApp() {
   shop.use(requireAuth, requireLivePermission('analytics.read'), requireShopRole);
   shop.use(requireAnalyticsCapability);
   shop.use(analyticsV2Router);
+  shop.use(createDashboardExplorerRouter());
   if (config.features.cdcReferenceCandidate || config.features.cdcReferenceActive) {
     shop.use(createReferenceCdcFunnelCandidateRouter(undefined,
       { activeEnabled: config.features.cdcReferenceActive }));

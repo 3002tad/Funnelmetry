@@ -1,0 +1,24 @@
+import {Fragment,type ReactNode,type RefObject} from 'react'
+import {NavLink,useNavigate} from 'react-router-dom'
+import {Menu,X,Search,Bell,Moon,Sun,LogOut} from 'lucide-react'
+import type {NavigationGroup} from '../app/navigation'
+import {DesignIcon,navigationSymbols} from '../components/ui/design-icon'
+
+type Props={
+ admin:boolean;inAi:boolean;workspace:string;label:string;initials:string;name:string;menu:boolean;collapsed:boolean;dark:boolean;themeDisabled:boolean;themeError:string;groups:NavigationGroup[];children:ReactNode
+ sidebarRef:RefObject<HTMLElement>;contentRef:RefObject<HTMLDivElement>;mainRef:RefObject<HTMLElement>;closeRef:RefObject<HTMLButtonElement>;menuRef:RefObject<HTMLButtonElement>
+ onCloseMenu:()=>void;onMenu:()=>void;onCollapse:()=>void;onLogout:()=>void;onCommand:()=>void;onNotifications:()=>void;onTheme:()=>void
+}
+// Markup follows ui-preview/app.js and admin-preview/admin.js. No legacy shell classes.
+export function TemplateShell(p:Props){const navigate=useNavigate();return <div className={`template-root ${p.collapsed?'tpl-collapsed':''} ${p.menu?'tpl-menu-open':''} ${p.inAi?'tpl-ai':''}`} data-ui={p.admin?'admin':'analyst'}>
+ <a href="#main-content" className="tpl-skip">Đến nội dung chính</a>
+ {!p.inAi&&<><button className="tpl-menu-overlay" type="button" aria-label="Đóng menu điều hướng" onClick={p.onCloseMenu}/><aside data-template-sidebar ref={p.sidebarRef} className="tpl-sidebar" id="app-navigation" role={p.menu?'dialog':undefined} aria-modal={p.menu||undefined} aria-label="Điều hướng chính">
+ <NavLink className="tpl-brand" to="/"><span className="tpl-brand-logo"><DesignIcon name="filter" size={21}/></span><span className="tpl-hide-collapsed">Funnelmetry</span></NavLink><button ref={p.closeRef} className="tpl-close-menu tpl-ghost tpl-mobile-menu" onClick={p.onCloseMenu} aria-label="Đóng menu"><X size={17}/></button>
+ <div className="tpl-workspace-switch"><span className="tpl-workspace-name"><span className="tpl-workspace-avatar">{p.admin?'F':p.workspace.charAt(0)}</span><span>{p.workspace}<br/><small>{p.admin?'ADMIN WORKSPACE':'ANALYTICS WORKSPACE'}</small></span></span>{!p.admin&&<span>⌄</span>}</div>
+ <div className={p.admin?'tpl-sidebar-ai':'tpl-sidebar-ai-shortcut'}><button type="button" onClick={()=>navigate('/ai')} className="tpl-ai-launch"><DesignIcon name="bot"/><span>{p.admin?'Mở DB-GPT':'Mở trợ lý AI'}</span><DesignIcon name="external"/></button></div>
+ <nav className="tpl-nav" aria-label="Workspace navigation">{p.groups.map(group=><Fragment key={group.label}><div className="tpl-nav-label">{group.label}</div>{group.items.map(item=><NavLink key={item.path} to={item.path} className={({isActive})=>isActive?'tpl-active':''}><DesignIcon name={navigationSymbols[item.path]||'overview'}/><span className="tpl-hide-collapsed">{item.label}</span></NavLink>)}</Fragment>)}{!p.admin&&<div className="tpl-nav-label">TÀI KHOẢN</div>}<NavLink to="/settings" className={({isActive})=>isActive?'tpl-active':''}><DesignIcon name="settings"/><span className="tpl-hide-collapsed">Thiết lập cá nhân</span></NavLink></nav>
+ <div className="tpl-sidebar-footer"><div className="tpl-account"><span className="tpl-avatar">{p.initials}</span><div style={{flex:1,minWidth:0}}>{p.name}<br/><small>{p.admin?'Admin':'Data Analyst'}</small></div><button type="button" className="tpl-logout-btn" onClick={p.onLogout} aria-label="Đăng xuất" title="Đăng xuất"><LogOut size={17}/></button></div></div>
+ </aside></>}
+ <div ref={p.contentRef} data-template-content className="tpl-shell">{!p.inAi&&<header className="tpl-topbar"><div className="tpl-row"><button ref={p.menuRef} className="tpl-ghost tpl-mobile-menu" onClick={p.onMenu} aria-label="Mở menu" aria-controls="app-navigation" aria-expanded={p.menu}><Menu size={17}/></button>{!p.admin&&<button className="tpl-ghost tpl-desktop-toggle" onClick={p.onCollapse} aria-label="Thu gọn hoặc mở sidebar"><Menu size={17}/></button>}<span className="tpl-crumb">{p.admin?'Administration':'Workspace'} &nbsp; / &nbsp; <strong>{p.label}</strong></span></div><div className="tpl-row">{!p.admin&&<><button className="tpl-top-search" onClick={p.onCommand}><Search size={15}/><span>Tìm trang / chức năng</span><kbd className="tpl-key">Ctrl K</kbd></button><span className="tpl-divider"/><button className="tpl-ghost" onClick={p.onNotifications} aria-label="Thông báo"><Bell size={17}/></button></>}<button className="tpl-ghost" disabled={p.themeDisabled} onClick={p.onTheme} aria-label="Đổi giao diện sáng tối">{p.dark?<Moon size={17}/>:<Sun size={17}/>}</button><span className="tpl-avatar">{p.initials}</span></div>{p.themeError&&<p className="tpl-theme-error" role="alert">{p.themeError}</p>}</header>}
+ <main ref={p.mainRef} id="main-content" tabIndex={-1}><div id="page-content">{p.children}</div></main></div>
+ </div>}

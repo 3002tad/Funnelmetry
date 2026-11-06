@@ -14,28 +14,9 @@ const admin = (path: string, label: string, unavailable?: string, permission = '
 // Availability reflects implemented screens, not backend service health.
 // Optional evaluation capabilities are deliberately absent until implemented.
 export const navigation: NavigationGroup[] = [
-  { label: 'BẮT ĐẦU', items: [analytics('/overview', 'Tổng quan')] },
   { label: 'PHÂN TÍCH', items: [
-    analytics('/workspace', 'Data Workspace'),
-    analytics('/analysis-runs', 'Analysis Runs'),
-    analytics('/evidence', 'Evidence Explorer'),
-  ] },
-  { label: 'KHÁM PHÁ', items: [
-    analytics('/funnels', 'Hành trình chuyển đổi'), analytics('/journeys', 'Hành trình'),
-    analytics('/products', 'Sản phẩm'),
-    { path: '/traffic', label: 'Traffic · UTM input', permission: 'analytics.workspace.use' },
-    analytics('/campaigns', 'Campaigns', 'Chưa kết nối analytical asset và metric chiến dịch.'),
-  ] },
-  { label: 'DỮ LIỆU', items: [
-    analytics('/metrics', 'Metrics'),
-    analytics('/assets', 'Analytical Assets'),
-  ] },
-  { label: 'KẾT QUẢ', items: [
-    analytics('/findings', 'Findings · đánh giá DA'),
-    analytics('/reports', 'Reports · bản xem'),
-  ] },
-  { label: 'CÔNG CỤ', items: [
-    analytics('/events', 'Sự kiện'), analytics('/data-health', 'Chất lượng dữ liệu'),
+    analytics('/overview', 'Tổng quan'), analytics('/funnels', 'Hành trình chuyển đổi'),
+    analytics('/products', 'Sản phẩm'), analytics('/events', 'Sự kiện'), analytics('/data-health', 'Chất lượng dữ liệu'),
   ] },
   { label: 'HỆ THỐNG', items: [
     admin('pipeline', 'Tình trạng Pipeline'),
