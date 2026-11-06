@@ -36,6 +36,12 @@ export function createScalingProbe({ env = process.env, lag = kafkaLag, workers 
       row.topic === (env.DASHBOARD_SCALING_TOPIC || 'funnelmetry.raw.v1')) : null
     let worker = workerResult.status === 'fulfilled' ? workerResult.value.workers?.find(row => row.worker === 'canonical-normalizer') : null
     const k = telemetry?.kafka
+    const consumableKnown = k?.status === 'OBSERVED' &&
+      k.group_id === (env.DASHBOARD_SCALING_GROUP_ID || 'funnelmetry-canonical-normalizer-v1') &&
+      k.topic === (env.DASHBOARD_SCALING_TOPIC || 'funnelmetry.raw.v1') &&
+      typeof k.raw_offset_lag === 'string' && /^(0|[1-9]\d{0,39})$/.test(k.raw_offset_lag) &&
+      typeof k.consumable_lag === 'string' && /^(0|[1-9]\d{0,39})$/.test(k.consumable_lag) &&
+      BigInt(k.consumable_lag) <= BigInt(k.raw_offset_lag)
     if (group?.status !== 'OBSERVED' && k?.status === 'OBSERVED' &&
       k.group_id === (env.DASHBOARD_SCALING_GROUP_ID || 'funnelmetry-canonical-normalizer-v1') &&
       k.topic === (env.DASHBOARD_SCALING_TOPIC || 'funnelmetry.raw.v1') &&
@@ -50,7 +56,11 @@ export function createScalingProbe({ env = process.env, lag = kafkaLag, workers 
     }
     return { checked_at, service: 'canonical-normalizer', scope: 'all_sources_service_runtime', read_only: true, runtime,
       kafka: { status: group?.status ?? 'UNVERIFIED', raw_offset_lag: group?.status === 'OBSERVED' ? group.lag_offsets : null,
-        partition_count: group?.partition_count ?? group?.partitions?.length ?? null, consumable_lag: null },
+        partition_count: group?.partition_count ?? group?.partitions?.length ?? null,
+        consumable_lag: consumableKnown ? k.consumable_lag : null,
+        consumable_status: consumableKnown ? 'OBSERVED' : 'UNVERIFIED',
+        consumable_observed_at: consumableKnown ? runtime.observed_at : null,
+        consumable_reason: consumableKnown ? k.reason : 'CONSUMABLE_LAG_UNVERIFIED' },
       readiness: { status: worker?.status ?? 'UNVERIFIED', ready: worker?.ready ?? null },
       controller: await readControllerObservation(env, clock()) }
   }

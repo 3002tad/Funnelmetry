@@ -11,12 +11,25 @@ import { PROCESSING_OBSERVATION_SQL, parseProcessingSource } from '../lib/proces
 import { kafkaLag } from '../lib/kafka-lag.js'
 import { workerReadiness } from '../lib/worker-readiness.js'
 import { scalingObservation } from '../lib/scaling-observation.js'
+import { parseTelemetryHistory, readTelemetryHistory } from '../lib/service-telemetry.js'
 import { monitoringMetrics } from '../lib/monitoring-metrics.js'
 import { EVENT_TRACE_SQL, parseEventTraceQuery, summarizeEventTrace } from '../lib/event-trace.js'
 import { TRAFFIC_SOURCE_INPUT_SQL, summarizeTrafficSourceInput } from '../lib/traffic-source-observation.js'
 
 export function createAdminV2Router(execute = query, probe = connectorReadiness, probeLag = kafkaLag, probeWorkers = workerReadiness, probeScaling = scalingObservation) {
   const router = Router()
+  router.get('/api/v2/admin/scaling/history', requireAuth, requireLiveSession(execute),
+    requireLivePermission('pipeline.monitor', execute), async (req, res) => {
+      res.set('Cache-Control', 'no-store')
+      let scope
+      try { scope = parseTelemetryHistory(req.query) }
+      catch (error) { return res.status(error.message === 'telemetry_stack_not_configured' ? 503 : 400).json({ error: 'telemetry_history_not_available_or_invalid_query' }) }
+      try {
+        const result = await readTelemetryHistory(execute, scope)
+        return requireLiveSession(execute)(req, res, () =>
+          requireLivePermission('pipeline.monitor', execute)(req, res, () => res.json(result)))
+      } catch { return res.status(503).json({ error: 'telemetry_history_unavailable' }) }
+    })
   router.get('/api/v2/admin/scaling', requireAuth, requireLiveSession(execute),
     requireLivePermission('pipeline.monitor', execute), async (req, res) => {
       res.set('Cache-Control', 'no-store')

@@ -19,6 +19,24 @@ const { requireLivePermission } = await import('../src/middleware/live-permissio
 const { requireLiveSession } = await import('../src/middleware/live-session.js')
 const { permissionsFor } = await import('../src/lib/roles.js')
 
+test('telemetry history validates scope and rechecks live session/role after reading', async () => {
+ const previous=process.env.DASHBOARD_SCALING_STACK;process.env.DASHBOARD_SCALING_STACK='test-stack'
+ let role='super_admin',version=0,calls=0,after=()=>{},fail=false
+ const execute=async sql=>{if(sql.includes('FROM service_telemetry_samples')){calls++;if(fail)throw Error('secret');after();return[]}return[{role,is_active:true,session_version:version}]}
+ const app=express();app.use(createAdminV2Router(execute));const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve))
+ const token=jwt.sign({sub:'admin',role,session_version:0},process.env.JWT_SECRET)
+ const get=(suffix='',auth=true,method='GET')=>fetch(`http://127.0.0.1:${server.address().port}/api/v2/admin/scaling/history${suffix}`,{method,headers:auth?{Authorization:`Bearer ${token}`}:{}})
+ try {
+  assert.equal((await get('',false)).status,401);assert.equal((await get('?stack=other')).status,400);assert.equal((await get('?hours=169')).status,400)
+  assert.equal((await get('',true,'POST')).status,404);assert.equal(calls,0)
+  const response=await get('?hours=1');assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');assert.deepEqual((await response.json()).items,[])
+  role='analyst';assert.equal((await get()).status,403)
+  role='super_admin';after=()=>{role='analyst'};assert.equal((await get()).status,403)
+  role='super_admin';after=()=>{version++};assert.equal((await get()).status,401)
+  version=0;after=()=>{};fail=true;assert.equal((await get()).status,503)
+ } finally {server.closeAllConnections();await new Promise(resolve=>server.close(resolve));if(previous===undefined)delete process.env.DASHBOARD_SCALING_STACK;else process.env.DASHBOARD_SCALING_STACK=previous}
+})
+
 test('scaling is read-only, validates query and rechecks live permissions/session', async () => {
  let role='super_admin', version=0, calls=0, after=()=>{}
  const app=express();app.use(createAdminV2Router(async()=>[{role,is_active:true,session_version:version}],undefined,undefined,undefined,

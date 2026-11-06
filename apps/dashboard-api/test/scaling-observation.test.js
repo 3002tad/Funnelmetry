@@ -40,6 +40,9 @@ test('collector telemetry supplies Kafka and all worker readiness with bounded f
   await writeFile(path, JSON.stringify(sample))
   const probe = createScalingProbe({ env, clock: () => now, lag: async () => ({ groups: [] }), workers: async () => ({ workers: [] }) })
   const data = await probe(); assert.equal(data.kafka.raw_offset_lag, '2'); assert.equal(data.kafka.partition_count, 2); assert.equal(data.readiness.ready, true)
+  sample.kafka.consumable_lag='0';sample.kafka.reason='VERIFIED_CONTROL_TAIL_EXCLUDED'
+  await writeFile(path,JSON.stringify(sample));assert.equal((await probe()).kafka.consumable_lag,'0')
+  sample.kafka.consumable_lag='3';await writeFile(path,JSON.stringify(sample));assert.equal((await probe()).kafka.consumable_lag,null)
   const health = await readWorkerTelemetry(env, ['canonical-normalizer', 'canonical-ledger-writer'], () => now)
   assert.equal(health.workers[0].ready, true); assert.equal(health.workers[1].ready, null); assert.ok(!JSON.stringify(health).includes('redacted'))
   sample.workers[0].checked_at = new Date(now - 61000).toISOString()

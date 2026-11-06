@@ -439,6 +439,46 @@ components:
           items: { type: string }
 
 paths:
+  /api/v2/admin/scaling/history:
+    get:
+      tags: [Admin]
+      summary: Read operational telemetry history independently of controller policy
+      description: Requires a live pipeline.monitor session. Server-configured stack/service/group/topic only. Each bucket retains its latest actual sample; null measurements and gaps are not filled with zero. No scale/recovery actions occur.
+      parameters:
+        - name: hours
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 168, default: 24 }
+      responses:
+        '200':
+          description: Actual collector samples in ascending timestamp order (at most 721)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [OBSERVED] }
+                  from: { type: string, format: date-time }
+                  to: { type: string, format: date-time }
+                  bucket_seconds: { type: integer, minimum: 30 }
+                  sampling: { type: string, enum: [latest_actual_sample_per_bucket] }
+                  items:
+                    type: array
+                    maxItems: 721
+                    items:
+                      type: object
+                      properties:
+                        observed_at: { type: string, format: date-time }
+                        running_replicas: { type: integer, nullable: true }
+                        desired_replicas: { type: integer, nullable: true }
+                        memory_percent_max: { type: number, nullable: true }
+                        raw_offset_lag: { type: string, nullable: true }
+                        consumable_lag: { type: string, nullable: true }
+                        lag_status: { type: string, enum: [OBSERVED, UNVERIFIED] }
+                        lag_reason: { type: string }
+        '400': { description: Invalid window or unsupported query field }
+        '401': { description: Missing or expired session }
+        '403': { description: pipeline.monitor permission required }
+        '503': { description: Storage unavailable or stack not configured }
   /api/v2/admin/scaling:
     get:
       tags: [Admin]
@@ -482,7 +522,10 @@ paths:
                       status: { type: string }
                       raw_offset_lag: { type: string, nullable: true }
                       partition_count: { type: integer, nullable: true }
-                      consumable_lag: { type: string, nullable: true, description: Not connected }
+                      consumable_lag: { type: string, nullable: true, description: Conservative offset backlog; only verified read_committed control-only tails are excluded, never an event count }
+                      consumable_status: { type: string, enum: [OBSERVED, UNVERIFIED] }
+                      consumable_observed_at: { type: string, format: date-time, nullable: true }
+                      consumable_reason: { type: string }
                   readiness:
                     type: object
                     properties:

@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { writeFile, rename } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
+import { KAFKA_PROBE, summarizeOffsets } from '../../../tools/autoscaler/observe.mjs'
 const exec = promisify(execFile)
 const [stack, output] = process.argv.slice(2)
 if (!/^[a-z0-9][a-z0-9_-]{0,100}$/.test(stack || '') || !output) throw Error('Usage: node collect-scaling.mjs STACK OUTPUT_FILE')
@@ -31,11 +32,22 @@ result.workers = await Promise.all(workerNames.map(async worker => {
     return JSON.parse(await run(['exec', containers[0], 'node', '-e', healthCode, worker]))
   } catch { return unknown }
 }))
-result.kafka = { status: 'UNVERIFIED', raw_offset_lag: null, partition_count: null }
+result.kafka = { status: 'UNVERIFIED', raw_offset_lag: null, consumable_lag: null, partition_count: null, control_only_partitions: null, reason: 'KAFKA_PROBE_UNAVAILABLE' }
 if (ids.length) {
-  // Kafka admin reads only: no commits, group joins, offset resolution or writes.
-  const kafkaCode = `const {Kafka,logLevel}=require('kafkajs');(async()=>{const {loadConfig}=await import('/workspace/workers/canonical-normalizer/src/config.js');const c=loadConfig();const a=new Kafka({brokers:c.brokers,logLevel:logLevel.NOTHING,connectionTimeout:2000,requestTimeout:2000,retry:{retries:2,initialRetryTime:100}}).admin();try{await a.connect();const offsets=await a.fetchOffsets({groupId:c.consumerGroupId,topics:[c.rawTopic],resolveOffsets:false});const bounds=await a.fetchTopicOffsets(c.rawTopic);const commits=offsets.find(t=>t.topic===c.rawTopic)?.partitions||[];let sum=0n;let valid=bounds.length>0&&bounds.length<=128;for(const p of bounds){const offset=commits.find(x=>x.partition===p.partition)?.offset;if(![p.low,p.high,offset].every(x=>typeof x==='string'&&/^(0|[1-9]\\d{0,18})$/.test(x))){valid=false;continue}const lo=BigInt(p.low),hi=BigInt(p.high),co=BigInt(offset);if(lo>hi||co<lo||co>hi)valid=false;else sum+=hi-co}console.log(JSON.stringify({status:valid?'OBSERVED':'UNVERIFIED',group_id:c.consumerGroupId,topic:c.rawTopic,raw_offset_lag:valid?String(sum):null,partition_count:bounds.length}))}finally{await a.disconnect()}})().catch(()=>process.exitCode=1)`
-  try { result.kafka = JSON.parse(await run(['exec', ids[0], 'node', '-e', kafkaCode])) } catch {}
+  try {
+    const identityCode = "import{loadConfig}from'/workspace/workers/canonical-normalizer/src/config.js';const c=loadConfig();console.log(JSON.stringify({group_id:c.consumerGroupId,topic:c.rawTopic}))"
+    const identity = JSON.parse(await run(['exec', ids[0], 'node', '--input-type=module', '-e', identityCode]))
+    if (![identity.group_id, identity.topic].every(value => typeof value === 'string' && /^[\w.-]{1,200}$/.test(value))) throw Error('invalid_scope')
+    const probe = JSON.parse((await exec('docker', ['exec', ids[0], 'node', '--input-type=module', '-e', KAFKA_PROBE, identity.topic, identity.group_id], { timeout: 25000, maxBuffer: 65536, windowsHide: true })).stdout)
+    if (probe.probeFailure) throw Error('probe_failed')
+    const summary = summarizeOffsets(probe.ends, probe.commits, probe.tails)
+    const known = summary.rawOffsetLag !== null
+    const consumable = known && probe.stable === true ? summary.lag : null
+    result.kafka = { ...identity, status: known ? 'OBSERVED' : 'UNVERIFIED',
+      raw_offset_lag: summary.rawOffsetLag, consumable_lag: consumable,
+      partition_count: summary.partitions, control_only_partitions: consumable === null ? null : summary.controlOnlyPartitions,
+      reason: consumable === null ? 'CONSUMABLE_LAG_UNVERIFIED' : summary.controlOnlyPartitions > 0 ? 'VERIFIED_CONTROL_TAIL_EXCLUDED' : 'RAW_OFFSETS_RETAINED_CONSERVATIVELY' }
+  } catch {}
 }
 result.observed_at = new Date().toISOString()
 if (output === '--stdout') {

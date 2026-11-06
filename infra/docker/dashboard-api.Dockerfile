@@ -10,6 +10,7 @@ COPY apps/dashboard-api/package.json apps/dashboard-api/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY apps/dashboard-api/src ./src
 COPY apps/dashboard-api/scripts ./scripts
+COPY apps/dashboard-api/migrations ./migrations
 COPY analytics/src /workspace/analytics/src
 COPY analytics/metadata /workspace/analytics/metadata
 COPY analytics/sql /workspace/analytics/sql

@@ -54,7 +54,7 @@ const admin=client.admin();
 const fingerprint=g=>JSON.stringify({state:g.state,members:g.members.map(m=>({id:m.memberId,a:m.memberAssignment.toString('base64')})).sort((a,b)=>a.id.localeCompare(b.id))});
 let phase='connect';
 try{await admin.connect();phase='describe';const before=(await admin.describeGroups([groupId])).groups[0];
-phase='offsets';const ends=await admin.fetchTopicOffsets(topic);const groups=await admin.fetchOffsets({groupId,topics:[topic]});
+phase='offsets';const ends=await admin.fetchTopicOffsets(topic);const groups=await admin.fetchOffsets({groupId,topics:[topic],resolveOffsets:false});
 const commits=groups.find(t=>t.topic===topic)?.partitions||[];
 let tails=[];
 // KafkaJS 2.2.4 has no public read_committed random-access API. Its pinned
