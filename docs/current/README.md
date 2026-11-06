@@ -10,6 +10,7 @@
 | Theo dõi, kiểm chứng và phục hồi | [Vận hành](OPERATIONS.md) |
 | Năng lực phân tích, giao diện và giới hạn | [Năng lực hiện hành](CAPABILITIES.md) |
 | Contract thời gian | [Time semantics v1](TIME_SEMANTICS_CONTRACT_V1.md) |
+| UI Analyst/Admin đang cập nhật trong source local | [Phạm vi, API và kiểm chứng UI](UI_REFRESH_IMPLEMENTATION.md) |
 | CDC Medusa chi tiết | [Medusa reference CDC](MEDUSA_REFERENCE_CDC_CURRENT.md) |
 
 Các README theo module trong [`docs/apps`](../apps/), [`docs/workers`](../workers/), [`docs/analytics`](../analytics/) và thư mục code giải thích chi tiết triển khai. [Archive](../archive/README.md) lưu hồ sơ kiểm thử/cutover theo phiên bản; không dùng làm runbook hiện tại. Tên vật lý có chữ `shadow` trong CDC là tương thích state/offset, không cho biết luồng phân tích đang ở shadow.

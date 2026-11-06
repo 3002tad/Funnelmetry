@@ -1,3 +1,4 @@
+import { readWorkerTelemetry } from './worker-telemetry.js'
 export const WORKERS = ['canonical-normalizer', 'canonical-ledger-writer', 'ingress-telemetry-writer', 'traffic-source-writer', 'journey-processor', 'funnel-processor', 'kpi-projector']
 
 async function probeWorker(worker, fetcher) {
@@ -28,7 +29,8 @@ async function probeWorker(worker, fetcher) {
 export function createWorkerProbe({ fetcher = fetch, env = process.env, cacheMs = 5000 } = {}) {
   let active, cached, expires = 0
   return async () => {
-    if (env.DASHBOARD_WORKER_HEALTH_ENABLED !== 'true') return { reason: 'NOT_CONFIGURED', workers: [] }
+    if (env.DASHBOARD_WORKER_HEALTH_ENABLED !== 'true') return env.DASHBOARD_SCALING_SNAPSHOT_FILE
+      ? readWorkerTelemetry(env, WORKERS) : { reason: 'NOT_CONFIGURED', workers: [] }
     if (cached && Date.now() < expires) return cached
     if (active) return active
     active = Promise.all(WORKERS.map(worker => probeWorker(worker, fetcher)))

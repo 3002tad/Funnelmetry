@@ -439,6 +439,72 @@ components:
           items: { type: string }
 
 paths:
+  /api/v2/admin/scaling:
+    get:
+      tags: [Admin]
+      summary: Read current canonical-normalizer scaling telemetry
+      description: |
+        Requires a current authenticated session and pipeline.monitor permission.
+        Accepts no query parameters. Global service scope across all sources.
+        No scaling or controller activation occurs. Runtime telemetry is accepted
+        only from a configured local file with a maximum age of 60 seconds.
+        raw_offset_lag counts offset positions, not events or consumable lag.
+        Missing telemetry remains null. An optional completed local observe-only
+        run provides historical policy/audit/series, explicitly separate from live runtime.
+      responses:
+        '200':
+          description: Partial observation; unavailable values are null, never synthesized
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: [no-store] }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checked_at, service, scope, read_only, runtime, kafka, readiness, controller]
+                properties:
+                  checked_at: { type: string, format: date-time }
+                  service: { type: string, enum: [canonical-normalizer] }
+                  scope: { type: string, enum: [all_sources_service_runtime] }
+                  read_only: { type: boolean, enum: [true] }
+                  runtime:
+                    type: object
+                    properties:
+                      status: { type: string, enum: [OBSERVED, UNVERIFIED] }
+                      reason: { type: string, nullable: true }
+                      observed_at: { type: string, format: date-time, nullable: true }
+                      desired_replicas: { type: integer, nullable: true, minimum: 0 }
+                      running_replicas: { type: integer, nullable: true, minimum: 0 }
+                      memory_percent_max: { type: number, nullable: true, minimum: 0, maximum: 100 }
+                  kafka:
+                    type: object
+                    properties:
+                      status: { type: string }
+                      raw_offset_lag: { type: string, nullable: true }
+                      partition_count: { type: integer, nullable: true }
+                      consumable_lag: { type: string, nullable: true, description: Not connected }
+                  readiness:
+                    type: object
+                    properties:
+                      status: { type: string }
+                      ready: { type: boolean, nullable: true }
+                  controller:
+                    type: object
+                    properties:
+                      status: { type: string, enum: [UNVERIFIED, COMPLETED_OBSERVATION] }
+                      reason: { type: string, nullable: true }
+                      mode: { type: string, enum: [OBSERVE_ONLY] }
+                      last_observed_at: { type: string, format: date-time }
+                      stale: { type: boolean, description: Historical sample exceeds the configured live sample age }
+                      recovery_status: { type: string, nullable: true }
+                      policy: { type: object, nullable: true, description: Allowlisted LOCAL_OBSERVATION_TEST policy values, not deployed policy }
+                      last_decision: { type: object, description: Last historical autoscale observation, not an executed action }
+                      history: { type: array, items: { type: object }, maxItems: 200 }
+                      series: { type: array, items: { type: object }, maxItems: 200, description: Chronological autoscale audit samples }
+        '400': { description: Query parameters are not supported }
+        '401': { description: Missing or expired session }
+        '403': { description: Current role does not permit pipeline monitoring }
+        '503': { description: Observation could not be assembled }
   /api/v2/analytics/datasets:
     get:
       summary: Discover retained approved exploration datasets

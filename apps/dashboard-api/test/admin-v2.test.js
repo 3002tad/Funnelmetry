@@ -18,6 +18,23 @@ const { requireAuth } = await import('../src/middleware/auth.js')
 const { requireLivePermission } = await import('../src/middleware/live-permission.js')
 const { requireLiveSession } = await import('../src/middleware/live-session.js')
 const { permissionsFor } = await import('../src/lib/roles.js')
+
+test('scaling is read-only, validates query and rechecks live permissions/session', async () => {
+ let role='super_admin', version=0, calls=0, after=()=>{}
+ const app=express();app.use(createAdminV2Router(async()=>[{role,is_active:true,session_version:version}],undefined,undefined,undefined,
+  async()=>{calls++;after();return {service:'canonical-normalizer'}}))
+ const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve))
+ const token=jwt.sign({sub:'admin',role,session_version:0},process.env.JWT_SECRET)
+ const get=(suffix='',auth=true,method='GET')=>fetch(`http://127.0.0.1:${server.address().port}/api/v2/admin/scaling${suffix}`,{method,headers:auth?{Authorization:`Bearer ${token}`}:{}})
+ try {
+  assert.equal((await get('',false)).status,401);assert.equal((await get('?service=evil')).status,400)
+  assert.equal((await get('',true,'POST')).status,404);assert.equal(calls,0)
+  const good=await get();assert.equal(good.status,200);assert.equal(good.headers.get('cache-control'),'no-store')
+  role='analyst';assert.equal((await get()).status,403)
+  role='super_admin';after=()=>{role='analyst'};assert.equal((await get()).status,403)
+  role='super_admin';after=()=>{version++};assert.equal((await get()).status,401)
+ } finally {server.closeAllConnections();await new Promise(resolve=>server.close(resolve))}
+})
 const { mutateAccount } = await import('../src/lib/account-mutation.js')
 const { assertAccountSchema, AccountSchemaError } = await import('../src/lib/account-schema.js')
 

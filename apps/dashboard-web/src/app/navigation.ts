@@ -18,39 +18,12 @@ export const navigation: NavigationGroup[] = [
     analytics('/overview', 'Tổng quan'), analytics('/funnels', 'Hành trình chuyển đổi'),
     analytics('/products', 'Sản phẩm'), analytics('/events', 'Sự kiện'), analytics('/data-health', 'Chất lượng dữ liệu'),
   ] },
-  { label: 'HỆ THỐNG', items: [
-    admin('pipeline', 'Tình trạng Pipeline'),
-    admin('recovery', 'Recovery / Auto-Healing', 'Chưa kết nối watchdog và lịch sử phục hồi. Không có thao tác khởi động lại hoặc điều khiển Docker tại đây.'),
-    admin('resources', 'Host / Container Resources', 'Chưa kết nối telemetry tài nguyên host/container. Không hiển thị số liệu giả hoặc claim tự động mở rộng tài nguyên.'),
-    admin('audit', 'Audit tài khoản', undefined, 'audit.read'),
-  ] },
-  { label: 'TIẾP NHẬN', items: [
-    admin('sources', 'Source Ingress / Sources', undefined, 'integration.read'),
-    admin('event-feed', 'Event Feed · quan sát nguồn'),
-    admin('event-trace', 'Event Trace · theo ID'),
-    admin('connector', 'Source Connector / Cursor'),
-    admin('processing', 'Processing · dữ liệu đã lưu'),
-    admin('quarantine', 'Quarantine / Unsupported'),
-  ] },
-  { label: 'QUẢN TRỊ DỮ LIỆU', items: [
-    admin('schemas', 'Schemas / Mappings', undefined, 'integration.read'),
-    admin('metadata', 'Metadata Catalog', undefined, 'integration.read'),
-    admin('metric-catalog', 'Metric / Dimension / Relationship Catalog', undefined, 'integration.read'),
-    admin('recipes', 'Analysis Recipes', 'Chưa có giao diện quản trị recipe và compatibility.'),
-    admin('tools', 'Tool Registry', undefined, 'integration.read'),
-  ] },
-  { label: 'AI / GIÁM SÁT', items: [
-    admin('agent', 'Agent Observability · tool evidence'),
-    admin('run-diagnostics', 'Analysis Run Diagnostics'),
-    admin('model-provider', 'Model / Provider · trạng thái'),
-  ] },
-  { label: 'QUYỀN / THIẾT LẬP', items: [
-    admin('users', 'Users / Roles', undefined, 'user.manage'),
-    admin('integration-settings', 'Secrets / Integration Settings', 'Chưa có API quản lý cấu hình tích hợp và secret an toàn.'),
-    admin('system-settings', 'System Settings', 'Chưa có API thay đổi cấu hình hệ thống có audit.'),
+  { label: 'QUẢN TRỊ', items: [
+    admin('pipeline', 'Tổng quan Pipeline'), admin('scaling', 'Auto Scaling'), admin('recovery', 'Health & Recovery'),
+    admin('sources', 'Nguồn dữ liệu', undefined, 'integration.read'), admin('investigate', 'Điều tra sự kiện'),
+    admin('users', 'Tài khoản & phân quyền', undefined, 'user.manage'), admin('audit', 'Audit tài khoản', undefined, 'audit.read'),
   ] },
 ]
-
 export function visibleNavigation(permissions: readonly string[]): NavigationGroup[] {
   return navigation.map(group => ({ ...group, items: group.items.filter(item =>
     permissions.includes(item.permission) && (item.path !== '/traffic' || permissions.includes('analytics.read')),
