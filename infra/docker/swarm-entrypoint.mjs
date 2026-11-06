@@ -14,6 +14,8 @@ export async function resolveSecretFiles(env, read = readFile) {
   const result = { ...env };
   for (const [name, path] of Object.entries(env)) {
     if (!name.endsWith('_FILE')) continue;
+    // Preserve this non-secret path for the API's read-only telemetry reader.
+    if (name === 'DASHBOARD_SCALING_SNAPSHOT_FILE') continue;
     const target = name.slice(0, -5);
     if (!allowed.has(target)) throw Error(`Unsupported secret file variable: ${name}`);
     if (env[target]) throw Error(`Do not set both ${target} and ${name}`);

@@ -2,6 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { resolveSecretFiles } from './swarm-entrypoint.mjs';
 
+test('telemetry path remains a path and is never loaded as a secret', async () => {
+  const input = { DASHBOARD_SCALING_SNAPSHOT_FILE: '/run/observability/scaling.json',
+    JWT_SECRET_FILE: '/run/secrets/jwt' };
+  const result = await resolveSecretFiles(input, async path => {
+    assert.equal(path, '/run/secrets/jwt');
+    return 'test-secret';
+  });
+  assert.equal(result.DASHBOARD_SCALING_SNAPSHOT_FILE, input.DASHBOARD_SCALING_SNAPSHOT_FILE);
+  assert.equal(result.DASHBOARD_SCALING_SNAPSHOT, undefined);
+  assert.equal(result.JWT_SECRET, 'test-secret');
+  await assert.rejects(resolveSecretFiles({ UNKNOWN_FILE: '/run/observability/other.json' }), /Unsupported/);
+});
+
 test('secret file adapter maps only allowlisted mounted paths and does not mutate input', async () => {
   const input = { POSTGRES_PASSWORD_FILE: '/run/secrets/db_password', PORT: '32000' };
   const mapped = await resolveSecretFiles(input, async path => {
