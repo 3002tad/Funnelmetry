@@ -31,8 +31,16 @@ export function createKafkaLedgerRuntime({
   let started = false
   let healthy = false
   let runPromise
+  let producerReady = false
+  let groupJoined = false
+  let processingFailed = false
+  let terminalFailure = false
 
-  async function processMessage({ topic, partition, message }) {
+  const refreshHealth = () => {
+    healthy = started && producerReady && groupJoined && !processingFailed && !terminalFailure
+  }
+
+  async function persistMessage({ topic, partition, message }) {
     if (message.value === null) throw new Error("canonical topic must not contain tombstones")
     const event = validateCanonicalEvent(JSON.parse(message.value.toString("utf8")))
     const [keySourceId, keySourceEventId] = JSON.parse(message.key?.toString("utf8") ?? "null")
@@ -68,21 +76,61 @@ export function createKafkaLedgerRuntime({
     }
   }
 
+  async function processMessage(sample) {
+    try {
+      await persistMessage(sample)
+      // A rejoin alone cannot clear a failed database/transaction handoff.
+      processingFailed = false
+      refreshHealth()
+    } catch (error) {
+      processingFailed = true
+      healthy = false
+      throw error
+    }
+  }
+
   const markFailed = (error) => {
     healthy = false
     onError(error)
   }
   if (consumer.events?.CRASH && typeof consumer.on === "function") {
-    consumer.on(consumer.events.CRASH, ({ payload }) => markFailed(payload?.error ?? new Error("canonical-ledger consumer crashed")))
+    consumer.on(consumer.events.CRASH, ({ payload }) => {
+      groupJoined = false
+      if (payload?.restart !== true) terminalFailure = true
+      markFailed(payload?.error ?? new Error("canonical-ledger consumer crashed"))
+    })
   }
+  const listen = (client, event, handler) => {
+    if (event && typeof client.on === "function") client.on(event, handler)
+  }
+  listen(consumer, consumer.events?.GROUP_JOIN, ({ payload }) => {
+    if (!started || payload?.groupId !== consumerGroupId) return
+    groupJoined = true
+    refreshHealth()
+  })
+  for (const event of [consumer.events?.REBALANCING, consumer.events?.STOP, consumer.events?.DISCONNECT]) {
+    listen(consumer, event, () => { groupJoined = false; healthy = false })
+  }
+  listen(producer, producer.events?.DISCONNECT, () => { producerReady = false; healthy = false })
+  listen(producer, producer.events?.CONNECT, () => {
+    if (!started) return
+    producerReady = true
+    refreshHealth()
+  })
 
   return Object.freeze({
     isHealthy: () => healthy,
     async start() {
       if (started) return
       started = true
+      healthy = false
+      groupJoined = false
+      producerReady = false
+      processingFailed = false
+      terminalFailure = false
       try {
         await producer.connect()
+        producerReady = true
         await consumer.connect()
         // A new ledger consumer group must be able to rebuild PostgreSQL from
         // the retained canonical topic; an existing group resumes its offset.
@@ -92,10 +140,13 @@ export function createKafkaLedgerRuntime({
           partitionsConsumedConcurrently: 1,
           eachMessage: processMessage,
         })
-        runPromise.catch(markFailed)
-        healthy = true
+        runPromise.catch(error => { terminalFailure = true; markFailed(error) })
+        refreshHealth()
       } catch (error) {
         healthy = false
+        started = false
+        producerReady = false
+        groupJoined = false
         await consumer.stop().catch(() => {})
         await Promise.allSettled([consumer.disconnect(), producer.disconnect()])
         started = false
@@ -105,6 +156,10 @@ export function createKafkaLedgerRuntime({
     async stop() {
       healthy = false
       if (!started) return
+      // Ignore late GROUP_JOIN / producer CONNECT callbacks during shutdown.
+      started = false
+      groupJoined = false
+      producerReady = false
       await consumer.stop().catch(() => {})
       await Promise.allSettled([consumer.disconnect(), producer.disconnect()])
       await runPromise?.catch(() => {})

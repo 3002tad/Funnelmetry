@@ -2,14 +2,18 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { createKafkaLedgerRuntime } from "../src/kafka-runtime.js"
 import { canonicalEvent } from "./fixtures.js"
+import { createWorkerHealth } from '../../shared/health-server.mjs'
 
-function fakeKafka({ failTransactionCommit = false, onTransactionCommit = () => {} } = {}) {
+function fakeKafka({ failTransactionCommit = false, onTransactionCommit = () => {}, autoJoin = true } = {}) {
   const calls = []
   let eachMessage
   let finishRun
-  let crashHandler
+  const handlers = new Map()
+  const producerHandlers = new Map()
   const transactions = []
   const producer = {
+    events: { CONNECT: 'producer.connect', DISCONNECT: 'producer.disconnect' },
+    on: (event, handler) => producerHandlers.set(event, handler),
     connect: async () => calls.push("producer.connect"),
     disconnect: async () => calls.push("producer.disconnect"),
     transaction: async () => {
@@ -32,14 +36,15 @@ function fakeKafka({ failTransactionCommit = false, onTransactionCommit = () => 
     },
   }
   const consumer = {
-    events: { CRASH: "crash" },
-    on: (_event, handler) => { crashHandler = handler },
+    events: { CRASH: "crash", GROUP_JOIN: 'join', REBALANCING: 'rebalance', STOP: 'stop', DISCONNECT: 'disconnect' },
+    on: (event, handler) => { handlers.set(event, handler) },
     connect: async () => calls.push("consumer.connect"),
     disconnect: async () => calls.push("consumer.disconnect"),
     subscribe: async () => calls.push("consumer.subscribe"),
     run: (options) => {
       calls.push(`consumer.run:autoCommit=${options.autoCommit}`)
       eachMessage = options.eachMessage
+      if (autoJoin) handlers.get('join')?.({ payload: { groupId: 'ledger-v1' } })
       return new Promise((resolve) => { finishRun = resolve })
     },
     stop: async () => { calls.push("consumer.stop"); finishRun?.() },
@@ -60,7 +65,9 @@ function fakeKafka({ failTransactionCommit = false, onTransactionCommit = () => 
         },
       })
     },
-    crash(error) { crashHandler({ payload: { error } }) },
+    crash(error, restart = false) { handlers.get('crash')({ payload: { error, restart } }) },
+    emit(event, payload = {}) { handlers.get(event)?.({ payload }) },
+    emitProducer(event) { producerHandlers.get(event)?.({}) },
   }
 }
 
@@ -145,4 +152,106 @@ test("marks the ledger unhealthy when the consumer crashes", async () => {
   assert.equal(worker.isHealthy(), false)
   assert.match(errors[0].message, /consumer failed/)
   await worker.stop()
+})
+
+test('startup waits for group join; a retriable startup crash recovers without a new event', async () => {
+  const kafka = fakeKafka({ autoJoin: false })
+  const worker = runtime(kafka, { persist: async () => {} })
+  await worker.start()
+  assert.equal(worker.isHealthy(), false)
+  kafka.crash(new Error('coordinator loading'), true)
+  kafka.emit('join', { groupId: 'foreign-group' })
+  assert.equal(worker.isHealthy(), false)
+  kafka.emit('join', { groupId: 'ledger-v1' })
+  assert.equal(worker.isHealthy(), true)
+  await worker.stop()
+})
+
+test('rebalancing and producer disconnect are not ready; confirmed connections restore readiness', async () => {
+  const kafka = fakeKafka()
+  const worker = runtime(kafka, { persist: async () => {} })
+  await worker.start()
+  assert.equal(worker.isHealthy(), true)
+  kafka.emit('rebalance')
+  assert.equal(worker.isHealthy(), false)
+  kafka.emit('join', { groupId: 'ledger-v1' })
+  assert.equal(worker.isHealthy(), true)
+  kafka.emitProducer('producer.disconnect')
+  assert.equal(worker.isHealthy(), false)
+  kafka.emit('join', { groupId: 'ledger-v1' })
+  assert.equal(worker.isHealthy(), false)
+  kafka.emitProducer('producer.connect')
+  assert.equal(worker.isHealthy(), true)
+  await worker.stop()
+  kafka.emit('join', { groupId: 'ledger-v1' })
+  kafka.emitProducer('producer.connect')
+  assert.equal(worker.isHealthy(), false)
+})
+
+test('a rejoin cannot hide PostgreSQL failure; only a successful persisted transaction clears it', async () => {
+  let fail = true
+  const kafka = fakeKafka()
+  const worker = runtime(kafka, { persist: async () => {
+    if (fail) throw Error('postgres unavailable')
+    return { persisted_at: '2026-11-06T00:00:00Z', canonical_event: canonicalEvent }
+  } })
+  await worker.start()
+  await assert.rejects(kafka.deliver(), /postgres unavailable/)
+  assert.equal(worker.isHealthy(), false)
+  assert.equal(kafka.transactions.length, 0)
+  kafka.crash(Error('postgres unavailable'), true)
+  kafka.emit('join', { groupId: 'ledger-v1' })
+  assert.equal(worker.isHealthy(), false)
+  fail = false
+  await kafka.deliver()
+  assert.equal(kafka.transactions[0].committed, true)
+  assert.equal(worker.isHealthy(), true)
+  await worker.stop()
+})
+
+test('failed Kafka commit remains degraded across rejoin and clears only after commit succeeds', async () => {
+  let fail = true
+  const kafka = fakeKafka({ onTransactionCommit: () => { if (fail) throw Error('commit failed') } })
+  const worker = runtime(kafka, { persist: async () => ({ persisted_at: '2026-11-06T00:00:00Z', canonical_event: canonicalEvent }) })
+  await worker.start()
+  await assert.rejects(kafka.deliver(), /commit failed/)
+  assert.equal(kafka.transactions[0].aborted, true)
+  kafka.crash(Error('transaction failed'), true)
+  kafka.emit('join', { groupId: 'ledger-v1' })
+  assert.equal(worker.isHealthy(), false)
+  fail = false
+  await kafka.deliver()
+  assert.equal(worker.isHealthy(), true)
+  await worker.stop()
+})
+
+test('fatal crash cannot become ready through a late join or successful callback', async () => {
+  const kafka = fakeKafka()
+  const worker = runtime(kafka, { persist: async () => ({ persisted_at: '2026-11-06T00:00:00Z', canonical_event: canonicalEvent }) })
+  await worker.start()
+  kafka.crash(Error('fatal producer epoch'), false)
+  kafka.emit('join', { groupId: 'ledger-v1' })
+  await kafka.deliver()
+  assert.equal(worker.isHealthy(), false)
+  await worker.stop()
+})
+
+test('HTTP readiness recovers after retriable rejoin while liveness remains available', async () => {
+  const kafka = fakeKafka()
+  const worker = runtime(kafka, { persist: async () => {} })
+  const health = createWorkerHealth({ worker: 'canonical-ledger-writer', runtime: worker,
+    isStopping: () => false, port: 0, host: '127.0.0.1' })
+  const port = await health.start()
+  const get = path => fetch(`http://127.0.0.1:${port}${path}`)
+  try {
+    await worker.start(); health.markStarted()
+    assert.equal((await get('/readyz')).status, 200)
+    kafka.crash(Error('coordinator loading'), true)
+    assert.equal((await get('/readyz')).status, 503)
+    assert.equal((await get('/healthz')).status, 200)
+    kafka.emit('join', { groupId: 'ledger-v1' })
+    const ready = await get('/readyz')
+    assert.equal(ready.status, 200)
+    assert.equal((await ready.json()).status, 'READY')
+  } finally { await worker.stop(); await health.stop() }
 })
