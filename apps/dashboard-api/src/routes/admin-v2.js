@@ -10,12 +10,23 @@ import { requireLiveSession } from '../middleware/live-session.js'
 import { PROCESSING_OBSERVATION_SQL, parseProcessingSource } from '../lib/processing-observation.js'
 import { kafkaLag } from '../lib/kafka-lag.js'
 import { workerReadiness } from '../lib/worker-readiness.js'
+import { scalingObservation } from '../lib/scaling-observation.js'
 import { monitoringMetrics } from '../lib/monitoring-metrics.js'
 import { EVENT_TRACE_SQL, parseEventTraceQuery, summarizeEventTrace } from '../lib/event-trace.js'
 import { TRAFFIC_SOURCE_INPUT_SQL, summarizeTrafficSourceInput } from '../lib/traffic-source-observation.js'
 
-export function createAdminV2Router(execute = query, probe = connectorReadiness, probeLag = kafkaLag, probeWorkers = workerReadiness) {
+export function createAdminV2Router(execute = query, probe = connectorReadiness, probeLag = kafkaLag, probeWorkers = workerReadiness, probeScaling = scalingObservation) {
   const router = Router()
+  router.get('/api/v2/admin/scaling', requireAuth, requireLiveSession(execute),
+    requireLivePermission('pipeline.monitor', execute), async (req, res) => {
+      res.set('Cache-Control', 'no-store')
+      if (Object.keys(req.query).length) return res.status(400).json({ error: 'invalid_scaling_query' })
+      try {
+        const result = await probeScaling()
+        return requireLiveSession(execute)(req, res, () =>
+          requireLivePermission('pipeline.monitor', execute)(req, res, () => res.json(result)))
+      } catch { return res.status(503).json({ error: 'scaling_observation_unavailable' }) }
+    })
   router.get('/api/v2/admin/event-trace', requireAuth, requireLiveSession(execute),
     requireLivePermission('pipeline.monitor', execute), async (req, res) => {
       res.set('Cache-Control', 'no-store')

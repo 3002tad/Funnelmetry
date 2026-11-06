@@ -7,6 +7,8 @@ import { navigation } from './navigation'
 import { UnavailablePage } from './UnavailablePage'
 import { AiWorkspacePage } from '../features/ai/AiWorkspacePage'
 
+const AdminWorkspacePage = lazy(() => import('../features/admin/AdminWorkspacePage'))
+const ScalingPage = lazy(() => import('../features/admin/ScalingPage'))
 const OverviewPage = lazy(() => import("../features/overview/AnalyticsOverviewPage").then((module) => ({ default: module.AnalyticsOverviewPage })))
 const FunnelsPage = lazy(() => import("../features/funnels/FunnelWorkspacePage"))
 const JourneysPage = lazy(() => import("../features/journeys/JourneysPage").then((module) => ({ default: module.JourneysPage })))
@@ -84,7 +86,10 @@ export function App() {
           <Route path="/chat" element={<Navigate to="/ai" replace />} />
           </Route>
           <Route element={<PermissionGate permission="pipeline.monitor" />}>
-          <Route path="/admin/pipeline" element={<PipelineHealthPage />} />
+          <Route path="/admin/pipeline" element={<AdminWorkspacePage kind="pipeline" />} />
+          <Route path="/admin/scaling" element={<ScalingPage />} />
+<Route path="/admin/recovery" element={<AdminWorkspacePage kind="health" />} />
+<Route path="/admin/investigate" element={<AdminWorkspacePage kind="investigate" />} />
 <Route path="/admin/connector" element={<ConnectorsPage />} />
           <Route path="/admin/event-feed" element={<EventFeedPage />} />
           <Route path="/admin/event-trace" element={<EventTracePage />} />
@@ -101,7 +106,7 @@ export function App() {
             <Route path="/admin/users" element={<AdminUsersPage />} />
           </Route>
           <Route element={<PermissionGate permission="integration.read" />}>
-            <Route path="/admin/sources" element={<SourcesPage />} />
+            <Route path="/admin/sources" element={<AdminWorkspacePage kind="sources" />} />
             <Route path="/admin/metadata" element={<RegistryPage kind="metadata" />} />
             <Route path="/admin/tools" element={<RegistryPage kind="tools" />} />
             <Route path="/admin/metric-catalog" element={<RegistryPage kind="metrics" />} />

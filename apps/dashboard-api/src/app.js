@@ -41,7 +41,7 @@ const systemRouter = config.features.legacy ? (await import('./routes/system.js'
 const chatRouter = config.features.ai ? (await import('./routes/chat.js')).chatRouter : null;
 const insightsRouter = config.features.ai ? (await import('./routes/insights.js')).insightsRouter : null;
 
-export function createApp() {
+export function createApp({ adminLag, adminConnector } = {}) {
   const app = express();
   app.use(
     cors({
@@ -65,7 +65,7 @@ export function createApp() {
   app.use(createMonitoringCredentialRouter());
   app.use(createMonitoringAlertsRouter());
   app.use(createChatV2Router());
-  app.use(createAdminV2Router());
+  app.use(createAdminV2Router(undefined, adminConnector, adminLag));
   app.use(createCatalogV2Router());
   app.use(createRunDiagnosticsRouter());
   app.use(createModelProviderRouter());

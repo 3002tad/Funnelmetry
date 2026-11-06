@@ -7,6 +7,12 @@ test('analyst menu retains approved modules and hides retired surfaces',()=>{
  assert.deepEqual(paths([]),[]);assert.deepEqual(paths(['chat.use']),[])
  for(const p of ['/workspace','/analysis-runs','/evidence','/findings','/reports','/metrics','/assets','/campaigns','/journeys'])assert.ok(!paths(['analytics.read']).includes(p))
 })
+test('admin groups remain capability scoped after merging screens',()=>{
+ assert.deepEqual(paths(['pipeline.monitor']),['/admin/pipeline','/admin/scaling','/admin/recovery','/admin/investigate'])
+ assert.deepEqual(paths(['integration.read']),['/admin/sources'])
+ assert.deepEqual(paths(['user.manage']),['/admin/users']);assert.deepEqual(paths(['audit.read']),['/admin/audit'])
+ assert.ok(!paths(['pipeline.monitor']).includes('/overview'));assert.ok(!paths(['analytics.read']).some(p=>p.startsWith('/admin/')))
+})
 test('combined capabilities retain both bundles and routes stay unique',()=>{
  const result=paths(['analytics.read','pipeline.monitor']);assert.ok(result.includes('/overview'));assert.ok(result.includes('/admin/pipeline'))
  const items=navigation.flatMap(g=>g.items);assert.equal(new Set(items.map(i=>i.path)).size,items.length)
