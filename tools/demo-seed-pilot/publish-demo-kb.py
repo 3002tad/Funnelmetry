@@ -158,7 +158,7 @@ def verify_golden_sql(token):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["check","publish","verify"])
+    parser.add_argument("command", choices=["check","publish","verify","list-old","prune-old"])
     parser.add_argument("--password-file", required=True)
     parser.add_argument("--email", choices=["admin@example.local","analyst@example.local"],
                         default="admin@example.local")
@@ -175,6 +175,24 @@ def main():
     if args.command == "check":
         print(json.dumps({"release_id":RELEASE,"kb_space":space_name,
                           "document_status":document.get("status") if document else "MISSING"}))
+        return
+    if args.command in ("list-old", "prune-old"):
+        if not document or document.get("status") != "FINISHED":
+            raise RuntimeError("current knowledge document must be indexed before pruning")
+        spaces = api("/api/v1/knowledge/space/list", {}, token)
+        old = sorted({item["name"] for item in spaces
+                      if isinstance(item.get("name"), str)
+                      and item["name"].startswith("funnelmetry-demo-")
+                      and item["name"] != space_name})
+        if args.command == "prune-old":
+            for name in old:
+                api("/api/v1/knowledge/space/delete", {"name": name}, token)
+            remaining = {item["name"] for item in api("/api/v1/knowledge/space/list", {}, token)
+                         if isinstance(item.get("name"), str)}
+            if space_name not in remaining or any(name in remaining for name in old):
+                raise RuntimeError("knowledge space cleanup did not converge")
+        print(json.dumps({"release_id": RELEASE, "kb_space": space_name,
+                          "old_spaces": old, "deleted": args.command == "prune-old"}))
         return
     if args.command == "publish":
         if not space:

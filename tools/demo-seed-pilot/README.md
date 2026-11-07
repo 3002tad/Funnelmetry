@@ -156,6 +156,9 @@ the new release with `demo-semantic-release.mjs emit-sql 1.2.1` after its
 `check` passes; `publish-demo-kb.py` requires the new release ID and SHA before
 creating a versioned derived KB document. Publishing the KB does not retire
 older spaces or automatically select the new one in Agent conversations.
+After `verify` passes, run `publish-demo-kb.py list-old` to inspect only
+`funnelmetry-demo-*` spaces, then `prune-old` to remove those older derived
+spaces. Select the new space for future Agent conversations before evaluation.
 
 ```sh
 node tools/demo-seed-pilot/gap-seed.mjs <anchor.json> <labels.json> <new-directory>
