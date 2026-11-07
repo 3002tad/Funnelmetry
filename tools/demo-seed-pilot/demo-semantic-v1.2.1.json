@@ -1,0 +1,485 @@
+{
+  "release_id": "demo-commerce-analysis@1.2.1",
+  "status": "ACTIVE_DEMO",
+  "authority": "PostgreSQL funnelmetry_demo.semantic_release",
+  "scope": "KLTN synthetic historical analysis with separately labeled observed browser events",
+  "time_zone": "UTC",
+  "datasets": [
+    {
+      "dataset_id": "demo-historical-100000-v3-utm",
+      "origin": "SYNTHETIC_BACKFILL",
+      "start": "2025-11-01T00:00:00Z",
+      "end_exclusive": "2026-11-01T00:00:00Z",
+      "fixture_sha256": "efa33fde6f86d3c1651ea54e0b1873374d79436def7b3f753f39e31c17a250de"
+    },
+    {
+      "dataset_id": "demo-gap-20261101-20261105-v2-utm",
+      "origin": "SYNTHETIC_BACKFILL",
+      "start": "2026-11-01T00:00:00Z",
+      "end_exclusive": "2026-11-05T00:00:00Z",
+      "fixture_sha256": "8df0119c34c5d13e71f506dcfbb9708e31b7f52fa50cadfc300fa91f18bfbdea"
+    }
+  ],
+  "observed_from": "2026-11-05T00:00:00Z",
+  "quality": {
+    "dataset_ready_views": [
+      "funnelmetry_demo.dataset_coverage",
+      "funnelmetry_demo.gap_dataset_coverage"
+    ],
+    "late_event_overlap_view": "funnelmetry_demo.gap_overlap_status",
+    "ready_means": "Manifest row counts and session dates match; initial load checked every row against the fixture",
+    "not_established": "Continuous observed CDC or browser coverage and historical Medusa sales"
+  },
+  "assets": [
+    {
+      "id": "asset.demo.sessions@1.0.0",
+      "view": "funnelmetry_demo.sessions",
+      "grain": [
+        "dataset_id",
+        "session_id"
+      ],
+      "time_column": "started_at",
+      "fields": [
+        "dataset_id",
+        "session_id",
+        "started_at",
+        "ended_at",
+        "device",
+        "utm_source",
+        "customer_key",
+        "origin"
+      ],
+      "authority": "synthetic_fixture"
+    },
+    {
+      "id": "asset.demo.browser_events@1.0.0",
+      "view": "funnelmetry_demo.browser_events",
+      "grain": [
+        "dataset_id",
+        "event_id"
+      ],
+      "time_column": "occurred_at",
+      "fields": [
+        "dataset_id",
+        "event_id",
+        "session_id",
+        "event_type",
+        "occurred_at",
+        "data",
+        "origin"
+      ],
+      "authority": "synthetic_fixture"
+    },
+    {
+      "id": "asset.demo.behavior_events_all@1.0.0",
+      "view": "funnelmetry_demo.behavior_events_all",
+      "grain": [
+        "origin",
+        "source_id",
+        "event_id"
+      ],
+      "time_column": "occurred_at",
+      "fields": [
+        "dataset_id",
+        "origin",
+        "source_id",
+        "event_id",
+        "event_type",
+        "occurred_at",
+        "quality_status"
+      ],
+      "authority": "synthetic_plus_observed",
+      "limitation": "Observed event rows do not prove continuous coverage or matching session IDs"
+    },
+    {
+      "id": "asset.demo.catalog_products@1.0.0",
+      "view": "funnelmetry_demo.catalog_products",
+      "grain": [
+        "dataset_id",
+        "product_id"
+      ],
+      "fields": [
+        "dataset_id",
+        "product_id",
+        "title",
+        "label_origin"
+      ],
+      "authority": "synthetic_fixture",
+      "limitation": "Titles came from a catalog snapshot, not historical names"
+    },
+    {
+      "id": "asset.demo.catalog_categories@1.0.0",
+      "view": "funnelmetry_demo.catalog_categories",
+      "grain": [
+        "dataset_id",
+        "category_id"
+      ],
+      "fields": [
+        "dataset_id",
+        "category_id",
+        "name"
+      ],
+      "authority": "synthetic_fixture"
+    },
+    {
+      "id": "asset.demo.category_history@1.0.0",
+      "view": "funnelmetry_demo.category_history",
+      "grain": [
+        "dataset_id",
+        "product_id",
+        "category_id",
+        "revision"
+      ],
+      "time_column": "valid_from",
+      "fields": [
+        "dataset_id",
+        "product_id",
+        "category_id",
+        "revision",
+        "valid_from",
+        "valid_to"
+      ],
+      "authority": "synthetic_fixture"
+    },
+    {
+      "id": "asset.demo.cart_links@1.0.0",
+      "view": "funnelmetry_demo.cart_links",
+      "grain": [
+        "dataset_id",
+        "event_id"
+      ],
+      "time_column": "occurred_at",
+      "fields": [
+        "dataset_id",
+        "event_id",
+        "session_id",
+        "cart_id",
+        "occurred_at"
+      ],
+      "authority": "synthetic_fixture"
+    },
+    {
+      "id": "asset.demo.cart_changes@1.0.0",
+      "view": "funnelmetry_demo.cart_changes",
+      "grain": [
+        "dataset_id",
+        "cart_id",
+        "line_item_id",
+        "revision"
+      ],
+      "time_column": "change_at",
+      "fields": [
+        "dataset_id",
+        "cart_id",
+        "line_item_id",
+        "revision",
+        "change_type",
+        "before_quantity",
+        "after_quantity",
+        "change_at"
+      ],
+      "authority": "synthetic_fixture"
+    },
+    {
+      "id": "asset.demo.orders@1.0.0",
+      "view": "funnelmetry_demo.orders",
+      "grain": [
+        "dataset_id",
+        "order_id"
+      ],
+      "time_column": "created_at",
+      "fields": [
+        "dataset_id",
+        "order_id",
+        "cart_id",
+        "reference_state",
+        "created_at",
+        "currency",
+        "origin"
+      ],
+      "authority": "synthetic_fixture",
+      "limitation": "ON is a synthetic reference state, not paid revenue"
+    },
+    {
+      "id": "asset.demo.order_lines@1.0.0",
+      "view": "funnelmetry_demo.order_lines",
+      "grain": [
+        "dataset_id",
+        "order_id",
+        "line_id"
+      ],
+      "time_column": "ordered_at",
+      "fields": [
+        "dataset_id",
+        "order_id",
+        "line_id",
+        "product_key",
+        "variant_key",
+        "quantity",
+        "unit_amount_minor",
+        "line_total_minor",
+        "currency",
+        "price_rule",
+        "ordered_at"
+      ],
+      "authority": "synthetic_fixture"
+    },
+    {
+      "id": "asset.demo.payments@1.0.0",
+      "view": "funnelmetry_demo.payments",
+      "grain": [
+        "dataset_id",
+        "action_id"
+      ],
+      "time_column": "action_at",
+      "fields": [
+        "dataset_id",
+        "order_id",
+        "action_id",
+        "action",
+        "amount_minor",
+        "currency",
+        "action_at"
+      ],
+      "authority": "synthetic_fixture",
+      "limitation": "Not observed Medusa payments"
+    },
+    {
+      "id": "asset.demo.fulfillments@1.0.0",
+      "view": "funnelmetry_demo.fulfillments",
+      "grain": [
+        "dataset_id",
+        "transition_id"
+      ],
+      "time_column": "occurred_at",
+      "fields": [
+        "dataset_id",
+        "order_id",
+        "transition_id",
+        "state",
+        "occurred_at"
+      ],
+      "authority": "synthetic_fixture"
+    },
+    {
+      "id": "asset.demo.customer_evidence@1.0.0",
+      "view": "funnelmetry_demo.customer_evidence",
+      "grain": [
+        "dataset_id",
+        "evidence_id"
+      ],
+      "time_column": "observed_at",
+      "fields": [
+        "dataset_id",
+        "evidence_id",
+        "customer_key",
+        "order_id",
+        "evidence_type",
+        "observed_at"
+      ],
+      "authority": "synthetic_fixture",
+      "limitation": "Customer links do not cross dataset segments"
+    },
+    {
+      "id": "asset.demo.stock_positions@1.0.0",
+      "view": "funnelmetry_demo.stock_positions",
+      "grain": [
+        "dataset_id",
+        "inventory_item_key",
+        "revision",
+        "location",
+        "channel"
+      ],
+      "time_column": "effective_at",
+      "fields": [
+        "dataset_id",
+        "inventory_item_key",
+        "variant_key",
+        "location",
+        "stocked",
+        "reserved",
+        "required_quantity",
+        "effective_at",
+        "valid_to"
+      ],
+      "authority": "synthetic_fixture",
+      "limitation": "stocked minus reserved is not sellable inventory"
+    },
+    {
+      "id": "asset.demo.dataset_coverage@1.0.0",
+      "view": "funnelmetry_demo.dataset_coverage",
+      "grain": [
+        "dataset_id"
+      ],
+      "fields": [
+        "dataset_id",
+        "period_start",
+        "period_end",
+        "demo_status",
+        "mismatched_domains",
+        "invalid_sessions"
+      ],
+      "authority": "pipeline_demo_validation"
+    },
+    {
+      "id": "asset.demo.gap_dataset_coverage@1.0.0",
+      "view": "funnelmetry_demo.gap_dataset_coverage",
+      "grain": [
+        "dataset_id"
+      ],
+      "fields": [
+        "dataset_id",
+        "demo_status",
+        "mismatched_domains",
+        "invalid_sessions"
+      ],
+      "authority": "pipeline_demo_validation"
+    },
+    {
+      "id": "asset.demo.gap_overlap_status@1.0.0",
+      "view": "funnelmetry_demo.gap_overlap_status",
+      "grain": [
+        "dataset_id"
+      ],
+      "fields": [
+        "dataset_id",
+        "period_start",
+        "period_end",
+        "observed_overlap_count",
+        "overlap_status"
+      ],
+      "authority": "pipeline_demo_validation"
+    }
+  ],
+  "relationships": [
+    {
+      "from": "sessions",
+      "to": "browser_events",
+      "keys": [
+        "dataset_id",
+        "session_id"
+      ],
+      "cardinality": "one-to-many",
+      "safe_aggregation": "Count distinct dataset_id plus session_id after join"
+    },
+    {
+      "from": "sessions",
+      "to": "cart_links",
+      "keys": [
+        "dataset_id",
+        "session_id"
+      ],
+      "cardinality": "one-to-many",
+      "safe_aggregation": "Deduplicate linked sessions"
+    },
+    {
+      "from": "orders",
+      "to": "order_lines",
+      "keys": [
+        "dataset_id",
+        "order_id"
+      ],
+      "cardinality": "one-to-many",
+      "safe_aggregation": "Sum line_total_minor at line grain or count distinct order key"
+    },
+    {
+      "from": "orders",
+      "to": "payments",
+      "keys": [
+        "dataset_id",
+        "order_id"
+      ],
+      "cardinality": "one-to-many",
+      "safe_aggregation": "Group payment actions before joining to order lines"
+    },
+    {
+      "from": "orders",
+      "to": "fulfillments",
+      "keys": [
+        "dataset_id",
+        "order_id"
+      ],
+      "cardinality": "one-to-many",
+      "safe_aggregation": "Count distinct order key at each state"
+    },
+    {
+      "from": "browser_events",
+      "to": "category_history",
+      "keys": [
+        "dataset_id",
+        "data.product_id=product_id",
+        "occurred_at in [valid_from,valid_to)"
+      ],
+      "cardinality": "one-to-many",
+      "safe_aggregation": "Count distinct dataset_id plus event_id"
+    }
+  ],
+  "measures": [
+    {
+      "id": "measure.demo_session_count@1.0.0",
+      "asset": "sessions",
+      "expression": "count(*)",
+      "unit": "sessions"
+    },
+    {
+      "id": "measure.demo_product_view_count@1.0.0",
+      "asset": "browser_events",
+      "expression": "count(*) where event_type='behavior.product_viewed'",
+      "unit": "events"
+    },
+    {
+      "id": "measure.demo_search_count@1.0.0",
+      "asset": "browser_events",
+      "expression": "count(*) where event_type='behavior.search_query_submitted'",
+      "unit": "events"
+    },
+    {
+      "id": "measure.demo_cart_mutation_count@1.0.0",
+      "asset": "cart_changes",
+      "expression": "count(*)",
+      "unit": "mutations"
+    },
+    {
+      "id": "measure.demo_order_row_count@1.0.0",
+      "asset": "orders",
+      "expression": "count(*)",
+      "unit": "order rows"
+    },
+    {
+      "id": "measure.demo_ordered_line_value_minor@1.0.0",
+      "asset": "order_lines",
+      "expression": "sum(line_total_minor) group by currency",
+      "unit": "minor currency units"
+    },
+    {
+      "id": "measure.demo_captured_payment_minor@1.0.0",
+      "asset": "payments",
+      "expression": "sum(amount_minor) where action='CAPTURED' group by currency",
+      "unit": "minor currency units"
+    },
+    {
+      "id": "measure.demo_refunded_payment_minor@1.0.0",
+      "asset": "payments",
+      "expression": "sum(amount_minor) where action='REFUNDED' group by currency",
+      "unit": "minor currency units"
+    }
+  ],
+  "unsupported_claims": [
+    {
+      "claim": "observed_paid_revenue",
+      "reason": "Observed payment/refund lifecycle has no published combined binding in this demo release"
+    },
+    {
+      "claim": "observed_search_to_cart",
+      "reason": "Observed browser search and CDC cart identities are not joined by an approved correlation contract"
+    }
+  ],
+  "analysis_guidance": [
+    "Separate aggregate counts by their session, event, cart, or order grain. Independent counts alone do not prove an ordered funnel or step conversion.",
+    "A step conversion requires a defined metric, common linked cohort, join keys, compatible time window, event ordering and deduplication. Do not divide order rows by checkout sessions and call the result conversion without this evidence.",
+    "A descriptive ratio within a proven population can be reported with its numerator, denominator and scope. When cohort evidence is missing, present separate counts and the limitation; do not invent an event or claim.",
+    "UTM source values in the synthetic fixture are scenario inputs, not observed marketing attribution; keep missing values distinct and preserve raw strings."
+  ],
+  "golden_sql": "tools/demo-seed-pilot/demo-golden-v2.sql",
+  "golden_questions": 15
+}

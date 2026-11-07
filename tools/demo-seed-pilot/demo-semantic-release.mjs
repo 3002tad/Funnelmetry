@@ -1,13 +1,14 @@
 // Publish an immutable demo semantic release after validating physical bindings.
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-const [command, version = '1.2.0'] = process.argv.slice(2)
+const [command, version = '1.2.1'] = process.argv.slice(2)
 const releases = {
   '1.0.0': { file: './demo-semantic-v1.json', sha256: '37649d69560cc9c7a3442ab20ba502a995bc274998e1b6901661bc7adb643e3e' },
   '1.1.0': { file: './demo-semantic-v1.1.json', sha256: 'f06625d65311170c0af26b9d1d1304fec6800b55c8a2d426743dce11d53c6f3a' },
   '1.2.0': { file: './demo-semantic-v1.2.json', sha256: '2bb4829a13acb231d5b5ce4f7ba77a3ee7259ea68de745048e4435befb691c9f' },
+  '1.2.1': { file: './demo-semantic-v1.2.1.json', sha256: 'a737fd85883270401c5bd78eae30ad71bc3a6d8329007c928a964f4b981669b4' },
 }
-if (!['check','emit-sql'].includes(command) || !releases[version]) throw Error('usage: node demo-semantic-release.mjs check|emit-sql [1.0.0|1.1.0|1.2.0]')
+if (!['check','emit-sql'].includes(command) || !releases[version]) throw Error('usage: node demo-semantic-release.mjs check|emit-sql [1.0.0|1.1.0|1.2.0|1.2.1]')
 const file = await readFile(new URL(releases[version].file, import.meta.url))
 // Git may check out JSON with CRLF on Windows; pin canonical LF bytes.
 const raw = Buffer.from(file.toString('utf8').replaceAll('\r\n','\n'))
@@ -18,6 +19,10 @@ if (release.release_id !== `demo-commerce-analysis@${version}` || release.status
   release.assets.length !== 17 || release.golden_questions !== 15) throw Error('demo_semantic_release_invalid')
 if (command === 'check') { console.log(JSON.stringify({status:'PASS',release_id:release.release_id,sha256:digest,assets:release.assets.length}));process.exit(0) }
 const q = value => "'" + String(value).replaceAll("'","''") + "'"
+const newerVersions = Object.keys(releases).slice(Object.keys(releases).indexOf(version) + 1)
+const newerReleaseGuard = newerVersions.length
+  ? `EXISTS (SELECT 1 FROM funnelmetry_demo.semantic_releases WHERE release_id IN (${newerVersions.map(v => q(`demo-commerce-analysis@${v}`)).join(',')}))`
+  : 'FALSE'
 process.stdout.write(`\\set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL statement_timeout='30s';
@@ -46,12 +51,7 @@ CREATE TABLE IF NOT EXISTS funnelmetry_demo.semantic_releases (
  status text NOT NULL CHECK(status='ACTIVE_DEMO'), published_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
 DO $version_guard$ BEGIN
- IF ${q(version)} <> '1.2.0' AND EXISTS
-   (SELECT 1 FROM funnelmetry_demo.semantic_releases WHERE release_id='demo-commerce-analysis@1.2.0')
- THEN RAISE EXCEPTION 'refusing semantic release downgrade'; END IF;
- IF ${q(version)} = '1.0.0' AND EXISTS
-   (SELECT 1 FROM funnelmetry_demo.semantic_releases WHERE release_id='demo-commerce-analysis@1.1.0')
- THEN RAISE EXCEPTION 'refusing semantic release downgrade'; END IF;
+ IF ${newerReleaseGuard} THEN RAISE EXCEPTION 'refusing semantic release downgrade'; END IF;
 END $version_guard$;
 INSERT INTO funnelmetry_demo.semantic_releases(release_id,definition,sha256,status)
 VALUES (${q(release.release_id)},${q(raw.toString('utf8'))}::jsonb,${q(digest)},'ACTIVE_DEMO')

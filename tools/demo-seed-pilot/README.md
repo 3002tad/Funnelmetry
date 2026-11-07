@@ -145,6 +145,18 @@ checks all 15 SQL answers against a named PostgreSQL container. The versioned
 SQL, answers and descriptions are in `demo-golden-v2.sql`,
 `demo-golden-v2-answers.json` and `DEMO_GOLDEN_QUESTIONS_V2.md`.
 
+## Semantic release 1.2.1
+
+`demo-commerce-analysis@1.2.1` is a metadata-only successor to 1.2.0. It
+removes the Agent instruction to reuse schema/query results from the semantic
+definition; that execution guidance lives in DB-GPT's Funnelmetry analysis
+skill. The 17 assets, relationships, measures, datasets, and 15 golden SQL
+answers are unchanged. `demo-semantic-v1.2.json` remains immutable. Publish
+the new release with `demo-semantic-release.mjs emit-sql 1.2.1` after its
+`check` passes; `publish-demo-kb.py` requires the new release ID and SHA before
+creating a versioned derived KB document. Publishing the KB does not retire
+older spaces or automatically select the new one in Agent conversations.
+
 ```sh
 node tools/demo-seed-pilot/gap-seed.mjs <anchor.json> <labels.json> <new-directory>
 node tools/demo-seed-pilot/pipeline-seed.mjs check <manifest.json> <fixture.json>

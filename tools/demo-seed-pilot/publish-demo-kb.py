@@ -15,8 +15,8 @@ import subprocess
 import time
 from urllib.request import Request, urlopen
 
-RELEASE = "demo-commerce-analysis@1.2.0"
-DEFINITION_SHA = "2bb4829a13acb231d5b5ce4f7ba77a3ee7259ea68de745048e4435befb691c9f"
+RELEASE = "demo-commerce-analysis@1.2.1"
+DEFINITION_SHA = "a737fd85883270401c5bd78eae30ad71bc3a6d8329007c928a964f4b981669b4"
 API = "http://127.0.0.1:5670"
 PIPELINE = "http://127.0.0.1:31080"
 PIPELINE_HOST = os.environ.get("SWARM_PUBLIC_DOMAIN", "analyst.entidi.io.vn")
@@ -99,6 +99,8 @@ def guide(definition):
         "Always join synthetic assets with dataset_id plus entity key. Repeated catalog snapshots otherwise multiply rows.",
         "For PostgreSQL distinct entity counts across datasets use COUNT(DISTINCT (dataset_id, session_id)) or COUNT(DISTINCT (dataset_id, order_id)); do not drop dataset_id when IDs happen to be unique in one fixture.",
         "For synthetic session analysis use sessions(dataset_id, session_id, started_at), browser_events(dataset_id, session_id, event_type, occurred_at) and cart_links(dataset_id, session_id, cart_id, occurred_at). Count all sessions from sessions, not event rows. behavior_events_all combines synthetic and observed events but has no session_id.",
+        "funnelmetry_demo.orders has dataset_id, order_id, cart_id, created_at and reference_state, but no session_id. Counting order rows or ON rows needs no session join. For exploratory order/session association, join orders to cart_links on both dataset_id and cart_id, use a left join to measure unmatched orders, and count distinct (cart_links.dataset_id, cart_links.session_id). The semantic release does not publish a cart_links-to-orders relationship or a sequential conversion metric; verify coverage and ordering before making such a claim.",
+        "cart_links and browser context.cart_linked evidence associate a session with a cart; they do not prove an item was added. An addition requires the corresponding cart.item_added or ADD mutation. Keep the label session with a cart link when only a link was counted.",
         "Historical dataset_coverage has period_start, period_end, demo_status and scope_note. gap_dataset_coverage has dataset_id, demo_status, mismatched_domains and invalid_sessions; it does not have period_start, period_end or scope_note. Inspect the real schema before selecting other columns.",
         "Use event occurred_at, session started_at, order created_at, payment action_at and fulfillment occurred_at separately.",
         "Search text is an independent demand signal. Observed search-to-cart has insufficient correlation.",
@@ -106,7 +108,6 @@ def guide(definition):
         "Stocked minus reserved is a physical scenario position, not a sellable Medusa stock measure.",
         "Order reference_state=ON is synthetic state, not proof of paid revenue or live conversion.",
         "Monthly November 2026 is only four synthetic days, so compare periods of equal duration when describing trends.",
-        "Use the 15 versioned benchmark questions in tools/demo-seed-pilot/demo-golden-v2.sql for SQL examples.",
         "Assets:",
     ]
     lines[-1:-1] = ["Analysis guidance:"] + ["- " + item for item in definition["analysis_guidance"]]
@@ -165,8 +166,9 @@ def main():
     definition = read_release()
     content = guide(definition)
     digest = hashlib.sha256(content.encode()).hexdigest()
-    space_name = "funnelmetry-demo-1-2-0-" + digest[:12]
-    doc_name = "demo-commerce-analysis-1.2.0-" + digest[:12]
+    release_version = RELEASE.rsplit("@", 1)[1]
+    space_name = "funnelmetry-demo-" + release_version.replace(".", "-") + "-" + digest[:12]
+    doc_name = "demo-commerce-analysis-" + release_version + "-" + digest[:12]
     token = acquire_token(args.password_file, args.email)
     space = find_space(space_name, token)
     document = find_document(space_name, doc_name, token) if space else None
