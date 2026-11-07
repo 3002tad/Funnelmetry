@@ -5,6 +5,34 @@ The identity boundary was enabled on the KLTN VPS on 2026-11-03 for testing.
 This inventory describes source inspection and the limited API checks below,
 not an end-to-end security claim.
 
+## Current module-policy correction (2026-11-07)
+
+DB-GPT code `684ed0ba` is deployed on the VPS. Its module dependency policy now
+admits native Application chat, Agent question replies/rejection and feedback,
+SQL/chart history and submissions, private Dashboard templates/annotations/
+versions/covers, Knowledge settings/Wiki/Git/source bindings, Skill upload/import
+and AWEL file helpers to both trusted workspace roles. Scheduled tasks remain
+available to Analyst. Global Observability, Evaluation and membership assignment
+remain Admin operations, alongside provider/datasource/connector management.
+
+Conversation ownership, explicit Application datasource bindings and the
+analytical PostgreSQL role remain enforced. Native tool capabilities are
+preserved; no dedicated execution runtime is introduced. Public sharing and
+collaboration remain outside this private-workspace correction.
+
+Eight targeted unit tests and 52 expected API outcomes passed. The API checks
+include existing KB arguments/files, Wiki/Git/source-list reads, role boundaries,
+absent conversations and unauthenticated requests; they do not certify saved
+AWEL execution, cron execution or a full browser workflow. The opened Sources
+tab also required an additive migration for three missing internal MySQL tables.
+
+The DB-GPT repository's
+[`FUNNELMETRY_MODULE_POLICY_AUDIT_2026-11-07.md`](https://github.com/3002tad/DB-GPT/blob/main/docs/FUNNELMETRY_MODULE_POLICY_AUDIT_2026-11-07.md)
+contains the route review, MySQL migration link and before/after API evidence.
+Statements below about closed covers, Skill upload, URL documents, KB settings
+or Application-admin assignment describe the earlier inspection and are
+superseded by this correction. The deferred end-to-end tests remain deferred.
+
 Backbone DEC-148 (2026-11-03) limits KLTN acceptance to trusted development/demo
 users and the used application workflows. Prompts guide behavior; backend and
 source credentials determine authority. Additional per-tool execution gates
