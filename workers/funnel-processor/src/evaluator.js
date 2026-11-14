@@ -37,19 +37,28 @@ export function validateProfile(profile) {
 }
 
 function compareEvents(left, right) {
-  return Date.parse(left.occurred_at) - Date.parse(right.occurred_at)
-    || left.canonical_event_id.localeCompare(right.canonical_event_id)
+  return left.timestamp - right.timestamp
+    || left.event.canonical_event_id.localeCompare(right.event.canonical_event_id)
 }
 
 export function evaluateFunnelWindow(profileInput, eventsInput) {
   const profile = validateProfile(profileInput)
-  const events = [...eventsInput].sort(compareEvents)
+  // Parse once per event, rather than twice for every sort comparison.
+  const events = eventsInput.map((event) => ({ event, timestamp: Date.parse(event.occurred_at) })).sort(compareEvents)
+  const negativeEvents = new Set(profile.negative_events)
+  const stepIndexes = new Map()
+  profile.ordered_steps.forEach((step, index) => {
+    if (!stepIndexes.has(step.event_type)) stepIndexes.set(step.event_type, new Map())
+    const classes = stepIndexes.get(step.event_type)
+    // Preserve findIndex's first-match behavior for repeated type/class pairs.
+    if (!classes.has(step.event_class)) classes.set(step.event_class, index)
+  })
   const reached = []
   const branches = []
   let expectedStep = 0
 
-  for (const event of events) {
-    if (profile.negative_events.includes(event.event_type)) {
+  for (const { event } of events) {
+    if (negativeEvents.has(event.event_type)) {
       branches.push(Object.freeze({
         canonical_event_id: event.canonical_event_id,
         event_type: event.event_type,
@@ -58,9 +67,7 @@ export function evaluateFunnelWindow(profileInput, eventsInput) {
       }))
     }
 
-    const matchingIndex = profile.ordered_steps.findIndex(
-      (step) => step.event_type === event.event_type && step.event_class === event.event_class,
-    )
+    const matchingIndex = stepIndexes.get(event.event_type)?.get(event.event_class) ?? -1
     if (matchingIndex < 0 || matchingIndex > expectedStep) continue
     if (matchingIndex < expectedStep) {
       const previous = reached[matchingIndex]
