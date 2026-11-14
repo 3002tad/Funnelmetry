@@ -23,7 +23,11 @@ EXPECTED = ("asset.reference_medusa_current_offer", "1.0.0", "reference.medusa.c
 GUIDE = """Current product reference for exploratory questions:
 Use funnelmetry_ai.current_product_summary for the current product count.
 Its grain is source_id; product_count counts current source/product rows, not
-variants, orders, customers, sales or revenue. Check status on every query:
+variants, orders, customers, sales or revenue.
+The summary exposes source_id, status, coverage_epoch_id, verified_at,
+valid_until and product_count; do not assume it has quality_status,
+source_view or data_source. reference_offer_metadata supplies the definition
+and version, not the numeric product count. Check status on every query:
 REFERENCE_CURRENT_ONLY permits a current reference answer with verified_at and
 valid_until; a BLOCKED_BY_QUALITY error means do not report a count or infer
 zero. Check funnelmetry_ai.catalog_quality for the current quality status.
