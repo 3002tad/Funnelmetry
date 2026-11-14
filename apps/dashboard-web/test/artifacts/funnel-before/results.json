@@ -1,0 +1,56 @@
+{
+  "capturedAt": "2026-11-14T08:30:21.418Z",
+  "environment": "local Chromium with synthetic API; not live pipeline acceptance",
+  "results": [
+    {
+      "name": "profile/version and observed state visible",
+      "status": "FAIL",
+      "error": "The input did not match the regular expression /commerce@test-v1/. Input:\n\n'Hành trình chuyển đổi\\n' +\n  '\\n' +\n  'Từ góc nhìn phễu tổng hợp tới timeline của từng hành trình.\\n' +\n  '\\n' +\n  'Medusa Reference\\n' +\n  'Từ ngày\\n' +\n  'Đến hết ngày\\n' +\n  'Áp dụng\\n' +\n  'UTC\\n' +\n  'Biểu đồ phễu\\n' +\n  'Timeline tham khảo\\n' +\n  'commerce · test-v1\\n' +\n  'short · test-v1\\n' +\n  'Funnel entrants\\n' +\n  '100\\n' +\n  'Entry-at cohort · chưa chốt maturity\\n' +\n  'Observed converted\\n' +\n  '10\\n' +\n  'Entry-at cohort · chưa chốt maturity\\n' +\n  'Observed rate\\n' +\n  '10.0%\\n' +\n  'Entry-at cohort · chưa chốt maturity\\n' +\n  'Pending\\n' +\n  '80\\n' +\n  'Entry-at cohort · chưa chốt maturity\\n' +\n  'commerce\\n' +\n  'OBSERVED\\n' +\n  'STEP 1 · behavior\\n' +\n  'fixture.step_0\\n' +\n  'Transition\\n' +\n  '—\\n' +\n  '100\\n' +\n  '100.0% reached\\n' +\n  'STEP 2 · behavior\\n' +\n  'fixture.step_1\\n' +\n  'Transition\\n' +\n  '50.0%\\n' +\n  '50\\n' +\n  '50.0% reached\\n' +\n  'STEP 3 · behavior\\n' +\n  'fixture.step_2\\n' +\n  'Transition\\n' +\n  '20.0%\\n' +\n  '10\\n' +\n  '10.0% reached\\n' +\n  '\\n' +\n  'SELECTED STEP\\n' +\n  '\\n' +\n  'fixture.step_0\\n' +\n  'Reached\\n' +\n  '100\\n' +\n  'Observed rate\\n' +\n  '100.0%\\n' +\n  'Authority class\\n' +\n  'behavior\\n' +\n  'Step ID\\n' +\n  'step-0\\n' +\n  'Quality context\\n' +\n  'Provisional\\n' +\n  '90\\n' +\n  'Degraded\\n' +\n  '10\\n' +\n  'Dropped\\n' +\n  '10\\n' +\n  'Reconciled\\n' +\n  '0\\n' +\n  '\\n' +\n  'Horizon và grace chưa cấu hình; không suy final drop-off. Quality context là tổng của profile trong cohort.'\n"
+    },
+    {
+      "name": "reach bars encode 100%, 50%, 10% rather than step index",
+      "status": "FAIL",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ []\n- [\n-   '100%',\n-   '50%',\n-   '10%'\n- ]\n"
+    },
+    {
+      "name": "configured horizon and grace displayed accurately",
+      "status": "FAIL",
+      "error": "The input did not match the regular expression /86400/. Input:\n\n'Hành trình chuyển đổi\\n' +\n  '\\n' +\n  'Từ góc nhìn phễu tổng hợp tới timeline của từng hành trình.\\n' +\n  '\\n' +\n  'Medusa Reference\\n' +\n  'Từ ngày\\n' +\n  'Đến hết ngày\\n' +\n  'Áp dụng\\n' +\n  'UTC\\n' +\n  'Biểu đồ phễu\\n' +\n  'Timeline tham khảo\\n' +\n  'commerce · test-v1\\n' +\n  'short · test-v1\\n' +\n  'Funnel entrants\\n' +\n  '100\\n' +\n  'Entry-at cohort · chưa chốt maturity\\n' +\n  'Observed converted\\n' +\n  '10\\n' +\n  'Entry-at cohort · chưa chốt maturity\\n' +\n  'Observed rate\\n' +\n  '10.0%\\n' +\n  'Entry-at cohort · chưa chốt maturity\\n' +\n  'Pending\\n' +\n  '80\\n' +\n  'Entry-at cohort · chưa chốt maturity\\n' +\n  'commerce\\n' +\n  'OBSERVED\\n' +\n  'STEP 1 · behavior\\n' +\n  'fixture.step_0\\n' +\n  'Transition\\n' +\n  '—\\n' +\n  '100\\n' +\n  '100.0% reached\\n' +\n  'STEP 2 · behavior\\n' +\n  'fixture.step_1\\n' +\n  'Transition\\n' +\n  '50.0%\\n' +\n  '50\\n' +\n  '50.0% reached\\n' +\n  'STEP 3 · behavior\\n' +\n  'fixture.step_2\\n' +\n  'Transition\\n' +\n  '20.0%\\n' +\n  '10\\n' +\n  '10.0% reached\\n' +\n  '\\n' +\n  'SELECTED STEP\\n' +\n  '\\n' +\n  'fixture.step_0\\n' +\n  'Reached\\n' +\n  '100\\n' +\n  'Observed rate\\n' +\n  '100.0%\\n' +\n  'Authority class\\n' +\n  'behavior\\n' +\n  'Step ID\\n' +\n  'step-0\\n' +\n  'Quality context\\n' +\n  'Provisional\\n' +\n  '90\\n' +\n  'Degraded\\n' +\n  '10\\n' +\n  'Dropped\\n' +\n  '10\\n' +\n  'Reconciled\\n' +\n  '0\\n' +\n  '\\n' +\n  'Horizon và grace chưa cấu hình; không suy final drop-off. Quality context là tổng của profile trong cohort.'\n"
+    },
+    {
+      "name": "select step then switch shorter profile resets selection",
+      "status": "PASS"
+    },
+    {
+      "name": "mobile has no horizontal document overflow",
+      "status": "PASS"
+    },
+    {
+      "name": "empty profiles show explicit empty state",
+      "status": "PASS"
+    },
+    {
+      "name": "API failure shows error rather than zero counts",
+      "status": "PASS"
+    },
+    {
+      "name": "retry recovers without reloading the page",
+      "status": "FAIL",
+      "error": "locator.click: Timeout 2000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Thử tải lại danh sách funnel' })\u001b[22m\n"
+    },
+    {
+      "name": "missing policy remains explicitly unconfigured",
+      "status": "PASS"
+    },
+    {
+      "name": "zero cohort never displays NaN or Infinity",
+      "status": "PASS"
+    },
+    {
+      "name": "no browser exceptions or unexpected API calls",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "unexpected": []
+}

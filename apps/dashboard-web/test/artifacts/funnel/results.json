@@ -1,0 +1,52 @@
+{
+  "capturedAt": "2026-11-14T08:33:40.335Z",
+  "environment": "local Chromium with synthetic API; not live pipeline acceptance",
+  "results": [
+    {
+      "name": "profile/version and observed state visible",
+      "status": "PASS"
+    },
+    {
+      "name": "reach bars encode 100%, 50%, 10% rather than step index",
+      "status": "PASS"
+    },
+    {
+      "name": "configured horizon and grace displayed accurately",
+      "status": "PASS"
+    },
+    {
+      "name": "select step then switch shorter profile resets selection",
+      "status": "PASS"
+    },
+    {
+      "name": "mobile has no horizontal document overflow",
+      "status": "PASS"
+    },
+    {
+      "name": "empty profiles show explicit empty state",
+      "status": "PASS"
+    },
+    {
+      "name": "API failure shows error rather than zero counts",
+      "status": "PASS"
+    },
+    {
+      "name": "retry recovers without reloading the page",
+      "status": "PASS"
+    },
+    {
+      "name": "missing policy remains explicitly unconfigured",
+      "status": "PASS"
+    },
+    {
+      "name": "zero cohort never displays NaN or Infinity",
+      "status": "PASS"
+    },
+    {
+      "name": "no browser exceptions or unexpected API calls",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "unexpected": []
+}

@@ -35,3 +35,10 @@ docs/_rabbitmq_docx_extract/
 docs/_rabbitmq*.zip
 docs/_rabbitmq_guide*.txt
 docs/_rabbitmq_adapter_standard.txt
+
+# Local QA captures; keep only reviewed summaries in Git.
+apps/dashboard-web/test/artifacts/**
+!apps/dashboard-web/test/artifacts/**/
+!apps/dashboard-web/test/artifacts/**/results.json
+workers/funnel-processor/test/performance/worker-tests.txt
+docs/current/evidence/funnel-db-2026-11-14/probe-output.txt

@@ -1,0 +1,93 @@
+{
+  "scope": {
+    "sourceId": "medusa-reference",
+    "from": "2026-10-16T00:00:00.000Z",
+    "to": "2026-11-15T00:00:00.000Z"
+  },
+  "statements": [
+    {
+      "sql": "SELECT p.funnel_profile_id, p.profile_version, p.display_name, p.subject_scope,\n              p.entry_event_type, p.conversion_horizon_seconds, p.late_arrival_grace_seconds,\n              p.published_at, a.disabled_at\n         FROM funnel_profiles p\n         JOIN funnel_profile_activations a\n           ON a.funnel_profile_id = p.funnel_profile_id AND a.profile_version = p.profile_version\n        WHERE a.source_id = $1 AND p.funnel_profile_id = $2 AND p.profile_version = $3\n        ORDER BY p.published_at DESC\n        LIMIT 1",
+      "params": [
+        "medusa-reference",
+        "commerce-conversion",
+        "2.0.0"
+      ]
+    },
+    {
+      "sql": "SELECT COUNT(*)::bigint AS entrants,\n                COUNT(*) FILTER (WHERE i.outcome_status = 'CONVERTED')::bigint AS observed_converted,\n                COUNT(*) FILTER (WHERE i.outcome_status = 'IN_PROGRESS')::bigint AS pending,\n                COUNT(*) FILTER (WHERE i.outcome_status = 'DROPPED')::bigint AS dropped,\n                COUNT(*) FILTER (WHERE i.outcome_status = 'TERMINATED')::bigint AS terminated,\n                COUNT(*) FILTER (WHERE i.outcome_status = 'INVALID')::bigint AS invalid,\n                COUNT(*) FILTER (\n                  WHERE latest_maturity.maturity_state = 'MATURED'\n                    AND latest_maturity.eligibility_status = 'ELIGIBLE'\n                    AND i.outcome_status = 'CONVERTED'\n                )::bigint AS matured_converted,\n                COUNT(finalization.finalization_id)::bigint AS finalized_dropped,\n                COUNT(late_conversion.late_conversion_id)::bigint AS late_conversions,\n                COUNT(late_conversion.late_conversion_id) FILTER (\n                  WHERE late_conversion.arrival_class = 'TOO_LATE_FOR_FINAL_COHORT'\n                )::bigint AS too_late_for_final_cohort,\n                COUNT(late_conversion.late_conversion_id) FILTER (\n                  WHERE late_conversion.arrival_class = 'AFTER_HORIZON'\n                )::bigint AS after_horizon,\n                COUNT(*) FILTER (WHERE i.quality_status = 'PROVISIONAL')::bigint AS provisional,\n                COUNT(*) FILTER (WHERE i.quality_status = 'RECONCILING')::bigint AS reconciling,\n                COUNT(*) FILTER (WHERE i.quality_status = 'RECONCILED')::bigint AS reconciled,\n                COUNT(*) FILTER (WHERE i.quality_status = 'DEGRADED')::bigint AS degraded,\n                MIN(i.entry_at) AS first_entry_at, MAX(i.entry_at) AS last_entry_at\n           FROM funnel_kpi_instance_facts i\n           LEFT JOIN funnel_maturity_finalizations finalization\n             ON finalization.funnel_instance_id = i.funnel_instance_id\n           LEFT JOIN funnel_late_conversions late_conversion\n             ON late_conversion.funnel_instance_id = i.funnel_instance_id\n           LEFT JOIN funnel_instance_latest_maturity latest_maturity\n             ON latest_maturity.funnel_instance_id = i.funnel_instance_id\n          WHERE i.source_id = $1 AND i.entry_at >= $2::timestamptz AND i.entry_at < $3::timestamptz\n            AND i.funnel_profile_id = $4\n            AND i.profile_version = $5",
+      "params": [
+        "medusa-reference",
+        "2026-10-16T00:00:00.000Z",
+        "2026-11-15T00:00:00.000Z",
+        "commerce-conversion",
+        "2.0.0"
+      ]
+    },
+    {
+      "sql": "SELECT steps.step_index, steps.step_id, steps.event_type, steps.event_class,\n                COUNT(instances.funnel_instance_id)::bigint AS entrants,\n                COUNT(reached.funnel_instance_id)::bigint AS reached\n           FROM funnel_profile_steps steps\n           LEFT JOIN funnel_kpi_instance_facts instances\n             ON instances.funnel_profile_id = steps.funnel_profile_id\n            AND instances.profile_version = steps.profile_version\n            AND instances.source_id = $1 AND instances.entry_at >= $2::timestamptz AND instances.entry_at < $3::timestamptz\n           LEFT JOIN funnel_kpi_step_facts reached\n             ON reached.funnel_instance_id = instances.funnel_instance_id\n            AND reached.step_index = steps.step_index\n          WHERE steps.funnel_profile_id = $4\n            AND steps.profile_version = $5\n          GROUP BY steps.step_index, steps.step_id, steps.event_type, steps.event_class\n          ORDER BY steps.step_index",
+      "params": [
+        "medusa-reference",
+        "2026-10-16T00:00:00.000Z",
+        "2026-11-15T00:00:00.000Z",
+        "commerce-conversion",
+        "2.0.0"
+      ]
+    },
+    {
+      "sql": "SELECT COUNT(*)::bigint AS canonical_events,\n                  COUNT(*) FILTER (WHERE c.event_class = 'BEHAVIOR_INTENT')::bigint AS behavior_intent,\n                  COUNT(*) FILTER (WHERE c.event_class = 'CLIENT_OBSERVATION')::bigint AS client_observation,\n                  COUNT(*) FILTER (WHERE c.event_class = 'BUSINESS_FACT')::bigint AS business_fact,\n                  COUNT(*) FILTER (WHERE c.quality->>'authoritative_event_time' = 'true')::bigint AS authoritative_event_time,\n                  COUNT(*) FILTER (WHERE c.quality->>'time_basis' = 'source_produced')::bigint AS source_produced_time,\n                  COUNT(*) FILTER (WHERE c.quality->>'time_basis' = 'ingress_fallback')::bigint AS ingress_fallback_time,\n                  PERCENTILE_CONT(0.5) WITHIN GROUP (\n                    ORDER BY EXTRACT(EPOCH FROM (c.normalized_at - c.ingested_at)) * 1000\n                  ) AS normalization_latency_p50_ms,\n                  PERCENTILE_CONT(0.95) WITHIN GROUP (\n                    ORDER BY EXTRACT(EPOCH FROM (c.normalized_at - c.ingested_at)) * 1000\n                  ) AS normalization_latency_p95_ms,\n                  PERCENTILE_CONT(0.95) WITHIN GROUP (\n                    ORDER BY EXTRACT(EPOCH FROM (c.persisted_at - c.ingested_at)) * 1000\n                  ) AS canonical_persistence_latency_p95_ms,\n                  MIN(c.persisted_at) AS first_persisted_at,\n                  MAX(c.persisted_at) AS last_persisted_at\n             FROM canonical_events c\n            WHERE c.source_id = $1 AND c.persisted_at >= $2::timestamptz AND c.persisted_at < $3::timestamptz",
+      "params": [
+        "medusa-reference",
+        "2026-10-16T00:00:00.000Z",
+        "2026-11-15T00:00:00.000Z"
+      ]
+    },
+    {
+      "sql": "SELECT DATE_TRUNC('hour', c.persisted_at) AS bucket_start,\n                  COUNT(*)::bigint AS canonical_events,\n                  COUNT(*) FILTER (WHERE c.quality->>'authoritative_event_time' <> 'true')::bigint AS non_authoritative_time\n             FROM canonical_events c\n            WHERE c.source_id = $1 AND c.persisted_at >= $2::timestamptz AND c.persisted_at < $3::timestamptz\n            GROUP BY DATE_TRUNC('hour', c.persisted_at)\n            ORDER BY bucket_start DESC\n            LIMIT 48",
+      "params": [
+        "medusa-reference",
+        "2026-10-16T00:00:00.000Z",
+        "2026-11-15T00:00:00.000Z"
+      ]
+    },
+    {
+      "sql": "SELECT COUNT(*)::bigint AS funnel_instances,\n                  COUNT(*) FILTER (WHERE i.quality_status = 'PROVISIONAL')::bigint AS provisional,\n                  COUNT(*) FILTER (WHERE i.quality_status = 'RECONCILING')::bigint AS reconciling,\n                  COUNT(*) FILTER (WHERE i.quality_status = 'RECONCILED')::bigint AS reconciled,\n                  COUNT(*) FILTER (WHERE i.quality_status = 'DEGRADED')::bigint AS degraded\n             FROM funnel_kpi_instance_facts i\n            WHERE i.source_id = $1 AND i.entry_at >= $2::timestamptz AND i.entry_at < $3::timestamptz",
+      "params": [
+        "medusa-reference",
+        "2026-10-16T00:00:00.000Z",
+        "2026-11-15T00:00:00.000Z"
+      ]
+    },
+    {
+      "sql": "SELECT COUNT(*)::bigint AS accepted_events,\n                  COUNT(o.source_event_id)::bigint AS terminal_outcomes,\n                  COUNT(*) FILTER (WHERE o.status = 'normalized')::bigint AS normalized,\n                  COUNT(*) FILTER (WHERE o.status = 'unsupported')::bigint AS unsupported,\n                  COUNT(*) FILTER (WHERE o.status = 'quarantined')::bigint AS quarantined,\n                  PERCENTILE_CONT(0.5) WITHIN GROUP (\n                    ORDER BY EXTRACT(EPOCH FROM (o.processed_at - r.received_at)) * 1000\n                  ) AS canonicalization_latency_p50_ms,\n                  PERCENTILE_CONT(0.95) WITHIN GROUP (\n                    ORDER BY EXTRACT(EPOCH FROM (o.processed_at - r.received_at)) * 1000\n                  ) AS canonicalization_latency_p95_ms,\n                  MIN(r.received_at) AS first_received_at,\n                  MAX(r.received_at) AS last_received_at,\n                  MAX(o.processed_at) AS last_processed_at\n             FROM ingress_accepted_receipts r\n             LEFT JOIN canonicalization_latest_outcomes o\n               ON o.source_id = r.source_id AND o.source_event_id = r.event_id\n            WHERE r.source_id = $1 AND r.received_at >= $2::timestamptz AND r.received_at < $3::timestamptz",
+      "params": [
+        "medusa-reference",
+        "2026-10-16T00:00:00.000Z",
+        "2026-11-15T00:00:00.000Z"
+      ]
+    },
+    {
+      "sql": "SELECT COUNT(*)::bigint AS snapshots,\n                  COUNT(*) FILTER (WHERE COALESCE(c.window_state, s.window_state) = 'PROVISIONAL')::bigint AS provisional,\n                  COUNT(*) FILTER (WHERE COALESCE(c.window_state, s.window_state) = 'RECONCILING')::bigint AS reconciling,\n                  COUNT(*) FILTER (WHERE COALESCE(c.window_state, s.window_state) = 'RECONCILED')::bigint AS reconciled,\n                  COUNT(*) FILTER (WHERE COALESCE(c.window_state, s.window_state) = 'DEGRADED')::bigint AS degraded,\n                  COUNT(c.comparison_id)::bigint AS comparisons,\n                  COUNT(c.comparison_id) FILTER (WHERE c.record_level_metrics_available)::bigint AS record_level_comparisons,\n                  COALESCE(SUM(c.source_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS source_count,\n                  COALESCE(SUM(c.analytics_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS analytics_count,\n                  COALESCE(SUM(c.missing_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS missing_count,\n                  COALESCE(SUM(c.phantom_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS phantom_count,\n                  COALESCE(SUM(c.state_mismatch_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS state_mismatch_count,\n                  COALESCE(SUM(c.amount_mismatch_count) FILTER (WHERE c.record_level_metrics_available), 0)::bigint AS amount_mismatch_count,\n                  MAX(c.observed_at) AS last_compared_at\n             FROM reconciliation_snapshots s\n             LEFT JOIN LATERAL (\n               SELECT comparison.*\n                 FROM reconciliation_comparisons comparison\n                WHERE comparison.source_id = s.source_id\n                  AND comparison.snapshot_id = s.snapshot_id\n                ORDER BY comparison.comparison_revision DESC\n                LIMIT 1\n             ) c ON true\n            WHERE s.source_id = $1 AND s.coverage_end_at >= $2::timestamptz AND s.coverage_end_at < $3::timestamptz",
+      "params": [
+        "medusa-reference",
+        "2026-10-16T00:00:00.000Z",
+        "2026-11-15T00:00:00.000Z"
+      ]
+    },
+    {
+      "sql": "SELECT c.snapshot_id, s.entity_type, c.observed_at, c.window_state,\n                  c.limitation_reason, c.revenue_deviation\n             FROM reconciliation_comparisons c\n             JOIN reconciliation_snapshots s\n               ON s.source_id = c.source_id AND s.snapshot_id = c.snapshot_id\n            WHERE s.source_id = $1 AND s.coverage_end_at >= $2::timestamptz AND s.coverage_end_at < $3::timestamptz\n              AND c.comparison_revision = (\n                SELECT MAX(latest.comparison_revision)\n                  FROM reconciliation_comparisons latest\n                 WHERE latest.source_id = c.source_id AND latest.snapshot_id = c.snapshot_id\n              )\n            ORDER BY c.observed_at DESC, c.snapshot_id\n            LIMIT 1",
+      "params": [
+        "medusa-reference",
+        "2026-10-16T00:00:00.000Z",
+        "2026-11-15T00:00:00.000Z"
+      ]
+    },
+    {
+      "sql": "SELECT COUNT(r.repair_id)::bigint AS repairs,\n                  COUNT(v.repair_id)::bigint AS verified_repairs,\n                  COALESCE(SUM(v.attempted_correction_count), 0)::bigint AS attempted_corrections,\n                  COALESCE(SUM(v.successful_correction_count), 0)::bigint AS successful_corrections,\n                  MAX(r.repaired_at) AS last_repaired_at,\n                  MAX(v.verified_at) AS last_verified_at\n             FROM reconciliation_repairs r\n             JOIN reconciliation_snapshots s\n               ON s.source_id = r.source_id AND s.snapshot_id = r.snapshot_id\n             LEFT JOIN reconciliation_repair_verifications v ON v.repair_id = r.repair_id\n            WHERE s.source_id = $1 AND s.coverage_end_at >= $2::timestamptz AND s.coverage_end_at < $3::timestamptz",
+      "params": [
+        "medusa-reference",
+        "2026-10-16T00:00:00.000Z",
+        "2026-11-15T00:00:00.000Z"
+      ]
+    }
+  ]
+}
