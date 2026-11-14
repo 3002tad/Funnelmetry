@@ -16,8 +16,9 @@ type Price = Exploration['prices'][number];
 const contextKey = (p: Price) => [p.currency, p.channel, p.region, p.price_rule].join(' · ');
 const money = (p: Price | null) => p ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: p.currency }).format(p.amount_minor / 100) : 'Không áp dụng tại mốc';
 export default function ProductsWorkspacePage() {
-    const { range, sourceId } = useOutletContext<ShellContext>(), { user } = useAuth(), [dataset, setDataset] = useState('observed'), [product, setProduct] = useState(''), [variant, setVariant] = useState(''), [context, setContext] = useState(''), [search, setSearch] = useState('');
+    const { range, sourceId, dataset, setDataset } = useOutletContext<ShellContext>(), { user } = useAuth(), [product, setProduct] = useState(''), [variant, setVariant] = useState(''), [context, setContext] = useState(''), [search, setSearch] = useState('');
     const window = useMemo(() => dateWindow(range), [range]), [from, setFrom] = useState(window.from.slice(0, 16)), [to, setTo] = useState(window.to.slice(0, 16));
+    useEffect(() => { setProduct(''); setVariant(''); setContext(''); }, [dataset]);
     useEffect(() => { setFrom(window.from.slice(0, 16)); setTo(window.to.slice(0, 16)); }, [window]);
     const summary = useQuery({ queryKey: ['products-explore', user?.id, sourceId, dataset, window], queryFn: ({ signal }) => fetchExploration(sourceId, dataset, window, undefined, signal), retry: false, gcTime: 0 });
     const data = summary.isError ? undefined : summary.data, variants = (data?.variants ?? []).filter(v => !product || v.product_id === product), variantId = variants.some(v => v.variant_id === variant) ? variant : variants[0]?.variant_id;

@@ -15,8 +15,9 @@ import { OverviewActivity } from './OverviewActivity';
 type Metric = 'views' | 'searches' | 'cart';
 function exportCsv(data: Exploration) { const blob = new Blob(['date,total,views,searches,cart\n' + data.daily.map(r => [r.date, r.total, r.views, r.searches, r.cart].join(',')).join('\n')], { type: 'text/csv;charset=utf-8' }); const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'funnelmetry-activity.csv'; a.click(); URL.revokeObjectURL(url); }
 export function AnalyticsOverviewPage() {
-    const { range, sourceId } = useOutletContext<ShellContext>(), { user } = useAuth();
-    const [dataset, setDataset] = useState('observed'), [selected, setSelected] = useState<string | null>(null);
+    const { range, sourceId, dataset, setDataset } = useOutletContext<ShellContext>(), { user } = useAuth();
+    const [selected, setSelected] = useState<string | null>(null);
+    useEffect(() => setSelected(null), [dataset]);
     const window = useMemo(() => dateWindow(range), [range]);
     const query = useQuery({ queryKey: ['exploration', user?.id, sourceId, dataset, window], queryFn: ({ signal }) => fetchExploration(sourceId, dataset, window, undefined, signal), retry: false, gcTime: 0 });
     const data = query.isError ? undefined : query.data;

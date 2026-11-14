@@ -14,7 +14,7 @@ import { useThemePreference } from "./useThemePreference"
 import { PageErrorBoundary } from "./PageErrorBoundary"
 import { DesignDialog } from '../components/ui/design-dialog'
 
-export type ShellContext = { range: string; setRange: (range:string)=>void; datasetLabel:string; setDatasetLabel:(label:string)=>void; workspace: string; sourceId: string; theme: ThemePreference; setThemePreference: (next: ThemePreference) => Promise<void> }
+export type ShellContext = { range: string; setRange: (range:string)=>void; datasetLabel:string; dataset:string; setDataset:(id:string)=>void; workspace: string; sourceId: string; theme: ThemePreference; setThemePreference: (next: ThemePreference) => Promise<void> }
 
 
 export function AppShell() {
@@ -23,11 +23,20 @@ export function AppShell() {
   const [collapsed,setCollapsed]=useState(false),[commandOpen,setCommandOpen]=useState(false),[command,setCommand]=useState(''),[notificationOpen,setNotificationOpen]=useState(false)
   const [menu, setMenu] = useState(false)
   const [range, setRange] = useState(defaultDateRange)
-  const [datasetLabel,setDatasetLabel]=useState('Medusa Reference')
+  const [datasetSelection, setDatasetSelection] = useState<{key:string; value:string} | null>(null)
   const [theme, setTheme] = useThemePreference()
   const [themeSaving, setThemeSaving] = useState(false)
   const [themeError, setThemeError] = useState("")
   const { user, logout } = useAuth()
+  const datasetKey = `funnelmetry:dataset:${user?.id ?? 'anonymous'}:${analyticsSourceId}`
+  const readDataset = () => { try { return localStorage.getItem(datasetKey) || 'observed' } catch { return 'observed' } }
+  const dataset = user ? (datasetSelection?.key === datasetKey ? datasetSelection.value : readDataset()) : 'observed'
+  const setDataset = (value: string) => {
+    if (!user) return
+    setDatasetSelection({key: datasetKey, value})
+    try { localStorage.setItem(datasetKey, value) } catch { /* Selection still works in memory. */ }
+  }
+  const datasetLabel = dataset === 'observed' ? 'Medusa Reference' : dataset.includes('historical') ? 'Demo · lịch sử' : 'Demo · bổ sung'
   const adminMode=location.pathname.startsWith('/admin')||user?.role==='super_admin'
   const workspace=import.meta.env.VITE_ANALYTICS_WORKSPACE_NAME||(adminMode?'System Administration':'Medusa Reference')
   const accountName=user?.display_name||user?.email||'U'
@@ -111,7 +120,7 @@ export function AppShell() {
   }, [menu])
 
   return <><TemplateShell admin={adminMode} inAi={inAi} workspace={workspace} label={current?.label||(location.pathname==='/settings'?'Thiết lập cá nhân':'Funnelmetry')} initials={accountInitials} name={accountName} menu={menu} collapsed={collapsed} dark={theme==='dark'} themeDisabled={themeSaving||preferences.isPending} themeError={themeError} groups={shownGroups} sidebarRef={sidebarRef} contentRef={contentRef} mainRef={mainRef} closeRef={closeButtonRef} menuRef={menuButtonRef} onCloseMenu={closeMenu} onMenu={()=>setMenu(true)} onCollapse={()=>setCollapsed(v=>!v)} onLogout={logout} onCommand={()=>{setCommand('');setCommandOpen(true)}} onNotifications={()=>setNotificationOpen(true)} onTheme={()=>void changeTheme(document.documentElement.classList.contains('dark')?'light':'dark')}>
-    <PageErrorBoundary key={location.pathname}><Outlet context={{range,setRange,datasetLabel,setDatasetLabel,workspace,sourceId:analyticsSourceId,theme,setThemePreference:changeTheme} satisfies ShellContext}/></PageErrorBoundary>
+    <PageErrorBoundary key={location.pathname}><Outlet context={{range,setRange,datasetLabel,dataset,setDataset,workspace,sourceId:analyticsSourceId,theme,setThemePreference:changeTheme} satisfies ShellContext}/></PageErrorBoundary>
   </TemplateShell>
     {commandOpen&&<DesignDialog title="Tìm trang / chức năng" onClose={()=>setCommandOpen(false)}><input className="tpl-command-input" autoComplete="off" aria-label="Tìm trang" placeholder="Tìm trang hoặc chức năng…" value={command} onChange={e=>setCommand(e.target.value)}/><div className="tpl-command-results">{[...shownGroups.flatMap(g=>g.items),{path:'/settings',label:'Thiết lập cá nhân'}].filter(item=>item.label.toLowerCase().includes(command.toLowerCase())).map(item=><button key={item.path} onClick={()=>{setCommandOpen(false);navigate(item.path)}}>{item.label}<ChevronRight size={14}/></button>)}</div></DesignDialog>}
     {notificationOpen&&<DesignDialog title="Thông báo workspace" onClose={()=>setNotificationOpen(false)}><p className="tpl-semantic-footnote">Hệ thống chưa cung cấp nguồn thông báo cho tài khoản này.</p></DesignDialog>}

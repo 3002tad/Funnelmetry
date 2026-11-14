@@ -37,6 +37,8 @@ try {
     else if (path.endsWith('/analytics/overview')) { body = { profiles: mode === 'empty' ? [] : profiles }; if (mode === 'error') { status = 503; body = { error: 'fixture_unavailable' } } }
     else if (path.includes('/analytics/funnels/')) { body = fixture(path.split('/').at(-1)); if (mode === 'unconfigured') { body.profile.conversion_horizon_seconds = null; body.profile.late_arrival_grace_seconds = null } if (mode === 'zero') { body.steps.forEach(s => { s.reached = 0; s.observed_reach_rate = null }); body.totals = { ...totals, entrants: 0, observed_converted: 0, pending: 0, dropped: 0, provisional: 0, degraded: 0, observed_end_to_end_rate: null } } }
     else if (path.endsWith('/analytics/journeys')) body = { journeys: [] }
+    else if (path.endsWith('/analytics/datasets')) body = { items: [{ id: 'demo-historical-test', origin: 'SYNTHETIC_BACKFILL' }, { id: 'demo-gap-test', origin: 'SYNTHETIC_BACKFILL' }] }
+    else if (path.endsWith('/analytics/explorer')) body = { dataset: new URL(route.request().url()).searchParams.get('dataset'), origin: 'SYNTHETIC_BACKFILL', quality: 'UNVERIFIED', daily: [], products: [], keywords: [], variants: [], prices: [], coverage: [], event_types: [], utm: [] }
     else { unexpected.push(path); status = 404; body = { error: 'unexpected_fixture_request' } }
     if (path.includes('/analytics/funnels/')) {
       if (mode === 'historical') body.profile.disabled_at = '2026-10-30T16:24:13.000Z'
@@ -113,7 +115,39 @@ try {
   await check('older API missing activation field shows unknown rather than enabled', async () => {
     assert.match(await page.getByRole('region', { name: 'Trạng thái profile' }).innerText(), /Chưa xác định/)
   })
-  mode = 'unauthorized'; await page.reload()
+  await check('dataset selection persists across overview, products and quality', async () => {
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.getByRole('link', { name: 'Tổng quan', exact: true }).click()
+    await page.getByLabel('Bộ dữ liệu', { exact: true }).selectOption('demo-historical-test')
+    for (const name of ['Sản phẩm', 'Chất lượng dữ liệu', 'Tổng quan']) {
+      const request = page.waitForRequest(r => r.url().includes('/analytics/explorer') && new URL(r.url()).searchParams.get('dataset') === 'demo-historical-test')
+      await page.getByRole('link', { name, exact: true }).click()
+      await request
+      assert.equal(await page.getByLabel('Bộ dữ liệu', { exact: true }).inputValue(), 'demo-historical-test')
+    }
+  })
+  await check('dataset persists through browser reload', async () => {
+    const requests = []
+    const record = r => { if (r.url().includes('/analytics/explorer')) requests.push(new URL(r.url()).searchParams.get('dataset')) }
+    page.on('request', record)
+    await page.reload(); await page.getByLabel('Bộ dữ liệu', { exact: true }).waitFor()
+    assert.equal(await page.getByLabel('Bộ dữ liệu', { exact: true }).inputValue(), 'demo-historical-test')
+    assert.ok(requests.length > 0); assert.ok(requests.every(d => d === 'demo-historical-test'))
+    page.off('request', record)
+  })
+  await check('observed-only funnel explains scope without resetting selected dataset', async () => {
+    await page.getByRole('link', { name: 'Hành trình chuyển đổi', exact: true }).click(); await ready()
+    await page.getByText('Chức năng này chỉ hỗ trợ dữ liệu Medusa quan sát.', { exact: false }).first().waitFor()
+    await page.getByRole('link', { name: 'Tổng quan', exact: true }).click()
+    assert.equal(await page.getByLabel('Bộ dữ liệu', { exact: true }).inputValue(), 'demo-historical-test')
+  })
+  await check('missing saved dataset is shown explicitly without silently switching to Medusa', async () => {
+    await page.evaluate(() => localStorage.setItem('funnelmetry:dataset:funnel-test:fixture', 'removed-dataset'))
+    await page.reload(); await page.getByRole('option', { name: /removed-dataset.*Chưa khả dụng/ }).waitFor({ state: 'attached' })
+    assert.equal(await page.getByLabel('Bộ dữ liệu', { exact: true }).inputValue(), 'removed-dataset')
+    await page.getByLabel('Bộ dữ liệu', { exact: true }).selectOption('observed')
+  })
+  mode = 'unauthorized'; await page.goto(url)
   await check('401 redirects to login and removes stored credentials', async () => {
     await page.waitForURL('**/login')
     assert.equal(await page.evaluate(() => localStorage.getItem('dashboard_token')), null)

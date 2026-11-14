@@ -1,5 +1,5 @@
 import { reconciliationMessage } from '../../lib/reconciliation-message';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
@@ -14,7 +14,8 @@ import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { DesignCard, DesignStats, number } from '../../components/ui/prototype';
 export default function QualityWorkspacePage() {
-    const { range, sourceId } = useOutletContext<ShellContext>(), { user } = useAuth(), [view, setView] = useState('observed'), [dataset, setDataset] = useState('observed');
+    const { range, sourceId, dataset, setDataset } = useOutletContext<ShellContext>(), { user } = useAuth(), [view, setView] = useState(dataset === 'observed' ? 'observed' : 'demo');
+    useEffect(() => setView(dataset === 'observed' ? 'observed' : 'demo'), [dataset]);
     const window = useMemo(() => dateWindow(range), [range]);
     const demo = useQuery({ queryKey: ['demo-quality', user?.id, sourceId, dataset, window], queryFn: ({ signal }) => fetchExploration(sourceId, dataset, window, undefined, signal), enabled: view === 'demo' && dataset !== 'observed', retry: false, gcTime: 0 });
     const health = useQuery({ queryKey: ['v2-data-health', sourceId, range], queryFn: ({ signal }) => fetchV2DataHealth(range, signal), enabled: view === 'observed', retry: false });
@@ -33,7 +34,7 @@ export default function QualityWorkspacePage() {
     const points = view === 'observed' ? (observed?.hourly ?? []).map(r => ({ date: r.bucket_start, total: r.canonical_events, other: r.non_authoritative_time })) : [...syntheticPoints.values()];
     const max = Math.max(1, ...points.flatMap(p => [p.total, p.other])), x = (i: number) => 50 + (points.length === 1 ? 375 : i * 750 / Math.max(1, points.length - 1)), y = (v: number) => 210 - v / max * 170;
     return <div className="tpl-page quality-page"><PageHeader title="Chất lượng dữ liệu" description="Theo dõi chất lượng xử lý và đối soát dữ liệu." actions={<Button variant="outline" onClick={() => void (view === 'observed' ? health.refetch() : demo.refetch())}><RefreshCw size={14}/>Làm mới</Button>}/>
- <nav className="tpl-tabs tpl-module-tabs"><Button variant="ghost" className={view === "demo" ? "tpl-selected" : ""} onClick={() => setView('demo')}>Dữ liệu minh họa</Button><Button variant="ghost" className={view === "observed" ? "tpl-selected" : ""} onClick={() => setView('observed')}>Dữ liệu thực tế</Button></nav>
+ <nav className="tpl-tabs tpl-module-tabs"><Button variant="ghost" className={view === "demo" ? "tpl-selected" : ""} onClick={() => setView('demo')}>Dữ liệu minh họa</Button><Button variant="ghost" className={view === "observed" ? "tpl-selected" : ""} onClick={() => { setDataset('observed'); setView('observed'); }}>Dữ liệu thực tế</Button></nav>
  {view === 'demo' && <div className="tpl-dataset-toolbar"><DatasetSelect sourceId={sourceId} value={dataset} onChange={setDataset}/></div>}
  {(view === 'observed' ? health.isError : demo.isError) && <p role="alert">Không tải được chất lượng dữ liệu. Hãy thử lại.</p>}
  {view === 'demo' && dataset === 'observed' && <div className="tpl-card tpl-empty">Chọn bộ dữ liệu minh họa để xem.</div>}
