@@ -11,7 +11,7 @@ import { DataHealthPage as DetailedDataHealthPage } from "./DataHealthPage"
 
 export function FriendlyDataHealthPage() {
   const { range, sourceId } = useOutletContext<ShellContext>()
-  const health = useQuery({ queryKey: ["v2-data-health", sourceId, range], queryFn: () => fetchV2DataHealth(range) })
+  const health = useQuery({ queryKey: ["v2-data-health", sourceId, range], queryFn: ({ signal }) => fetchV2DataHealth(range, signal) })
   if (health.isLoading) return <div className="space-y-5"><div className="skeleton h-16 w-80" /><div className="skeleton h-64" /></div>
   if (health.isError || !health.data) return <EmptyState icon={<CircleOff size={20} />} title="Chưa tải được chất lượng dữ liệu" detail="Kiểm tra kết nối và phiên đăng nhập, rồi thử lại." />
 

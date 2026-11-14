@@ -14,7 +14,7 @@ function percent(value: number | null) {
 
 export function OverviewPage() {
   const { range, sourceId } = useOutletContext<ShellContext>()
-  const overview = useQuery({ queryKey: ["v2-overview", sourceId, range], queryFn: () => fetchV2Overview(range) })
+  const overview = useQuery({ queryKey: ["v2-overview", sourceId, range], queryFn: ({ signal }) => fetchV2Overview(range, signal) })
   if (overview.isLoading) return <div className="space-y-5"><div className="skeleton h-16 w-80" /><div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{[1,2,3,4].map((n) => <div key={n} className="skeleton h-28" />)}</div><div className="skeleton h-72" /></div>
   if (overview.isError) return <EmptyState icon={<CircleOff size={20} />} title="Không tải được Analytics API V2" detail="Kiểm tra Dashboard API, PostgreSQL migrations và phiên đăng nhập rồi thử lại." />
 

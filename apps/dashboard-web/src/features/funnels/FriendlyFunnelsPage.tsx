@@ -16,9 +16,9 @@ import { ReferenceCdcCandidatePanel } from './ReferenceCdcCandidatePanel'
 export function FriendlyFunnelsPage() {
   const { range, sourceId } = useOutletContext<ShellContext>()
   const [selectedKey, setSelectedKey] = useState("")
-  const profiles = useQuery({ queryKey: ["v2-overview", sourceId, range], queryFn: () => fetchV2Overview(range) })
+  const profiles = useQuery({ queryKey: ["v2-overview", sourceId, range], queryFn: ({ signal }) => fetchV2Overview(range, signal) })
   const selected = profiles.data?.profiles.find(profile => `${profile.funnel_profile_id}:${profile.profile_version}` === selectedKey) ?? profiles.data?.profiles[0]
-  const funnel = useQuery({ queryKey: ["v2-funnel", sourceId, range, selected?.funnel_profile_id, selected?.profile_version], queryFn: () => fetchV2Funnel(selected!.funnel_profile_id, selected!.profile_version, range), enabled: Boolean(selected) })
+  const funnel = useQuery({ queryKey: ["v2-funnel", sourceId, range, selected?.funnel_profile_id, selected?.profile_version], queryFn: ({ signal }) => fetchV2Funnel(selected!.funnel_profile_id, selected!.profile_version, range, signal), enabled: Boolean(selected) })
   if (profiles.isLoading) return <div className="skeleton h-80" />
   if (profiles.isError) return <EmptyState icon={<CircleOff size={20} />} title="Chưa tải được các phễu" detail="Kiểm tra kết nối và phiên đăng nhập, rồi thử lại." />
   if (!selected) return <><EmptyState icon={<CircleOff size={20} />} title="Chưa có phễu để xem" detail="Phễu sẽ xuất hiện sau khi được xuất bản và có dữ liệu phù hợp." /><ReferenceCdcCandidatePanel sourceId={sourceId} range={range} /></>

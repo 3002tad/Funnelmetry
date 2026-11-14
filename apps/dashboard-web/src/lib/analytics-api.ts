@@ -64,6 +64,8 @@ export type FunnelResponse = {
     conversion_horizon_seconds: number | null
     late_arrival_grace_seconds: number | null
     published_at: string
+    // Optional while older API deployments do not expose activation state.
+    disabled_at?: string | null
   }
   totals: ProfileTotal
   steps: Array<{
@@ -289,14 +291,14 @@ function scopeParams(range?: string) {
   return params
 }
 
-export function fetchV2Overview(range: string) {
-  return apiRequest<OverviewResponse>(`/api/v2/analytics/overview?${scopeParams(range)}`)
+export function fetchV2Overview(range: string, signal?: AbortSignal) {
+  return apiRequest<OverviewResponse>(`/api/v2/analytics/overview?${scopeParams(range)}`, { signal })
 }
 
-export function fetchV2Funnel(profileId: string, version: string, range: string) {
+export function fetchV2Funnel(profileId: string, version: string, range: string, signal?: AbortSignal) {
   const params = scopeParams(range)
   params.set("profile_version", version)
-  return apiRequest<FunnelResponse>(`/api/v2/analytics/funnels/${encodeURIComponent(profileId)}?${params}`)
+  return apiRequest<FunnelResponse>(`/api/v2/analytics/funnels/${encodeURIComponent(profileId)}?${params}`, { signal })
 }
 
 export function fetchReferenceCdcFunnelCandidate(range: string) {
@@ -346,6 +348,6 @@ export async function fetchV2Events(range: string, eventClass?: string, signal?:
   return response.events
 }
 
-export function fetchV2DataHealth(range: string) {
-  return apiRequest<DataHealthResponse>(`/api/v2/analytics/data-health?${scopeParams(range)}`)
+export function fetchV2DataHealth(range: string, signal?: AbortSignal) {
+  return apiRequest<DataHealthResponse>(`/api/v2/analytics/data-health?${scopeParams(range)}`, { signal })
 }

@@ -25,7 +25,7 @@ function JourneyArtwork() {
 
 export function FriendlyOverviewPage() {
   const { range, sourceId } = useOutletContext<ShellContext>()
-  const overview = useQuery({ queryKey: ["v2-overview", sourceId, range], queryFn: () => fetchV2Overview(range) })
+  const overview = useQuery({ queryKey: ["v2-overview", sourceId, range], queryFn: ({ signal }) => fetchV2Overview(range, signal) })
   if (overview.isLoading) return <div className="space-y-5"><div className="skeleton h-16 w-80" /><div className="skeleton h-64" /></div>
   if (overview.isError) return <EmptyState icon={<CircleOff size={20} />} title="Chưa tải được dữ liệu tổng quan" detail="Kiểm tra kết nối và phiên đăng nhập, rồi thử lại." />
 

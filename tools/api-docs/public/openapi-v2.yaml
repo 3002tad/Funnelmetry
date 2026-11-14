@@ -156,6 +156,11 @@ components:
             conversion_horizon_seconds: { type: integer, nullable: true }
             late_arrival_grace_seconds: { type: integer, nullable: true }
             published_at: { type: string, format: date-time }
+            disabled_at:
+              type: string
+              format: date-time
+              nullable: true
+              description: Source-specific activation disable time. Null means enabled; historical profiles remain readable. Does not certify freshness or reconciliation.
         totals: { $ref: "#/components/schemas/ProfileTotal" }
         steps:
           type: array

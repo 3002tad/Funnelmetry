@@ -42,6 +42,7 @@ test("resolves a published historical profile version and preserves zero-denomin
       subject_scope: "JOURNEY", entry_event_type: "behavior.product_viewed",
       conversion_horizon_seconds: null, late_arrival_grace_seconds: null,
       published_at: "2026-08-01T00:00:00.000Z",
+      disabled_at: "2026-10-30T16:24:13.000Z",
     }],
     [{
       entrants: "0", observed_converted: "0", pending: "0", dropped: "0", provisional: "0",
@@ -59,6 +60,7 @@ test("resolves a published historical profile version and preserves zero-denomin
     { profileId: "commerce-conversion", version: null },
   )
   assert.equal(result.steps[0].observed_reach_rate, null)
+  assert.equal(result.profile.disabled_at, "2026-10-30T16:24:13.000Z")
   assert.equal(result.totals.observed_end_to_end_rate, null)
   assert.equal(result.totals.late_conversion_rate, null)
   assert.equal(result.totals.final_end_to_end_rate, null)
@@ -66,6 +68,15 @@ test("resolves a published historical profile version and preserves zero-denomin
   assert.doesNotMatch(calls[0].sql, /a\.disabled_at IS NULL/)
   assert.match(calls[2].sql, /instances\.source_id = \$1/)
   assert.deepEqual(calls[2].params, ["medusa-reference", "commerce-conversion", "1.0.0"])
+})
+
+test("enabled profile exposes null disabled_at without certifying data quality", async () => {
+  const responses = [[{ funnel_profile_id: 'commerce', profile_version: '1', disabled_at: null,
+    conversion_horizon_seconds: null, late_arrival_grace_seconds: null }], [{}], []]
+  const repository = createV2AnalyticsRepository({ query: async () => responses.shift() })
+  const result = await repository.getFunnel({ sourceId: 'medusa-reference', from: null, to: null }, { profileId: 'commerce', version: '1' })
+  assert.equal(result.profile.disabled_at, null)
+  assert.equal(result.metric_state, 'OBSERVED')
 })
 
 test("journey detail exposes evidence summaries but never entity keys or canonical payload data", async () => {

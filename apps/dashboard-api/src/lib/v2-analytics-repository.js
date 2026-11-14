@@ -258,6 +258,7 @@ export function createV2AnalyticsRepository({ query } = {}) {
           conversion_horizon_seconds: profile.conversion_horizon_seconds === null ? null : number(profile.conversion_horizon_seconds),
           late_arrival_grace_seconds: profile.late_arrival_grace_seconds === null ? null : number(profile.late_arrival_grace_seconds),
           published_at: profile.published_at,
+          disabled_at: profile.disabled_at ?? null,
         }),
         totals: Object.freeze(totals),
         steps: Object.freeze(stepRows.map((row) => {

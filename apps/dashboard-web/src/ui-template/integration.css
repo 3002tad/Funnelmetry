@@ -77,3 +77,8 @@
 .template-root .tpl-drawer { color:var(--tpl-text); }
 @media(min-width:761px){.template-root .tpl-close-menu { display:none; }}
 @media(max-width:760px){.template-root .tpl-desktop-toggle { display:none; }.template-root .tpl-event-card-grid { grid-template-columns:1fr; }.template-root .tpl-admin-form { grid-template-columns:1fr; }.template-root .tpl-toolbar .tpl-search-wrap input { max-width:100%; }.template-root .tpl-card-head { flex-wrap:wrap; }}
+
+/* Keep labels readable while the separate reach bar encodes the API rate. */
+.template-root .tpl-funnel-chart-step { position:relative; padding-bottom:32px; }
+.template-root .tpl-funnel-reach-track { position:absolute; left:18px; right:18px; bottom:10px; height:6px; background:var(--tpl-line); border-radius:3px; overflow:hidden; }
+.template-root .tpl-funnel-reach-track span { display:block; height:100%; background:var(--tpl-accent); }

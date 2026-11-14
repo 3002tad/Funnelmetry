@@ -44,7 +44,7 @@ function HealthTimelineChart({ buckets }: { buckets: DataHealthResponse["hourly"
 
 export function DataHealthPage() {
   const { range, sourceId } = useOutletContext<ShellContext>()
-  const health = useQuery({ queryKey: ["v2-data-health", sourceId, range], queryFn: () => fetchV2DataHealth(range) })
+  const health = useQuery({ queryKey: ["v2-data-health", sourceId, range], queryFn: ({ signal }) => fetchV2DataHealth(range, signal) })
   if (health.isLoading) return <div className="space-y-4"><div className="skeleton h-16 w-96" /><div className="grid grid-cols-2 gap-3 xl:grid-cols-5">{[1,2,3,4,5].map((item) => <div key={item} className="skeleton h-28" />)}</div><div className="skeleton h-80" /></div>
   if (health.isError || !health.data) return <EmptyState icon={<CircleOff size={20} />} title="Cannot load Data Health V2" detail="Check Dashboard API, migrations 001–005, source ID and your login session." />
 
