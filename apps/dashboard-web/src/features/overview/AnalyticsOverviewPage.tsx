@@ -6,16 +6,16 @@ import type { ShellContext } from '../../app/AppShell';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
-import { DatasetSelect } from '../../components/ui/dataset-select';
 import { PageHeader } from '../../components/ui/page';
 import { DesignCard, DesignStats, ScopeMarker, number } from '../../components/ui/prototype';
 import { fetchExploration, type Exploration } from '../../lib/exploration-api';
 import { dateWindow } from '../../lib/date-range';
+import { ProgressiveDetails } from '../../components/ui/progressive-details';
 import { OverviewActivity } from './OverviewActivity';
 type Metric = 'views' | 'searches' | 'cart';
 function exportCsv(data: Exploration) { const blob = new Blob(['date,total,views,searches,cart\n' + data.daily.map(r => [r.date, r.total, r.views, r.searches, r.cart].join(',')).join('\n')], { type: 'text/csv;charset=utf-8' }); const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'funnelmetry-activity.csv'; a.click(); URL.revokeObjectURL(url); }
 export function AnalyticsOverviewPage() {
-    const { range, sourceId, dataset, setDataset } = useOutletContext<ShellContext>(), { user } = useAuth();
+    const { range, sourceId, dataset } = useOutletContext<ShellContext>(), { user } = useAuth();
     const [selected, setSelected] = useState<string | null>(null);
     useEffect(() => setSelected(null), [dataset]);
     const window = useMemo(() => dateWindow(range), [range]);
@@ -24,26 +24,26 @@ export function AnalyticsOverviewPage() {
     const totals = (data?.daily ?? []).filter(r => !selected || r.date.startsWith(selected)).reduce((n, r) => ({ total: n.total + Number(r.total), views: n.views + Number(r.views), searches: n.searches + Number(r.searches), cart: n.cart + Number(r.cart) }), { total: 0, views: 0, searches: 0, cart: 0 });
     const titles = new Map(data?.variants.map(v => [v.product_id, v.title]));
     const items = selected ? [
-        { label: 'Browser events', value: number(totals.total), detail: `${selected} · ${data?.quality ?? 'UNVERIFIED'}` },
-        { label: 'Lượt xem sản phẩm', value: number(totals.views), detail: `${selected} · Event grain` },
-        { label: 'Lượt tìm kiếm', value: number(totals.searches), detail: `${selected} · Event grain` },
-        { label: 'Cart ADD quantity tăng', value: number(totals.cart), detail: `${selected} · Grain riêng` },
+        { label: 'Sự kiện trình duyệt', value: number(totals.total), detail: `${selected} · ${data?.quality ?? 'UNVERIFIED'}` },
+        { label: 'Lượt xem sản phẩm', value: number(totals.views), detail: `${selected} · Số lượt sự kiện` },
+        { label: 'Lượt tìm kiếm', value: number(totals.searches), detail: `${selected} · Số lượt sự kiện` },
+        { label: 'Lượng thêm vào giỏ', value: number(totals.cart), detail: `${selected} · Số lượng tăng` },
     ] : [
-        { label: dataset === 'observed' ? 'Canonical events' : 'Browser events', value: number(totals.total), detail: 'Event grain' },
-        { label: 'Session', value: number(data?.counts?.sessions), detail: 'Session grain · không phải khách hàng' },
-        { label: 'Lượt tìm kiếm', value: number(totals.searches), detail: 'Search demand · không suy attribution' },
-        { label: 'Order', value: number(data?.counts?.orders), detail: 'Order grain · không phải doanh thu' },
+        { label: dataset === 'observed' ? 'Sự kiện đã chuẩn hóa' : 'Browser events', value: number(totals.total), detail: 'Số lượt sự kiện' },
+        { label: 'Phiên truy cập', value: number(data?.counts?.sessions), detail: 'Không phải số khách hàng' },
+        { label: 'Lượt tìm kiếm', value: number(totals.searches), detail: 'Số lượt tìm kiếm' },
+        { label: 'Đơn hàng', value: number(data?.counts?.orders), detail: 'Không phải doanh thu' },
     ];
     return <div className="tpl-page overview-page">
     <PageHeader title="Tổng quan" description="Theo dõi hoạt động, sự quan tâm tới sản phẩm và chất lượng đầu vào." actions={<><Button variant="outline" disabled={query.isFetching} onClick={() => void query.refetch()}><RefreshCw size={14}/>Làm mới</Button><Button disabled={!data} onClick={() => data && exportCsv(data)}><Download size={14}/>Xuất dữ liệu</Button></>}/>
-    <div className="tpl-dataset-toolbar"><span className="tpl-data-origin" title="Nguồn và chất lượng dữ liệu">{data?.origin ?? 'Đang tải'} · UNVERIFIED</span><DatasetSelect sourceId={sourceId} value={dataset} onChange={id => { setDataset(id); setSelected(null); }}/></div>
+
     {query.isError && <p role="alert">Không tải được dữ liệu. Hãy thử lại.</p>}
     {query.isPending && <div className="skeleton h-64"/>}
-    {data && <><ScopeMarker title={`Phạm vi hoạt động: ${selected || 'Toàn bộ dataset'}`}>{selected ? <button onClick={() => setSelected(null)}>Xem toàn bộ</button> : <Badge>Chưa lọc</Badge>}</ScopeMarker><DesignStats items={items}/><OverviewActivity data={data} selected={selected} onSelect={setSelected}/></>}
-    <PeriodComparison key={dataset} sourceId={sourceId} dataset={dataset} anchor={data?.daily[data.daily.length - 1]?.date}/>
+    {data && <><ScopeMarker title={`Phạm vi hoạt động: ${selected || 'Toàn bộ dữ liệu'}`}>{selected ? <button onClick={() => setSelected(null)}>Xem toàn bộ</button> : <Badge>Chưa lọc</Badge>}</ScopeMarker><DesignStats items={items.filter(item => item.value !== 'Chưa đo')}/>{items.some(item => item.value === 'Chưa đo') && <p className="tpl-semantic-footnote">Chưa đo: {items.filter(item => item.value === 'Chưa đo').map(item => item.label).join(', ')}.</p>}<OverviewActivity data={data} selected={selected} onSelect={setSelected}/></>}
+    <ProgressiveDetails key={dataset} label="So sánh hai kỳ"><PeriodComparison sourceId={sourceId} dataset={dataset} anchor={data?.daily[data.daily.length - 1]?.date}/></ProgressiveDetails>
     {data && <><div className="tpl-section-heading"><h2>Sản phẩm & nhu cầu tìm kiếm</h2><span>{data.counts?.catalog_products ? `${number(data.counts.catalog_products)} sản phẩm duy nhất` : 'Top sản phẩm theo lượt xem'}</span></div><div className="tpl-grid overview-bottom-grid">
       <DesignCard title="Sản phẩm được xem nhiều"><table><thead><tr><th>Sản phẩm</th><th>Lượt xem</th></tr></thead><tbody>{data.products.slice(0, 10).map(p => <tr key={p.product_id}><td>{titles.get(p.product_id) || p.product_id}</td><td>{number(p.views)}</td></tr>)}</tbody></table></DesignCard>
-      <div className="tpl-stack"><DesignCard title="Từ khóa tìm kiếm"><table><thead><tr><th>Query</th><th>Submit</th></tr></thead><tbody>{data.keywords.map(k => <tr key={k.keyword}><td>{k.keyword}</td><td>{number(k.submits)}</td></tr>)}</tbody></table></DesignCard><DesignCard title="UTM đầu vào"><table><thead><tr><th>UTM source</th><th>Event</th></tr></thead><tbody>{data.utm?.map((r, i) => <tr key={i}><td>{r.source || '(Không có UTM)'}</td><td>{number(r.total)}</td></tr>)}</tbody></table></DesignCard></div>
+      <div className="tpl-stack"><DesignCard title="Từ khóa tìm kiếm"><table><thead><tr><th>Từ khóa</th><th>Lượt tìm</th></tr></thead><tbody>{data.keywords.map(k => <tr key={k.keyword}><td>{k.keyword}</td><td>{number(k.submits)}</td></tr>)}</tbody></table></DesignCard>{data.utm?.some(r => r.source) ? <DesignCard title="Nguồn truy cập (UTM)"><table><thead><tr><th>Nguồn</th><th>Sự kiện</th></tr></thead><tbody>{data.utm?.map((r, i) => <tr key={i}><td>{r.source || '(Không có UTM)'}</td><td>{number(r.total)}</td></tr>)}</tbody></table></DesignCard> : <p className="tpl-semantic-footnote">Chưa có thông tin nguồn truy cập UTM.</p>}</div>
     </div></>}
   </div>;
 }

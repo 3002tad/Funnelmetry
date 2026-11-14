@@ -36,6 +36,8 @@ try {
     else if (path.endsWith('/account/preferences')) body = { preferences: { theme: 'light', analytics_default_days: 30, language: 'vi' } }
     else if (path.endsWith('/analytics/overview')) { body = { profiles: mode === 'empty' ? [] : profiles }; if (mode === 'error') { status = 503; body = { error: 'fixture_unavailable' } } }
     else if (path.includes('/analytics/funnels/')) { body = fixture(path.split('/').at(-1)); if (mode === 'unconfigured') { body.profile.conversion_horizon_seconds = null; body.profile.late_arrival_grace_seconds = null } if (mode === 'zero') { body.steps.forEach(s => { s.reached = 0; s.observed_reach_rate = null }); body.totals = { ...totals, entrants: 0, observed_converted: 0, pending: 0, dropped: 0, provisional: 0, degraded: 0, observed_end_to_end_rate: null } } }
+    else if (path.endsWith('/analytics/events')) body = { events: Array.from({length:24}, (_,i)=>({canonical_event_id:'event-'+i,event_type:'behavior.product_viewed',event_class:'BEHAVIOR_INTENT',occurred_at:'2026-11-01T10:00:00Z',time_basis:'source',mapping_version:'v1'})) }
+    else if (path.endsWith('/analytics/data-health')) body = { canonicalization:{accepted_events:10,normalized:10,unsupported:0,quarantined:0},canonical:{events:10,authoritative_event_time_rate:1},projection_quality:{funnel_instances:2,provisional:2,reconciled:0,degraded:0},reconciliation:{snapshots:0,comparisons:0,quality_gate:{state:'UNAVAILABLE',eligible_for_authoritative_business_analysis:false,reasons:['NO_RECONCILIATION_SNAPSHOT']}},hourly:[],unavailable_metrics:[] }
     else if (path.endsWith('/analytics/journeys')) body = { journeys: [] }
     else if (path.endsWith('/analytics/datasets')) body = { items: [{ id: 'demo-historical-test', origin: 'SYNTHETIC_BACKFILL' }, { id: 'demo-gap-test', origin: 'SYNTHETIC_BACKFILL' }] }
     else if (path.endsWith('/analytics/explorer')) body = { dataset: new URL(route.request().url()).searchParams.get('dataset'), origin: 'SYNTHETIC_BACKFILL', quality: 'UNVERIFIED', daily: [], products: [], keywords: [], variants: [], prices: [], coverage: [], event_types: [], utm: [] }
@@ -56,7 +58,7 @@ try {
   await page.screenshot({ path: output + 'desktop.png', fullPage: true })
   await check('profile/version and observed state visible', async () => { assert.match(await page.locator('main').innerText(), /commerce@test-v1/); assert.match(await page.locator('main').innerText(), /OBSERVED/) })
   await check('reach bars encode 100%, 50%, 10% rather than step index', async () => { assert.deepEqual(await page.locator('[data-funnel-reach]').evaluateAll(es => es.map(e => e.style.width)), ['100%', '50%', '10%']); assert.ok(await page.locator('[data-funnel-reach]').first().evaluate(e => e.getBoundingClientRect().height > 0 && getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)')) })
-  await check('configured horizon and grace displayed accurately', async () => { const text = await page.locator('main').innerText(); assert.match(text, /86400/); assert.match(text, /3600/); assert.doesNotMatch(text, /Horizon và grace chưa cấu hình/) })
+  await check('technical detail is collapsed and exposes accurate policy on demand', async () => { assert.equal(await page.locator('.tpl-funnel-selected').getAttribute('open'), null); await page.locator('.tpl-funnel-selected summary').click(); const text = await page.locator('main').innerText(); assert.match(text, /86400/); assert.match(text, /3600/); assert.doesNotMatch(text, /Horizon và grace chưa cấu hình/) })
   await check('select step then switch shorter profile resets selection', async () => { await page.locator('.tpl-funnel-chart-step').nth(2).click(); assert.match(await page.locator('.tpl-funnel-selected h2').innerText(), /step_2/); await page.getByLabel('Funnel profile').selectOption('short:test-v1'); await page.waitForFunction(() => document.querySelectorAll('.tpl-funnel-chart-step').length === 1); assert.equal(await page.locator('.tpl-funnel-chart-step').first().getAttribute('aria-pressed'), 'true') })
   await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: output + 'mobile.png', fullPage: true })
   await check('mobile has no horizontal document overflow', async () => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)))
@@ -66,7 +68,7 @@ try {
   await check('API failure shows error rather than zero counts', async () => { await page.getByText('Không tải được danh sách funnel', { exact: true }).waitFor(); assert.equal(await page.locator('.tpl-funnel-chart-step').count(), 0) })
   await check('retry recovers without reloading the page', async () => { mode = 'ready'; await page.getByRole('button', { name: 'Thử tải lại danh sách funnel' }).click({ timeout: 2000 }); await ready() })
   mode = 'unconfigured'; await page.reload(); await ready()
-  await check('missing policy remains explicitly unconfigured', async () => assert.match(await page.locator('main').innerText(), /chưa cấu hình/))
+  await check('missing policy remains explicitly unconfigured', async () => { await page.locator('.tpl-funnel-selected summary').click(); assert.match(await page.locator('main').innerText(), /chưa cấu hình/) })
   mode = 'zero'; await page.reload(); await ready()
   await check('zero cohort never displays NaN or Infinity', async () => assert.doesNotMatch(await page.locator('main').innerText(), /NaN|Infinity/))
   mode = 'projection-error'; await page.reload()
@@ -100,7 +102,7 @@ try {
   mode = 'historical'; await page.reload(); await ready()
   await check('disabled profile shows historical warning and retains counts', async () => {
     const text = await page.getByRole('region', { name: 'Trạng thái profile' }).innerText()
-    assert.match(text, /Phễu lịch sử/); assert.match(text, /2026-10-30T16:24:13.000Z/)
+    assert.match(text, /Phễu lịch sử/); assert.equal(await page.locator('time').getAttribute('datetime'), '2026-10-30T16:24:13.000Z')
     assert.match(text, /không dùng để suy ra chuyển đổi/)
     assert.equal(await page.locator('.tpl-funnel-chart-step').count(), 3)
     await page.screenshot({ path: output + 'historical-profile.png', fullPage: true })
@@ -146,6 +148,41 @@ try {
     await page.reload(); await page.getByRole('option', { name: /removed-dataset.*Chưa khả dụng/ }).waitFor({ state: 'attached' })
     assert.equal(await page.getByLabel('Bộ dữ liệu', { exact: true }).inputValue(), 'removed-dataset')
     await page.getByLabel('Bộ dữ liệu', { exact: true }).selectOption('observed')
+  })
+
+  await check('overview has one dataset control and comparison opens on demand', async () => {
+    assert.equal(await page.getByLabel('Bộ dữ liệu', {exact:true}).count(),1)
+    assert.equal(await page.locator('.tpl-compare-controls').count(),0)
+    await page.getByText('So sánh hai kỳ',{exact:true}).click()
+    await page.locator('.tpl-compare-controls').waitFor()
+    await page.screenshot({path:output+'overview-expanded.png',fullPage:true})
+  })
+  await check('observed quality keeps warning visible and details collapsed', async () => {
+    await page.getByRole('link',{name:'Chất lượng dữ liệu',exact:true}).click()
+    await page.getByText('Có dữ liệu cần kiểm tra; chưa đủ bằng chứng đối soát').waitFor()
+    const details=page.locator('details').filter({has:page.getByText('Chi tiết xử lý và đối soát',{exact:true})})
+    assert.equal(await details.getAttribute('open'),null)
+    await details.locator('summary').click()
+    await page.getByText('Chất lượng xử lý',{exact:true}).waitFor()
+    await details.locator('summary').click()
+    await page.screenshot({path:output+'quality.png',fullPage:true})
+  })
+  await check('event list is compact and supports opening details', async () => {
+    await page.getByRole('link',{name:'Sự kiện',exact:true}).click()
+    await page.locator('.tpl-event-card').first().waitFor()
+    assert.equal(await page.locator('.tpl-event-card').count(),24)
+    assert.ok((await page.locator('.tpl-event-card').first().boundingBox()).height<90)
+    await page.screenshot({path:output+'events-desktop.png',fullPage:true})
+    await page.locator('.tpl-event-card').first().click()
+    await page.getByText('Thông tin kỹ thuật',{exact:true}).waitFor()
+  })
+  await check('mobile filters fit and only one navigation menu is visible', async () => {
+    await page.goto(url.replace('/funnels','/overview'));await page.setViewportSize({width:390,height:844})
+    await page.getByLabel('Bộ dữ liệu',{exact:true}).waitFor()
+    assert.equal(await page.getByRole('button',{name:'Mở menu',exact:true}).count(),1)
+    assert.equal(await page.getByRole('button',{name:'Thu gọn hoặc mở sidebar'}).isVisible(),false)
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+    await page.screenshot({path:output+'overview-mobile.png',fullPage:true})
   })
   mode = 'unauthorized'; await page.goto(url)
   await check('401 redirects to login and removes stored credentials', async () => {

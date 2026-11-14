@@ -82,3 +82,33 @@
 .template-root .tpl-funnel-chart-step { position:relative; padding-bottom:32px; }
 .template-root .tpl-funnel-reach-track { position:absolute; left:18px; right:18px; bottom:10px; height:6px; background:var(--tpl-line); border-radius:3px; overflow:hidden; }
 .template-root .tpl-funnel-reach-track span { display:block; height:100%; background:var(--tpl-accent); }
+
+/* Compact analytical presentation; technical details remain accessible. */
+.template-root[data-ui="analyst"] .tpl-filters > .tpl-row {display:flex;flex-direction:row;flex-wrap:wrap;align-items:end;gap:16px;width:100%}
+.template-root[data-ui="analyst"] .tpl-filters .tpl-database-banner {margin:0;padding:0;border:0;background:none;flex:0 1 290px}
+.template-root[data-ui="analyst"] .tpl-filters .tpl-database-banner label {display:flex;flex-direction:column;gap:6px}
+.template-root[data-ui="analyst"] .tpl-funnel-compact {grid-template-columns:minmax(0,1fr)}
+.template-root[data-ui="analyst"] .tpl-funnel-compact > .tpl-card {min-height:0}
+.template-root[data-ui="analyst"] .tpl-funnel-selected > summary {cursor:pointer;font-weight:600}
+.template-root[data-ui="analyst"] .tpl-funnel-selected:not([open]) {padding:16px}
+.template-root[data-ui="analyst"] .tpl-technical-details {margin:12px 0;padding:12px 16px}
+.template-root[data-ui="analyst"] .tpl-technical-details > summary {cursor:pointer}
+.template-root[data-ui="analyst"] .tpl-event-card-grid {display:grid;grid-template-columns:1fr;gap:0;border:1px solid var(--tpl-line);border-radius:12px;overflow:hidden}
+.template-root[data-ui="analyst"] .tpl-event-card {min-height:0;padding:12px 16px;border-radius:0;border-width:0 0 1px;align-items:center}
+.template-root[data-ui="analyst"] .tpl-event-card-content {display:flex;align-items:center;flex:1;gap:16px;flex-wrap:wrap}
+.template-root[data-ui="analyst"] .tpl-event-card-content > strong {min-width:180px}
+.template-root[data-ui="analyst"] .tpl-event-card-content > span {margin:0}
+.template-root[data-ui="analyst"] .tpl-price-empty .tpl-empty {min-height:0;padding:20px}
+@media(max-width:767px){
+ .template-root[data-ui="analyst"] .tpl-topbar .tpl-desktop-toggle {display:none}
+ .template-root[data-ui="analyst"] .tpl-filters .tpl-database-banner {flex-basis:100%}
+ .template-root[data-ui="analyst"] .tpl-event-card-content {gap:4px 12px}
+ .template-root[data-ui="analyst"] .tpl-event-card-content > strong {width:100%;min-width:0}
+}
+
+.template-root[data-ui="analyst"] .tpl-stats {grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.template-root[data-ui="analyst"] .tpl-stat-value-long {font-size:17px;line-height:1.5}
+.template-root[data-ui="analyst"] .tpl-event-card {padding:8px 16px}
+.template-root[data-ui="analyst"] .tpl-event-action-icon {width:28px;height:28px;min-width:28px}
+.template-root[data-ui="analyst"] .tpl-filters .tpl-database-banner {width:auto;justify-content:flex-start}
+.template-root[data-ui="analyst"] .tpl-filters .tpl-custom-page-range {width:auto;flex:0 1 auto}

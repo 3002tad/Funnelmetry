@@ -8,7 +8,6 @@ import { fetchExploration, type Exploration } from '../../lib/exploration-api';
 import { dateWindow } from '../../lib/date-range';
 import { downloadCsv } from '../../lib/csv-export';
 import { PageHeader } from '../../components/ui/page';
-import { DatasetSelect } from '../../components/ui/dataset-select';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { DesignCard, DesignStats, ScopeMarker, number } from '../../components/ui/prototype';
@@ -16,7 +15,7 @@ type Price = Exploration['prices'][number];
 const contextKey = (p: Price) => [p.currency, p.channel, p.region, p.price_rule].join(' · ');
 const money = (p: Price | null) => p ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: p.currency }).format(p.amount_minor / 100) : 'Không áp dụng tại mốc';
 export default function ProductsWorkspacePage() {
-    const { range, sourceId, dataset, setDataset } = useOutletContext<ShellContext>(), { user } = useAuth(), [product, setProduct] = useState(''), [variant, setVariant] = useState(''), [context, setContext] = useState(''), [search, setSearch] = useState('');
+    const { range, sourceId, dataset } = useOutletContext<ShellContext>(), { user } = useAuth(), [product, setProduct] = useState(''), [variant, setVariant] = useState(''), [context, setContext] = useState(''), [search, setSearch] = useState('');
     const window = useMemo(() => dateWindow(range), [range]), [from, setFrom] = useState(window.from.slice(0, 16)), [to, setTo] = useState(window.to.slice(0, 16));
     useEffect(() => { setProduct(''); setVariant(''); setContext(''); }, [dataset]);
     useEffect(() => { setFrom(window.from.slice(0, 16)); setTo(window.to.slice(0, 16)); }, [window]);
@@ -29,21 +28,21 @@ export default function ProductsWorkspacePage() {
     const titles = new Map(data?.variants.map(v => [v.product_id, v.title])), products = (data?.products ?? []).filter(p => (titles.get(p.product_id) || p.product_id).toLowerCase().includes(search.toLowerCase())).slice(0, 10), selected = data?.products.find(p => p.product_id === product);
     const choose = (id: string) => { setProduct(product === id ? '' : id); setVariant(''); setContext(''); };
     const stats = selected ? [
-        { label: 'Sản phẩm đang chọn', value: titles.get(product) || product, detail: 'Catalog cùng dataset' },
-        { label: 'Lượt xem sản phẩm', value: number(selected.views), detail: 'Tổng event xem trong khoảng đã chọn' },
-        { label: 'Variant trong catalog trả về', value: variants.length, detail: 'Tối đa 500 biến thể' },
+        { label: 'Sản phẩm đang chọn', value: titles.get(product) || product, detail: 'Danh mục cùng bộ dữ liệu' },
+        { label: 'Lượt xem sản phẩm', value: number(selected.views), detail: 'Số lượt trong khoảng đã chọn' },
+        { label: 'Biến thể trả về', value: variants.length, detail: 'Tối đa 500 biến thể' },
         { label: 'Nguồn dữ liệu', value: dataset === 'observed' ? 'Observed' : 'Synthetic', detail: 'UNVERIFIED' },
     ] : [{ label: 'Sản phẩm trong catalog', value: number(data?.counts?.catalog_products), detail: 'Sản phẩm duy nhất' }, { label: 'Lượt xem sản phẩm', value: number(data?.daily.reduce((n, r) => n + Number(r.views), 0)), detail: 'Số lượt xem' }, { label: 'Sản phẩm đang hiển thị', value: products.length, detail: 'Top theo lượt xem trong khoảng đã chọn' }, { label: 'Nguồn dữ liệu', value: dataset === 'observed' ? 'Observed' : 'Synthetic', detail: 'UNVERIFIED' }];
-    return <div className="tpl-page products-page"><PageHeader title="Sản phẩm" description="Sản phẩm được quan tâm và lịch sử giá trong dataset đang chọn." actions={<><Button variant="outline" disabled={summary.isFetching} onClick={() => void summary.refetch()}><RefreshCw size={14}/>Làm mới</Button><Button disabled={!data} onClick={() => downloadCsv('funnelmetry-products.csv', ['Sản phẩm', 'Lượt xem'], products.map(p => [titles.get(p.product_id) || p.product_id, p.views]))}><Download size={14}/>Xuất dữ liệu</Button></>}/>
- <div className="tpl-dataset-toolbar"><span className="tpl-data-origin">{data?.origin || 'Đang tải'} · UNVERIFIED</span><DatasetSelect sourceId={sourceId} value={dataset} onChange={id => { setDataset(id); setProduct(''); setVariant(''); setContext(''); }}/></div>
+    return <div className="tpl-page products-page"><PageHeader title="Sản phẩm" description="Sản phẩm được quan tâm và lịch sử giá trong bộ dữ liệu đang chọn." actions={<><Button variant="outline" disabled={summary.isFetching} onClick={() => void summary.refetch()}><RefreshCw size={14}/>Làm mới</Button><Button disabled={!data} onClick={() => downloadCsv('funnelmetry-products.csv', ['Sản phẩm', 'Lượt xem'], products.map(p => [titles.get(p.product_id) || p.product_id, p.views]))}><Download size={14}/>Xuất dữ liệu</Button></>}/>
+
  {summary.isError && <p role="alert">Không tải được sản phẩm. Hãy thử lại.</p>}
- <ScopeMarker title={selected ? 'Đang chọn: ' + (titles.get(product) || product) : 'Tất cả sản phẩm trong dataset'}>{product ? <button onClick={() => { setProduct(''); setVariant(''); }}>Bỏ chọn sản phẩm</button> : <Badge>Toàn bộ dataset</Badge>}</ScopeMarker>
- {data && <DesignStats items={stats}/>}
- <DesignCard title="Sản phẩm được quan tâm"><div className="tpl-toolbar"><label className="tpl-search-wrap"><Search size={14}/><input aria-label="Tìm sản phẩm" placeholder="Tìm trong top sản phẩm…" value={search} onChange={e => setSearch(e.target.value)}/></label></div><div className="tpl-table-scroll"><table><thead><tr><th>Sản phẩm</th><th>Lượt xem</th><th>Dataset</th><th /></tr></thead><tbody>{products.map(p => <tr key={p.product_id} tabIndex={0} aria-selected={product === p.product_id} className={product === p.product_id ? "tpl-product-row-selected" : ""} onClick={() => choose(p.product_id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') {
+ <ScopeMarker title={selected ? 'Đang chọn: ' + (titles.get(product) || product) : 'Tất cả sản phẩm trong bộ dữ liệu'}>{product ? <button onClick={() => { setProduct(''); setVariant(''); }}>Bỏ chọn sản phẩm</button> : <Badge>Toàn bộ dữ liệu</Badge>}</ScopeMarker>
+ {data && <><DesignStats items={stats.filter(item => item.label !== 'Nguồn dữ liệu' && item.value !== 'Chưa đo')}/>{stats.some(item => item.value === 'Chưa đo') && <p className="tpl-semantic-footnote">Chưa đo: {stats.filter(item => item.value === 'Chưa đo').map(item => item.label).join(', ')}.</p>}</>}
+ <DesignCard title="Sản phẩm được quan tâm"><div className="tpl-toolbar"><label className="tpl-search-wrap"><Search size={14}/><input aria-label="Tìm sản phẩm" placeholder="Tìm trong top sản phẩm…" value={search} onChange={e => setSearch(e.target.value)}/></label></div><div className="tpl-table-scroll"><table><thead><tr><th>Sản phẩm</th><th>Lượt xem</th><th /></tr></thead><tbody>{products.map(p => <tr key={p.product_id} tabIndex={0} aria-selected={product === p.product_id} className={product === p.product_id ? "tpl-product-row-selected" : ""} onClick={() => choose(p.product_id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         choose(p.product_id);
-    } }}><td><span className="tpl-product-thumb"><Package size={17}/></span><strong>{titles.get(p.product_id) || p.product_id}</strong></td><td>{number(p.views)}</td><td><Badge>{dataset === 'observed' ? 'OBSERVED' : 'SYNTHETIC'}</Badge></td><td><Button variant="outline" onClick={e => { e.stopPropagation(); setProduct(p.product_id); setVariant(''); setContext(''); document.querySelector('#price-interest')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Xem giá & lượt xem</Button></td></tr>)}</tbody></table>{!summary.isFetching && !products.length && <div className="tpl-empty">Không có sản phẩm phù hợp trong tập top sản phẩm.</div>}</div></DesignCard>
- <DesignCard title="Giá & mức quan tâm" className="tpl-price-panel" action={<Badge tone="warning">{dataset === 'observed' ? 'OBSERVED' : 'SYNTHETIC'} · UNVERIFIED</Badge>}>
+    } }}><td><span className="tpl-product-thumb"><Package size={17}/></span><strong title={p.product_id}>{titles.get(p.product_id) || `Chưa có tên · …${p.product_id.slice(-8)}`}</strong></td><td>{number(p.views)}</td><td><Button variant="outline" onClick={e => { e.stopPropagation(); setProduct(p.product_id); setVariant(''); setContext(''); document.querySelector('#price-interest')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Xem giá & lượt xem</Button></td></tr>)}</tbody></table>{!summary.isFetching && !products.length && <div className="tpl-empty">Không có sản phẩm phù hợp trong tập top sản phẩm.</div>}</div></DesignCard>
+ <DesignCard title="Giá & mức quan tâm" className={dataset === 'observed' ? "tpl-price-panel tpl-price-empty" : "tpl-price-panel"} action={<Badge tone="warning">Chưa xác minh</Badge>}>
  <div id="price-interest"/>
  {dataset === 'observed' ? <div className="tpl-empty">Chưa có lịch sử giá thực tế. Bạn có thể chọn dữ liệu minh họa để xem thử.</div> : <>
  <div className="tpl-price-controls"><label>Sản phẩm / variant<select value={variantId || ''} onChange={e => { setVariant(e.target.value); setContext(''); }}>{variants.map((v, i) => <option key={v.variant_id} value={v.variant_id}>{v.title} · variant {i + 1}</option>)}</select></label><label>Ngữ cảnh giá<select value={ctx || ''} onChange={e => setContext(e.target.value)}>{contexts.map(c => <option key={c}>{c}</option>)}</select></label><label>Từ thời điểm UTC<input aria-label="Từ thời điểm UTC" type="datetime-local" value={from} onChange={e => setFrom(e.target.value)}/></label><label>Đến trước thời điểm UTC<input aria-label="Đến trước thời điểm UTC" type="datetime-local" value={to} onChange={e => setTo(e.target.value)}/></label></div>

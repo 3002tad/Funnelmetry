@@ -1,5 +1,6 @@
 import type {ReactNode} from 'react'
 import {useLocation,useOutletContext} from 'react-router-dom'
+import {DatasetSelect} from './dataset-select'
 import {Database} from 'lucide-react'
 import type {ShellContext} from '../../app/AppShell'
 import {DateRangePicker} from './date-range-picker'
@@ -10,7 +11,7 @@ export function PageHeader({title,description,badge,actions}:{title:string;descr
  const admin=location.pathname.startsWith('/admin')||user?.role==='super_admin'
  const supportsDataset=['/overview','/products','/data-health'].includes(location.pathname)
  const showRange=shell&&!admin&&!['/settings','/ai'].includes(location.pathname)
- return <><div className="tpl-page-head"><div>{admin&&<div className="tpl-admin-kicker">FUNNELMETRY / ADMINISTRATION</div>}<h1>{title}{badge&&<span className="tpl-heading-badge">{badge}</span>}</h1><p className="tpl-subtitle">{description}</p></div>{actions&&<div className="tpl-row">{actions}</div>}</div>{showRange&&<div className="tpl-filters"><div className="tpl-row"><span className="tpl-tag tpl-gray"><Database size={14}/>{supportsDataset?shell.datasetLabel:'Medusa Reference'}</span><DateRangePicker value={shell.range} onChange={shell.setRange}/></div>{!supportsDataset&&shell.dataset!=="observed"&&<p role="status" className="tpl-small tpl-muted">Chức năng này chỉ hỗ trợ dữ liệu Medusa quan sát. Lựa chọn bộ dữ liệu demo vẫn được giữ khi bạn quay lại Tổng quan, Sản phẩm hoặc Chất lượng dữ liệu.</p>}</div>}</>
+ return <><div className="tpl-page-head"><div>{admin&&<div className="tpl-admin-kicker">FUNNELMETRY / ADMINISTRATION</div>}<h1>{title}{badge&&<span className="tpl-heading-badge">{badge}</span>}</h1><p className="tpl-subtitle">{description}</p></div>{actions&&<div className="tpl-row">{actions}</div>}</div>{showRange&&<div className="tpl-filters"><div className="tpl-row">{supportsDataset?<DatasetSelect sourceId={shell.sourceId} value={shell.dataset} onChange={shell.setDataset}/>:<span className="tpl-tag tpl-gray"><Database size={14}/>Medusa Reference</span>}<DateRangePicker value={shell.range} onChange={shell.setRange}/></div>{!supportsDataset&&shell.dataset!=="observed"&&<p role="status" className="tpl-small tpl-muted">Chức năng này chỉ hỗ trợ dữ liệu Medusa quan sát. Lựa chọn demo vẫn được giữ khi quay lại trang hỗ trợ.</p>}</div>}</>
 }
 export function SectionTitle({title,detail,action}:{title:string;detail?:string;action?:ReactNode}){return <div className="tpl-section-heading"><div><h2>{title}</h2>{detail&&<p className="tpl-subtitle">{detail}</p>}</div>{action}</div>}
 export function EmptyState({title,detail,icon}:{title:string;detail:string;icon:ReactNode}){return <div className="tpl-card tpl-empty">{icon}<h3>{title}</h3><p>{detail}</p></div>}
