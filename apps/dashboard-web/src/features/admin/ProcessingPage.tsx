@@ -78,7 +78,7 @@ export default function ProcessingPage() {
           Stable không chứng minh worker xử lý thành công. Sau khi worker mất kết nối, broker có thể cần chờ session timeout mới cập nhật.</p>
         <div className="mt-2 overflow-x-auto"><table className="w-full text-left text-sm">
           <thead><tr><th>Partition</th><th>Low</th><th>High</th><th>Committed</th><th>Lag</th><th>Trạng thái</th></tr></thead>
-          <tbody>{group.partitions.map(row => <tr key={row.partition}>
+          <tbody>{!group.partitions?.length && <tr><td colSpan={6}>Chưa có chi tiết partition.</td></tr>}{group.partitions?.map(row => <tr key={row.partition}>
             <td>{row.partition}</td><td>{row.low_offset}</td><td>{row.high_offset}</td><td>{row.committed_offset ?? '—'}</td><td>{row.lag_offsets ?? '—'}</td><td>{row.status}</td>
           </tr>)}</tbody>
         </table></div>

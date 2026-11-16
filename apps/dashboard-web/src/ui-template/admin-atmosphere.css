@@ -1,0 +1,99 @@
+/* White canvas, with depth concentrated on content rather than the background. */
+html:not(.dark) .template-root[data-ui="admin"] main :is(.admin-readable .tpl-card,.so-runtime,.so-shortcuts,.so-retained,.so-attention){border:1px solid #d5dfec;box-shadow:0 5px 16px #25456912,0 1px 3px #25456908;background:#fff}
+html:not(.dark) .template-root[data-ui="admin"] main :is(.admin-readable .tpl-card-head,.so-runtime>.so-section-title,.so-attention>.so-section-title,.admin-policy-card-heading){background:#f8faff;border-bottom:1px solid #e4ebf4}
+html:not(.dark) .template-root[data-ui="admin"] main .admin-policy-card-heading{padding-bottom:20px;border-radius:12px 12px 0 0}
+html:not(.dark) .template-root[data-ui="admin"] main .admin-readable .tpl-stats .tpl-stat{border:1px solid #d5dfec;border-top:3px solid #3488ed;background:linear-gradient(120deg,#f0f6ff,#fff 65%);box-shadow:0 5px 16px #25456912,0 1px 3px #25456908}
+html:not(.dark) .template-root[data-ui="admin"] main .admin-readable .tpl-stats .tpl-stat:nth-child(2){border-top-color:#8770e6;background:linear-gradient(120deg,#f5f1ff,#fff 65%)}
+html:not(.dark) .template-root[data-ui="admin"] main .admin-readable .tpl-stats .tpl-stat:nth-child(3){border-top-color:#29a5bd;background:linear-gradient(120deg,#effafd,#fff 65%)}
+html:not(.dark) .template-root[data-ui="admin"] main .admin-readable .tpl-stats .tpl-stat:nth-child(4){border-top-color:#36a58a;background:linear-gradient(120deg,#effaf5,#fff 65%)}
+html:not(.dark) .template-root[data-ui="admin"] main .so-attention>.so-section-title{background:#fffbf3;border-bottom-color:#eee3cf}
+html:not(.dark) .template-root[data-ui="admin"] main :is(.so-shortcuts,.so-retained){background:linear-gradient(180deg,#f8faff,#fff 90px)}
+html:not(.dark) .template-root[data-ui="admin"]{--tpl-bg:#fff;background:#fff}
+html:not(.dark) .template-root[data-ui="admin"] .tpl-shell{background:#fff}
+html:not(.dark) .template-root[data-ui="admin"] .tpl-topbar{background:#fff;border-bottom:1px solid #e8edf4;box-shadow:none}
+html:not(.dark) .template-root[data-ui="admin"] main :is(.tpl-card,.pipeline-panel){background:#fff;border:1px solid #dfe7f1;box-shadow:0 5px 20px #183b6910}
+html:not(.dark) .template-root[data-ui="admin"] main :is(.tpl-card-head,.pipeline-panel>header){background:#fff;border-bottom-color:#e8edf4}
+html:not(.dark) .template-root[data-ui="admin"] main .pipeline-studio .pipeline-overview{border-color:#dde6f2;box-shadow:0 8px 26px #20467516}
+html:not(.dark) .template-root[data-ui="admin"] main .pipeline-studio .pipeline-metrics{background:#fff}
+html:not(.dark) .template-root[data-ui="admin"] main .admin-readable .tpl-stats{background:transparent;border:0;box-shadow:none;padding:0}
+html:not(.dark) .template-root[data-ui="admin"] main .admin-readable .tpl-stat{background:#fff;border:1px solid #dfe7f1;border-top:3px solid #5286d8;box-shadow:0 5px 20px #183b6910}
+html:not(.dark) .template-root[data-ui="admin"] main .admin-readable .tpl-stat:nth-child(2){border-top-color:#329b92}
+html:not(.dark) .template-root[data-ui="admin"] main .admin-readable .tpl-stat:nth-child(3){border-top-color:#c69b53}
+html:not(.dark) .template-root[data-ui="admin"] main .tpl-source-summary{background:#fff}
+html:not(.dark) .template-root[data-ui="admin"] main .tpl-source-summary>div{background:#f6f9fe;border:1px solid #e4ebf5}
+html:not(.dark) .template-root[data-ui="admin"] main .tpl-technical-details>summary{background:#fff;border-color:#dde6f1}
+
+/* Background direction for the isolated Admin design preview. */
+.template-root[data-ui="admin"] .tpl-sidebar,
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-nav{
+  scrollbar-width:thin;
+  scrollbar-color:#496080 transparent;
+}
+.template-root[data-ui="admin"] .tpl-sidebar::-webkit-scrollbar,
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-nav::-webkit-scrollbar{width:6px;height:6px}
+.template-root[data-ui="admin"] .tpl-sidebar::-webkit-scrollbar-track,
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-nav::-webkit-scrollbar-track{background:transparent}
+.template-root[data-ui="admin"] .tpl-sidebar::-webkit-scrollbar-thumb,
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-nav::-webkit-scrollbar-thumb{background:#496080;border-radius:8px}
+.template-root[data-ui="admin"] .tpl-sidebar::-webkit-scrollbar-button,
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-nav::-webkit-scrollbar-button{display:none;width:0;height:0}
+.template-root[data-ui="admin"]{
+  --tpl-bg:#eef4fa;--tpl-line:#dfe8f2;--tpl-accent:#2366d9;--tpl-soft:#eaf3ff;
+  --tpl-sidebar-text:#dce7f8;--tpl-sidebar-muted:#9caec9;--tpl-sidebar-line:#ffffff18;
+  --tpl-sidebar-surface:#ffffff08;--tpl-sidebar-hover:#ffffff0e;
+  background:#eef4fa;
+}
+.template-root[data-ui="admin"] .tpl-shell{
+  background:radial-gradient(ellipse 85% 560px at 3% 0%,#ccddfa 0%,transparent 72%),radial-gradient(ellipse 65% 540px at 100% 12%,#d1efec 0%,transparent 70%),linear-gradient(165deg,#eff4fc 15%,#f3f7fb 65%,#eaf2f8);
+  min-height:100vh;
+}
+.template-root[data-ui="admin"] main{background:transparent}
+.template-root[data-ui="admin"] .tpl-sidebar{
+  background:radial-gradient(ellipse at 0% 0%,#253d69 0%,transparent 55%),linear-gradient(175deg,#172a49,#101e35 75%);
+  border-right:1px solid #243956;box-shadow:10px 0 40px #1834570b;color:#e8effb;
+}
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-brand{color:#fff}
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-brand-logo{background:linear-gradient(145deg,#4a90ff,#2464d7);box-shadow:0 5px 18px #0a152d55}
+.template-root[data-ui="admin"] .admin-workspace-label{border-color:#ffffff16}
+.template-root[data-ui="admin"] .admin-workspace-label span{color:#a7b9d5}
+.template-root[data-ui="admin"] .admin-workspace-label strong{color:#e5eefc}
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-ai-launch{background:#ffffff08;border-color:#ffffff18;color:#c7d9f8}
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-nav-label{color:#93a8c9}
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-nav a{color:#c9d7ee}
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-nav a:hover{background:#ffffff0c;color:#fff}
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-nav a.tpl-active{background:linear-gradient(105deg,#2a66ce,#337edf);color:#fff;box-shadow:0 5px 16px #07162b38}
+.template-root[data-ui="admin"] .tpl-sidebar-footer{background:#0e1b30aa;border-color:#ffffff12}
+.template-root[data-ui="admin"] .tpl-sidebar .tpl-account{color:#f0f5fd}
+.template-root[data-ui="admin"] .tpl-sidebar :is(.tpl-account small,.tpl-logout-btn){color:#acbfdc}
+.template-root[data-ui="admin"] .tpl-sidebar :is(.tpl-close-menu,.tpl-mobile-menu){color:#e8effb}
+.template-root[data-ui="admin"] .tpl-topbar{background:#f8fbffeb;border-bottom:1px solid #ffffff;box-shadow:0 3px 20px #203e6805}
+.template-root[data-ui="admin"] main :is(.tpl-card,.pipeline-panel){background:#fff;border-color:#e3ebf4;box-shadow:0 8px 28px #234e7910,0 1px 3px #234e7905}
+.template-root[data-ui="admin"] main :is(.tpl-card-head,.pipeline-panel>header){background:linear-gradient(105deg,#fff,#f7faff);border-color:#e7eef6}
+.template-root[data-ui="admin"] main .pipeline-studio .pipeline-overview{background:#ffffff;border:1px solid #ffffff;box-shadow:0 12px 35px #305e9020;border-radius:16px}
+.template-root[data-ui="admin"] main .pipeline-studio .pipeline-primary{
+  background:radial-gradient(circle at 100% 0%,#39b8c17a,transparent 60%),linear-gradient(130deg,#164b9a,#256fbb 65%,#238b9b);
+  color:#fff;border:0;position:relative;
+}
+.template-root[data-ui="admin"] main .pipeline-studio .pipeline-primary p{color:#e6f1ff}
+.template-root[data-ui="admin"] main .pipeline-studio .pipeline-primary>strong{color:#fff}
+.template-root[data-ui="admin"] main .pipeline-studio .pipeline-primary-icon{background:#ffffff22;color:#fff;box-shadow:0 0 0 1px #ffffff25}
+.template-root[data-ui="admin"] main .pipeline-studio .pipeline-metrics{background:linear-gradient(120deg,#fff,#f8fcff)}
+.template-root[data-ui="admin"] main .pipeline-studio .pipeline-metric-icon{background:#edf4ff;color:#3571c9;padding:7px;border-radius:9px}
+.template-root[data-ui="admin"] main .pipeline-studio .pipeline-metric-icon.tone-1{background:#fff3df;color:#a87320}
+.template-root[data-ui="admin"] main .pipeline-studio .pipeline-metric-icon.tone-2{background:#e6f5f1;color:#237c71}
+.template-root[data-ui="admin"] main .admin-readable .tpl-stats{background:linear-gradient(115deg,#e1ebfc,#e1f1ef);border:1px solid #ffffff;border-radius:16px;padding:14px;box-shadow:0 8px 28px #234e790b}
+.template-root[data-ui="admin"] main .admin-readable .tpl-stat{background:#ffffffeb;border-color:#ffffff;box-shadow:0 3px 12px #244b7408}
+.template-root[data-ui="admin"] main .tpl-source-summary{background:linear-gradient(110deg,#eaf1ff,#e9f6f3)}
+.template-root[data-ui="admin"] main .tpl-source-summary>div{background:#ffffffc9}
+.template-root[data-ui="admin"] main :is(.tpl-tabs,.pipeline-studio>.tpl-tabs){background:transparent;border-bottom-color:#cad8e9}
+.template-root[data-ui="admin"] main .tpl-technical-details>summary{background:#ffffff85;border-color:#d7e3f0}
+.dark .template-root[data-ui="admin"]{--tpl-bg:#111e30;--tpl-card:#1b2b41;--tpl-text:#edf4ff;--tpl-muted:#b6c7df;--tpl-line:#334962;--tpl-accent:#9ebfff;--tpl-soft:#293e5e}
+.dark .template-root[data-ui="admin"] .tpl-shell{background:radial-gradient(ellipse at 0% 0%,#1e3b60,transparent 65%),linear-gradient(140deg,#152438,#101b2a)}
+.dark .template-root[data-ui="admin"] .tpl-topbar{background:#142237;border-color:#2a3c55}
+.dark .template-root[data-ui="admin"] main :is(.tpl-card,.pipeline-panel){background:#1b2b41;border-color:#30445e}
+.dark .template-root[data-ui="admin"] main :is(.tpl-card-head,.pipeline-panel>header){background:#1d3049;border-color:#30445e}
+.dark .template-root[data-ui="admin"] main .pipeline-studio :is(.pipeline-overview,.pipeline-metrics){background:#1b2b41;border-color:#30445e}
+.dark .template-root[data-ui="admin"] main :is(.tpl-source-summary,.admin-readable .tpl-stats){background:linear-gradient(110deg,#223e61,#20464a);border-color:#37516b}
+.dark .template-root[data-ui="admin"] main :is(.admin-readable .tpl-stat,.tpl-source-summary>div){background:#1b2b41;border-color:#30445e}
+.dark .template-root[data-ui="admin"] main .tpl-technical-details>summary{background:#1b2b4199;border-color:#30445e}
+@media(max-width:760px){.template-root[data-ui="admin"] .tpl-shell{background:radial-gradient(ellipse 130% 600px at 10% 0%,#d2e3fa,transparent 70%),linear-gradient(160deg,#eef4fb,#edf7f5)}.template-root[data-ui="admin"] main .admin-readable .tpl-stats{padding:10px;gap:10px}.template-root[data-ui="admin"] main .pipeline-studio .pipeline-primary{min-height:165px}}

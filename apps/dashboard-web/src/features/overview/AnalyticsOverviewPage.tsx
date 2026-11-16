@@ -5,48 +5,42 @@ import { CalendarDays, ChartNoAxesCombined, Download, RefreshCw } from 'lucide-r
 import type { ShellContext } from '../../app/AppShell';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
+
 import { PageHeader } from '../../components/ui/page';
-import { DesignCard, DesignStats, ScopeMarker, number } from '../../components/ui/prototype';
+import { number } from '../../components/ui/prototype';
 import { fetchExploration, type Exploration } from '../../lib/exploration-api';
 import { dateWindow } from '../../lib/date-range';
-import { ProgressiveDetails } from '../../components/ui/progressive-details';
-import { OverviewActivity } from './OverviewActivity';
+import { InsightDashboard } from './InsightDashboard';
 type Metric = 'views' | 'searches' | 'cart';
 function exportCsv(data: Exploration) { const blob = new Blob(['date,total,views,searches,cart\n' + data.daily.map(r => [r.date, r.total, r.views, r.searches, r.cart].join(',')).join('\n')], { type: 'text/csv;charset=utf-8' }); const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'funnelmetry-activity.csv'; a.click(); URL.revokeObjectURL(url); }
 export function AnalyticsOverviewPage() {
     const { range, sourceId, dataset } = useOutletContext<ShellContext>(), { user } = useAuth();
     const [selected, setSelected] = useState<string | null>(null);
+    const [comparing,setComparing] = useState(false);
     useEffect(() => setSelected(null), [dataset]);
     const window = useMemo(() => dateWindow(range), [range]);
     const query = useQuery({ queryKey: ['exploration', user?.id, sourceId, dataset, window], queryFn: ({ signal }) => fetchExploration(sourceId, dataset, window, undefined, signal), retry: false, gcTime: 0 });
     const data = query.isError ? undefined : query.data;
     const totals = (data?.daily ?? []).filter(r => !selected || r.date.startsWith(selected)).reduce((n, r) => ({ total: n.total + Number(r.total), views: n.views + Number(r.views), searches: n.searches + Number(r.searches), cart: n.cart + Number(r.cart) }), { total: 0, views: 0, searches: 0, cart: 0 });
-    const titles = new Map(data?.variants.map(v => [v.product_id, v.title]));
     const items = selected ? [
         { label: 'Sự kiện trình duyệt', value: number(totals.total), detail: `${selected} · ${data?.quality ?? 'UNVERIFIED'}` },
         { label: 'Lượt xem sản phẩm', value: number(totals.views), detail: `${selected} · Số lượt sự kiện` },
         { label: 'Lượt tìm kiếm', value: number(totals.searches), detail: `${selected} · Số lượt sự kiện` },
         { label: 'Lượng thêm vào giỏ', value: number(totals.cart), detail: `${selected} · Số lượng tăng` },
     ] : [
-        { label: dataset === 'observed' ? 'Sự kiện đã chuẩn hóa' : 'Browser events', value: number(totals.total), detail: 'Số lượt sự kiện' },
+        { label: dataset === 'observed' ? 'Sự kiện đã chuẩn hóa' : 'Sự kiện trình duyệt', value: number(totals.total), detail: 'Số lượt sự kiện' },
         { label: 'Phiên truy cập', value: number(data?.counts?.sessions), detail: 'Không phải số khách hàng' },
         { label: 'Lượt tìm kiếm', value: number(totals.searches), detail: 'Số lượt tìm kiếm' },
         { label: 'Đơn hàng', value: number(data?.counts?.orders), detail: 'Không phải doanh thu' },
     ];
-    return <div className="tpl-page overview-page">
-    <PageHeader title="Tổng quan" description="Theo dõi hoạt động, sự quan tâm tới sản phẩm và chất lượng đầu vào." actions={<><Button variant="outline" disabled={query.isFetching} onClick={() => void query.refetch()}><RefreshCw size={14}/>Làm mới</Button><Button disabled={!data} onClick={() => data && exportCsv(data)}><Download size={14}/>Xuất dữ liệu</Button></>}/>
-
-    {query.isError && <p role="alert">Không tải được dữ liệu. Hãy thử lại.</p>}
-    {query.isPending && <div className="skeleton h-64"/>}
-    {data && <><ScopeMarker title={`Phạm vi hoạt động: ${selected || 'Toàn bộ dữ liệu'}`}>{selected ? <button onClick={() => setSelected(null)}>Xem toàn bộ</button> : <Badge>Chưa lọc</Badge>}</ScopeMarker><DesignStats items={items.filter(item => item.value !== 'Chưa đo')}/>{items.some(item => item.value === 'Chưa đo') && <p className="tpl-semantic-footnote">Chưa đo: {items.filter(item => item.value === 'Chưa đo').map(item => item.label).join(', ')}.</p>}<OverviewActivity data={data} selected={selected} onSelect={setSelected}/></>}
-    <ProgressiveDetails key={dataset} label="So sánh hai kỳ"><PeriodComparison sourceId={sourceId} dataset={dataset} anchor={data?.daily[data.daily.length - 1]?.date}/></ProgressiveDetails>
-    {data && <><div className="tpl-section-heading"><h2>Sản phẩm & nhu cầu tìm kiếm</h2><span>{data.counts?.catalog_products ? `${number(data.counts.catalog_products)} sản phẩm duy nhất` : 'Top sản phẩm theo lượt xem'}</span></div><div className="tpl-grid overview-bottom-grid">
-      <DesignCard title="Sản phẩm được xem nhiều"><table><thead><tr><th>Sản phẩm</th><th>Lượt xem</th></tr></thead><tbody>{data.products.slice(0, 10).map(p => <tr key={p.product_id}><td>{titles.get(p.product_id) || p.product_id}</td><td>{number(p.views)}</td></tr>)}</tbody></table></DesignCard>
-      <div className="tpl-stack"><DesignCard title="Từ khóa tìm kiếm"><table><thead><tr><th>Từ khóa</th><th>Lượt tìm</th></tr></thead><tbody>{data.keywords.map(k => <tr key={k.keyword}><td>{k.keyword}</td><td>{number(k.submits)}</td></tr>)}</tbody></table></DesignCard>{data.utm?.some(r => r.source) ? <DesignCard title="Nguồn truy cập (UTM)"><table><thead><tr><th>Nguồn</th><th>Sự kiện</th></tr></thead><tbody>{data.utm?.map((r, i) => <tr key={i}><td>{r.source || '(Không có UTM)'}</td><td>{number(r.total)}</td></tr>)}</tbody></table></DesignCard> : <p className="tpl-semantic-footnote">Chưa có thông tin nguồn truy cập UTM.</p>}</div>
-    </div></>}
-  </div>;
+    return <div className="tpl-page overview-page overview-redesign">
+      <PageHeader title="Tổng quan" description="Hoạt động và mức quan tâm trong khoảng thời gian đã chọn." actions={<><Button variant="outline" disabled={query.isFetching} onClick={()=>void query.refetch()} aria-label="Làm mới"><RefreshCw size={15}/></Button><Button variant="outline" aria-expanded={comparing} onClick={()=>setComparing(!comparing)}>So sánh kỳ</Button><Button disabled={!data} onClick={()=>data&&exportCsv(data)}><Download size={14}/>Xuất dữ liệu</Button></>}/>
+      {query.isError&&<p role="alert">Không tải được dữ liệu. Hãy thử lại.</p>}
+      {query.isPending&&<div className="skeleton h-64"/>}
+      {comparing&&<section className="overview-comparison"><div className="overview-section-label"><h2>So sánh theo thời gian</h2><Button variant="ghost" onClick={()=>setComparing(false)}>Đóng so sánh</Button></div><PeriodComparison key={dataset} sourceId={sourceId} dataset={dataset} anchor={data?.daily[data.daily.length - 1]?.date}/></section>}
+      {data&&<InsightDashboard data={data} items={items} selected={selected} onSelect={setSelected}/>}   </div>;
 }
+
 function period(date: string, unit: string) { const start = new Date(date + 'T00:00:00Z'); if (unit === 'week')
     start.setUTCDate(start.getUTCDate() - (start.getUTCDay() + 6) % 7); if (unit === 'month')
     start.setUTCDate(1); const end = new Date(start); if (unit === 'month')

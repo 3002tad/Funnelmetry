@@ -7,6 +7,8 @@ import { AuthProvider } from "./auth/AuthContext"
 import "./foundation.css"
 import "./ui-template/generated/template.css"
 import "./ui-template/integration.css"
+import "./ui-template/analytics-clean.css"
+import "./ui-template/insight-dashboard.css"
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -21,3 +23,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </React.StrictMode>,
 )
+
+
+import "./ui-template/admin-refinement.css"
+
+import "./ui-template/admin-studio.css"
+import "./ui-template/admin-atmosphere.css"
