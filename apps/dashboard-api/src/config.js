@@ -40,7 +40,7 @@ export const config = {
     .filter(Boolean),
   jwtSecret: requireEnv("JWT_SECRET"),
   jwtExpires: requireEnv("JWT_EXPIRES"),
-  adminEmail: requireEnv("DASHBOARD_ADMIN_EMAIL"),
+  adminEmail: envOptional("DASHBOARD_ADMIN_EMAIL", "admin@gmail.com"),
   adminPassword: requireEnv("DASHBOARD_ADMIN_PASSWORD"),
   pipeline: {
     trackingApi: features.legacy ? requireEnv("PIPELINE_TRACKING_API_URL") : '',

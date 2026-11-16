@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { randomUUID } from 'node:crypto'
 import { query, transaction } from '../db.js'
-import { hashPassword } from '../lib/password.js'
+import { hashPassword, isValidPassword } from '../lib/password.js'
 import { ASSIGNABLE_ROLES } from '../lib/roles.js'
 import { accountError, mutateAccount } from '../lib/account-mutation.js'
 
@@ -19,7 +19,7 @@ export function createUsersRouter(execute = query, run = transaction) {
   router.post('/api/users', async (req, res) => {
     const { email, password, display_name, role = 'analyst' } = req.body ?? {}
     if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-      || typeof password !== 'string' || password.length < 12
+      || !isValidPassword(password)
       || (display_name != null && (typeof display_name !== 'string' || display_name.length > 100))) {
       return res.status(400).json({ error: 'invalid_account' })
     }
@@ -41,7 +41,7 @@ export function createUsersRouter(execute = query, run = transaction) {
     }
     if ((role !== undefined && !ASSIGNABLE_ROLES.includes(role))
       || (is_active !== undefined && typeof is_active !== 'boolean')
-      || (password !== undefined && (typeof password !== 'string' || password.length < 12))
+      || (password !== undefined && (!isValidPassword(password)))
       || (display_name !== undefined && (typeof display_name !== 'string' || display_name.length > 100))) {
       return res.status(400).json({ error: 'invalid_account_update' })
     }

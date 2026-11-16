@@ -1,17 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { transaction } from "./db.js";
 import { config } from "./config.js";
-import { hashPassword } from "./lib/password.js";
+import { hashPassword, isValidPassword } from "./lib/password.js";
 
 /** Bootstrap only an empty account store; never reset existing access on restart. */
 export async function seedAdminUser() {
   const email = config.adminEmail.trim().toLowerCase();
-  const hash = await hashPassword(config.adminPassword);
   const created = await transaction(async execute => {
     // Match account-management locking; check emptiness only after acquiring it.
     await execute('LOCK TABLE dashboard_users IN SHARE ROW EXCLUSIVE MODE');
     const [existing] = await execute('SELECT id FROM dashboard_users LIMIT 1');
     if (existing) return false;
+    if (!isValidPassword(config.adminPassword)) {
+      throw new Error('Initial admin password requires at least 8 characters, uppercase, lowercase, number and special character');
+    }
+    const hash = await hashPassword(config.adminPassword);
     const id = randomUUID();
     await execute(`INSERT INTO dashboard_users (id,email,password_hash,display_name,role)
       VALUES ($1,$2,$3,$4,'super_admin')`, [id, email, hash, 'Super Admin']);

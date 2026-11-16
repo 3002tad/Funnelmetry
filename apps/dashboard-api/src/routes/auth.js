@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { query, transaction } from "../db.js";
-import { hashPassword, verifyPassword } from "../lib/password.js";
+import { hashPassword, verifyPassword, isValidPassword } from "../lib/password.js";
 import { signToken } from "../lib/jwt.js";
 import { requireAuth } from "../middleware/auth.js";
 import { permissionsFor } from "../lib/roles.js";
@@ -84,7 +84,7 @@ authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
 authRouter.patch("/api/auth/change-password", requireAuth, async (req, res) => {
   const { current_password, new_password } = req.body || {};
   if (typeof current_password !== 'string' || !current_password
-    || typeof new_password !== 'string' || new_password.length < 12) {
+    || !isValidPassword(new_password)) {
     return res.status(400).json({ error: "invalid_password" });
   }
   try {

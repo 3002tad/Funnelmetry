@@ -11,7 +11,7 @@ test('real app login, password change, audit rollback and lock/unlock revoke ses
     Object.assign(process.env, {
       PORT: '32000', CORS_ORIGIN_DASHBOARD: 'http://localhost:5180',
       JWT_SECRET: 'auth-flow-test-only', JWT_EXPIRES: '1h', DASHBOARD_ADMIN_EMAIL: 'admin@test.invalid',
-      DASHBOARD_ADMIN_PASSWORD: 'initial-test-password',
+      DASHBOARD_ADMIN_PASSWORD: 'initial-test-passwordA1!',
       POSTGRES_HOST: url.hostname, POSTGRES_PORT: url.port || '5432', POSTGRES_DB: url.pathname.slice(1),
       POSTGRES_USER: decodeURIComponent(url.username), POSTGRES_PASSWORD: decodeURIComponent(url.password),
       PGOPTIONS: `-c search_path=${schema}`,
@@ -60,7 +60,7 @@ test('real app login, password change, audit rollback and lock/unlock revoke ses
       })
       const login = (email, password) => request('/api/auth/login', 'POST', { email, password })
       assert.equal((await request('/api/auth/me')).status, 401)
-      const adminLogin = await login('admin@test.invalid', 'initial-test-password')
+      const adminLogin = await login('admin@test.invalid', 'initial-test-passwordA1!')
       assert.equal(adminLogin.status, 200)
       const admin = await adminLogin.json()
       assert.equal((await request('/api/v2/chat', 'POST', {}, admin.token)).status, 403)
@@ -79,9 +79,9 @@ test('real app login, password change, audit rollback and lock/unlock revoke ses
         assert.deepEqual(await disabled.json(), { error: 'module_disabled', module: 'legacy' })
       }
       assert.equal((await request('/api/users', 'POST', {
-        email: 'analyst@test.invalid', password: 'analyst-test-password', role: 'analyst',
+        email: 'analyst@test.invalid', password: 'analyst-test-passwordA1!', role: 'analyst',
       }, admin.token)).status, 201)
-      const analyst = await (await login('analyst@test.invalid', 'analyst-test-password')).json()
+      const analyst = await (await login('analyst@test.invalid', 'analyst-test-passwordA1!')).json()
       assert.equal((await request('/api/v2/chat', 'POST', {}, analyst.token)).status, 503)
       assert.equal((await request('/api/v2/admin/sources', 'GET', null, analyst.token)).status, 403)
       assert.equal((await request('/api/chat', 'POST', {}, analyst.token)).status, ai ? 400 : 503)
@@ -107,11 +107,11 @@ test('real app login, password change, audit rollback and lock/unlock revoke ses
         } finally { clearTimeout(deadline); abortStream.abort() }
       }
       const created = await request('/api/users', 'POST', {
-        email: 'staff@test.invalid', password: 'initial-staff-password', role: 'staff',
+        email: 'staff@test.invalid', password: 'initial-staff-passwordA1!', role: 'staff',
       }, admin.token)
       assert.equal(created.status, 201)
       const { user } = await created.json()
-      const staffLogin = await login('staff@test.invalid', 'initial-staff-password')
+      const staffLogin = await login('staff@test.invalid', 'initial-staff-passwordA1!')
       assert.equal(staffLogin.status, 200)
       const staff = await staffLogin.json()
       assert.equal((await request('/api/v2/admin/sources', 'GET', null, staff.token)).status, 403)
@@ -134,7 +134,7 @@ test('real app login, password change, audit rollback and lock/unlock revoke ses
       assert.equal(saved.preferences.language, 'en')
       assert.ok(saved.updated_at)
       assert.equal((await (await request(preferencesPath, 'GET', null, admin.token)).json()).preferences.theme, 'system')
-      const secondStaff = await (await login('staff@test.invalid', 'initial-staff-password')).json()
+      const secondStaff = await (await login('staff@test.invalid', 'initial-staff-passwordA1!')).json()
       assert.deepEqual((await (await request(preferencesPath, 'GET', null, secondStaff.token)).json()).preferences, saved.preferences)
       await db.query('ALTER TABLE dashboard_account_audit RENAME TO audit_missing')
       assert.equal((await request(preferencesPath, 'PATCH', { theme: 'dark' }, staff.token)).status, 503)
@@ -161,40 +161,40 @@ test('real app login, password change, audit rollback and lock/unlock revoke ses
       assert.equal((await request('/api/v2/admin/audit', 'GET', null, staff.token)).status, 403)
       assert.equal((await request('/api/v2/analytics/journeys', 'GET', null, staff.token)).status, 403)
       assert.equal((await request('/api/auth/change-password', 'PATCH', {
-        current_password: 'initial-staff-password', new_password: 'short',
+        current_password: 'initial-staff-passwordA1!', new_password: 'short',
       }, staff.token)).status, 400)
       assert.equal((await request('/api/auth/change-password', 'PATCH', {
-        current_password: 'initial-staff-password', new_password: 'changed-staff-password',
+        current_password: 'initial-staff-passwordA1!', new_password: 'changed-staff-passwordA1!',
       }, staff.token)).status, 200)
       assert.equal((await request('/api/auth/me', 'GET', null, staff.token)).status, 401)
       assert.equal((await request(preferencesPath, 'PATCH', { theme: 'dark' }, staff.token)).status, 401)
       assert.equal((await request('/api/account/activity', 'GET', null, staff.token)).status, 401)
-      assert.equal((await login('staff@test.invalid', 'initial-staff-password')).status, 401)
-      const currentLogin = await login('staff@test.invalid', 'changed-staff-password')
+      assert.equal((await login('staff@test.invalid', 'initial-staff-passwordA1!')).status, 401)
+      const currentLogin = await login('staff@test.invalid', 'changed-staff-passwordA1!')
       assert.equal(currentLogin.status, 200)
       const current = await currentLogin.json()
 
       await db.query('ALTER TABLE dashboard_account_audit RENAME TO audit_missing')
       assert.equal((await request('/api/auth/change-password', 'PATCH', {
-        current_password: 'changed-staff-password', new_password: 'must-rollback-password',
+        current_password: 'changed-staff-passwordA1!', new_password: 'must-rollback-passwordA1!',
       }, current.token)).status, 500)
       assert.equal((await request('/api/auth/me', 'GET', null, current.token)).status, 200)
-      assert.equal((await login('staff@test.invalid', 'changed-staff-password')).status, 200)
+      assert.equal((await login('staff@test.invalid', 'changed-staff-passwordA1!')).status, 200)
       await db.query('ALTER TABLE audit_missing RENAME TO dashboard_account_audit')
       for (const active of [false, true]) {
         assert.equal((await request(`/api/users/${user.id}`, 'PATCH', { is_active: active }, admin.token)).status, 200)
         assert.equal((await request('/api/auth/me', 'GET', null, current.token)).status, 401)
-        if (!active) assert.equal((await login('staff@test.invalid', 'changed-staff-password')).status, 401)
+        if (!active) assert.equal((await login('staff@test.invalid', 'changed-staff-passwordA1!')).status, 401)
       }
-      assert.equal((await login('staff@test.invalid', 'changed-staff-password')).status, 200)
+      assert.equal((await login('staff@test.invalid', 'changed-staff-passwordA1!')).status, 200)
       const audit = await db.query("SELECT * FROM dashboard_account_audit WHERE action='password.changed'")
       assert.equal(audit.rows.length, 1)
       assert.equal(audit.rows[0].actor_id, user.id)
       assert.deepEqual(audit.rows[0].changes, { password_changed: true })
 
       assert.equal((await request('/api/auth/logout-all', 'POST')).status, 401)
-      const sessionA = await (await login('staff@test.invalid', 'changed-staff-password')).json()
-      const sessionB = await (await login('staff@test.invalid', 'changed-staff-password')).json()
+      const sessionA = await (await login('staff@test.invalid', 'changed-staff-passwordA1!')).json()
+      const sessionB = await (await login('staff@test.invalid', 'changed-staff-passwordA1!')).json()
       await db.query('ALTER TABLE dashboard_account_audit RENAME TO audit_missing')
       assert.equal((await request('/api/auth/logout-all', 'POST', null, sessionA.token)).status, 503)
       assert.equal((await request('/api/auth/me', 'GET', null, sessionA.token)).status, 200)
@@ -210,7 +210,7 @@ test('real app login, password change, audit rollback and lock/unlock revoke ses
       const revocations = await db.query("SELECT * FROM dashboard_account_audit WHERE action='sessions.revoked' AND target_id=$1", [user.id])
       assert.equal(revocations.rows.length, 1)
       assert.deepEqual(revocations.rows[0].changes, { sessions_revoked: true })
-      assert.equal((await login('staff@test.invalid', 'changed-staff-password')).status, 200)
+      assert.equal((await login('staff@test.invalid', 'changed-staff-passwordA1!')).status, 200)
       assert.equal((await request('/api/auth/me', 'GET', null, admin.token)).status, 200)
 
       // Restart/bootstrap must not restore a locked account or reset its password.
