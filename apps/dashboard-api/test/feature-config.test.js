@@ -24,7 +24,9 @@ test('core app imports without AI or legacy config; modules activate independent
   ]) {
     const result = probe(extra)
     assert.equal(result.status, 0, result.stderr)
-    assert.deepEqual(JSON.parse(result.stdout.trim()), expected)
+    assert.deepEqual(JSON.parse(result.stdout.trim()), {
+      ...expected, cdcReferenceCandidate: false, cdcReferenceActive: false, cdcReferenceOffer: false,
+    })
   }
 })
 test('enabled modules require their config and invalid feature flags fail closed', () => {

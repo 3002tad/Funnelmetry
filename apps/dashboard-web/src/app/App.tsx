@@ -31,7 +31,6 @@ const EventFeedPage = lazy(() => import('../features/admin/EventFeedPage'))
 const EventTracePage = lazy(() => import('../features/admin/EventTracePage'))
 const ProcessingPage = lazy(() => import('../features/admin/FriendlyProcessingPage'))
 const QuarantinePage = lazy(() => import('../features/admin/QuarantinePage'))
-const WorkspacePage = lazy(() => import('../features/workspace/WorkspacePage'))
 const ProductObservationsPage = lazy(() => import('../features/products/ProductsWorkspacePage'))
 const TrafficInputPage = lazy(() => import('../features/traffic/TrafficInputPage'))
 
