@@ -63,8 +63,8 @@ export function AiWorkspacePage() {
 
   if (!allowed) return <p role="alert">Tài khoản chưa có quyền truy cập Trợ lý AI.</p>
   if (!aiUrl || !aiOrigin) return <p role="alert">Trợ lý AI chưa được cấu hình.</p>
-  return <section aria-label="Trợ lý AI">
-    {error && <p role="alert" className="text-destructive">{error}</p>}
-    <iframe ref={frameRef} name={frameName} title="Không gian Trợ lý AI" className="h-screen min-h-[600px] w-full border-0 bg-background" />
+  return <section aria-label="Trợ lý AI" className="flex h-full min-h-0 flex-col overflow-hidden">
+    {error && <p role="alert" className="shrink-0 text-destructive">{error}</p>}
+    <iframe ref={frameRef} name={frameName} title="Không gian Trợ lý AI" className="block h-full min-h-0 w-full flex-1 border-0 bg-background" />
   </section>
 }

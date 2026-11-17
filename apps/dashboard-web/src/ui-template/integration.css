@@ -68,8 +68,12 @@
 .template-root [role="alert"] { color:var(--tpl-danger); border-left:3px solid var(--tpl-danger); padding:12px; font-size:12px; }
 .template-root .tpl-unavailable-badges { display:flex; flex-wrap:wrap; gap:8px; margin-top:20px; }
 .template-root .tpl-ai-launch:focus-visible { outline:2px solid var(--tpl-accent); outline-offset:3px; }
-.template-root.tpl-ai .tpl-shell { margin-left:0; }
-.template-root.tpl-ai main { padding:0; max-width:none; }
+/* Override role-specific prototype main padding; AI owns one viewport and
+   scrolls inside the embedded module, not in a second outer document. */
+.template-root.tpl-ai[data-ui] { height:100dvh; min-height:0; overflow:hidden; }
+.template-root.tpl-ai[data-ui] .tpl-shell { margin-left:0; height:100%; min-height:0; display:flex; flex-direction:column; }
+.template-root.tpl-ai[data-ui] main { flex:1; width:100%; min-width:0; min-height:0; margin:0; padding:0; max-width:none; overflow:hidden; }
+.template-root.tpl-ai[data-ui] #page-content { height:100%; min-height:0; }
 .template-root .embedded-admin-module :is(.tpl-page-head,.tpl-admin-scope),.template-root .embedded-funnel :is(.tpl-page-head,.tpl-filters) { display:none; }
 /* Detailed inspectors continue using existing utility-based content behind disclosures. */
 .template-root .panel { background:var(--tpl-card); border:1px solid var(--tpl-line); border-radius:16px; }
