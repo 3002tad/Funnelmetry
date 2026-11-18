@@ -5,6 +5,26 @@ The identity boundary was enabled on the KLTN VPS on 2026-11-03 for testing.
 This inventory describes source inspection and the limited API checks below,
 not an end-to-end security claim.
 
+## Dashboard publication correction (2026-11-18, source only)
+
+The user approved enabling Dashboard publication/sharing for both Analyst and
+Admin while resolving RUN18-02. The pending DB-GPT changes admit exact publish,
+live-share status/create/revoke, publication-list and token-rotate/revoke routes.
+Dashboard ownership, PUBLISH capability and datasource checks still apply;
+Admin has no blanket right to publish another user's dashboard.
+
+Anonymous access is limited to the native token-bound snapshot GET and filter
+POST endpoints. The publication service validates the token and its lifecycle;
+live shares also recheck the owner's source access. No public management,
+SQL-submission or arbitrary API prefix is admitted. Share pages skip workspace
+login/model/admin-list requests. Earlier statements below that publication
+remains closed describe the previous runtime policy.
+
+Thirteen targeted tests passed, including real handlers/middleware backed by
+temporary SQLite. This correction is not deployed or UI-certified yet. See
+DB-GPT `docs/FUNNELMETRY_DASHBOARD_PUBLICATION.md` and the local full-module E2E
+audit's RUN18-02 follow-up for acceptance still required after deployment.
+
 ## Current module-policy correction (2026-11-07)
 
 DB-GPT code `684ed0ba` is deployed on the VPS. Its module dependency policy now
