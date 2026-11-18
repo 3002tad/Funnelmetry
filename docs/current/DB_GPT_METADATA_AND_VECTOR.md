@@ -17,13 +17,24 @@ calling an embedding model. A valid Pipeline session token is required when
 the DB-GPT identity boundary is enabled. The operator selects the matching KB
 space; automatic selection, invalidation and refresh are not implemented.
 
-The demo guide source has pending explanatory revision `2026-11-19.1`: known
+The demo guide explanatory revision `2026-11-19.1` covers known
 schema-name confusions, minor currency units and reference entries versus
 independent documents. It retains semantic release `demo-commerce-analysis@1.2.1`
-and its pinned PostgreSQL definition. The content-derived target is
-`funnelmetry-demo-1-2-1-531079894806`; source updates do not publish a document or
-change an existing conversation's selected KB. Run the demo publisher's publish
-and verify steps after syncing the source before claiming this revision is live.
+and its pinned PostgreSQL definition. The published content-derived space is
+`funnelmetry-demo-1-2-1-531079894806`, document ID 13, indexed `FINISHED`.
+Retrieval verified the three new explanations, and the publisher's read-only
+golden SQL check passed 15/15 on the VPS. Existing conversations retain their
+selected KB; select this matching version for new Agent evaluations. Publication
+does not certify a model answer or silently change a conversation's selection.
+
+DB-GPT runs source commit `149d87823888a4b9b7bc77aa08690654ae844021`, image
+`sha256:fe3cd5ce9b76fded976e840a3d1e70f0fe12c33d1c2bb744ee109df7dc13df0e`.
+The DEEP18 release passed webpack, TypeScript and 70-page static export, plus
+82 targeted backend and 61 UI regression tests on that commit. Its 2,891-file
+source/skill/static manifest was checked against the final image. Only the
+DB-GPT webserver was recreated; MySQL and its volumes were retained. Admin and
+Analyst login/read API smoke tests and public HTTPS API reads passed. This is
+deployment/API acceptance; a new browser/LLM analytical evaluation remains separate.
 
 On 2026-11-05, the Pipeline exploration views were updated to include current
 source lease status and validity for catalog and inventory/price context while
