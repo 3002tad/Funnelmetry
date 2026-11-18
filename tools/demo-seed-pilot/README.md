@@ -156,6 +156,13 @@ the new release with `demo-semantic-release.mjs emit-sql 1.2.1` after its
 `check` passes; `publish-demo-kb.py` requires the new release ID and SHA before
 creating a versioned derived KB document. Publishing the KB does not retire
 older spaces or automatically select the new one in Agent conversations.
+The derived guide revision `2026-11-19.1` clarifies previously misread column
+names, minor currency units and reference-entry versus document counts. It keeps
+the 1.2.1 PostgreSQL definition and SHA unchanged. The publisher hashes the whole
+guide, so this text revision produces a new KB space/document digest and requires
+publication and retrieval verification; changing source does not update the live
+KB. Tool execution/recovery instructions remain in DB-GPT code/skills. Check the
+guide offline with `python tools/demo-seed-pilot/test_publish_demo_kb.py`.
 After `verify` passes, run `publish-demo-kb.py list-old` to inspect only
 `funnelmetry-demo-*` spaces, then `prune-old` to remove those older derived
 spaces. Select the new space for future Agent conversations before evaluation.

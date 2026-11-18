@@ -17,6 +17,14 @@ calling an embedding model. A valid Pipeline session token is required when
 the DB-GPT identity boundary is enabled. The operator selects the matching KB
 space; automatic selection, invalidation and refresh are not implemented.
 
+The demo guide source has pending explanatory revision `2026-11-19.1`: known
+schema-name confusions, minor currency units and reference entries versus
+independent documents. It retains semantic release `demo-commerce-analysis@1.2.1`
+and its pinned PostgreSQL definition. The content-derived target is
+`funnelmetry-demo-1-2-1-531079894806`; source updates do not publish a document or
+change an existing conversation's selected KB. Run the demo publisher's publish
+and verify steps after syncing the source before claiming this revision is live.
+
 On 2026-11-05, the Pipeline exploration views were updated to include current
 source lease status and validity for catalog and inventory/price context while
 retaining the separate exploratory `UNVERIFIED` label. Using the DB-GPT role,

@@ -16,6 +16,7 @@ import time
 from urllib.request import Request, urlopen
 
 RELEASE = "demo-commerce-analysis@1.2.1"
+GUIDE_REVISION = "2026-11-19.1"
 DEFINITION_SHA = "a737fd85883270401c5bd78eae30ad71bc3a6d8329007c928a964f4b981669b4"
 API = "http://127.0.0.1:5670"
 PIPELINE = "http://127.0.0.1:31080"
@@ -90,6 +91,7 @@ def guide(definition):
     lines = [
         "Funnelmetry synthetic demo semantic guide",
         f"Semantic release: {RELEASE}; PostgreSQL definition SHA-256: {DEFINITION_SHA}.",
+        f"Derived guide revision: {GUIDE_REVISION}. This revises explanatory text only, not the PostgreSQL semantic release or its bindings.",
         "Numeric and definition authority: funnelmetry_demo.semantic_release, PostgreSQL funnelmetry_handoff.",
         "This document is derived KB guidance. SQL must read the current PostgreSQL views.",
         "Bản đồ hành trình phiên / session journey view map: câu hỏi về phiên xem sản phẩm, phiên bắt đầu checkout, liên kết giỏ hàng và đơn hàng ON phải giữ grain riêng. Đếm tất cả phiên ở funnelmetry_demo.sessions(dataset_id, session_id, started_at). Đếm phiên xem sản phẩm ở funnelmetry_demo.browser_events(dataset_id, session_id, event_type, occurred_at) với event_type='behavior.product_viewed'; đếm phiên bắt đầu checkout cũng ở browser_events với event_type='checkout.started'. Đếm phiên liên kết giỏ ở funnelmetry_demo.cart_links(dataset_id, session_id, cart_id). Đếm bản ghi đơn và bản ghi ON ở funnelmetry_demo.orders(dataset_id, order_id, reference_state). funnelmetry_demo.behavior_events_all không có session_id nên không dùng view đó để đếm phiên. Đếm distinct theo cặp (dataset_id, session_id); các số ở grain khác nhau không tự chứng minh conversion tuần tự.",
@@ -101,14 +103,17 @@ def guide(definition):
         "For PostgreSQL distinct entity counts across datasets use COUNT(DISTINCT (dataset_id, session_id)) or COUNT(DISTINCT (dataset_id, order_id)); do not drop dataset_id when IDs happen to be unique in one fixture.",
         "For synthetic session analysis use sessions(dataset_id, session_id, started_at), browser_events(dataset_id, session_id, event_type, occurred_at) and cart_links(dataset_id, session_id, cart_id, occurred_at). Count all sessions from sessions, not event rows. behavior_events_all combines synthetic and observed events but has no session_id.",
         "funnelmetry_demo.orders has dataset_id, order_id, cart_id, created_at and reference_state, but no session_id. Counting order rows or ON rows needs no session join. For exploratory order/session association, join orders to cart_links on both dataset_id and cart_id, use a left join to measure unmatched orders, and count distinct (cart_links.dataset_id, cart_links.session_id). The semantic release does not publish a cart_links-to-orders relationship or a sequential conversion metric; verify coverage and ordering before making such a claim.",
+        "Tên cột / schema terminology for this release: session time is funnelmetry_demo.sessions.started_at, not session_start. The order-line key is (dataset_id, order_id, line_id) in funnelmetry_demo.order_lines; order_line_id is not a published column. orders.session_id is not a published column either; the cart association described above is a separate exploratory relationship, not a renamed field or a certified funnel join.",
         "cart_links and browser context.cart_linked evidence associate a session with a cart; they do not prove an item was added. An addition requires the corresponding cart.item_added or ADD mutation. Keep the label session with a cart link when only a link was counted.",
         "Historical dataset_coverage has period_start, period_end, demo_status and scope_note. gap_dataset_coverage has dataset_id, demo_status, mismatched_domains and invalid_sessions; it does not have period_start, period_end or scope_note. Inspect the real schema before selecting other columns.",
         "Use event occurred_at, session started_at, order created_at, payment action_at and fulfillment occurred_at separately.",
         "Search text is an independent demand signal. Observed search-to-cart has insufficient correlation.",
         "Synthetic payment CAPTURED and REFUNDED actions are supported; observed paid revenue has insufficient binding.",
+        "Đơn vị tiền / monetary units: order_lines.unit_amount_minor, order_lines.line_total_minor and payments.amount_minor are minor currency units. The published value measures are grouped by currency; a sum across currencies is not a single comparable monetary amount. A minor-unit number is not already a major-unit price. A display conversion requires the currency and its exponent; this guide does not declare a universal divide-by-100 rule. Ordered line value, CAPTURED and REFUNDED are distinct measures, and reference_state=ON does not replace any of them.",
         "Stocked minus reserved is a physical scenario position, not a sellable Medusa stock measure.",
         "Order reference_state=ON is synthetic state, not proof of paid revenue or live conversion.",
         "Monthly November 2026 is only four synthetic days, so compare periods of equal duration when describing trends.",
+        "Tham chiếu / reference terminology: KB citations may identify retrieved entries, chunks or slices of a document. Multiple entries can come from the same document; their count does not establish a count of independent documents, independent observations or corroborating sources. A chunk/reference ID is not by itself a document identity or a quality certificate. Document and semantic version provenance must remain explicit when available.",
         "Assets:",
     ]
     lines[-1:-1] = ["Analysis guidance:"] + ["- " + item for item in definition["analysis_guidance"]]
