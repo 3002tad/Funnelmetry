@@ -115,7 +115,7 @@ The test uses a temporary network-disabled PostgreSQL container and checks the b
 
 `pipeline-demo-coverage-v1.sql` adds `funnelmetry_demo.dataset_coverage`, a demo-specific status for the pinned synthetic dataset. `READY_FOR_DEMO` means the current domain counts and session time range match the stored pinned manifest; the seed transaction previously checked each row. `DEMO_DATA_MISMATCH` signals a count or session range mismatch. This status applies only to the specified synthetic period and is not a continuous coverage or observed CDC certification. The view checks counts, not a new per-row checksum; the recorded loader evidence covers the initial load. The same isolated test checks replay, read-only access and detection of a changed domain count.
 
-Release `demo-commerce-analysis@1.1.0` retains the v1.0.0 assets and adds guidance for cohort-based conversion and reuse of observations. The 15 reference questions, SQL and answers live in [DEMO_GOLDEN_QUESTIONS_V1.md](DEMO_GOLDEN_QUESTIONS_V1.md), [demo-golden-v1.sql](demo-golden-v1.sql) and [demo-golden-v1-answers.json](demo-golden-v1-answers.json). `verify-demo-golden.py` recomputes Q01–Q14 independently from the two pinned fixture files. Q15 contains runtime coverage and unsupported observed claims, so its observed count is a point-in-time answer. `demo-semantic-release.mjs check|emit-sql [1.0.0|1.1.0]` validates and installs the versioned `funnelmetry_demo.semantic_release` in PostgreSQL; the default is 1.1.0. It checks the physical columns and both dataset readiness views before publishing and prevents reverting to 1.0.0 once 1.1.0 exists. The AI role can read this release but cannot alter it.
+Release `demo-commerce-analysis@1.1.0` retains the v1.0.0 assets and adds guidance for cohort-based conversion and reuse of observations. The 15 reference questions, SQL and answers live in [DEMO_GOLDEN_QUESTIONS_V1.md](DEMO_GOLDEN_QUESTIONS_V1.md), [demo-golden-v1.sql](demo-golden-v1.sql) and [demo-golden-v1-answers.json](demo-golden-v1-answers.json). `verify-demo-golden.py` recomputes Q01–Q14 independently from the two pinned fixture files. Q15 contains runtime coverage and unsupported observed claims, so its observed count is a point-in-time answer. `demo-semantic-release.mjs check|emit-sql [version]` validates and installs the versioned `funnelmetry_demo.semantic_release` in PostgreSQL; the current source default is 1.2.2. It checks the physical columns and both dataset readiness views before publishing and prevents reverting to 1.0.0 once 1.1.0 exists. The AI role can read this release but cannot alter it.
 
 `publish-demo-kb.py check|publish|verify --password-file <existing-owner-only-file> --email <admin-or-analyst-email>` runs on the VPS operator host. It reads the release through the AI role, logs into the Pipeline API using an existing account credential, then creates one digest-named DB-GPT KB document with `text-embedding-v3`. `verify` checks retrieval of the release marker and runs all 15 golden SQL statements through the DB-GPT editor against the pinned answers; it tolerates only the current observed row count changing in Q15. Copy the SQL and answer JSON beside the publisher script. The password and bearer are kept in memory and are never printed. The publisher sends derived metadata/guide text to the configured embedding provider; it does not send fixture rows or SQL results. Select the reported KB space in DB-GPT; automatic space selection is not implemented.
 
@@ -156,6 +156,14 @@ the new release with `demo-semantic-release.mjs emit-sql 1.2.1` after its
 `check` passes; `publish-demo-kb.py` requires the new release ID and SHA before
 creating a versioned derived KB document. Publishing the KB does not retire
 older spaces or automatically select the new one in Agent conversations.
+
+The prepared successor is `demo-commerce-analysis@1.2.2` (the release CLI default).
+It adds verified cart product/variant keys, uppercase mutation enums, product-view
+JSON fields and synthetic catalog join guidance. It does not modify the fixture,
+data history or 1.2.1 definition. Run `demo-semantic-release.mjs check 1.2.2`, then
+apply the transaction from `emit-sql 1.2.2` to publish the PostgreSQL definition.
+The KB publisher now requires this exact release and SHA before publishing guide
+revision `2026-11-19.2`. These source changes do not publish or switch a live KB.
 The derived guide revision `2026-11-19.1` clarifies previously misread column
 names, minor currency units and reference-entry versus document counts. It keeps
 the 1.2.1 PostgreSQL definition and SHA unchanged. The publisher hashes the whole

@@ -15,7 +15,7 @@ spec.loader.exec_module(kb)
 class GuideReviewTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.raw = (BASE / "demo-semantic-v1.2.1.json").read_bytes().replace(b"\r\n", b"\n")
+        cls.raw = (BASE / "demo-semantic-v1.2.2.json").read_bytes().replace(b"\r\n", b"\n")
         cls.definition = json.loads(cls.raw)
         cls.assets = {a["view"]: a for a in cls.definition["assets"]}
         cls.content = kb.guide(cls.definition)
@@ -58,6 +58,18 @@ class GuideReviewTest(unittest.TestCase):
             kb, "request", side_effect=AssertionError("No API")
         ):
             self.assertEqual(self.content, kb.guide(self.definition))
+
+    def test_cart_enum_json_keys_and_dataset_scoped_catalog_joins(self):
+        cart = self.assets["funnelmetry_demo.cart_changes"]
+        self.assertIn("product_key", cart["fields"])
+        self.assertIn("variant_key", cart["fields"])
+        self.assertEqual(cart["enums"]["change_type"], ["ADD", "DECREASE", "DELETE"])
+        self.assertIn("data.product_id", self.content)
+        self.assertIn("not a distinct cart", self.content)
+        relationships = [r for r in self.definition["relationships"] if r["to"] == "catalog_products"]
+        self.assertEqual({r["from"] for r in relationships}, {"cart_changes", "order_lines"})
+        self.assertTrue(all("dataset_id" in r["keys"] for r in relationships))
+        self.assertIn("not an ordered conversion cohort", self.content)
 
 
 if __name__ == "__main__":

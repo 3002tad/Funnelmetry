@@ -36,6 +36,38 @@ DB-GPT webserver was recreated; MySQL and its volumes were retained. Admin and
 Analyst login/read API smoke tests and public HTTPS API reads passed. This is
 deployment/API acceptance; a new browser/LLM analytical evaluation remains separate.
 
+## Prepared successor: scope and schema corrections
+
+Source now provides `demo-commerce-analysis@1.2.2`, derived guide revision
+`2026-11-19.2`. This is **not yet published on the VPS**. It adds cart
+`product_key`/`variant_key`, case-sensitive `ADD`/`DECREASE`/`DELETE`, product-view
+JSON keys and dataset-scoped synthetic catalog relationships. Existing 1.2.1
+bytes, fixtures and historical facts stay unchanged. `ADD` counts positive
+quantity mutations, including increases; it does not count distinct carts or
+purchased orders. Snapshot product titles are not historical names. Independent
+stage counts do not establish sequential conversion.
+
+The release publisher defaults to 1.2.2 and refuses KB publication until the
+active PostgreSQL release ID and SHA match. Apply its generated transaction
+after `demo-semantic-release.mjs check 1.2.2`, then publish and verify the derived
+KB and explicitly select that space for evaluation. No database migration or
+KB replacement has been performed as part of source verification.
+
+The accompanying DB-GPT source keeps confirmed clarification answers in server
+history snapshots and pins their chronological scope outside rolling memory.
+Its `db-query@1.1.1` package includes compact English runtime SOP/skill variants
+for vi/en prompts; public explanations follow the requested locale. The binder
+records the projected prompt/document hashes separately from original source
+hashes. Installed suite packages require an explicit upgrade to include those
+files; rebuilding only the application image does not prove that upgrade.
+
+Regression: 67 container tests and 6 offline guide tests pass. The actual
+`db-query /nl2sql` SOP/skill block renders 5,212 characters versus 33,283 in the
+original projection. This measures that block only, not total prompt tokens,
+provider cost or answer quality. Native tool permissions and thinking remain
+unchanged. A deployed model evaluation is still required to confirm corrected
+period/top-N, enum handling and evidence-grounded conclusions.
+
 On 2026-11-05, the Pipeline exploration views were updated to include current
 source lease status and validity for catalog and inventory/price context while
 retaining the separate exploratory `UNVERIFIED` label. Using the DB-GPT role,

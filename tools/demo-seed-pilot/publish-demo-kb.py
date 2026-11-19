@@ -15,9 +15,9 @@ import subprocess
 import time
 from urllib.request import Request, urlopen
 
-RELEASE = "demo-commerce-analysis@1.2.1"
-GUIDE_REVISION = "2026-11-19.1"
-DEFINITION_SHA = "a737fd85883270401c5bd78eae30ad71bc3a6d8329007c928a964f4b981669b4"
+RELEASE = "demo-commerce-analysis@1.2.2"
+GUIDE_REVISION = "2026-11-19.2"
+DEFINITION_SHA = "10f54c5bde61a5d74edbaa94833794501143ed0c1d46ee98a63fda27bacec521"
 API = "http://127.0.0.1:5670"
 PIPELINE = "http://127.0.0.1:31080"
 PIPELINE_HOST = os.environ.get("SWARM_PUBLIC_DOMAIN", "analyst.entidi.io.vn")
@@ -119,11 +119,16 @@ def guide(definition):
     lines[-1:-1] = ["Analysis guidance:"] + ["- " + item for item in definition["analysis_guidance"]]
     for asset in definition["assets"]:
         lines.append(f"- {asset['id']}: {asset['view']}; grain {', '.join(asset['grain'])}; fields {', '.join(asset['fields'])}.")
+        if asset.get("enums"):
+            lines.append("  Case-sensitive enum values: " + json.dumps(asset["enums"], ensure_ascii=False))
+        if asset.get("payload_fields"):
+            lines.append("  Event JSON fields (event-dependent): " + json.dumps(asset["payload_fields"], ensure_ascii=False))
         if asset.get("limitation"):
             lines.append(f"  Limitation: {asset['limitation']}.")
     lines.append("Relationships:")
     for rel in definition["relationships"]:
         lines.append(f"- {rel['from']} -> {rel['to']}: keys {', '.join(rel['keys'])}; {rel['cardinality']}; {rel['safe_aggregation']}.")
+    lines.append("An empty filtered query does not establish missing source data; check exact enum values, event payload keys and join coverage. Independent view/cart/order counts are not an ordered conversion cohort. Distinguish orders, lines, quantity and mutation counts; state incomplete objectives without inventing causes.")
     lines.append("Measures:")
     for measure in definition["measures"]:
         lines.append(f"- {measure['id']}: {measure['expression']} on {measure['asset']}; {measure['unit']}.")

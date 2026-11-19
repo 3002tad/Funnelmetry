@@ -1,14 +1,15 @@
 // Publish an immutable demo semantic release after validating physical bindings.
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-const [command, version = '1.2.1'] = process.argv.slice(2)
+const [command, version = '1.2.2'] = process.argv.slice(2)
 const releases = {
   '1.0.0': { file: './demo-semantic-v1.json', sha256: '37649d69560cc9c7a3442ab20ba502a995bc274998e1b6901661bc7adb643e3e' },
   '1.1.0': { file: './demo-semantic-v1.1.json', sha256: 'f06625d65311170c0af26b9d1d1304fec6800b55c8a2d426743dce11d53c6f3a' },
   '1.2.0': { file: './demo-semantic-v1.2.json', sha256: '2bb4829a13acb231d5b5ce4f7ba77a3ee7259ea68de745048e4435befb691c9f' },
   '1.2.1': { file: './demo-semantic-v1.2.1.json', sha256: 'a737fd85883270401c5bd78eae30ad71bc3a6d8329007c928a964f4b981669b4' },
+  '1.2.2': { file: './demo-semantic-v1.2.2.json', sha256: '10f54c5bde61a5d74edbaa94833794501143ed0c1d46ee98a63fda27bacec521' },
 }
-if (!['check','emit-sql'].includes(command) || !releases[version]) throw Error('usage: node demo-semantic-release.mjs check|emit-sql [1.0.0|1.1.0|1.2.0|1.2.1]')
+if (!['check','emit-sql'].includes(command) || !releases[version]) throw Error('usage: node demo-semantic-release.mjs check|emit-sql [1.0.0|1.1.0|1.2.0|1.2.1|1.2.2]')
 const file = await readFile(new URL(releases[version].file, import.meta.url))
 // Git may check out JSON with CRLF on Windows; pin canonical LF bytes.
 const raw = Buffer.from(file.toString('utf8').replaceAll('\r\n','\n'))
