@@ -17,29 +17,29 @@ calling an embedding model. A valid Pipeline session token is required when
 the DB-GPT identity boundary is enabled. The operator selects the matching KB
 space; automatic selection, invalidation and refresh are not implemented.
 
-The demo guide explanatory revision `2026-11-19.1` covers known
-schema-name confusions, minor currency units and reference entries versus
-independent documents. It retains semantic release `demo-commerce-analysis@1.2.1`
-and its pinned PostgreSQL definition. The published content-derived space is
-`funnelmetry-demo-1-2-1-531079894806`, document ID 13, indexed `FINISHED`.
-Retrieval verified the three new explanations, and the publisher's read-only
+The active demo semantic release is `demo-commerce-analysis@1.2.2`, definition
+SHA-256 `10f54c5bde61a5d74edbaa94833794501143ed0c1d46ee98a63fda27bacec521`.
+Derived guide revision `2026-11-19.2` is published as
+`funnelmetry-demo-1-2-2-b65e19250ed6`, document ID 14, indexed `FINISHED`.
+Retrieval returned the matching release marker; the publisher's read-only
 golden SQL check passed 15/15 on the VPS. Existing conversations retain their
 selected KB; select this matching version for new Agent evaluations. Publication
 does not certify a model answer or silently change a conversation's selection.
 
-DB-GPT runs source commit `149d87823888a4b9b7bc77aa08690654ae844021`, image
-`sha256:fe3cd5ce9b76fded976e840a3d1e70f0fe12c33d1c2bb744ee109df7dc13df0e`.
-The DEEP18 release passed webpack, TypeScript and 70-page static export, plus
-82 targeted backend and 61 UI regression tests on that commit. Its 2,891-file
-source/skill/static manifest was checked against the final image. Only the
-DB-GPT webserver was recreated; MySQL and its volumes were retained. Admin and
-Analyst login/read API smoke tests and public HTTPS API reads passed. This is
-deployment/API acceptance; a new browser/LLM analytical evaluation remains separate.
+DB-GPT runs source commit `5f7460a911c36ff438e936fd985b2c11378bd79c`, image
+`sha256:cc58c0d71b540b4c2a15af47b83cafd0769de00f4fe4853e8d12e3c7b271f0ff`.
+The manifest checks all 2,382 source/skill/suite files and 615 static UI files.
+There were no UI source changes in this commit: the verified static export from
+149d8782 is retained byte-for-byte, without another UI build. Only the DB-GPT
+webserver was recreated; MySQL, chat and Chroma volumes were retained. Admin and
+Analyst login/read API smoke tests, public HTTPS reads and anonymous denial
+passed. This is deployment/API acceptance; a new browser/LLM analytical
+evaluation remains separate.
 
-## Prepared successor: scope and schema corrections
+## Scope and schema corrections
 
-Source now provides `demo-commerce-analysis@1.2.2`, derived guide revision
-`2026-11-19.2`. This is **not yet published on the VPS**. It adds cart
+The deployed `demo-commerce-analysis@1.2.2`, derived guide revision
+`2026-11-19.2`, adds cart
 `product_key`/`variant_key`, case-sensitive `ADD`/`DECREASE`/`DELETE`, product-view
 JSON keys and dataset-scoped synthetic catalog relationships. Existing 1.2.1
 bytes, fixtures and historical facts stay unchanged. `ADD` counts positive
@@ -50,20 +50,24 @@ stage counts do not establish sequential conversion.
 The release publisher defaults to 1.2.2 and refuses KB publication until the
 active PostgreSQL release ID and SHA match. Apply its generated transaction
 after `demo-semantic-release.mjs check 1.2.2`, then publish and verify the derived
-KB and explicitly select that space for evaluation. No database migration or
-KB replacement has been performed as part of source verification.
+KB and explicitly select that space for evaluation. The VPS transaction and
+publication have completed; existing fixture data and old semantic definitions
+were retained.
 
 The accompanying DB-GPT source keeps confirmed clarification answers in server
 history snapshots and pins their chronological scope outside rolling memory.
 Its `db-query@1.1.1` package includes compact English runtime SOP/skill variants
 for vi/en prompts; public explanations follow the requested locale. The binder
 records the projected prompt/document hashes separately from original source
-hashes. Installed suite packages require an explicit upgrade to include those
-files; rebuilding only the application image does not prove that upgrade.
+hashes. The live registry confirms `db-query@1.1.1` enabled from
+`/app/assets/suites/db-query`. Rendering its actual `/nl2sql` binding with locale
+`vi` passes the no-CJK assertion and records projected-document hashes. Other
+packages without locale sidecars retain their original fallback.
 
 Regression: 67 container tests and 6 offline guide tests pass. The actual
 `db-query /nl2sql` SOP/skill block renders 5,212 characters versus 33,283 in the
-original projection. This measures that block only, not total prompt tokens,
+original projection (the live projection with the degradation watermark is
+5,379 characters). This measures that block only, not total prompt tokens,
 provider cost or answer quality. Native tool permissions and thinking remain
 unchanged. A deployed model evaluation is still required to confirm corrected
 period/top-N, enum handling and evidence-grounded conclusions.
