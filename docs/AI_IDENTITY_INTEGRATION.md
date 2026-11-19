@@ -71,8 +71,13 @@ Analyst displayed the DB-GPT UI inside the Pipeline frame. The VPS logged the
 handoff POST as 303 followed by identity GET 200. Admin browser behavior,
 expired Access session recovery, logout and full Agent analysis remain untested.
 
-In integration mode `/images` is denied because that static mount has no
-actor/owner check. An authenticated image route remains to be implemented.
+The updated DB-GPT source routes legacy `/images/<name>` URLs through an
+authenticated generated-image handler. It checks the verified actor against an
+image ownership index or structured image evidence in that actor's conversation
+history; it does not open the public static mount. GET/HEAD support normal AI
+session cookies and Bearer authentication. Responses are private/non-cacheable.
+This image-delivery fix has passed source regression but still awaits deployment
+and browser acceptance; the currently deployed older middleware still denies it.
 See [component authorization inventory](AI_COMPONENT_AUTHORIZATION_INVENTORY.md)
 for the reviewed boundaries and outstanding enforcement.
 

@@ -71,6 +71,12 @@ class GuideReviewTest(unittest.TestCase):
         self.assertTrue(all("dataset_id" in r["keys"] for r in relationships))
         self.assertIn("not an ordered conversion cohort", self.content)
 
+    def test_rates_and_calendar_comparisons_are_explained_without_certifying_conversion(self):
+        self.assertIn("not an add-to-cart rate", self.content)
+        self.assertIn("not sequential conversion", self.content)
+        self.assertIn("strftime %U", self.content)
+        self.assertIn("not significance tests", self.content)
+
 
 if __name__ == "__main__":
     unittest.main()

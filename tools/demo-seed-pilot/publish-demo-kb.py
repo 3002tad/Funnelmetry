@@ -16,7 +16,7 @@ import time
 from urllib.request import Request, urlopen
 
 RELEASE = "demo-commerce-analysis@1.2.2"
-GUIDE_REVISION = "2026-11-19.2"
+GUIDE_REVISION = "2026-11-20.1"
 DEFINITION_SHA = "10f54c5bde61a5d74edbaa94833794501143ed0c1d46ee98a63fda27bacec521"
 API = "http://127.0.0.1:5670"
 PIPELINE = "http://127.0.0.1:31080"
@@ -113,6 +113,8 @@ def guide(definition):
         "Stocked minus reserved is a physical scenario position, not a sellable Medusa stock measure.",
         "Order reference_state=ON is synthetic state, not proof of paid revenue or live conversion.",
         "Monthly November 2026 is only four synthetic days, so compare periods of equal duration when describing trends.",
+        "Descriptive rates: cart-linked sessions / sessions is cart-link coverage, not an add-to-cart rate. Order records / sessions and order records / cart-linked sessions are aggregate ratios at different grains, not sequential conversion. A conversion metric requires the same linked cohort, temporal ordering, deduplication, an explicit order reference-state filter and a compatible definition. A pending order status does not establish payment or fulfillment.",
+        "Calendar comparisons: first/last weeks inside a month may have fewer observed days; a week number must state its convention (ISO weeks differ from strftime %U). Raw partial-week totals are not comparable to full-week totals. Half-month mean differences and moving averages are descriptive statistics, not significance tests or proof of stable weekly behavior. Statistical significance requires a suitable test, assumptions and uncertainty estimate.",
         "Tham chiếu / reference terminology: KB citations may identify retrieved entries, chunks or slices of a document. Multiple entries can come from the same document; their count does not establish a count of independent documents, independent observations or corroborating sources. A chunk/reference ID is not by itself a document identity or a quality certificate. Document and semantic version provenance must remain explicit when available.",
         "Assets:",
     ]

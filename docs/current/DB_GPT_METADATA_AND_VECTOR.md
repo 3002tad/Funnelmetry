@@ -38,6 +38,21 @@ evaluation remains separate.
 
 ## Scope and schema corrections
 
+The next DB-GPT source revision adds a bounded prior-evidence inventory at the
+start of conversational ReAct follow-ups. It uses the existing owner/session
+catalog and a paginated `session_evidence` tool to inspect old results and read
+saved scalars without querying PostgreSQL. Missing scope/grain/freshness remain
+unknown, with definitions/quality retaining their original authority. This is
+operational evidence reuse, not KB semantic knowledge; tool instructions remain
+in DB-GPT runtime/skill documentation. It is not deployed yet and has not
+established model-level query/token savings.
+
+Prepared guide-only revision `2026-11-20.1` further clarifies descriptive
+order/cart-session ratios, cohort conversion, partial calendar weeks and the
+difference between half-month means and significance tests. It keeps the active
+1.2.2 definition/SHA and fixture unchanged. This derived revision is not published
+yet; the live KB identified above remains revision `2026-11-19.2`.
+
 The deployed `demo-commerce-analysis@1.2.2`, derived guide revision
 `2026-11-19.2`, adds cart
 `product_key`/`variant_key`, case-sensitive `ADD`/`DECREASE`/`DELETE`, product-view
