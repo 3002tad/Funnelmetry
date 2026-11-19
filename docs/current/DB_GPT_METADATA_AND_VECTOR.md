@@ -19,16 +19,16 @@ space; automatic selection, invalidation and refresh are not implemented.
 
 The active demo semantic release is `demo-commerce-analysis@1.2.2`, definition
 SHA-256 `10f54c5bde61a5d74edbaa94833794501143ed0c1d46ee98a63fda27bacec521`.
-Derived guide revision `2026-11-19.2` is published as
-`funnelmetry-demo-1-2-2-b65e19250ed6`, document ID 14, indexed `FINISHED`.
+Derived guide revision `2026-11-20.1` is published as
+`funnelmetry-demo-1-2-2-ffaf97e436b5`, document ID 15, indexed `FINISHED`.
 Retrieval returned the matching release marker; the publisher's read-only
 golden SQL check passed 15/15 on the VPS. Existing conversations retain their
 selected KB; select this matching version for new Agent evaluations. Publication
 does not certify a model answer or silently change a conversation's selection.
 
-DB-GPT runs source commit `5f7460a911c36ff438e936fd985b2c11378bd79c`, image
-`sha256:cc58c0d71b540b4c2a15af47b83cafd0769de00f4fe4853e8d12e3c7b271f0ff`.
-The manifest checks all 2,382 source/skill/suite files and 615 static UI files.
+DB-GPT runs source commit `4decaba5a24143e7ac8fa410987b72b88b6a91f2`, image
+`sha256:7cc022d0a5c19855eb5b4635914eceaa9817439a439b1325f8cd8f1678d87305`.
+The manifest checks all 2,386 source/skill/suite files and 615 static UI files.
 There were no UI source changes in this commit: the verified static export from
 149d8782 is retained byte-for-byte, without another UI build. Only the DB-GPT
 webserver was recreated; MySQL, chat and Chroma volumes were retained. Admin and
@@ -38,23 +38,25 @@ evaluation remains separate.
 
 ## Scope and schema corrections
 
-The next DB-GPT source revision adds a bounded prior-evidence inventory at the
+The deployed DB-GPT revision adds a bounded prior-evidence inventory at the
 start of conversational ReAct follow-ups. It uses the existing owner/session
 catalog and a paginated `session_evidence` tool to inspect old results and read
 saved scalars without querying PostgreSQL. Missing scope/grain/freshness remain
 unknown, with definitions/quality retaining their original authority. This is
 operational evidence reuse, not KB semantic knowledge; tool instructions remain
-in DB-GPT runtime/skill documentation. It is not deployed yet and has not
-established model-level query/token savings.
+in DB-GPT runtime/skill documentation. The running container restored 14 captures
+from the inspected chat and read seven saved values without source SQL or LLM
+calls. Regression: 181 combined backend tests pass; the final scalar-label
+extension passed 20 focused catalog/inventory tests. Model-level query/token
+savings remain to be evaluated.
 
-Prepared guide-only revision `2026-11-20.1` further clarifies descriptive
+Published guide-only revision `2026-11-20.1` further clarifies descriptive
 order/cart-session ratios, cohort conversion, partial calendar weeks and the
 difference between half-month means and significance tests. It keeps the active
-1.2.2 definition/SHA and fixture unchanged. This derived revision is not published
-yet; the live KB identified above remains revision `2026-11-19.2`.
+1.2.2 definition/SHA and fixture unchanged. The published space is identified
+above; older conversations are not automatically rebound to it.
 
-The deployed `demo-commerce-analysis@1.2.2`, derived guide revision
-`2026-11-19.2`, adds cart
+The deployed `demo-commerce-analysis@1.2.2` adds cart
 `product_key`/`variant_key`, case-sensitive `ADD`/`DECREASE`/`DELETE`, product-view
 JSON keys and dataset-scoped synthetic catalog relationships. Existing 1.2.1
 bytes, fixtures and historical facts stay unchanged. `ADD` counts positive

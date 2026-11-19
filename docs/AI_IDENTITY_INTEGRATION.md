@@ -76,8 +76,10 @@ authenticated generated-image handler. It checks the verified actor against an
 image ownership index or structured image evidence in that actor's conversation
 history; it does not open the public static mount. GET/HEAD support normal AI
 session cookies and Bearer authentication. Responses are private/non-cacheable.
-This image-delivery fix has passed source regression but still awaits deployment
-and browser acceptance; the currently deployed older middleware still denies it.
+This fix is deployed in DB-GPT commit `4decaba5`. Both PNGs from the inspected
+old Analyst chat return valid images with owner cookie/Bearer, including public
+HTTPS. HEAD succeeds; anonymous reads return401 and another actor gets404.
+Browser interaction acceptance remains separate from these HTTP checks.
 See [component authorization inventory](AI_COMPONENT_AUTHORIZATION_INVENTORY.md)
 for the reviewed boundaries and outstanding enforcement.
 
