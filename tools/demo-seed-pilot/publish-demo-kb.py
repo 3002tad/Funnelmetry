@@ -16,7 +16,7 @@ import time
 from urllib.request import Request, urlopen
 
 RELEASE = "demo-commerce-analysis@1.2.2"
-GUIDE_REVISION = "2026-11-20.1"
+GUIDE_REVISION = "2026-11-21.1"
 DEFINITION_SHA = "10f54c5bde61a5d74edbaa94833794501143ed0c1d46ee98a63fda27bacec521"
 API = "http://127.0.0.1:5670"
 PIPELINE = "http://127.0.0.1:31080"
@@ -107,6 +107,7 @@ def guide(definition):
         "cart_links and browser context.cart_linked evidence associate a session with a cart; they do not prove an item was added. An addition requires the corresponding cart.item_added or ADD mutation. Keep the label session with a cart link when only a link was counted.",
         "Historical dataset_coverage has period_start, period_end, demo_status and scope_note. gap_dataset_coverage has dataset_id, demo_status, mismatched_domains and invalid_sessions; it does not have period_start, period_end or scope_note. Inspect the real schema before selecting other columns.",
         "Use event occurred_at, session started_at, order created_at, payment action_at and fulfillment occurred_at separately.",
+        "Hourly/day-of-week semantics: the synthetic period boundaries above are UTC. An hour extracted without explicit timezone conversion must not be described as Vietnamese local customer time. Filtering boundaries and grouping must use the same declared timezone. A checkout.started event is a checkout start, not an abandonment fact. Time buckets can span unequal numbers of hours, so total occurrences and per-hour density are distinct measures. Independent session/event/order totals are not a linked sequential funnel.",
         "Search text is an independent demand signal. Observed search-to-cart has insufficient correlation.",
         "Synthetic payment CAPTURED and REFUNDED actions are supported; observed paid revenue has insufficient binding.",
         "Đơn vị tiền / monetary units: order_lines.unit_amount_minor, order_lines.line_total_minor and payments.amount_minor are minor currency units. The published value measures are grouped by currency; a sum across currencies is not a single comparable monetary amount. A minor-unit number is not already a major-unit price. A display conversion requires the currency and its exponent; this guide does not declare a universal divide-by-100 rule. Ordered line value, CAPTURED and REFUNDED are distinct measures, and reference_state=ON does not replace any of them.",
