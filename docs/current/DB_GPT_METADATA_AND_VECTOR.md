@@ -19,15 +19,16 @@ space; automatic selection, invalidation and refresh are not implemented.
 
 The active demo semantic release is `demo-commerce-analysis@1.2.2`, definition
 SHA-256 `10f54c5bde61a5d74edbaa94833794501143ed0c1d46ee98a63fda27bacec521`.
-Derived guide revision `2026-11-20.1` is published as
-`funnelmetry-demo-1-2-2-ffaf97e436b5`, document ID 15, indexed `FINISHED`.
+Derived guide revision `2026-11-21.1` is published as
+`funnelmetry-demo-1-2-2-71b20bc7fff5`, document ID 16, indexed `FINISHED`.
 Retrieval returned the matching release marker; the publisher's read-only
 golden SQL check passed 15/15 on the VPS. Existing conversations retain their
 selected KB; select this matching version for new Agent evaluations. Publication
 does not certify a model answer or silently change a conversation's selection.
 
-DB-GPT runs source commit `4decaba5a24143e7ac8fa410987b72b88b6a91f2`, image
-`sha256:7cc022d0a5c19855eb5b4635914eceaa9817439a439b1325f8cd8f1678d87305`.
+DB-GPT runs source commit `1c656f859d0b0765b4e81c04f5d4e8bf951f2938`, image
+ID `sha256:ef3681b822cd7f4586a25db20428e7e66caf90752892e860e4b96f3ac7541df0`.
+Compose pins this same local image digest.
 The manifest checks all 2,386 source/skill/suite files and 615 static UI files.
 There were no UI source changes in this commit: the verified static export from
 149d8782 is retained byte-for-byte, without another UI build. Only the DB-GPT
@@ -35,6 +36,18 @@ webserver was recreated; MySQL, chat and Chroma volumes were retained. Admin and
 Analyst login/read API smoke tests, public HTTPS reads and anonymous denial
 passed. This is deployment/API acceptance; a new browser/LLM analytical
 evaluation remains separate.
+
+Native `tool_choice=auto` can now deliver the current provider's completed
+public text without a redundant terminate call. Private thinking, malformed
+tool-call wrappers and explicit truncated/filtered responses are excluded;
+ordinary final verification and pending-plan semantics remain in place.
+Protocol retry errors carry a category and vi/en explanation. Skill 1.0.17,
+shared interpretation guidance and the current derived KB clarify computed
+ratios/complements, timezone, unequal hourly exposure and checkout starts versus
+abandonment. These instructions do not certify LLM arithmetic. The deployed
+image passed 62 backend tests; the guide passed seven offline tests. Saved-output
+replay passed for both rejected public answers from the investigated chat.
+No new analytical model evaluation was run for this deployment.
 
 ## Scope and schema corrections
 
