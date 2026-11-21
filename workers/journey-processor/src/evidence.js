@@ -20,8 +20,21 @@ function add(evidence, seen, item) {
 export function extractJourneyEvidence(event) {
   const evidence = []
   const seen = new Set()
+  // checkout-cart-anchor-v1: checkout.started carries an explicit cart key in
+  // the canonical behavior payload (including deployed canonical-behavior-v2).
+  // Anchor this observation to that business entity without claiming that the
+  // pre-existing browser/session journey has been merged into the cart journey.
+  // Preserve inconsistent explicit keys so the repository still rejects them.
+  const checkoutCartId = event.event_type === "checkout.started"
+    ? nonEmpty(event.data?.cart_id) : undefined
+  if (checkoutCartId) {
+    add(evidence, seen, {
+      entity_type: "CART", entity_key: checkoutCartId,
+      link_method: "BUSINESS_ENTITY", link_confidence: "STRONG", priority: 50,
+    })
+  }
   const correlationId = event.event_type === "context.cart_linked"
-    ? undefined : nonEmpty(event.relations?.correlation_id)
+    || checkoutCartId ? undefined : nonEmpty(event.relations?.correlation_id)
   if (correlationId) add(evidence, seen, {
     entity_type: "CORRELATION",
     entity_key: correlationId,
@@ -50,7 +63,7 @@ export function extractJourneyEvidence(event) {
     })
   }
 
-  const userId = nonEmpty(event.identity?.user_id)
+  const userId = checkoutCartId ? undefined : nonEmpty(event.identity?.user_id)
   if (userId) add(evidence, seen, {
     entity_type: "USER",
     entity_key: userId,
@@ -63,7 +76,7 @@ export function extractJourneyEvidence(event) {
   // The resolver cannot merge two existing journeys when CDC cart wins the race;
   // attach the observation to the cart journey without claiming that merge here.
   const sessionId = event.event_type === "context.cart_linked"
-    ? undefined : nonEmpty(event.identity?.session_id)
+    || checkoutCartId ? undefined : nonEmpty(event.identity?.session_id)
   if (sessionId) add(evidence, seen, {
     entity_type: "SESSION",
     entity_key: sessionId,

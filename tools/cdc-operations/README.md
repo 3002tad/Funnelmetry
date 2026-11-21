@@ -1,6 +1,14 @@
 # Primary Medusa reference CDC operations
 
-CDC-14 promotes the six CDC runtime services to stack `funnelmetry_cdc`.
+The current `funnelmetry_cdc` stack declares seven services: Connect, order
+mapper DB, catalog writer, inventory/price writer, cart line item mapper,
+order mapper and order sink. They serve four CDC profiles; Kafka and the
+Pipeline PostgreSQL sink belong to the main stack. See the
+[current manifest](../../infra/swarm-cdc-live.yml) and
+[CDC contracts](../../docs/current/MEDUSA_REFERENCE_CDC_CURRENT.md).
+
+The CDC-14 checkpoint records the six-service cutover at that time; its
+counts are historical evidence, not the current service inventory.
 Evidence and preserved physical names are in
 [`docs/archive/checkpoints/CDC14_RUNTIME_EXECUTION_2026-10-31.md`](../../docs/archive/checkpoints/CDC14_RUNTIME_EXECUTION_2026-10-31.md).
 

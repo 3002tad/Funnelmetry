@@ -7,6 +7,24 @@ import { createHash } from 'node:crypto'
 import { readControllerObservation } from '../src/lib/controller-observation.js'
 import { pathToFileURL } from 'node:url'
 
+test('live controller uses fresh runtime evidence, preserves action results and fails closed', async () => {
+ const dir=await mkdtemp(join(tmpdir(),'controller-live-')), file=join(dir,'snapshot.json'), now=Date.now()
+ try {
+  const config=JSON.parse(await readFile(new URL('../../../tools/swarm-controllers/config.example.json',import.meta.url),'utf8'))
+  const state={version:1,pending:null,fingerprint:createHash('sha256').update(JSON.stringify(config)).digest('hex'),audit:[{kind:'RELEASE_EVIDENCE_ATTESTATION',at:now-1000,result:'MIGRATED_OBSERVATIONS_RESET'},{at:now-500,signal:'kafka_lag',reason:'SUSTAINED_BACKLOG',result:'ACCEPTED_AWAITING_READINESS',previousReplicas:1,desiredReplicas:2}]}
+  const completion={scope:{stack:config.stack,service:config.service},checkedAt:new Date(now).toISOString(),enabled:true,running_replicas:1,image_matches:true}
+  const env={DASHBOARD_CONTROLLER_LIVE_SNAPSHOT_PATH:file,DASHBOARD_SCALING_STACK:config.stack}
+  const read=async(s=state,c=completion)=>{await writeFile(file,JSON.stringify({config,state:s,completion:c}));return readControllerObservation(env,now)}
+  const active=await read();assert.equal(active.status,'ACTIVE');assert.equal(active.history.length,1);assert.equal(active.last_decision.result,'ACCEPTED_AWAITING_READINESS');assert.equal(active.last_decision.action,'SCALE_UP')
+  assert.equal((await read(state,{...completion,checkedAt:new Date(now-100000).toISOString()})).status,'UNVERIFIED')
+  assert.equal((await read({...state,audit:[{...state.audit[1],at:now-100000}]},{...completion,checkedAt:new Date(now-95000).toISOString()})).status,'STALE')
+  assert.equal((await read(state,{...completion,enabled:false})).status,'STOPPED')
+  assert.equal((await read(state,{...completion,image_matches:false})).status,'IMAGE_MISMATCH')
+  assert.equal((await read({...state,pending:{}})).status,'NEEDS_REVIEW')
+  assert.equal((await read({...state,fingerprint:'wrong'})).status,'UNVERIFIED')
+ } finally {await rm(dir,{recursive:true,force:true})}
+})
+
 test('completed observe-only audit projects policy and historic series without secrets or live claims', async () => {
  const directory = await mkdtemp(join(tmpdir(), 'controller-view-'))
  try {

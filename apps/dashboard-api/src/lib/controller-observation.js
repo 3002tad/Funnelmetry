@@ -30,27 +30,30 @@ async function boundedJson(path, limit) {
 }
 export async function readControllerObservation(env = process.env, now = Date.now()) {
   const unavailable = { status: 'UNVERIFIED', reason: 'CONTROLLER_STATE_NOT_CONNECTED', policy: null, history: [], series: [] }
-  if (!env.DASHBOARD_CONTROLLER_OBSERVATION_DIR) return unavailable
+  const live = !!env.DASHBOARD_CONTROLLER_LIVE_SNAPSHOT_PATH
+  if (!live && !env.DASHBOARD_CONTROLLER_OBSERVATION_DIR) return unavailable
   try {
     const directory = env.DASHBOARD_CONTROLLER_OBSERVATION_DIR
-    const [config, state, completion] = await Promise.all([
+    const snapshot = live ? await boundedJson(env.DASHBOARD_CONTROLLER_LIVE_SNAPSHOT_PATH, 524288) : null
+    const [config, state, completion] = live ? [snapshot.config, snapshot.state, snapshot.completion] : await Promise.all([
       boundedJson(join(directory, 'config.json'), 32768), boundedJson(join(directory, 'state.json'), 262144),
       boundedJson(join(directory, 'status.json'), 16384),
     ])
     validateObservationPolicy(config)
     const fingerprint = createHash('sha256').update(JSON.stringify(config)).digest('hex')
     if (config.stack !== env.DASHBOARD_SCALING_STACK || state.version !== 1 || state.fingerprint !== fingerprint ||
-      state.pending !== null || !Array.isArray(state.audit) || state.audit.length > 200 || !state.audit.length ||
-      state.audit.some(event => event.result !== 'OBSERVE_ONLY') ||
+      (!live && state.pending !== null) || !Array.isArray(state.audit) || state.audit.length > 200 || !state.audit.length ||
+      (!live && state.audit.some(event => event.result !== 'OBSERVE_ONLY')) ||
       completion.scope?.stack !== config.stack || completion.scope?.service !== config.service ||
       !Number.isFinite(Date.parse(completion.checkedAt)) || Date.parse(completion.checkedAt) > now + 5000) throw Error('invalid')
     const count = value => Number.isSafeInteger(value) && value >= 0 && value <= 10000
     const decimal = value => typeof value === 'string' && /^(0|[1-9]\d{0,30})$/.test(value)
     const safeCode = value => typeof value === 'string' && /^[A-Z_]{1,100}$/.test(value) ? value : null
-    const history = state.audit.map(event => {
+    if (live && (typeof completion.enabled !== 'boolean' || !count(completion.running_replicas) || typeof completion.image_matches !== 'boolean')) throw Error('invalid_runtime')
+    const history = state.audit.filter(event => !live || event.signal === 'kafka_lag' || event.service === config.service && event.reason).map(event => {
       if (!Number.isSafeInteger(event.at) || event.at < 0 || event.at > now + 5000 || !safeCode(event.reason)) throw Error('invalid_event')
       return { at: new Date(event.at).toISOString(), kind: event.signal === 'kafka_lag' ? 'AUTOSCALE' : 'RECOVERY',
-        reason: safeCode(event.reason), result: 'OBSERVE_ONLY', action: safeCode(event.action) ?? 'HOLD',
+        reason: safeCode(event.reason), result: live ? safeCode(event.result) ?? 'UNVERIFIED' : 'OBSERVE_ONLY', action: safeCode(event.action) ?? (event.desiredReplicas > event.previousReplicas ? 'SCALE_UP' : event.desiredReplicas < event.previousReplicas ? 'SCALE_DOWN' : 'HOLD'),
         previous_replicas: count(event.previousReplicas) ? event.previousReplicas : null,
         desired_replicas: count(event.desiredReplicas) ? event.desiredReplicas : null,
         consumable_lag: decimal(event.observedValue) ? event.observedValue : null,
@@ -61,10 +64,12 @@ export async function readControllerObservation(env = process.env, now = Date.no
     const last = series.at(-1)
     if (!last || Date.parse(completion.checkedAt) < Date.parse(last.at)) throw Error('missing_observations')
     const p = config.autoscale
-    return { status: 'COMPLETED_OBSERVATION', mode: 'OBSERVE_ONLY', reason: null,
-      last_observed_at: last.at, stale: now - Date.parse(last.at) > p.maxSampleAgeMs,
+    const stale = live ? now - Date.parse(completion.checkedAt) > 90000 || now - Date.parse(last.at) > 90000 : now - Date.parse(last.at) > p.maxSampleAgeMs
+    const liveStatus = stale ? 'STALE' : state.pending || state.recovery?.circuitOpen ? 'NEEDS_REVIEW' : !completion.image_matches ? 'IMAGE_MISMATCH' : completion.enabled && completion.running_replicas === 1 ? 'ACTIVE' : 'STOPPED'
+    return { status: live ? liveStatus : 'COMPLETED_OBSERVATION', mode: live ? 'AUTO_SCALE' : 'OBSERVE_ONLY', reason: null,
+      checked_at: completion.checkedAt, last_observed_at: last.at, stale,
       recovery_status: safeCode(completion.recovery?.persistedStatus),
-      policy: { scope: 'LOCAL_OBSERVATION_TEST', min_replicas: p.minReplicas, max_replicas: p.maxReplicas,
+      policy: { scope: live ? 'VPS_LIVE_CONTROLLER' : 'LOCAL_OBSERVATION_TEST', min_replicas: p.minReplicas, max_replicas: p.maxReplicas,
         up_lag: p.upLag, down_lag: p.downLag, up_memory_percent: p.upMemoryPercent ?? null,
         down_memory_percent: p.downMemoryPercent ?? null, up_window_ms: p.upWindowMs, down_window_ms: p.downWindowMs,
         cooldown_ms: p.cooldownMs, cpu_headroom_nano: config.cpuHeadroomNano, memory_headroom_bytes: config.memoryHeadroomBytes },

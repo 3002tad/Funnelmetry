@@ -5,6 +5,7 @@ import {createReferenceCdcFunnelCandidateRepository} from
   '../src/lib/reference-cdc-funnel-candidate.js'
 import {REFERENCE_CDC_PROFILE_V2 as profile} from
   '../src/lib/reference-cdc-profile-v2.js'
+import {REFERENCE_CDC_PROFILE_V3 as bridgeProfile} from '../src/lib/reference-cdc-profile-v3.js'
 
 const now = new Date('2026-10-30T12:00:00Z')
 const quality = {status:'CURRENT_STATE_READY',baseline_complete:true,
@@ -75,6 +76,20 @@ test('missing or changed quality lease suppresses all candidate numbers', async 
 
 test('other source never receives reference candidate data', async () => {
   assert.equal(await harness().repository.read({...scope,sourceId:'another-source'}),null)
+})
+
+test('active v3 requires exact immutable definition, reports linkage and blocks version changes', async()=>{
+  const active={...binding,profile_version:bridgeProfile.profile_version,metric_id:bridgeProfile.metric_id,definition:bridgeProfile}
+  const counts={entrants:'3',item_added:'2',checkout_started:'1',currently_recorded_journeys:'0',linked_entry_journeys:'2',ambiguous_carts:'0',entries_without_cart_context:'1'}
+  const result=await harness({active,counts}).repository.readActive(scope)
+  assert.equal(result.profile_version,'3.0.0')
+  assert.equal(result.metric_id,bridgeProfile.metric_id)
+  assert.equal(result.linkage.entries_without_cart_context,1)
+  assert.equal(result.linkage.contract_id,'reference.product_page_cart_bridge.v1')
+  assert.equal((await harness({active:{...active,definition:profile},counts}).repository.readActive(scope)).status,'BLOCKED_BY_QUALITY')
+  assert.equal((await harness({active,bindingAfter:binding,counts}).repository.readActive(scope)).reason,'REFERENCE_PROFILE_CHANGED_DURING_READ')
+  assert.equal((await harness({active,counts:{...counts,linked_entry_journeys:'-1'}}).repository.readActive(scope)).reason,'CDC_LINKAGE_COUNTS_INVALID')
+  assert.equal((await harness({active,counts,after:{...quality,valid_until:'2026-10-30T11:00:00Z'}}).repository.readActive(scope)).status,'BLOCKED_BY_QUALITY')
 })
 
 test('active reference profile is separate and fails closed on binding changes', async () => {

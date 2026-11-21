@@ -4,7 +4,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Package, Search, RefreshCw, Download } from 'lucide-react';
 import type { ShellContext } from '../../app/AppShell';
 import { useAuth } from '../../auth/AuthContext';
-import { fetchExploration, type Exploration } from '../../lib/exploration-api';
+import { fetchExploration, productTitles, type Exploration } from '../../lib/exploration-api';
 import { dateWindow } from '../../lib/date-range';
 import { downloadCsv } from '../../lib/csv-export';
 import { PageHeader } from '../../components/ui/page';
@@ -25,7 +25,7 @@ export default function ProductsWorkspacePage() {
     const detail = useQuery({ queryKey: ['price-interest', user?.id, sourceId, dataset, from, to, variantId], queryFn: ({ signal }) => fetchExploration(sourceId, dataset, { from: new Date(start).toISOString(), to: new Date(end).toISOString() }, variantId, signal), enabled: valid && !!variantId && dataset !== 'observed', retry: false, gcTime: 0 });
     const result = detail.isError ? undefined : detail.data, allPrices = result?.prices ?? [], contexts = [...new Set(allPrices.map(contextKey))], ctx = contexts.includes(context) ? context : contexts.find(c => c.endsWith(' · base')) || contexts[0], prices = allPrices.filter(p => contextKey(p) === ctx);
     const at = (t: number) => { const rows = prices.filter(p => Date.parse(p.effective_at) <= t && (!p.valid_to || Date.parse(p.valid_to) > t)); return rows.length === 1 ? rows[0] : null; };
-    const titles = new Map(data?.variants.map(v => [v.product_id, v.title])), products = (data?.products ?? []).filter(p => (titles.get(p.product_id) || p.product_id).toLowerCase().includes(search.toLowerCase())).slice(0, 10), selected = data?.products.find(p => p.product_id === product);
+    const titles = productTitles(data), products = (data?.products ?? []).filter(p => (titles.get(p.product_id) || p.product_id).toLowerCase().includes(search.toLowerCase())).slice(0, 10), selected = data?.products.find(p => p.product_id === product);
     const choose = (id: string) => { setProduct(product === id ? '' : id); setVariant(''); setContext(''); };
     const stats = selected ? [
         { label: 'Sản phẩm đang chọn', value: titles.get(product) || product, detail: 'Danh mục cùng bộ dữ liệu' },
@@ -50,7 +50,7 @@ export default function ProductsWorkspacePage() {
  {result && valid && <><div className="tpl-price-summary">{[['Giá đầu khoảng', money(at(start))], ['Giá cuối khoảng', money(at(end - 1))], ['Lượt xem variant', number(result.daily.filter(r => Date.parse(r.date + 'T00:00:00Z') >= start && Date.parse(r.date + 'T00:00:00Z') + 86400000 <= end).reduce((n, r) => n + Number(r.views), 0))], ['Mốc hiệu lực mới trong khoảng', prices.filter(p => Date.parse(p.effective_at) > start && Date.parse(p.effective_at) < end).length]].map(([label, value]) => <div key={label}><small>{label}</small><strong>{value}</strong></div>)}</div><PriceChart prices={prices} daily={result.daily} start={start} end={end} context={ctx || 'Chưa có bản giá'}/><details className="tpl-price-history"><summary>Xem {prices.length} bản ghi giá giao với khoảng đã chọn</summary><table><thead><tr><th>Từ UTC</th><th>Đến trước UTC</th><th>Giá</th></tr></thead><tbody>{prices.map((p, i) => <tr key={i}><td>{p.effective_at}</td><td>{p.valid_to || 'Không giới hạn'}</td><td>{money(p)}</td></tr>)}</tbody></table></details></>}
  {!variantId && !summary.isFetching && <div className="tpl-empty">Sản phẩm chưa có biến thể để hiển thị.</div>}
  </>}
- </DesignCard><p className="tpl-semantic-footnote">Giá theo ngữ cảnh đã chọn; không phải giá thanh toán.</p>
+ </DesignCard>
  </div>;
 }
 function PriceChart({ prices, daily, start, end, context }: {

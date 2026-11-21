@@ -5,10 +5,15 @@ import jwt from 'jsonwebtoken'
 Object.assign(process.env,{PORT:'32000',CORS_ORIGIN_DASHBOARD:'http://localhost:5180',JWT_SECRET:'products-test-only',JWT_EXPIRES:'1h',DASHBOARD_ADMIN_EMAIL:'test@example.invalid',DASHBOARD_ADMIN_PASSWORD:'test',POSTGRES_HOST:'unused',POSTGRES_PORT:'5432',POSTGRES_DB:'unused',POSTGRES_USER:'unused',POSTGRES_PASSWORD:'unused',DASHBOARD_ENABLE_AI:'false',DASHBOARD_ENABLE_LEGACY:'false'})
 const {createProductsV2Router}=await import('../src/routes/products-v2.js')
 test('product observations validate scope and sort, parameterize filters, enforce permissions',async()=>{
-  let role='analyst',version=1,fail=false,calls=0
+  let role='analyst',version=1,fail=false,calls=0,installed=true,readable=true
   const app=express()
   app.use(createProductsV2Router({execute:async()=>[{role,is_active:true,session_version:version}],readOnly:async work=>work(async(sql,params)=>{
-    if(sql.includes('to_regclass'))return [{installed:false}]
+    if(sql.includes('to_regclass'))return [{installed}]
+    if(sql.includes('FROM catalog_cdc_binding'))return [{readable}]
+    if(sql.includes('FROM current_product_reference_names_cdc')){
+      assert.deepEqual(params,['medusa-reference',["prod'quoted"]])
+      return []
+    }
     calls++;if(fail)throw Error('private detail')
     assert.match(sql,/event_class='BUSINESS_FACT'/)
     assert.match(sql,/ORDER BY views DESC,product_id ASC/)
@@ -27,6 +32,9 @@ test('product observations validate scope and sort, parameterize filters, enforc
     role='super_admin';assert.equal((await get()).status,403)
     role='analyst';version=2;assert.equal((await get()).status,401)
     assert.equal(calls,1)
+    version=1;installed=false;assert.equal((await get()).status,503)
+    installed=true;readable=false;assert.equal((await get()).status,503)
+    readable=true
     version=1;fail=true;const error=await get();assert.equal(error.status,503);assert.deepEqual(await error.json(),{error:'product_observations_unavailable'})
   }finally{server.closeAllConnections();await new Promise(r=>server.close(r))}
 })

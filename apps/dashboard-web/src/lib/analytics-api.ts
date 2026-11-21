@@ -92,6 +92,7 @@ export type ReferenceCdcFunnelCandidateResponse = {
   metric_version?: string
   unit?: 'journeys'
   terminal_mode?: 'RETRACTABLE_CURRENT_STATE'
+  linkage?: {contract_id:string;linked_entry_journeys:number;ambiguous_carts:number;entries_without_cart_context:number;grain:string[];note:string}
   cohort: { basis: 'entry_at'; activation_at: string; from: string | null; to: string | null }
   quality_valid_until: string
   totals: {
@@ -307,17 +308,11 @@ export function fetchReferenceCdcFunnelCandidate(range: string) {
   )
 }
 
-export async function fetchReferenceCdcCurrentState(range: string) {
-  try {
-    return await apiRequest<ReferenceCdcFunnelCandidateResponse>(
+export async function fetchReferenceCdcCurrentState(range: string, signal?: AbortSignal) {
+    return apiRequest<ReferenceCdcFunnelCandidateResponse>(
       `/api/v2/analytics/reference-cdc-current-state?${scopeParams(range)}`,
+      {signal},
     )
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      return fetchReferenceCdcFunnelCandidate(range)
-    }
-    throw error
-  }
 }
 
 export async function fetchV2Journeys(limit = 50) {

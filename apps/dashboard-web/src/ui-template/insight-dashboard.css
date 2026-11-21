@@ -61,3 +61,6 @@ html:not(.dark) .template-root[data-ui="analyst"] .insight-dashboard .insight-ca
 .template-root[data-ui="analyst"] .overview-redesign .tpl-subtitle {font-size:13px}
 @media(max-width:900px){.template-root[data-ui="analyst"] .insight-detail-row{grid-template-columns:1fr}.template-root[data-ui="analyst"] .insight-kpi{padding:15px;column-gap:10px}.template-root[data-ui="analyst"] .insight-kpi strong{font-size:25px}.template-root[data-ui="analyst"] .insight-dashboard h2{font-size:15px}.template-root[data-ui="analyst"] .insight-kpi h2{font-size:11px}.template-root[data-ui="analyst"] .insight-donut-layout{padding:16px;gap:14px}.template-root[data-ui="analyst"] .insight-bar-plot{gap:16px;padding-inline:8px}.template-root[data-ui="analyst"] .insight-chart-note{padding-inline:16px}}
 @media(prefers-reduced-motion:reduce){.template-root[data-ui="analyst"] .insight-dashboard *{transition:none!important;animation:none!important}}
+
+/* A single day has no line segment: retain its visible selection target. */
+.template-root[data-ui="analyst"] .insight-trend svg[data-single-day="true"] circle {opacity:1}

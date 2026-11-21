@@ -1,4 +1,4 @@
-export const dashboardApiUrl = (import.meta.env.VITE_DASHBOARD_API_URL || "http://localhost:32000").replace(/\/$/, "")
+export const dashboardApiUrl = (import.meta.env.VITE_DASHBOARD_API_URL || "/").replace(/\/$/, "")
 export const analyticsSourceId = import.meta.env.VITE_ANALYTICS_SOURCE_ID || "medusa-reference"
 export const TOKEN_KEY = "dashboard_token"
 export const USER_KEY = "dashboard_user"

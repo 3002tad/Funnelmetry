@@ -8,6 +8,41 @@ import { canonicalEvent } from "./fixtures.js"
 
 const databaseUrl = process.env.TEST_DATABASE_URL
 
+test("checkout cart anchoring survives both arrival orders and duplicate delivery without merging sessions", {skip:!databaseUrl}, async()=>{
+  const pool=new pg.Pool({connectionString:databaseUrl})
+  try {
+    for(const migration of ['001_canonical_ledger.sql','002_journey_projection.sql'])
+      await pool.query(await readFile(new URL(`../../../infra/postgres/v2/${migration}`,import.meta.url),'utf8'))
+    for(const cartFirst of [false,true]) {
+      const id=randomUUID(),source=`checkout-recovery-${id}`,cart=`cart-${id}`,session=`session-${id}`
+      const make=(label,overrides)=>canonicalEvent({source_id:source,canonical_event_id:`can-${id}-${label}`,source_event_id:`evt-${id}-${label}`,...overrides})
+      const browse=make('view',{identity:{session_id:session},relations:{correlation_id:session}})
+      const add=make('cart',{event_type:'cart.item_added',event_class:'BUSINESS_FACT',relations:{cart_id:cart,correlation_id:`cart:${cart}`},data:{cart_id:cart}})
+      const checkout=make('checkout',{event_type:'checkout.started',mapping_version:'canonical-behavior-v2',identity:{session_id:session},relations:{correlation_id:`cart:${cart}`},data:{cart_id:cart,step:'address'}})
+      const repo=createJourneyRepository({pool}),resolved={}
+      for(const event of cartFirst?[add,browse]:[browse,add]) {
+        await persistCanonical(pool,event);resolved[event.event_type]=await repo.resolve(event)
+      }
+      await persistCanonical(pool,checkout)
+      const result=await repo.resolve(checkout)
+      assert.equal(result.journey_id,resolved['cart.item_added'].journey_id)
+      assert.notEqual(result.journey_id,resolved['behavior.product_viewed'].journey_id)
+      assert.equal(result.matched_entity_type,'CART')
+      assert.equal(result.link_confidence,'STRONG')
+      assert.equal((await repo.resolve(checkout)).status,'duplicate')
+      const owner=await pool.query("SELECT journey_id FROM journey_entities WHERE source_id=$1 AND entity_type='SESSION' AND entity_key=$2",[source,session])
+      assert.equal(owner.rows[0].journey_id,resolved['behavior.product_viewed'].journey_id)
+      const count=await pool.query('SELECT event_count FROM journeys WHERE journey_id=$1',[result.journey_id])
+      assert.equal(Number(count.rows[0].event_count),2)
+      const contradiction=make('bad',{event_type:'checkout.started',data:{cart_id:cart},relations:{cart_id:`other-${id}`}})
+      // A second explicit cart is already owned by another journey: still fail closed.
+      const other=make('other',{event_type:'cart.item_added',event_class:'BUSINESS_FACT',relations:{cart_id:`other-${id}`}})
+      await persistCanonical(pool,other);await repo.resolve(other);await persistCanonical(pool,contradiction)
+      await assert.rejects(()=>repo.resolve(contradiction),JourneyResolutionConflictError)
+    }
+  }finally{await pool.end()}
+})
+
 function json(value) {
   return value === undefined ? null : JSON.stringify(value)
 }

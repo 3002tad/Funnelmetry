@@ -6,13 +6,14 @@ Browser SDK và storefront hooks gửi event qua HTTP tới Source Ingress. Sour
 
 ## Medusa business/master data qua CDC
 
-CDC đọc PostgreSQL logical WAL theo publication/slot allowlist và snapshot ban đầu, rồi ghi Kafka. Ba profile được tách riêng:
+CDC đọc PostgreSQL logical WAL theo publication/slot allowlist và snapshot ban đầu, rồi ghi Kafka. Bốn profile được tách riêng:
 
 | Profile | Projection hiện hành | Giới hạn ngữ nghĩa |
 | --- | --- | --- |
 | `reference.medusa.order_recorded_state.v2` | Current journey/order state ON/OFF, coverage epoch, offset/inbox | Không phải `order.placed`, conversion, payment hoặc revenue; snapshot không tạo ON lịch sử. |
 | `reference.medusa.catalog_master_data.v1` | Product, variant, category và quan hệ hiện tại | Không phải lịch sử giá trị đơn hàng. |
 | `reference.medusa.inventory_price_context.v2` | Current offer theo variant, sales channel, region, currency; quality lease | Tồn kho khả dụng cần location/reservation/channel; giá phụ thuộc currency, price list và rule. Ngoài shape đã kiểm chứng là `UNVERIFIED`. |
+| `reference.medusa.cart_line_item_added.v1` | Baseline trạng thái `cart_line_item` và canonical event `cart.item_added` qua Kafka | Snapshot chỉ tạo baseline; insert hoặc tăng quantity sau snapshot mới phát sự kiện khi hợp lệ. DELETE, soft-delete và giảm quantity không tạo sự kiện thêm giỏ. Event không tự có browser session; `context.cart_linked` từ SDK là evidence liên kết cart–session riêng. |
 
 Pipeline PostgreSQL giữ **projection phục vụ phân tích**, không phải bản sao nguyên dạng mọi bảng Medusa. WAL gap không thể replay được ghi `historical_gap_status=INCOMPLETE`; phục hồi bằng coverage epoch mới và snapshot đối soát. Quality lease lỗi trả `BLOCKED_BY_QUALITY`. Contract, deployment và giới hạn chi tiết ở [Medusa CDC hiện hành](MEDUSA_REFERENCE_CDC_CURRENT.md), [Backbone CDC summary](https://github.com/3002tad/System_Backbone/blob/main/docs/implementation/MEDUSA_REFERENCE_CDC_CONSOLIDATED_2026-10-31.md).
 

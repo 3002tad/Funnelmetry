@@ -1,6 +1,6 @@
 # Kiến trúc Pipeline hiện hành
 
-Pipeline triển khai bằng **Docker Swarm**. Trên VPS reference, main stack `funnelmetry_vps_live` chạy nền tảng PostgreSQL/Kafka, workers và Dashboard API/Web; stack `funnelmetry_cdc` chạy sáu service CDC Medusa. Medusa và Source Ingress có deployment riêng. Các stack và runtime không biến source app thành một phần của Pipeline Swarm.
+Pipeline triển khai bằng **Docker Swarm**. Trên VPS reference, main stack `funnelmetry_vps_live` chạy nền tảng PostgreSQL/Kafka, workers và Dashboard API/Web; stack `funnelmetry_cdc` chạy bảy service CDC Medusa. Medusa và Source Ingress có deployment riêng. Các stack và runtime không biến source app thành một phần của Pipeline Swarm.
 
 ## Hai đường dữ liệu đang dùng
 
@@ -13,6 +13,7 @@ Browser SDK / storefront hooks
 Medusa PostgreSQL logical WAL
   → Debezium Connect → Kafka CDC
   → catalog writer / inventory-price writer → Pipeline PostgreSQL projections
+  → cart line item mapper → Kafka canonical cart.item_added → Pipeline downstream
   → order mapper → order-state fact → order sink → current-state projection
 ```
 
@@ -21,7 +22,7 @@ Browser SDK và các hook storefront tiếp tục đi qua Source Ingress/Event F
 ## Ownership và thành phần
 
 - [`infra/swarm-stack.yml`](../../infra/swarm-stack.yml), [`infra/swarm-workers.yml`](../../infra/swarm-workers.yml), [`infra/swarm-app.yml`](../../infra/swarm-app.yml), [`infra/swarm-live.yml`](../../infra/swarm-live.yml): data, workers, API/Web và behavioral Source Connector của main stack.
-- [`infra/swarm-cdc-live.yml`](../../infra/swarm-cdc-live.yml): Connect, order mapper DB, catalog writer, inventory/price writer, order mapper và order sink của CDC stack.
+- [`infra/swarm-cdc-live.yml`](../../infra/swarm-cdc-live.yml): Connect, order mapper DB, catalog writer, inventory/price writer, cart line item mapper, order mapper và order sink của CDC stack. Bảy service này phục vụ bốn profile CDC; Kafka và Pipeline PostgreSQL thuộc main stack.
 - [`runtime/swarm.mjs`](../../runtime/swarm.mjs) và [`runtime/cdc-live.mjs`](../../runtime/cdc-live.mjs): launcher tương ứng. Env/credential thật được giữ ngoài Git.
 - [`apps/`](../../apps/): HTTP/UI; [`workers/`](../../workers/): xử lý nền; [`packages/`](../../packages/): contract/SDK; [`analytics/`](../../analytics/): metadata và analytical assets; [`tools/`](../../tools/): installer, API docs và vận hành.
 

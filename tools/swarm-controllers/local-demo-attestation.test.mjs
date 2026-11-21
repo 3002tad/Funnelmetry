@@ -25,6 +25,14 @@ const controller = { Spec: { Name: `${stack}_swarm-scale-controller`,
 const network = { Id: networkId, Driver: 'overlay', Internal: true, Attachable: false };
 const running = { brokerRunning: '1/1', controllerRunning: '0/0' };
 
+test('VPS operator scope retains the same socket/network/explicit acceptance gates', () => {
+  const vps = {...attestation, kind:'OPERATOR_VPS_SINGLE_NODE', negativeTestRef:'vps-overlay-boundary-20261120'};
+  assert.equal(evaluateLocalDemoBoundary(vps, broker, controller, network, running), true);
+  assert.equal(evaluateLocalDemoBoundary({...vps,riskAccepted:false}, broker, controller, network, running), false);
+  assert.equal(evaluateLocalDemoBoundary({...vps,negativeTestRef:'unverified'}, broker, controller, network, running), false);
+  assert.equal(evaluateLocalDemoBoundary(vps, broker, controller, {...network,Internal:false}, running), false);
+});
+
 test('local demo boundary accepts only pinned isolated broker and socket-free disabled controller', () => {
   assert.equal(evaluateLocalDemoBoundary(attestation, broker, controller, network, running), true);
   const linuxBroker = structuredClone(broker);

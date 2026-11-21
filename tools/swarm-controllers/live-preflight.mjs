@@ -91,17 +91,19 @@ export async function livePreflight(configPath, statePath, attestationPath) {
     } catch { /* fail closed in report */ }
   }
   let localDemoBoundaryAttested = false;
+  let authorizationScope = null;
   if (attestationPath) {
     try {
       const attestation = JSON.parse(await readFile(attestationPath, 'utf8'));
       if (attestation.targetStack === config.stack && attestation.targetService === config.service &&
         attestation.targetImage === config.image) {
         localDemoBoundaryAttested = await inspectLocalDemoBoundary(attestation);
+        if (localDemoBoundaryAttested) authorizationScope = attestation.kind;
       }
     } catch { /* fail closed in report */ }
   }
-  return evaluateLivePreflight({ config, runtimeImage, managerReady: state === 'active' && control === 'true',
-    authorizationPlugins, persisted, observation, sessionActive, localDemoBoundaryAttested });
+  return { ...evaluateLivePreflight({ config, runtimeImage, managerReady: state === 'active' && control === 'true',
+    authorizationPlugins, persisted, observation, sessionActive, localDemoBoundaryAttested }), authorizationScope };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

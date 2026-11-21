@@ -16,9 +16,12 @@ async function dockerJson(args) {
 export function evaluateLocalDemoBoundary(attestation, broker, controller, network,
   { brokerRunning, controllerRunning }) {
   const stack = attestation?.stack;
-  if (attestation?.kind !== 'LOCAL_DOCKER_DESKTOP_DEMO' ||
+  const reviewedBoundary = (attestation?.kind === 'LOCAL_DOCKER_DESKTOP_DEMO' &&
+    attestation?.negativeTestRef === 'swarm-overlay-boundary-20261015') ||
+    (attestation?.kind === 'OPERATOR_VPS_SINGLE_NODE' &&
+      /^vps-overlay-boundary-\d{8}$/.test(attestation?.negativeTestRef || ''));
+  if (!reviewedBoundary ||
     attestation?.riskAccepted !== true ||
-    attestation?.negativeTestRef !== 'swarm-overlay-boundary-20261015' ||
     attestation?.targetService !== 'canonical-normalizer' ||
     !/^[a-z0-9][a-z0-9-]{5,80}$/.test(stack || '') ||
     !pinned(attestation.brokerImage) || !pinned(attestation.controllerImage)) return false;
