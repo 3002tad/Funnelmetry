@@ -450,3 +450,28 @@ passed. Public HTTPS provider/semantic reads and anonymous denial passed. This
 supersedes the earlier awaiting-deployment and missing-tmp-mount statements;
 browser rendering and paid model analytical acceptance remain separate. No KB
 publication is required because business/semantic definitions did not change.
+
+## Python result reuse and CSV provenance — source update 2026-11-24
+
+The live two-prompt evaluation on `87080139` produced valid September CSV
+aggregates and one rendered chart, but the analysis was stopped after repeated
+post-plan work. Provider usage reported at least 766,023 tokens (one call lacked
+usage); efficient Agent completion has not passed acceptance.
+
+The pending DB-GPT source change returns bounded captured `REPORT_RESULT`
+previews directly and through `session_evidence`, including labels/dates. The
+progress index identifies artifact type, result availability and parents.
+`pd.read_csv` reuse of a captured conversation CSV records an exact file/hash
+parent instead of asking for a new SQL calculation. Unread/changed/foreign files
+do not inherit previous provenance. Files/schema inspection alone does not
+require a structured analytical result. Pagination bounds are published in the
+tool schema; malformed Python and typed-date errors have specific repair hints.
+Workspace exports through `output_path` avoid unnecessary approval cards;
+external effects retain the existing approval rules. Skill guidance covers
+result reuse, automatic PNG publishing and collision-free NULL representation.
+
+These are orchestration/tool changes, not new semantic definitions or a new KB
+release. No hard step limit, tool restriction, migration or live redeployment is
+part of this fix. Offline regressions establish tool behavior; they cannot prove
+that a paid model will always stop promptly or quantify the new token savings.
+Targeted offline verification: 200 passed, 3 optional Docker tests skipped.
