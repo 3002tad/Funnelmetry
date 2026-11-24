@@ -26,16 +26,25 @@ golden SQL check passed 15/15 on the VPS. Existing conversations retain their
 selected KB; select this matching version for new Agent evaluations. Publication
 does not certify a model answer or silently change a conversation's selection.
 
-DB-GPT runs source commit `1c656f859d0b0765b4e81c04f5d4e8bf951f2938`, image
-ID `sha256:ef3681b822cd7f4586a25db20428e7e66caf90752892e860e4b96f3ac7541df0`.
+DB-GPT runs source commit `0748c45c3d3c9fb10d3fcaf90eaeb97740f8c9d1`, image
+ID `sha256:2951299c4b300d670f1ff2a1d47a684f91ce283c5c8134f6b86e6c924b08b261`.
 Compose pins this same local image digest.
-The manifest checks all 2,386 source/skill/suite files and 615 static UI files.
+The manifest checks all 2,387 source/skill/suite files and 615 static UI files.
 There were no UI source changes in this commit: the verified static export from
 149d8782 is retained byte-for-byte, without another UI build. Only the DB-GPT
 webserver was recreated; MySQL, chat and Chroma volumes were retained. Admin and
 Analyst login/read API smoke tests, public HTTPS reads and anonymous denial
 passed. This is deployment/API acceptance; a new browser/LLM analytical
 evaluation remains separate.
+
+The current image includes typed PostgreSQL discovery recovery, failed-batch
+diagnostics, localized dashboard failures and persisted-result completion
+checks. Offline dashboard/SQL/native regression passed 980 tests; five optional
+MySQL/Redis integration tests were skipped. Post-deploy Admin/Analyst and public
+HTTPS smoke passed, as did current-KB retrieval and 15/15 golden SQL checks.
+Four older `funnelmetry-demo-*` spaces were removed at the operator's request;
+the current space above is retained. Historical chat text is unchanged, but old
+KB selections must be replaced with the retained space before further retrieval.
 
 Native `tool_choice=auto` can now deliver the current provider's completed
 public text without a redundant terminate call. Private thinking, malformed
