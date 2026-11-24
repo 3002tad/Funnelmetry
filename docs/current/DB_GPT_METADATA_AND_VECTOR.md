@@ -26,10 +26,10 @@ golden SQL check passed 15/15 on the VPS. Existing conversations retain their
 selected KB; select this matching version for new Agent evaluations. Publication
 does not certify a model answer or silently change a conversation's selection.
 
-DB-GPT runs source commit `0748c45c3d3c9fb10d3fcaf90eaeb97740f8c9d1`, image
-ID `sha256:2951299c4b300d670f1ff2a1d47a684f91ce283c5c8134f6b86e6c924b08b261`.
+DB-GPT runs source commit `c14452ef1ae77b79f89510f1572509ab89be511c`, image
+ID `sha256:fb1331669d280e42e89cdd9a44721b95abd4c61283e6326f9a16583e6f3f3c1e`.
 Compose pins this same local image digest.
-The manifest checks all 2,387 source/skill/suite files and 615 static UI files.
+The manifest checks all 2,388 source/skill/suite files and 615 static UI files.
 There were no UI source changes in this commit: the verified static export from
 149d8782 is retained byte-for-byte, without another UI build. Only the DB-GPT
 webserver was recreated; MySQL, chat and Chroma volumes were retained. Admin and
@@ -45,6 +45,30 @@ HTTPS smoke passed, as did current-KB retrieval and 15/15 golden SQL checks.
 Four older `funnelmetry-demo-*` spaces were removed at the operator's request;
 the current space above is retained. Historical chat text is unchanged, but old
 KB selections must be replaced with the retained space before further retrieval.
+
+## Model management
+
+Active chat models are managed by the Admin provider UI under **Funnelmetry
+Qwen** (`custom/funnelmetry-qwen`), persisted in MySQL; model workers restore
+from model storage. `/etc/funnelmetry/ai-agent/dbgpt.toml` has no static LLM
+definitions. Its `default_llm` remains a preference, not a second model registry.
+The embedding definition `text-embedding-v3` remains unchanged.
+
+The provider and usable chat API both expose nine models: `qwen3.7-plus`,
+`qwen3.6-plus`, `qwen3.6-flash`, `qwen3.8-27b`, `qwen3.5-flash`, `qwen3.6-27b`,
+`qwen3.5-27b`, `qwen3.5-plus`, and `qwen3.8-flash`. The seven date-versioned
+models and their former Versioned provider are removed from active configuration;
+historical conversation/usage records are retained.
+
+The worker manager initializes with the webserver binding even without static
+LLMs, then attaches startup listeners. This fixes the previous empty-LLM startup
+crash and avoids using an embedding worker's default port for dynamic LLMs.
+Regression: 35 worker/startup tests pass. Checksums, Admin/Analyst HTTPS smoke
+and a read-only post-restart comparison confirm nine provider/chat models, no
+static LLMs and no return of retired date-versioned models. Worker registration
+is asynchronous; an immediate post-start empty list is not a final readiness
+result. Upstream advertises `qwen3.8-flash`; no analytical LLM call was used to
+certify its reasoning, token quota or context window.
 
 Native `tool_choice=auto` can now deliver the current provider's completed
 public text without a redundant terminate call. Private thinking, malformed
