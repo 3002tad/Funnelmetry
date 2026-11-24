@@ -349,3 +349,78 @@ redirects to DB-GPT, but API/shared consumers remain in source. Do not remove
 their code or storage based only on the absence of a running Qdrant service;
 inventory retained data and migrate or retire each consumer as part of the
 separate runtime cutover. No vector data was deleted by this integration.
+
+
+## Agent efficiency and streaming UI changes awaiting deployment (2026-11-24)
+
+Source changes following the cancelled qwen3.8-flash run replace the static
+initial evidence inventory with a bounded metadata-only task/evidence index
+refreshed before each native model call. Captured results remain in their
+owner/conversation-scoped catalog; omitted artifacts and full SQL/values remain
+available through session_evidence. Unknown scope and capture time do not certify
+freshness. The index is advisory/fail-open, with no extra model request, forced
+termination, business-query cache or tool restriction. The analysis skill now
+separates required evidence from optional extra investigations and future files.
+
+SQL failures for PostgreSQL multi-column COUNT receive a structured composite
+DISTINCT hint; the tool does not rewrite or retry SQL automatically. Native
+batches containing both SQL and todowrite project the actual task list, keeping
+live progress aligned with saved state.
+
+The UI coalesces execution updates over 40 ms, flushes pending terminal updates,
+caches artifact projections by immutable output/step identity and answer, and
+follows scrolling only while the reader is near the bottom. Step duration has
+an explanatory tooltip: it includes orchestration/transport, not only SQL time.
+
+Validation on a separate source copy: 29 backend tests (plus 10 subtests),
+36 UI tests and full web TypeScript check passed. No paid model calls or live
+service changes were made for this verification. These results do not measure
+browser responsiveness, token savings or model answer quality after deployment.
+The deployed source/image described above is unchanged until a separate deploy.
+
+
+## Chat, Dashboard and AWEL lifecycle fixes awaiting deployment (2026-11-24)
+
+The source rejects failed HTTP/JSON chat responses instead of reporting success,
+accepts SSE content types with charset, and reports ReAct closure without a
+terminal event as incomplete. Dashboard callbacks/uploads are scoped to the active
+controller; optional browser model preferences cannot block execution and removed
+models are excluded from effective selection.
+
+Taskflow generation errors preserve HTTP/application codes. Missing sessions may
+be recreated; denied sessions are not. Polling stops for permanent errors and
+backs off transient failures without resubmitting model work. Scope/epoch guards
+ignore old flow responses. Restore/save apply snapshots only if local canvas
+edits have not changed while awaiting a response; browser pointer storage is
+optional. Debug runs consume the final event without requiring a trailing newline
+and cannot submit after the drawer closes during preparation.
+
+Offline verification covers 54 tests; full web TypeScript is checked separately.
+These changes have no schema migration or permission/semantic contract change.
+They remain pending deployment and browser/LLM acceptance, including the previous
+Agent efficiency/UI changes above. Live service configuration is unchanged.
+
+
+## Query, execution and artifact delivery fixes awaiting deployment (2026-11-24)
+
+Query transport serializes non-finite values as explicit display text while
+preserving typed SQL captures for computation. Wide result payloads disclose
+column truncation separately from row truncation. Python syntax failures no
+longer trigger silent execution of a trimmed prefix. Shell tools expose failed
+execution/timeout status and publish only observed changed images from successful
+runs. Both tools offload workspace hashing/image publication from the event loop.
+Published image names are bounded and unique per publication, preventing two
+owners' identical images from sharing an exclusive owner URL. Existing owned
+image URLs/history remain supported. Browser export defers blob URL cleanup.
+
+Validation: 61 backend tests passed (3 optional Docker cases skipped), 36 UI tests
+passed, full web TypeScript passed. No paid model calls or live service changes.
+
+Live read-only inspection identified an operational gap: /app/pilot/tmp, used
+by the conversation Python/shell workspace and raw generated-file paths, is not
+mounted as a persistent volume. /app/pilot/data and /app/pilot/message are mounted
+and hold separate durable captures/published images. The DB-GPT overlay and
+migration guide in docker/compose_examples prepare persistence at the existing
+tmp path. Back up and copy current contents into the volume before recreation;
+this runtime change has not been applied. Do not claim historical file paths
+or Python variables are preserved by the presence of the artifact store alone.
