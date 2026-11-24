@@ -475,3 +475,13 @@ release. No hard step limit, tool restriction, migration or live redeployment is
 part of this fix. Offline regressions establish tool behavior; they cannot prove
 that a paid model will always stop promptly or quantify the new token savings.
 Targeted offline verification: 200 passed, 3 optional Docker tests skipped.
+
+Deployment completed 2026-11-24: DB-GPT `ad9ebfd0c5d817bdc76dd36b56c395fbf7b6c53f`
+is running with image `sha256:701f3b2a0bbefbad614f22674265526808a10c8ab33f6119163eebd593d37a65`.
+The backend/skill image inherits the unchanged, previously verified UI and
+dependencies from `87080139`; no UI rebuild was necessary. All 3,008 manifest
+files matched. Admin/Analyst login, semantic reads, public HTTPS and anonymous
+denial passed; provider configuration correctly returns 200 for Admin and 403
+for Analyst. Webserver is running with restart count 0 and the existing
+`ai-agent_agent-workspaces` volume. No paid LLM evaluation or KB publication was
+performed. This supersedes the pending-deployment status above.
