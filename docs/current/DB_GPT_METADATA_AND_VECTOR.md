@@ -351,7 +351,7 @@ inventory retained data and migrate or retire each consumer as part of the
 separate runtime cutover. No vector data was deleted by this integration.
 
 
-## Agent efficiency and streaming UI changes awaiting deployment (2026-11-24)
+## Agent efficiency and streaming UI changes (deployed 2026-11-24)
 
 Source changes following the cancelled qwen3.8-flash run replace the static
 initial evidence inventory with a bounded metadata-only task/evidence index
@@ -379,7 +379,7 @@ browser responsiveness, token savings or model answer quality after deployment.
 The deployed source/image described above is unchanged until a separate deploy.
 
 
-## Chat, Dashboard and AWEL lifecycle fixes awaiting deployment (2026-11-24)
+## Chat, Dashboard and AWEL lifecycle fixes (deployed 2026-11-24)
 
 The source rejects failed HTTP/JSON chat responses instead of reporting success,
 accepts SSE content types with charset, and reports ReAct closure without a
@@ -401,7 +401,7 @@ They remain pending deployment and browser/LLM acceptance, including the previou
 Agent efficiency/UI changes above. Live service configuration is unchanged.
 
 
-## Query, execution and artifact delivery fixes awaiting deployment (2026-11-24)
+## Query, execution and artifact delivery fixes (deployed 2026-11-24)
 
 Query transport serializes non-finite values as explicit display text while
 preserving typed SQL captures for computation. Wide result payloads disclose
@@ -424,3 +424,29 @@ migration guide in docker/compose_examples prepare persistence at the existing
 tmp path. Back up and copy current contents into the volume before recreation;
 this runtime change has not been applied. Do not claim historical file paths
 or Python variables are preserved by the presence of the artifact store alone.
+
+
+## Deployment acceptance — 2026-11-24
+
+The three source-change groups above are now deployed from DB-GPT commit
+`870801391cfa825b5ed312ae61ab9e1b85338606`, replacing the previous c14452ef runtime.
+Image ID pinned in VPS Compose:
+`sha256:6b1474aca56da34457f6c5ae3922d7ed4e85d6f84ad01a0f9d2e3ddb7c97c33a`.
+The rebuilt static UI and source manifest verified 3,006 files with zero
+mismatches. Full TypeScript and static export (70 pages) passed. Build used a
+2-CPU quota, 8 GiB memory maximum and up to 6 GiB swap; no new LLM calls.
+
+VPS Compose now mounts external named volume `ai-agent_agent-workspaces` at
+`/app/pilot/tmp`. The previous container had no tmp workspace files at the final
+stopped-container backup: manifest and tar record zero files. No historical
+working files were claimed as recovered. Existing data/message/MySQL volumes
+were retained. The new volume's verification file kept its SHA-256 checksum
+across the final webserver recreation. Backup/configuration baseline remains
+server-side in `/etc/funnelmetry/ai-agent/backups/stability-87080139/`.
+
+Only DB-GPT webserver was recreated. Container status running/restart count 0;
+Admin/Analyst login and read smoke for chat, semantic, AWEL and scheduled tasks
+passed. Public HTTPS provider/semantic reads and anonymous denial passed. This
+supersedes the earlier awaiting-deployment and missing-tmp-mount statements;
+browser rendering and paid model analytical acceptance remain separate. No KB
+publication is required because business/semantic definitions did not change.
